@@ -13,6 +13,10 @@ class LCContainer : ObservableObject, Hashable {
     @Published var name : String
     @Published var isShared : Bool
     @Published var isolateAppGroup : Bool
+    @Published var spoofGPS: Bool = false
+    @Published var spoofLatitude: Double = 37.7749
+    @Published var spoofLongitude: Double = -122.4194
+    @Published var spoofAltitude: Double = 0.0
     private var infoDict : [String:Any]?
     public var containerURL : URL {
         if isShared {
@@ -67,17 +71,25 @@ class LCContainer : ObservableObject, Hashable {
         return [
             "folderName" : folderName,
             "name" : name,
-            "isolateAppGroup" : isolateAppGroup
+            "isolateAppGroup" : isolateAppGroup,
+            "spoofGPS": spoofGPS,
+            "spoofLatitude": spoofLatitude,
+            "spoofLongitude": spoofLongitude,
+            "spoofAltitude": spoofAltitude
         ]
     }
     
-    func makeLCContainerInfoPlist(appIdentifier : String, keychainGroupId : Int) {
+    func makeLCContainerInfoPlist(appIdentifier: String, keychainGroupId: Int) {
         infoDict = [
             "appIdentifier" : appIdentifier,
             "name" : name,
             "keychainGroupId" : keychainGroupId,
             "isolateAppGroup" : isolateAppGroup,
         ]
+        containerInfo["spoofGPS"] = spoofGPS
+        containerInfo["spoofLatitude"] = spoofLatitude
+        containerInfo["spoofLongitude"] = spoofLongitude
+        containerInfo["spoofAltitude"] = spoofAltitude
         do {
             let fm = FileManager.default
             if(!fm.fileExists(atPath: infoDictUrl.deletingLastPathComponent().path)) {
@@ -92,6 +104,10 @@ class LCContainer : ObservableObject, Hashable {
     
     func reloadInfoPlist() {
         infoDict = NSDictionary(contentsOf: infoDictUrl) as? [String : Any]
+        spoofGPS = containerInfo["spoofGPS"] as? Bool ?? false
+        spoofLatitude = containerInfo["spoofLatitude"] as? Double ?? 37.7749
+        spoofLongitude = containerInfo["spoofLongitude"] as? Double ?? -122.4194
+        spoofAltitude = containerInfo["spoofAltitude"] as? Double ?? 0.0
     }
     
     func loadName() {

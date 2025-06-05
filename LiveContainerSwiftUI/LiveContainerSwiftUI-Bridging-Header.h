@@ -12,5 +12,6 @@
 #include "../MultitaskSupport/AppSceneViewController.h"
 #include "../MultitaskSupport/DecoratedAppSceneView.h"
 #include "../LiveContainer/FoundationPrivate.h"
+#include "../TweakLoader/CoreLocation+GuestHooks.h"
 
 #endif /* LiveContainerSwiftUI_Bridging_Header_h_h */

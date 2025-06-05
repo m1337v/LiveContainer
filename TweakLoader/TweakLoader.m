@@ -3,6 +3,9 @@
 #include <dlfcn.h>
 #include <objc/runtime.h>
 #include "utils.h"
+#import "CoreLocation+GuestHooks.h"
+
+void CoreLocationGuestHooksInit(void);
 
 static NSString *loadTweakAtURL(NSURL *url) {
     NSString *tweakPath = url.path;
@@ -110,6 +113,9 @@ static void TweakLoaderConstructor() {
             }
         }
     }
+
+    // Initialize GPS hooks
+    CoreLocationGuestHooksInit();
 
     if (errors.count > 0) {
         dispatch_async(dispatch_get_main_queue(), ^{
