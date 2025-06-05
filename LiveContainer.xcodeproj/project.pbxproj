@@ -173,6 +173,7 @@
 		174140F52D9C1C9B00F3F928 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				"CoreLocation+GuestHooks.m",
 				DocumentPicker.m,
 				TweakLoader.m,
 				"UIKit+GuestHooks.m",
@@ -1196,6 +1197,7 @@
 			name = Debug;
 		};
 		17DCE9D52C7067ED00731D42 /* Release */ = {
+		
 			isa = XCBuildConfiguration;
 			baseConfigurationReferenceAnchor = 17B0F8452DE16FE4008110EA /* xcconfigs */;
 			baseConfigurationReferenceRelativePath = Global.xcconfig;
