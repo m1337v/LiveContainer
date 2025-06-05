@@ -189,7 +189,7 @@ struct LCMapPickerView: View {
                     Button(action: {
                         pinLocation = region.center
                     }) {
-                        Label("Use Map Center", systemImage: "crosshairs")
+                        Label("Capture Location", systemImage: "target")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
