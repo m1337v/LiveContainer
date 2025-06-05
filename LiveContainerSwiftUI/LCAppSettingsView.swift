@@ -196,20 +196,16 @@ struct LCMapPickerView: View {
             .navigationTitle("Choose Location")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarBackButtonHidden(true)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        isPresented = false
-                    }
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    isPresented = false
+                },
+                trailing: Button("OK") {
+                    latitude = pinLocation.latitude
+                    longitude = pinLocation.longitude
+                    isPresented = false
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("OK") {
-                        latitude = pinLocation.latitude
-                        longitude = pinLocation.longitude
-                        isPresented = false
-                    }
-                }
-            }
+            )
         }
     }
 }
