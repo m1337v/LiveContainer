@@ -72,16 +72,16 @@ static CLLocationDistance spoofedAltitude = 0.0;
 
 void CoreLocationGuestHooksInit(void) {
     @try {
-        // Load GPS spoofing settings from container info
-        NSString *containerInfoPath = [NSString stringWithFormat:@"%@/LCContainerInfo.plist", getenv("HOME")];
-        NSDictionary *containerInfo = [NSDictionary dictionaryWithContentsOfFile:containerInfoPath];
+        // Use the same pattern as other guest hooks - read from NSUserDefaults.guestAppInfo
+        // This is safer than trying to read files directly
+        NSDictionary *guestAppInfo = NSUserDefaults.guestAppInfo;
         
-        if (containerInfo) {
-            spoofGPSEnabled = [containerInfo[@"spoofGPS"] boolValue];
+        if (guestAppInfo) {
+            spoofGPSEnabled = [guestAppInfo[@"spoofGPS"] boolValue];
             if (spoofGPSEnabled) {
-                spoofedCoordinate.latitude = [containerInfo[@"spoofLatitude"] doubleValue];
-                spoofedCoordinate.longitude = [containerInfo[@"spoofLongitude"] doubleValue];
-                spoofedAltitude = [containerInfo[@"spoofAltitude"] doubleValue];
+                spoofedCoordinate.latitude = [guestAppInfo[@"spoofLatitude"] doubleValue];
+                spoofedCoordinate.longitude = [guestAppInfo[@"spoofLongitude"] doubleValue];
+                spoofedAltitude = [guestAppInfo[@"spoofAltitude"] doubleValue];
                 
                 NSLog(@"[LC] Container GPS spoofing enabled: %f, %f, %f", 
                       spoofedCoordinate.latitude, 

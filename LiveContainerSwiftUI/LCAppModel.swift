@@ -89,7 +89,26 @@ class LCAppModel: ObservableObject, Hashable {
         }
     }
     
-    @Published var supportedLanaguages : [String]?
+    @Published var uiSpoofGPS : Bool {
+        didSet {
+            appInfo.spoofGPS = uiSpoofGPS
+        }
+    }
+    @Published var uiSpoofLatitude : Double {
+        didSet {
+            appInfo.spoofLatitude = uiSpoofLatitude
+        }
+    }
+    @Published var uiSpoofLongitude : Double {
+        didSet {
+            appInfo.spoofLongitude = uiSpoofLongitude
+        }
+    }
+    @Published var uiSpoofAltitude : Double {
+        didSet {
+            appInfo.spoofAltitude = uiSpoofAltitude
+        }
+    }
     
     var delegate : LCAppModelDelegate?
     
@@ -120,6 +139,11 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiSpoofSDKVersion = appInfo.spoofSDKVersion
         
         self.uiIs32bit = appInfo.is32bit
+        
+        self.uiSpoofGPS = appInfo.spoofGPS
+        self.uiSpoofLatitude = appInfo.spoofLatitude
+        self.uiSpoofLongitude = appInfo.spoofLongitude
+        self.uiSpoofAltitude = appInfo.spoofAltitude
         
         for container in uiContainers {
             if container.folderName == uiDefaultDataFolder {

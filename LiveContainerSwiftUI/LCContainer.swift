@@ -13,11 +13,9 @@ class LCContainer : ObservableObject, Hashable {
     @Published var name : String
     @Published var isShared : Bool
     @Published var isolateAppGroup : Bool
-    @Published var spoofGPS: Bool = false
-    @Published var spoofLatitude: Double = 37.7749
-    @Published var spoofLongitude: Double = -122.4194
-    @Published var spoofAltitude: Double = 0.0
+    
     private var infoDict : [String:Any]?
+    
     public var containerURL : URL {
         if isShared {
             return LCPath.lcGroupDataPath.appendingPathComponent("\(folderName)")
@@ -71,24 +69,16 @@ class LCContainer : ObservableObject, Hashable {
         return [
             "folderName" : folderName,
             "name" : name,
-            "isolateAppGroup" : isolateAppGroup,
-            "spoofGPS": spoofGPS,
-            "spoofLatitude": spoofLatitude,
-            "spoofLongitude": spoofLongitude,
-            "spoofAltitude": spoofAltitude
+            "isolateAppGroup" : isolateAppGroup
         ]
     }
     
-    func makeLCContainerInfoPlist(appIdentifier: String, keychainGroupId: Int) {
+    func makeLCContainerInfoPlist(appIdentifier : String, keychainGroupId : Int) {
         infoDict = [
             "appIdentifier" : appIdentifier,
             "name" : name,
             "keychainGroupId" : keychainGroupId,
-            "isolateAppGroup" : isolateAppGroup,
-            "spoofGPS" : spoofGPS,
-            "spoofLatitude" : spoofLatitude,
-            "spoofLongitude" : spoofLongitude,
-            "spoofAltitude" : spoofAltitude
+            "isolateAppGroup" : isolateAppGroup
         ]
         do {
             let fm = FileManager.default
@@ -104,10 +94,6 @@ class LCContainer : ObservableObject, Hashable {
     
     func reloadInfoPlist() {
         infoDict = NSDictionary(contentsOf: infoDictUrl) as? [String : Any]
-        spoofGPS = infoDict?["spoofGPS"] as? Bool ?? false
-        spoofLatitude = infoDict?["spoofLatitude"] as? Double ?? 37.7749
-        spoofLongitude = infoDict?["spoofLongitude"] as? Double ?? -122.4194
-        spoofAltitude = infoDict?["spoofAltitude"] as? Double ?? 0.0
     }
     
     func loadName() {
@@ -119,10 +105,6 @@ class LCContainer : ObservableObject, Hashable {
         }
         name = infoDict["name"] as? String ?? "ERROR"
         isolateAppGroup = infoDict["isolateAppGroup"] as? Bool ?? false
-        spoofGPS = infoDict["spoofGPS"] as? Bool ?? false
-        spoofLatitude = infoDict["spoofLatitude"] as? Double ?? 37.7749
-        spoofLongitude = infoDict["spoofLongitude"] as? Double ?? -122.4194
-        spoofAltitude = infoDict["spoofAltitude"] as? Double ?? 0.0
     }
     
     static func == (lhs: LCContainer, rhs: LCContainer) -> Bool {
@@ -162,5 +144,4 @@ extension LCAppInfo {
             }
         }
     }
-
 }

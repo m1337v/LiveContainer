@@ -278,6 +278,46 @@ struct LCAppSettingsView : View{
             } footer: {
                 Text("lc.appSettings.forceSignDesc".loc)
             }
+            
+            Section {
+                Toggle(isOn: $model.uiSpoofGPS) {
+                    Text("lc.appSettings.spoofGPS".loc)
+                }
+                
+                if model.uiSpoofGPS {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("lc.appSettings.latitude".loc)
+                            Spacer()
+                            TextField("37.7749", value: $model.uiSpoofLatitude, format: .number)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .frame(maxWidth: 120)
+                        }
+                        
+                        HStack {
+                            Text("lc.appSettings.longitude".loc)
+                            Spacer()
+                            TextField("-122.4194", value: $model.uiSpoofLongitude, format: .number)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .frame(maxWidth: 120)
+                        }
+                        
+                        HStack {
+                            Text("lc.appSettings.altitude".loc)
+                            Spacer()
+                            TextField("0.0", value: $model.uiSpoofAltitude, format: .number)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .frame(maxWidth: 120)
+                        }
+                    }
+                }
+            } header: {
+                Text("lc.appSettings.locationSettings".loc)
+            } footer: {
+                if model.uiSpoofGPS {
+                    Text("lc.appSettings.spoofGPSDesc".loc)
+                }
+            }
 
         }
         .navigationTitle(appInfo.displayName())

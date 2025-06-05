@@ -137,58 +137,6 @@ struct LCContainerView : View {
                     
                 }
             }
-            
-            Section {
-                Toggle(isOn: $container.spoofGPS) {
-                    Text("lc.container.spoofGPS".loc)
-                }
-                .onChange(of: container.spoofGPS) { newValue in
-                    saveContainer()
-                }
-                
-                if container.spoofGPS {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("lc.container.latitude".loc)
-                            Spacer()
-                            TextField("37.7749", value: $container.spoofLatitude, format: .number)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .frame(maxWidth: 120)
-                                .onSubmit {
-                                    saveContainer()
-                                }
-                        }
-                        
-                        HStack {
-                            Text("lc.container.longitude".loc)
-                            Spacer()
-                            TextField("-122.4194", value: $container.spoofLongitude, format: .number)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .frame(maxWidth: 120)
-                                .onSubmit {
-                                    saveContainer()
-                                }
-                        }
-                        
-                        HStack {
-                            Text("lc.container.altitude".loc)
-                            Spacer()
-                            TextField("0.0", value: $container.spoofAltitude, format: .number)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .frame(maxWidth: 120)
-                                .onSubmit {
-                                    saveContainer()
-                                }
-                        }
-                    }
-                }
-            } header: {
-                Text("lc.container.locationSettings".loc)
-            } footer: {
-                if container.spoofGPS {
-                    Text("lc.container.spoofGPSDesc".loc)
-                }
-            }
         }
         .navigationTitle(container.name)
         .navigationBarTitleDisplayMode(.inline)

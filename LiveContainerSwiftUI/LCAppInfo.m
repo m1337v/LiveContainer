@@ -621,4 +621,51 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     [self save];
 }
 
+- (bool)spoofGPS {
+    if(_info[@"spoofGPS"] != nil) {
+        return [_info[@"spoofGPS"] boolValue];
+    } else {
+        return NO;
+    }
+}
+- (void)setSpoofGPS:(bool)spoofGPS {
+    _info[@"spoofGPS"] = [NSNumber numberWithBool:spoofGPS];
+    [self save];
+}
+
+- (double)spoofLatitude {
+    if(_info[@"spoofLatitude"] != nil) {
+        return [_info[@"spoofLatitude"] doubleValue];
+    } else {
+        return 37.7749; // Default San Francisco
+    }
+}
+- (void)setSpoofLatitude:(double)spoofLatitude {
+    _info[@"spoofLatitude"] = [NSNumber numberWithDouble:spoofLatitude];
+    [self save];
+}
+
+- (double)spoofLongitude {
+    if(_info[@"spoofLongitude"] != nil) {
+        return [_info[@"spoofLongitude"] doubleValue];
+    } else {
+        return -122.4194; // Default San Francisco
+    }
+}
+- (void)setSpoofLongitude:(double)spoofLongitude {
+    _info[@"spoofLongitude"] = [NSNumber numberWithDouble:spoofLongitude];
+    [self save];
+}
+
+- (double)spoofAltitude {
+    if(_info[@"spoofAltitude"] != nil) {
+        return [_info[@"spoofAltitude"] doubleValue];
+    } else {
+        return 0.0;
+    }
+}
+- (void)setSpoofAltitude:(double)spoofAltitude {
+    _info[@"spoofAltitude"] = [NSNumber numberWithDouble:spoofAltitude];
+    [self save];
+}
 @end

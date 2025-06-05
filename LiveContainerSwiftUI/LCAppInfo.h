@@ -36,6 +36,12 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 
 @property bool is32bit;
 
+// Add these properties to the interface
+@property bool spoofGPS;
+@property double spoofLatitude;
+@property double spoofLongitude;
+@property double spoofAltitude;
+
 - (void)setBundlePath:(NSString*)newBundlePath;
 - (NSMutableDictionary*)info;
 - (UIImage*)icon;
