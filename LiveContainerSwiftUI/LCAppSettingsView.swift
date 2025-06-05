@@ -8,6 +8,55 @@
 import Foundation
 import SwiftUI
 
+struct GPSSettingsSection: View {
+    @Binding var spoofGPS: Bool
+    @Binding var latitude: Double
+    @Binding var longitude: Double
+    @Binding var altitude: Double
+    
+    var body: some View {
+        Section {
+            Toggle(isOn: $spoofGPS) {
+                Text("lc.appSettings.spoofGPS".loc)
+            }
+            
+            if spoofGPS {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("lc.appSettings.latitude".loc)
+                        Spacer()
+                        TextField("37.7749", value: $latitude, format: .number)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .frame(maxWidth: 120)
+                    }
+                    
+                    HStack {
+                        Text("lc.appSettings.longitude".loc)
+                        Spacer()
+                        TextField("-122.4194", value: $longitude, format: .number)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .frame(maxWidth: 120)
+                    }
+                    
+                    HStack {
+                        Text("lc.appSettings.altitude".loc)
+                        Spacer()
+                        TextField("0.0", value: $altitude, format: .number)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .frame(maxWidth: 120)
+                    }
+                }
+            }
+        } header: {
+            Text("lc.appSettings.locationSettings".loc)
+        } footer: {
+            if spoofGPS {
+                Text("lc.appSettings.spoofGPSDesc".loc)
+            }
+        }
+    }
+}
+
 struct LCAppSettingsView : View{
     
     private var appInfo : LCAppInfo
@@ -279,45 +328,13 @@ struct LCAppSettingsView : View{
                 Text("lc.appSettings.forceSignDesc".loc)
             }
             
-            Section {
-                Toggle(isOn: $model.uiSpoofGPS) {
-                    Text("lc.appSettings.spoofGPS".loc)
-                }
-                
-                if model.uiSpoofGPS {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("lc.appSettings.latitude".loc)
-                            Spacer()
-                            TextField("37.7749", value: $model.uiSpoofLatitude, format: .number)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .frame(maxWidth: 120)
-                        }
-                        
-                        HStack {
-                            Text("lc.appSettings.longitude".loc)
-                            Spacer()
-                            TextField("-122.4194", value: $model.uiSpoofLongitude, format: .number)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .frame(maxWidth: 120)
-                        }
-                        
-                        HStack {
-                            Text("lc.appSettings.altitude".loc)
-                            Spacer()
-                            TextField("0.0", value: $model.uiSpoofAltitude, format: .number)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .frame(maxWidth: 120)
-                        }
-                    }
-                }
-            } header: {
-                Text("lc.appSettings.locationSettings".loc)
-            } footer: {
-                if model.uiSpoofGPS {
-                    Text("lc.appSettings.spoofGPSDesc".loc)
-                }
-            }
+            // Add the GPS section
+            GPSSettingsSection(
+                spoofGPS: $model.uiSpoofGPS,
+                latitude: $model.uiSpoofLatitude,
+                longitude: $model.uiSpoofLongitude,
+                altitude: $model.uiSpoofAltitude
+            )
 
         }
         .navigationTitle(appInfo.displayName())

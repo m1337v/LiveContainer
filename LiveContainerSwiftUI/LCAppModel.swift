@@ -16,6 +16,9 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var signProgress = 0.0
     private var observer : NSKeyValueObservation?
     
+    // Add the missing supportedLanaguages property
+    @Published var supportedLanaguages: [String]?
+    
     @Published var uiIsJITNeeded : Bool {
         didSet {
             appInfo.isJITNeeded = uiIsJITNeeded
@@ -89,6 +92,7 @@ class LCAppModel: ObservableObject, Hashable {
         }
     }
     
+    // Add the missing GPS properties
     @Published var uiSpoofGPS : Bool {
         didSet {
             appInfo.spoofGPS = uiSpoofGPS
