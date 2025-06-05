@@ -137,9 +137,6 @@ struct LCMapPickerView: View {
                 Map(coordinateRegion: $region, annotationItems: [MapPin(coordinate: pinLocation)]) { pin in
                     MapMarker(coordinate: pin.coordinate, tint: .red)
                 }
-                .onTapGesture { location in
-                    pinLocation = region.center
-                }
                 .overlay(
                     // Crosshair in center for better precision
                     VStack {
@@ -187,6 +184,16 @@ struct LCMapPickerView: View {
                                 region.center.longitude = newValue
                             }
                     }
+                    
+                    // Add a button to capture the current map center
+                    Button(action: {
+                        pinLocation = region.center
+                    }) {
+                        Label("Use Map Center", systemImage: "crosshairs")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .padding(.top, 8)
                 }
                 .padding()
                 .background(Color.secondary.opacity(0.1))
