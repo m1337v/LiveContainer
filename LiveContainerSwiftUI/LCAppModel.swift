@@ -116,8 +116,8 @@ class LCAppModel: ObservableObject, Hashable {
     }
     @Published var uiSpoofLocationName : String {
         didSet {
-            // Fix: Use NSString constructor instead of casting
-            appInfo.spoofLocationName = NSString(string: uiSpoofLocationName)
+            // Now this should work without type issues
+            appInfo.setSpoofLocationName(uiSpoofLocationName)
         }
     }
     
@@ -155,8 +155,7 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiSpoofLatitude = appInfo.spoofLatitude
         self.uiSpoofLongitude = appInfo.spoofLongitude
         self.uiSpoofAltitude = appInfo.spoofAltitude
-        // Convert NSString to Swift String safely
-        self.uiSpoofLocationName = (appInfo.spoofLocationName as String?) ?? ""
+        self.uiSpoofLocationName = appInfo.spoofLocationName() ?? ""
         
         for container in uiContainers {
             if container.folderName == uiDefaultDataFolder {

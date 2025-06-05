@@ -637,7 +637,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     if(_info[@"spoofLatitude"] != nil) {
         return [_info[@"spoofLatitude"] doubleValue];
     } else {
-        return 37.7749; // Default San Francisco
+        return 37.7749;
     }
 }
 - (void)setSpoofLatitude:(CLLocationDegrees)spoofLatitude {
@@ -649,7 +649,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     if(_info[@"spoofLongitude"] != nil) {
         return [_info[@"spoofLongitude"] doubleValue];
     } else {
-        return -122.4194; // Default San Francisco
+        return -122.4194;
     }
 }
 - (void)setSpoofLongitude:(CLLocationDegrees)spoofLongitude {
@@ -666,24 +666,6 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 }
 - (void)setSpoofAltitude:(CLLocationDistance)spoofAltitude {
     _info[@"spoofAltitude"] = [NSNumber numberWithDouble:spoofAltitude];
-    [self save];
-}
-
-- (NSString*)spoofLocationName {
-    NSString* locationName = _info[@"spoofLocationName"];
-    if (locationName && [locationName isKindOfClass:[NSString class]]) {
-        return locationName;
-    } else {
-        return @""; // Return empty NSString, not nil
-    }
-}
-
-- (void)setSpoofLocationName:(NSString*)spoofLocationName {
-    if (spoofLocationName && [spoofLocationName length] > 0) {
-        _info[@"spoofLocationName"] = spoofLocationName;
-    } else {
-        _info[@"spoofLocationName"] = @""; // Store empty string instead of nil
-    }
     [self save];
 }
 @end
