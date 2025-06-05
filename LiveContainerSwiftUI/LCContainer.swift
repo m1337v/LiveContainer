@@ -85,11 +85,11 @@ class LCContainer : ObservableObject, Hashable {
             "name" : name,
             "keychainGroupId" : keychainGroupId,
             "isolateAppGroup" : isolateAppGroup,
+            "spoofGPS" : spoofGPS,
+            "spoofLatitude" : spoofLatitude,
+            "spoofLongitude" : spoofLongitude,
+            "spoofAltitude" : spoofAltitude
         ]
-        containerInfo["spoofGPS"] = spoofGPS
-        containerInfo["spoofLatitude"] = spoofLatitude
-        containerInfo["spoofLongitude"] = spoofLongitude
-        containerInfo["spoofAltitude"] = spoofAltitude
         do {
             let fm = FileManager.default
             if(!fm.fileExists(atPath: infoDictUrl.deletingLastPathComponent().path)) {
@@ -104,10 +104,10 @@ class LCContainer : ObservableObject, Hashable {
     
     func reloadInfoPlist() {
         infoDict = NSDictionary(contentsOf: infoDictUrl) as? [String : Any]
-        spoofGPS = containerInfo["spoofGPS"] as? Bool ?? false
-        spoofLatitude = containerInfo["spoofLatitude"] as? Double ?? 37.7749
-        spoofLongitude = containerInfo["spoofLongitude"] as? Double ?? -122.4194
-        spoofAltitude = containerInfo["spoofAltitude"] as? Double ?? 0.0
+        spoofGPS = infoDict?["spoofGPS"] as? Bool ?? false
+        spoofLatitude = infoDict?["spoofLatitude"] as? Double ?? 37.7749
+        spoofLongitude = infoDict?["spoofLongitude"] as? Double ?? -122.4194
+        spoofAltitude = infoDict?["spoofAltitude"] as? Double ?? 0.0
     }
     
     func loadName() {
@@ -119,6 +119,10 @@ class LCContainer : ObservableObject, Hashable {
         }
         name = infoDict["name"] as? String ?? "ERROR"
         isolateAppGroup = infoDict["isolateAppGroup"] as? Bool ?? false
+        spoofGPS = infoDict["spoofGPS"] as? Bool ?? false
+        spoofLatitude = infoDict["spoofLatitude"] as? Double ?? 37.7749
+        spoofLongitude = infoDict["spoofLongitude"] as? Double ?? -122.4194
+        spoofAltitude = infoDict["spoofAltitude"] as? Double ?? 0.0
     }
     
     static func == (lhs: LCContainer, rhs: LCContainer) -> Bool {
