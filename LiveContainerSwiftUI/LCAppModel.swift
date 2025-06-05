@@ -116,8 +116,8 @@ class LCAppModel: ObservableObject, Hashable {
     }
     @Published var uiSpoofLocationName : String {
         didSet {
-            // Now this should work without type issues
-            appInfo.setSpoofLocationName(uiSpoofLocationName)
+            // Change this line:
+            appInfo.spoofLocationName = uiSpoofLocationName
         }
     }
     
@@ -155,7 +155,7 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiSpoofLatitude = appInfo.spoofLatitude
         self.uiSpoofLongitude = appInfo.spoofLongitude
         self.uiSpoofAltitude = appInfo.spoofAltitude
-        self.uiSpoofLocationName = appInfo.spoofLocationName() ?? ""
+        self.uiSpoofLocationName = appInfo.spoofLocationName ?? ""
         
         for container in uiContainers {
             if container.folderName == uiDefaultDataFolder {

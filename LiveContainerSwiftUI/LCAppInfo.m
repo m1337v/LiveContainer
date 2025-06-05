@@ -668,4 +668,22 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     _info[@"spoofAltitude"] = [NSNumber numberWithDouble:spoofAltitude];
     [self save];
 }
+
+- (NSString*)spoofLocationName {
+    NSString* locationName = _info[@"spoofLocationName"];
+    if (locationName && [locationName isKindOfClass:[NSString class]]) {
+        return locationName;
+    } else {
+        return @""; // Return empty NSString, not nil
+    }
+}
+
+- (void)setSpoofLocationName:(NSString*)spoofLocationName {
+    if (spoofLocationName && [spoofLocationName length] > 0) {
+        _info[@"spoofLocationName"] = spoofLocationName;
+    } else {
+        _info[@"spoofLocationName"] = @""; // Store empty string instead of nil
+    }
+    [self save];
+}
 @end
