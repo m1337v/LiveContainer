@@ -10,6 +10,13 @@ import SwiftUI
 import CoreLocation
 import MapKit
 
+// Add this extension for CLLocationCoordinate2D Equatable conformance
+extension CLLocationCoordinate2D: Equatable {
+    public static func == (lhs: CLLocationCoordinate2D, rhs: CLLocationCoordinate2D) -> Bool {
+        return lhs.latitude == rhs.latitude && lhs.longitude == rhs.longitude
+    }
+}
+
 struct GPSSettingsSection: View {
     @Binding var spoofGPS: Bool
     @Binding var latitude: CLLocationDegrees
@@ -320,6 +327,145 @@ struct LCMapPickerView: View {
 struct MapPin: Identifiable {
     let id = UUID()
     let coordinate: CLLocationCoordinate2D
+}
+
+struct City {
+    let name: String
+    let latitude: CLLocationDegrees
+    let longitude: CLLocationDegrees
+}
+
+struct LCCityPickerView: View {
+    @Binding var latitude: CLLocationDegrees
+    @Binding var longitude: CLLocationDegrees
+    @Binding var locationName: String
+    @Binding var isPresented: Bool
+    
+    static let cities = [
+        City(name: "New York", latitude: 40.7128, longitude: -74.0060),
+        City(name: "Los Angeles", latitude: 34.0522, longitude: -118.2437),
+        City(name: "Chicago", latitude: 41.8781, longitude: -87.6298),
+        City(name: "Houston", latitude: 29.7604, longitude: -95.3698),
+        City(name: "Phoenix", latitude: 33.4484, longitude: -112.0740),
+        City(name: "Philadelphia", latitude: 39.9526, longitude: -75.1652),
+        City(name: "San Antonio", latitude: 29.4241, longitude: -98.4936),
+        City(name: "San Diego", latitude: 32.7157, longitude: -117.1611),
+        City(name: "Dallas", latitude: 32.7767, longitude: -96.7970),
+        City(name: "San Jose", latitude: 37.3382, longitude: -121.8863),
+        City(name: "Austin", latitude: 30.2672, longitude: -97.7431),
+        City(name: "Jacksonville", latitude: 30.3322, longitude: -81.6557),
+        City(name: "San Francisco", latitude: 37.7749, longitude: -122.4194),
+        City(name: "Columbus", latitude: 39.9612, longitude: -82.9988),
+        City(name: "Fort Worth", latitude: 32.7555, longitude: -97.3308),
+        City(name: "Indianapolis", latitude: 39.7684, longitude: -86.1581),
+        City(name: "Charlotte", latitude: 35.2271, longitude: -80.8431),
+        City(name: "Seattle", latitude: 47.6062, longitude: -122.3321),
+        City(name: "Denver", latitude: 39.7392, longitude: -104.9903),
+        City(name: "Washington DC", latitude: 38.9072, longitude: -77.0369),
+        City(name: "Boston", latitude: 42.3601, longitude: -71.0589),
+        City(name: "El Paso", latitude: 31.7619, longitude: -106.4850),
+        City(name: "Detroit", latitude: 42.3314, longitude: -83.0458),
+        City(name: "Nashville", latitude: 36.1627, longitude: -86.7816),
+        City(name: "Portland", latitude: 45.5152, longitude: -122.6784),
+        City(name: "Memphis", latitude: 35.1495, longitude: -90.0490),
+        City(name: "Oklahoma City", latitude: 35.4676, longitude: -97.5164),
+        City(name: "Las Vegas", latitude: 36.1699, longitude: -115.1398),
+        City(name: "Louisville", latitude: 38.2527, longitude: -85.7585),
+        City(name: "Baltimore", latitude: 39.2904, longitude: -76.6122),
+        City(name: "Milwaukee", latitude: 43.0389, longitude: -87.9065),
+        City(name: "Albuquerque", latitude: 35.0844, longitude: -106.6504),
+        City(name: "Tucson", latitude: 32.2226, longitude: -110.9747),
+        City(name: "Fresno", latitude: 36.7378, longitude: -119.7871),
+        City(name: "Mesa", latitude: 33.4152, longitude: -111.8315),
+        City(name: "Sacramento", latitude: 38.5816, longitude: -121.4944),
+        City(name: "Atlanta", latitude: 33.7490, longitude: -84.3880),
+        City(name: "Kansas City", latitude: 39.0997, longitude: -94.5786),
+        City(name: "Colorado Springs", latitude: 38.8339, longitude: -104.8214),
+        City(name: "Miami", latitude: 25.7617, longitude: -80.1918),
+        City(name: "Raleigh", latitude: 35.7796, longitude: -78.6382),
+        City(name: "Omaha", latitude: 41.2524, longitude: -95.9980),
+        City(name: "Long Beach", latitude: 33.7701, longitude: -118.1937),
+        City(name: "Virginia Beach", latitude: 36.8529, longitude: -75.9780),
+        City(name: "Oakland", latitude: 37.8044, longitude: -122.2711),
+        City(name: "Minneapolis", latitude: 44.9778, longitude: -93.2650),
+        City(name: "Tulsa", latitude: 36.1540, longitude: -95.9928),
+        City(name: "Arlington", latitude: 32.7357, longitude: -97.1081),
+        City(name: "Tampa", latitude: 27.9506, longitude: -82.4572),
+        City(name: "New Orleans", latitude: 29.9511, longitude: -90.0715),
+        
+        // International cities
+        City(name: "London", latitude: 51.5074, longitude: -0.1278),
+        City(name: "Paris", latitude: 48.8566, longitude: 2.3522),
+        City(name: "Tokyo", latitude: 35.6762, longitude: 139.6503),
+        City(name: "Berlin", latitude: 52.5200, longitude: 13.4050),
+        City(name: "Madrid", latitude: 40.4168, longitude: -3.7038),
+        City(name: "Rome", latitude: 41.9028, longitude: 12.4964),
+        City(name: "Amsterdam", latitude: 52.3676, longitude: 4.9041),
+        City(name: "Vienna", latitude: 48.2082, longitude: 16.3738),
+        City(name: "Prague", latitude: 50.0755, longitude: 14.4378),
+        City(name: "Budapest", latitude: 47.4979, longitude: 19.0402),
+        City(name: "Warsaw", latitude: 52.2297, longitude: 21.0122),
+        City(name: "Stockholm", latitude: 59.3293, longitude: 18.0686),
+        City(name: "Oslo", latitude: 59.9139, longitude: 10.7522),
+        City(name: "Copenhagen", latitude: 55.6761, longitude: 12.5683),
+        City(name: "Helsinki", latitude: 60.1699, longitude: 24.9384),
+        City(name: "Dublin", latitude: 53.3498, longitude: -6.2603),
+        City(name: "Brussels", latitude: 50.8503, longitude: 4.3517),
+        City(name: "Zurich", latitude: 47.3769, longitude: 8.5417),
+        City(name: "Barcelona", latitude: 41.3851, longitude: 2.1734),
+        City(name: "Lisbon", latitude: 38.7223, longitude: -9.1393),
+        City(name: "Athens", latitude: 37.9838, longitude: 23.7275),
+        City(name: "Istanbul", latitude: 41.0082, longitude: 28.9784),
+        City(name: "Moscow", latitude: 55.7558, longitude: 37.6176),
+        City(name: "Sydney", latitude: -33.8688, longitude: 151.2093),
+        City(name: "Melbourne", latitude: -37.8136, longitude: 144.9631),
+        City(name: "Toronto", latitude: 43.6532, longitude: -79.3832),
+        City(name: "Vancouver", latitude: 49.2827, longitude: -123.1207),
+        City(name: "Montreal", latitude: 45.5017, longitude: -73.5673)
+    ]
+    
+    @State private var searchText = ""
+    
+    var filteredCities: [City] {
+        if searchText.isEmpty {
+            return Self.cities
+        } else {
+            return Self.cities.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        }
+    }
+    
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(filteredCities, id: \.name) { city in
+                    Button(action: {
+                        latitude = city.latitude
+                        longitude = city.longitude
+                        locationName = city.name // Set the city name
+                        isPresented = false
+                    }) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(city.name)
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            Text("\(city.latitude, specifier: "%.4f"), \(city.longitude, specifier: "%.4f")")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+            .searchable(text: $searchText, prompt: "Search cities...")
+            .navigationTitle("Choose City")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    isPresented = false
+                }
+            )
+        }
+    }
 }
 
 struct LCAppSettingsView : View{
@@ -936,144 +1082,5 @@ extension LCAppSettingsView : LCSelectContainerViewDelegate {
         }
         appInfo.containers = model.uiContainers;
 
-    }
-}
-
-struct City {
-    let name: String
-    let latitude: CLLocationDegrees
-    let longitude: CLLocationDegrees
-}
-
-struct LCCityPickerView: View {
-    @Binding var latitude: CLLocationDegrees
-    @Binding var longitude: CLLocationDegrees
-    @Binding var locationName: String
-    @Binding var isPresented: Bool
-    
-    static let cities = [
-        City(name: "New York", latitude: 40.7128, longitude: -74.0060),
-        City(name: "Los Angeles", latitude: 34.0522, longitude: -118.2437),
-        City(name: "Chicago", latitude: 41.8781, longitude: -87.6298),
-        City(name: "Houston", latitude: 29.7604, longitude: -95.3698),
-        City(name: "Phoenix", latitude: 33.4484, longitude: -112.0740),
-        City(name: "Philadelphia", latitude: 39.9526, longitude: -75.1652),
-        City(name: "San Antonio", latitude: 29.4241, longitude: -98.4936),
-        City(name: "San Diego", latitude: 32.7157, longitude: -117.1611),
-        City(name: "Dallas", latitude: 32.7767, longitude: -96.7970),
-        City(name: "San Jose", latitude: 37.3382, longitude: -121.8863),
-        City(name: "Austin", latitude: 30.2672, longitude: -97.7431),
-        City(name: "Jacksonville", latitude: 30.3322, longitude: -81.6557),
-        City(name: "San Francisco", latitude: 37.7749, longitude: -122.4194),
-        City(name: "Columbus", latitude: 39.9612, longitude: -82.9988),
-        City(name: "Fort Worth", latitude: 32.7555, longitude: -97.3308),
-        City(name: "Indianapolis", latitude: 39.7684, longitude: -86.1581),
-        City(name: "Charlotte", latitude: 35.2271, longitude: -80.8431),
-        City(name: "Seattle", latitude: 47.6062, longitude: -122.3321),
-        City(name: "Denver", latitude: 39.7392, longitude: -104.9903),
-        City(name: "Washington DC", latitude: 38.9072, longitude: -77.0369),
-        City(name: "Boston", latitude: 42.3601, longitude: -71.0589),
-        City(name: "El Paso", latitude: 31.7619, longitude: -106.4850),
-        City(name: "Detroit", latitude: 42.3314, longitude: -83.0458),
-        City(name: "Nashville", latitude: 36.1627, longitude: -86.7816),
-        City(name: "Portland", latitude: 45.5152, longitude: -122.6784),
-        City(name: "Memphis", latitude: 35.1495, longitude: -90.0490),
-        City(name: "Oklahoma City", latitude: 35.4676, longitude: -97.5164),
-        City(name: "Las Vegas", latitude: 36.1699, longitude: -115.1398),
-        City(name: "Louisville", latitude: 38.2527, longitude: -85.7585),
-        City(name: "Baltimore", latitude: 39.2904, longitude: -76.6122),
-        City(name: "Milwaukee", latitude: 43.0389, longitude: -87.9065),
-        City(name: "Albuquerque", latitude: 35.0844, longitude: -106.6504),
-        City(name: "Tucson", latitude: 32.2226, longitude: -110.9747),
-        City(name: "Fresno", latitude: 36.7378, longitude: -119.7871),
-        City(name: "Mesa", latitude: 33.4152, longitude: -111.8315),
-        City(name: "Sacramento", latitude: 38.5816, longitude: -121.4944),
-        City(name: "Atlanta", latitude: 33.7490, longitude: -84.3880),
-        City(name: "Kansas City", latitude: 39.0997, longitude: -94.5786),
-        City(name: "Colorado Springs", latitude: 38.8339, longitude: -104.8214),
-        City(name: "Miami", latitude: 25.7617, longitude: -80.1918),
-        City(name: "Raleigh", latitude: 35.7796, longitude: -78.6382),
-        City(name: "Omaha", latitude: 41.2524, longitude: -95.9980),
-        City(name: "Long Beach", latitude: 33.7701, longitude: -118.1937),
-        City(name: "Virginia Beach", latitude: 36.8529, longitude: -75.9780),
-        City(name: "Oakland", latitude: 37.8044, longitude: -122.2711),
-        City(name: "Minneapolis", latitude: 44.9778, longitude: -93.2650),
-        City(name: "Tulsa", latitude: 36.1540, longitude: -95.9928),
-        City(name: "Arlington", latitude: 32.7357, longitude: -97.1081),
-        City(name: "Tampa", latitude: 27.9506, longitude: -82.4572),
-        City(name: "New Orleans", latitude: 29.9511, longitude: -90.0715),
-        
-        // International cities
-        City(name: "London", latitude: 51.5074, longitude: -0.1278),
-        City(name: "Paris", latitude: 48.8566, longitude: 2.3522),
-        City(name: "Tokyo", latitude: 35.6762, longitude: 139.6503),
-        City(name: "Berlin", latitude: 52.5200, longitude: 13.4050),
-        City(name: "Madrid", latitude: 40.4168, longitude: -3.7038),
-        City(name: "Rome", latitude: 41.9028, longitude: 12.4964),
-        City(name: "Amsterdam", latitude: 52.3676, longitude: 4.9041),
-        City(name: "Vienna", latitude: 48.2082, longitude: 16.3738),
-        City(name: "Prague", latitude: 50.0755, longitude: 14.4378),
-        City(name: "Budapest", latitude: 47.4979, longitude: 19.0402),
-        City(name: "Warsaw", latitude: 52.2297, longitude: 21.0122),
-        City(name: "Stockholm", latitude: 59.3293, longitude: 18.0686),
-        City(name: "Oslo", latitude: 59.9139, longitude: 10.7522),
-        City(name: "Copenhagen", latitude: 55.6761, longitude: 12.5683),
-        City(name: "Helsinki", latitude: 60.1699, longitude: 24.9384),
-        City(name: "Dublin", latitude: 53.3498, longitude: -6.2603),
-        City(name: "Brussels", latitude: 50.8503, longitude: 4.3517),
-        City(name: "Zurich", latitude: 47.3769, longitude: 8.5417),
-        City(name: "Barcelona", latitude: 41.3851, longitude: 2.1734),
-        City(name: "Lisbon", latitude: 38.7223, longitude: -9.1393),
-        City(name: "Athens", latitude: 37.9838, longitude: 23.7275),
-        City(name: "Istanbul", latitude: 41.0082, longitude: 28.9784),
-        City(name: "Moscow", latitude: 55.7558, longitude: 37.6176),
-        City(name: "Sydney", latitude: -33.8688, longitude: 151.2093),
-        City(name: "Melbourne", latitude: -37.8136, longitude: 144.9631),
-        City(name: "Toronto", latitude: 43.6532, longitude: -79.3832),
-        City(name: "Vancouver", latitude: 49.2827, longitude: -123.1207),
-        City(name: "Montreal", latitude: 45.5017, longitude: -73.5673)
-    ]
-    
-    @State private var searchText = ""
-    
-    var filteredCities: [City] {
-        if searchText.isEmpty {
-            return cities
-        } else {
-            return cities.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
-        }
-    }
-    
-    var body: some View {
-        NavigationView {
-            List {
-                ForEach(filteredCities, id: \.name) { city in
-                    Button(action: {
-                        latitude = city.latitude
-                        longitude = city.longitude
-                        locationName = city.name // Set the city name
-                        isPresented = false
-                    }) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(city.name)
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            Text("\(city.latitude, specifier: "%.4f"), \(city.longitude, specifier: "%.4f")")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.vertical, 2)
-                    }
-                }
-            }
-            .searchable(text: $searchText, prompt: "Search cities...")
-            .navigationTitle("Choose City")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(
-                leading: Button("Cancel") {
-                    isPresented = false
-                }
-            )
-        }
     }
 }
