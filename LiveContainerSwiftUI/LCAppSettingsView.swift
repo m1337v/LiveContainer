@@ -195,6 +195,7 @@ struct LCMapPickerView: View {
             }
             .navigationTitle("Choose Location")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
