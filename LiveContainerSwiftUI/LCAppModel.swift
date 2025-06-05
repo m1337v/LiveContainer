@@ -116,7 +116,7 @@ class LCAppModel: ObservableObject, Hashable {
     }
     @Published var uiSpoofLocationName : String {
         didSet {
-            // Convert Swift String to NSString for Objective-C compatibility
+            // Fix the conversion - use explicit casting
             appInfo.spoofLocationName = uiSpoofLocationName as NSString
         }
     }
