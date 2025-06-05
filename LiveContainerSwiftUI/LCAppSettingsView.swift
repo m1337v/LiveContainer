@@ -142,7 +142,7 @@ struct LCMapPickerView: View {
                     VStack {
                         HStack {
                             Spacer()
-                            Image(systemName: "plus")
+                            Image(systemName: "target")
                                 .font(.title2)
                                 .foregroundColor(.red)
                                 .background(
