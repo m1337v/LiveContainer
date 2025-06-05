@@ -7,12 +7,13 @@
 
 import Foundation
 import SwiftUI
+import CoreLocation
 
 struct GPSSettingsSection: View {
     @Binding var spoofGPS: Bool
-    @Binding var latitude: Double
-    @Binding var longitude: Double
-    @Binding var altitude: Double
+    @Binding var latitude: CLLocationDegrees  // Change from Double
+    @Binding var longitude: CLLocationDegrees // Change from Double
+    @Binding var altitude: CLLocationDistance // Change from Double
     
     var body: some View {
         Section {

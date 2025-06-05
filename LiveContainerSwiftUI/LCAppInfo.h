@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
+#import <CoreLocation/CoreLocation.h>
 #import "LCUtils.h"
 
 typedef NS_ENUM(NSInteger, LCOrientationLock){
@@ -38,9 +39,9 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 
 // Add these properties to the interface
 @property bool spoofGPS;
-@property double spoofLatitude;
-@property double spoofLongitude;
-@property double spoofAltitude;
+@property CLLocationDegrees spoofLatitude;
+@property CLLocationDegrees spoofLongitude;
+@property CLLocationDistance spoofAltitude; // This is also a proper CoreLocation type
 
 - (void)setBundlePath:(NSString*)newBundlePath;
 - (NSMutableDictionary*)info;

@@ -1,4 +1,5 @@
 import Foundation
+import CoreLocation
 
 protocol LCAppModelDelegate {
     func closeNavigationView()
@@ -98,17 +99,17 @@ class LCAppModel: ObservableObject, Hashable {
             appInfo.spoofGPS = uiSpoofGPS
         }
     }
-    @Published var uiSpoofLatitude : Double {
+    @Published var uiSpoofLatitude : CLLocationDegrees {
         didSet {
             appInfo.spoofLatitude = uiSpoofLatitude
         }
     }
-    @Published var uiSpoofLongitude : Double {
+    @Published var uiSpoofLongitude : CLLocationDegrees {
         didSet {
             appInfo.spoofLongitude = uiSpoofLongitude
         }
     }
-    @Published var uiSpoofAltitude : Double {
+    @Published var uiSpoofAltitude : CLLocationDistance {
         didSet {
             appInfo.spoofAltitude = uiSpoofAltitude
         }

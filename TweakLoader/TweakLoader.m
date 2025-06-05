@@ -57,39 +57,6 @@ static void showDlerrAlert(NSString *error) {
     objc_setAssociatedObject(alert, @"window", window, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
-static void showGPSDebugAlert(NSDictionary *guestAppInfo) {
-    NSString *debugMessage = [NSString stringWithFormat:@"GPS Debug Info:\n\nspoofGPS: %@\nspoofLatitude: %@\nspoofLongitude: %@\nspoofAltitude: %@\n\nRaw guestAppInfo GPS keys:\n%@", 
-        guestAppInfo[@"spoofGPS"] ?: @"nil",
-        guestAppInfo[@"spoofLatitude"] ?: @"nil", 
-        guestAppInfo[@"spoofLongitude"] ?: @"nil",
-        guestAppInfo[@"spoofAltitude"] ?: @"nil",
-        @{
-            @"spoofGPS": guestAppInfo[@"spoofGPS"] ?: @"nil",
-            @"spoofLatitude": guestAppInfo[@"spoofLatitude"] ?: @"nil",
-            @"spoofLongitude": guestAppInfo[@"spoofLongitude"] ?: @"nil", 
-            @"spoofAltitude": guestAppInfo[@"spoofAltitude"] ?: @"nil"
-        }
-    ];
-    
-    UIWindow *window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"GPS Debug Info" message:debugMessage preferredStyle:UIAlertControllerStyleAlert];
-    UIAlertAction* okAction = [UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:^(UIAlertAction * action) {
-        window.windowScene = nil;
-    }];
-    [alert addAction:okAction];
-    UIAlertAction* copyAction = [UIAlertAction actionWithTitle:@"Copy" style:UIAlertActionStyleCancel handler:^(UIAlertAction * action) {
-        UIPasteboard.generalPasteboard.string = debugMessage;
-        window.windowScene = nil;
-    }];
-    [alert addAction:copyAction];
-    window.rootViewController = [UIViewController new];
-    window.windowLevel = 1000;
-    window.windowScene = (id)UIApplication.sharedApplication.connectedScenes.anyObject;
-    [window makeKeyAndVisible];
-    [window.rootViewController presentViewController:alert animated:YES completion:nil];
-    objc_setAssociated_object(alert, @"window", window, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-}
-
  __attribute__((constructor))
 static void TweakLoaderConstructor() {
     const char *tweakFolderC = getenv("LC_GLOBAL_TWEAKS_FOLDER");
@@ -103,13 +70,6 @@ static void TweakLoaderConstructor() {
     }
     
     NSMutableArray *errors = [NSMutableArray new];
-    
-    // Add GPS debug popup - show this early to see what we're getting
-    if (NSUserDefaults.guestAppInfo[@"spoofGPS"]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            showGPSDebugAlert(NSUserDefaults.guestAppInfo);
-        });
-    }
     
     NSArray<NSURL *> *globalTweaks = [NSFileManager.defaultManager contentsOfDirectoryAtURL:[NSURL fileURLWithPath:globalTweakFolder]
     includingPropertiesForKeys:@[] options:0 error:nil];

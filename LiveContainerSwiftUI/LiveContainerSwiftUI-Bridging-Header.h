@@ -9,6 +9,7 @@
 #include "LCAppInfo.h"
 #include "LCUtils.h"
 #include "unarchive.h"
+#include <CoreLocation/CoreLocation.h>
 #include "../MultitaskSupport/AppSceneViewController.h"
 #include "../MultitaskSupport/DecoratedAppSceneView.h"
 #include "../LiveContainer/FoundationPrivate.h"
