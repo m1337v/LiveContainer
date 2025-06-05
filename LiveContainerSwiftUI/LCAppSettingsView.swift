@@ -10,13 +10,6 @@ import SwiftUI
 import CoreLocation
 import MapKit
 
-// Add this extension for CLLocationCoordinate2D Equatable conformance
-extension CLLocationCoordinate2D: Equatable {
-    public static func == (lhs: CLLocationCoordinate2D, rhs: CLLocationCoordinate2D) -> Bool {
-        return lhs.latitude == rhs.latitude && lhs.longitude == rhs.longitude
-    }
-}
-
 struct GPSSettingsSection: View {
     @Binding var spoofGPS: Bool
     @Binding var latitude: CLLocationDegrees
@@ -162,6 +155,7 @@ struct LCMapPickerView: View {
     @State private var region: MKCoordinateRegion
     @State private var pinLocation: CLLocationCoordinate2D
     @State private var currentLocationName = "Loading..."
+    @State private var lastGeocodedCoordinate = CLLocationCoordinate2D(latitude: 0, longitude: 0)
     
     init(latitude: Binding<CLLocationDegrees>, longitude: Binding<CLLocationDegrees>, locationName: Binding<String>, isPresented: Binding<Bool>) {
         self._latitude = latitude
@@ -183,14 +177,11 @@ struct LCMapPickerView: View {
                 Map(coordinateRegion: $region, annotationItems: [MapPin(coordinate: pinLocation)]) { pin in
                     MapMarker(coordinate: pin.coordinate, tint: .red)
                 }
-                .onChange(of: region.center) { newCenter in
-                    // Debounce geocoding requests to avoid too many API calls
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        if abs(newCenter.latitude - region.center.latitude) < 0.001 && 
-                           abs(newCenter.longitude - region.center.longitude) < 0.001 {
-                            reverseGeocode(coordinate: newCenter)
-                        }
-                    }
+                .onChange(of: region.center.latitude) { _ in
+                    handleRegionChange()
+                }
+                .onChange(of: region.center.longitude) { _ in
+                    handleRegionChange()
                 }
                 .overlay(
                     // Crosshair in center for better precision
@@ -286,19 +277,38 @@ struct LCMapPickerView: View {
             )
         }
         .onAppear {
-            // Get initial location name
             reverseGeocode(coordinate: region.center)
         }
     }
     
+    private func handleRegionChange() {
+        let currentCenter = region.center
+        let distance = sqrt(pow(currentCenter.latitude - lastGeocodedCoordinate.latitude, 2) + 
+                           pow(currentCenter.longitude - lastGeocodedCoordinate.longitude, 2))
+        
+        // Only geocode if moved significantly (about 100m)
+        if distance > 0.001 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                // Double-check we haven't moved again
+                let finalCenter = region.center
+                let finalDistance = sqrt(pow(finalCenter.latitude - currentCenter.latitude, 2) + 
+                                       pow(finalCenter.longitude - currentCenter.longitude, 2))
+                
+                if finalDistance < 0.0001 { // Still in roughly the same place
+                    reverseGeocode(coordinate: finalCenter)
+                }
+            }
+        }
+    }
+    
     private func reverseGeocode(coordinate: CLLocationCoordinate2D) {
+        lastGeocodedCoordinate = coordinate
         let geocoder = CLGeocoder()
         let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
         
         geocoder.reverseGeocodeLocation(location) { placemarks, error in
             DispatchQueue.main.async {
                 if let placemark = placemarks?.first {
-                    // Try to build a nice location name
                     var locationComponents: [String] = []
                     
                     if let locality = placemark.locality {
