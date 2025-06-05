@@ -71,34 +71,42 @@ static CLLocationDistance spoofedAltitude = 0.0;
 @end
 
 void CoreLocationGuestHooksInit(void) {
-    // Load GPS spoofing settings from container info
-    NSString *containerInfoPath = [NSString stringWithFormat:@"%@/LCContainerInfo.plist", getenv("HOME")];
-    NSDictionary *containerInfo = [NSDictionary dictionaryWithContentsOfFile:containerInfoPath];
-    
-    if (containerInfo) {
-        spoofGPSEnabled = [containerInfo[@"spoofGPS"] boolValue];
-        if (spoofGPSEnabled) {
-            spoofedCoordinate.latitude = [containerInfo[@"spoofLatitude"] doubleValue];
-            spoofedCoordinate.longitude = [containerInfo[@"spoofLongitude"] doubleValue];
-            spoofedAltitude = [containerInfo[@"spoofAltitude"] doubleValue];
-            
-            NSLog(@"[LC] Container GPS spoofing enabled: %f, %f, %f", 
-                  spoofedCoordinate.latitude, 
-                  spoofedCoordinate.longitude, 
-                  spoofedAltitude);
-            
-            // Hook CLLocationManager methods
-            swizzle([CLLocationManager class], 
-                    @selector(startUpdatingLocation), 
-                    @selector(lc_startUpdatingLocation));
-            
-            swizzle([CLLocationManager class], 
-                    @selector(requestLocation), 
-                    @selector(lc_requestLocation));
-            
-            swizzle([CLLocationManager class], 
-                    @selector(location), 
-                    @selector(lc_location));
+    @try {
+        // Load GPS spoofing settings from container info
+        NSString *containerInfoPath = [NSString stringWithFormat:@"%@/LCContainerInfo.plist", getenv("HOME")];
+        NSDictionary *containerInfo = [NSDictionary dictionaryWithContentsOfFile:containerInfoPath];
+        
+        if (containerInfo) {
+            spoofGPSEnabled = [containerInfo[@"spoofGPS"] boolValue];
+            if (spoofGPSEnabled) {
+                spoofedCoordinate.latitude = [containerInfo[@"spoofLatitude"] doubleValue];
+                spoofedCoordinate.longitude = [containerInfo[@"spoofLongitude"] doubleValue];
+                spoofedAltitude = [containerInfo[@"spoofAltitude"] doubleValue];
+                
+                NSLog(@"[LC] Container GPS spoofing enabled: %f, %f, %f", 
+                      spoofedCoordinate.latitude, 
+                      spoofedCoordinate.longitude, 
+                      spoofedAltitude);
+                
+                // Only hook if CoreLocation is available and GPS spoofing is enabled
+                Class clLocationManagerClass = NSClassFromString(@"CLLocationManager");
+                if (clLocationManagerClass) {
+                    // Hook CLLocationManager methods
+                    swizzle(clLocationManagerClass, 
+                            @selector(startUpdatingLocation), 
+                            @selector(lc_startUpdatingLocation));
+                    
+                    swizzle(clLocationManagerClass, 
+                            @selector(requestLocation), 
+                            @selector(lc_requestLocation));
+                    
+                    swizzle(clLocationManagerClass, 
+                            @selector(location), 
+                            @selector(lc_location));
+                }
+            }
         }
+    } @catch (NSException *exception) {
+        NSLog(@"[LC] Error initializing GPS hooks: %@", exception);
     }
 }

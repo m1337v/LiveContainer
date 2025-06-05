@@ -114,8 +114,14 @@ static void TweakLoaderConstructor() {
         }
     }
 
-    // Initialize GPS hooks
-    CoreLocationGuestHooksInit();
+    // Only initialize GPS hooks if container info exists and GPS spoofing might be enabled
+    NSString *containerInfoPath = [NSString stringWithFormat:@"%@/LCContainerInfo.plist", getenv("HOME")];
+    if ([[NSFileManager defaultManager] fileExistsAtPath:containerInfoPath]) {
+        NSDictionary *containerInfo = [NSDictionary dictionaryWithContentsOfFile:containerInfoPath];
+        if (containerInfo && [containerInfo[@"spoofGPS"] boolValue]) {
+            CoreLocationGuestHooksInit();
+        }
+    }
 
     if (errors.count > 0) {
         dispatch_async(dispatch_get_main_queue(), ^{
