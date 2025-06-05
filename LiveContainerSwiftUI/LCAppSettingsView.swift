@@ -964,13 +964,11 @@ struct LCCityPickerView: View {
             .searchable(text: $searchText, prompt: "Search cities...")
             .navigationTitle("Choose City")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        isPresented = false
-                    }
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    isPresented = false
                 }
-            }
+            )
         }
     }
 }
