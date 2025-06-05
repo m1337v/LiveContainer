@@ -156,7 +156,7 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiSpoofLongitude = appInfo.spoofLongitude
         self.uiSpoofAltitude = appInfo.spoofAltitude
         // Convert NSString to Swift String safely
-        self.uiSpoofLocationName = (appInfo.spoofLocationName as String?) ?? "" // Add this
+        self.uiSpoofLocationName = (appInfo.spoofLocationName as String?) ?? ""
         
         for container in uiContainers {
             if container.folderName == uiDefaultDataFolder {

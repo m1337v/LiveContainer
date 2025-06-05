@@ -582,13 +582,13 @@ struct LCAppSettingsView : View{
             }
             
             
-            // Move GPS section here - right after containers, before JIT
+            // GPS Settings Section
             GPSSettingsSection(
                 spoofGPS: $model.uiSpoofGPS,
                 latitude: $model.uiSpoofLatitude,
                 longitude: $model.uiSpoofLongitude,
                 altitude: $model.uiSpoofAltitude,
-                locationName: $model.uiSpoofLocationName // Add this binding
+                locationName: $model.uiSpoofLocationName
             )
             
             Section {
