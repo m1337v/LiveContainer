@@ -22,10 +22,10 @@ struct GPSSettingsSection: View {
     @Binding var latitude: CLLocationDegrees
     @Binding var longitude: CLLocationDegrees
     @Binding var altitude: CLLocationDistance
+    @Binding var locationName: String // Change this to @Binding
     
     @State private var showMapPicker = false
     @State private var showCityPicker = false
-    @State private var locationName: String = ""
     @State private var isEditingLocationName = false
     
     var body: some View {
@@ -587,7 +587,8 @@ struct LCAppSettingsView : View{
                 spoofGPS: $model.uiSpoofGPS,
                 latitude: $model.uiSpoofLatitude,
                 longitude: $model.uiSpoofLongitude,
-                altitude: $model.uiSpoofAltitude
+                altitude: $model.uiSpoofAltitude,
+                locationName: $model.uiSpoofLocationName // Add this binding
             )
             
             Section {

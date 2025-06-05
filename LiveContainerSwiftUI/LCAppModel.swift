@@ -114,6 +114,12 @@ class LCAppModel: ObservableObject, Hashable {
             appInfo.spoofAltitude = uiSpoofAltitude
         }
     }
+    @Published var uiSpoofLocationName : String {
+        didSet {
+            // Convert Swift String to NSString for Objective-C compatibility
+            appInfo.spoofLocationName = uiSpoofLocationName as NSString
+        }
+    }
     
     var delegate : LCAppModelDelegate?
     
@@ -149,6 +155,8 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiSpoofLatitude = appInfo.spoofLatitude
         self.uiSpoofLongitude = appInfo.spoofLongitude
         self.uiSpoofAltitude = appInfo.spoofAltitude
+        // Convert NSString to Swift String safely
+        self.uiSpoofLocationName = (appInfo.spoofLocationName as String?) ?? "" // Add this
         
         for container in uiContainers {
             if container.folderName == uiDefaultDataFolder {
@@ -413,5 +421,30 @@ class LCAppModel: ObservableObject, Hashable {
             }
         }
         
+    }
+    
+    // In the init or load methods, add:
+    func loadFromAppInfo() {
+        // ...existing loading code...
+        
+        self.uiSpoofGPS = appInfo.spoofGPS
+        self.uiSpoofLatitude = appInfo.spoofLatitude
+        self.uiSpoofLongitude = appInfo.spoofLongitude
+        self.uiSpoofAltitude = appInfo.spoofAltitude
+        // Convert NSString to Swift String safely
+        self.uiSpoofLocationName = (appInfo.spoofLocationName as String?) ?? "" // Add this
+    }
+    
+    // In the save methods, add:
+    func save() throws {
+        // ...existing saving code...
+        
+        appInfo.spoofGPS = self.uiSpoofGPS
+        appInfo.spoofLatitude = self.uiSpoofLatitude
+        appInfo.spoofLongitude = self.uiSpoofLongitude
+        appInfo.spoofAltitude = self.uiSpoofAltitude
+        appInfo.spoofLocationName = self.uiSpoofLocationName // Add this
+        
+        // ...rest of saving code...
     }
 }
