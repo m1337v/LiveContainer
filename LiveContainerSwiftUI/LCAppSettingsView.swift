@@ -138,8 +138,6 @@ struct LCMapPickerView: View {
                     MapMarker(coordinate: pin.coordinate, tint: .red)
                 }
                 .onTapGesture { location in
-                    // Convert screen tap to coordinate - this is a simplified approach
-                    // The user can also just drag the map and use the center crosshair
                     pinLocation = region.center
                 }
                 .overlay(
@@ -211,9 +209,6 @@ struct LCMapPickerView: View {
                     }
                 }
             }
-        }
-        .onChange(of: region.center) { newCenter in
-            pinLocation = newCenter
         }
     }
 }
