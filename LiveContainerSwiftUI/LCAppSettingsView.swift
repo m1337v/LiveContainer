@@ -18,6 +18,8 @@ struct GPSSettingsSection: View {
     
     @State private var showMapPicker = false
     @State private var showCityPicker = false
+    @State private var locationName: String = ""
+    @State private var isEditingLocationName = false
     
     var body: some View {
         Section {
@@ -27,6 +29,34 @@ struct GPSSettingsSection: View {
             
             if spoofGPS {
                 VStack(alignment: .leading, spacing: 12) {
+                    // Location name field
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Location Name")
+                                .font(.headline)
+                            Spacer()
+                            Button(isEditingLocationName ? "Done" : "Edit") {
+                                isEditingLocationName.toggle()
+                            }
+                            .font(.caption)
+                            .buttonStyle(.bordered)
+                        }
+                        
+                        if isEditingLocationName {
+                            TextField("Enter location name", text: $locationName)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                        } else {
+                            Text(locationName.isEmpty ? "Unknown Location" : locationName)
+                                .foregroundColor(locationName.isEmpty ? .secondary : .primary)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .background(Color.secondary.opacity(0.1))
+                                .cornerRadius(8)
+                        }
+                    }
+                    
+                    Divider()
+                    
                     // Quick location picker buttons
                     HStack(spacing: 12) {
                         Button(action: {
@@ -81,7 +111,7 @@ struct GPSSettingsSection: View {
                             Image(systemName: "location")
                                 .foregroundColor(.blue)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Current Location:")
+                                Text("Coordinates:")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                 Text("\(latitude, specifier: "%.6f"), \(longitude, specifier: "%.6f")")
@@ -102,10 +132,16 @@ struct GPSSettingsSection: View {
             }
         }
         .sheet(isPresented: $showMapPicker) {
-            LCMapPickerView(latitude: $latitude, longitude: $longitude, isPresented: $showMapPicker)
+            LCMapPickerView(latitude: $latitude, longitude: $longitude, locationName: $locationName, isPresented: $showMapPicker)
         }
         .sheet(isPresented: $showCityPicker) {
-            LCCityPickerView(latitude: $latitude, longitude: $longitude, isPresented: $showCityPicker)
+            LCCityPickerView(latitude: $latitude, longitude: $longitude, locationName: $locationName, isPresented: $showCityPicker)
+        }
+        .onAppear {
+            // Only set default name if it's empty
+            if locationName.isEmpty {
+                locationName = "Unknown Location"
+            }
         }
     }
 }
@@ -113,14 +149,17 @@ struct GPSSettingsSection: View {
 struct LCMapPickerView: View {
     @Binding var latitude: CLLocationDegrees
     @Binding var longitude: CLLocationDegrees
+    @Binding var locationName: String
     @Binding var isPresented: Bool
     
     @State private var region: MKCoordinateRegion
     @State private var pinLocation: CLLocationCoordinate2D
+    @State private var currentLocationName = "Loading..."
     
-    init(latitude: Binding<CLLocationDegrees>, longitude: Binding<CLLocationDegrees>, isPresented: Binding<Bool>) {
+    init(latitude: Binding<CLLocationDegrees>, longitude: Binding<CLLocationDegrees>, locationName: Binding<String>, isPresented: Binding<Bool>) {
         self._latitude = latitude
         self._longitude = longitude
+        self._locationName = locationName
         self._isPresented = isPresented
         
         let coord = CLLocationCoordinate2D(latitude: latitude.wrappedValue, longitude: longitude.wrappedValue)
@@ -136,6 +175,15 @@ struct LCMapPickerView: View {
             VStack {
                 Map(coordinateRegion: $region, annotationItems: [MapPin(coordinate: pinLocation)]) { pin in
                     MapMarker(coordinate: pin.coordinate, tint: .red)
+                }
+                .onChange(of: region.center) { newCenter in
+                    // Debounce geocoding requests to avoid too many API calls
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        if abs(newCenter.latitude - region.center.latitude) < 0.001 && 
+                           abs(newCenter.longitude - region.center.longitude) < 0.001 {
+                            reverseGeocode(coordinate: newCenter)
+                        }
+                    }
                 }
                 .overlay(
                     // Crosshair in center for better precision
@@ -155,6 +203,21 @@ struct LCMapPickerView: View {
                     }
                     .allowsHitTesting(false)
                 )
+                
+                // Show current location name
+                VStack(spacing: 4) {
+                    Text("Current Location")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(currentLocationName)
+                        .font(.headline)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                .padding(.vertical, 8)
+                .background(Color.secondary.opacity(0.1))
+                .cornerRadius(8)
+                .padding(.horizontal)
                 
                 VStack(spacing: 8) {
                     HStack {
@@ -210,9 +273,46 @@ struct LCMapPickerView: View {
                 trailing: Button("OK") {
                     latitude = pinLocation.latitude
                     longitude = pinLocation.longitude
+                    locationName = currentLocationName // Use the geocoded name
                     isPresented = false
                 }
             )
+        }
+        .onAppear {
+            // Get initial location name
+            reverseGeocode(coordinate: region.center)
+        }
+    }
+    
+    private func reverseGeocode(coordinate: CLLocationCoordinate2D) {
+        let geocoder = CLGeocoder()
+        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        
+        geocoder.reverseGeocodeLocation(location) { placemarks, error in
+            DispatchQueue.main.async {
+                if let placemark = placemarks?.first {
+                    // Try to build a nice location name
+                    var locationComponents: [String] = []
+                    
+                    if let locality = placemark.locality {
+                        locationComponents.append(locality)
+                    }
+                    if let administrativeArea = placemark.administrativeArea {
+                        locationComponents.append(administrativeArea)
+                    }
+                    if let country = placemark.country {
+                        locationComponents.append(country)
+                    }
+                    
+                    if !locationComponents.isEmpty {
+                        currentLocationName = locationComponents.joined(separator: ", ")
+                    } else {
+                        currentLocationName = "Unknown Location"
+                    }
+                } else {
+                    currentLocationName = "Unknown Location"
+                }
+            }
         }
     }
 }
@@ -848,9 +948,10 @@ struct City {
 struct LCCityPickerView: View {
     @Binding var latitude: CLLocationDegrees
     @Binding var longitude: CLLocationDegrees
+    @Binding var locationName: String
     @Binding var isPresented: Bool
     
-    let cities = [
+    static let cities = [
         City(name: "New York", latitude: 40.7128, longitude: -74.0060),
         City(name: "Los Angeles", latitude: 34.0522, longitude: -118.2437),
         City(name: "Chicago", latitude: 41.8781, longitude: -87.6298),
@@ -950,6 +1051,7 @@ struct LCCityPickerView: View {
                     Button(action: {
                         latitude = city.latitude
                         longitude = city.longitude
+                        locationName = city.name // Set the city name
                         isPresented = false
                     }) {
                         VStack(alignment: .leading, spacing: 4) {
