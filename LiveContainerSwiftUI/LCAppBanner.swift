@@ -100,9 +100,38 @@ struct LCAppBanner : View {
                                 )
                         }
                     }
-
-                    Text("\(appInfo.version()) - \(appInfo.bundleIdentifier())").font(.system(size: 12)).foregroundColor(dynamicColors ? mainColor : Color("FontColor"))
-                    Text(model.uiSelectedContainer?.name ?? "lc.appBanner.noDataFolder".loc).font(.system(size: 8)).foregroundColor(dynamicColors ? mainColor : Color("FontColor"))
+                    
+                    HStack {
+                        Text("\(appInfo.version()) - \(appInfo.bundleIdentifier()!)")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                        Spacer()
+                    }
+                    
+                    // Container name
+                    if let selectedContainer = model.uiSelectedContainer {
+                        HStack {
+                            Text(selectedContainer.name)
+                                .font(.system(size: 12))
+                                .foregroundColor(.blue)
+                            Spacer()
+                        }
+                        
+                        // GPS Location display
+                        if model.uiSpoofGPS {
+                            HStack {
+                                Image(systemName: "location.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.red)
+                                
+                                Text(locationDisplayText)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                                
+                                Spacer()
+                            }
+                        }
+                    }
                 })
             }
             Spacer()
@@ -425,6 +454,14 @@ struct LCAppBanner : View {
     
     func copyError() {
         UIPasteboard.general.string = errorInfo
+    }
+    
+    private var locationDisplayText: String {
+        if !model.uiSpoofLocationName.isEmpty && model.uiSpoofLocationName != "Unknown Location" {
+            return model.uiSpoofLocationName
+        } else {
+            return "\(model.uiSpoofLatitude, specifier: "%.4f"), \(model.uiSpoofLongitude, specifier: "%.4f")"
+        }
     }
 
 }
