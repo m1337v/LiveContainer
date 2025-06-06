@@ -460,7 +460,7 @@ struct LCAppBanner : View {
         if !model.uiSpoofLocationName.isEmpty && model.uiSpoofLocationName != "Unknown Location" {
             return model.uiSpoofLocationName
         } else {
-            return "\(model.uiSpoofLatitude, specifier: "%.4f"), \(model.uiSpoofLongitude, specifier: "%.4f")"
+            return String(format: "%.4f, %.4f", model.uiSpoofLatitude, model.uiSpoofLongitude)
         }
     }
 
