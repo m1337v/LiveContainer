@@ -85,61 +85,72 @@ struct LCSettingsView: View {
             Form {
                 if sharedModel.multiLCStatus != 2 {
                     Section{
-                        if store == .Unknown {
-                            if !sharedModel.certificateImported {
-                                Button {
-                                    Task{ await importCertificate() }
-                                } label: {
-                                    Text("lc.settings.importCertificate".loc)
-                                }
-                            } else {
-                                Button {
-                                    Task{ await removeCertificate() }
-                                } label: {
-                                    Text("lc.settings.removeCertificate".loc)
-                                }
-                            }
-                        } else if store == .ADP {
-                            if !certificateDataFound {
-                                Button {
-                                    Task{ await importCertificate() }
-                                } label: {
-                                    Text("lc.settings.importCertificate".loc)
-                                }
-                            } else {
-                                Button {
-                                    Task{ await removeCertificate() }
-                                } label: {
-                                    Text("lc.settings.removeCertificate".loc)
-                                }
+                        // Always show manual certificate import option
+                        if !certificateDataFound {
+                            Button {
+                                Task{ await importCertificate() }
+                            } label: {
+                                Text("lc.settings.importCertificate".loc)
                             }
                         } else {
                             Button {
-                                Task{ await importCertificateFromSideStore() }
+                                Task{ await removeCertificate() }
                             } label: {
-                                if certificateDataFound {
-                                    Text("lc.settings.refreshCertificateFromStore %@".localizeWithFormat(storeName))
-                                } else {
-                                    Text("lc.settings.importCertificateFromStore %@".localizeWithFormat(storeName))
-                                }
+                                Text("lc.settings.removeCertificate".loc)
                             }
-                            Button {
-                                Task { await patchAltStore() }
-                            } label: {
-                                if isAltStorePatched {
-                                    Text("lc.settings.patchStoreAgain %@".localizeWithFormat(storeName))
-                                } else {
-                                    Text("lc.settings.patchStore %@".localizeWithFormat(storeName))
+                            .foregroundColor(.red)
+                        }
+                        
+                        // Show SideStore/AltStore import as additional option if available
+                        if store != .Unknown {
+                            Divider()
+                            
+                            if store == .ADP {
+                                Button {
+                                    Task{ await importCertificateFromADP() }
+                                } label: {
+                                    if certificateDataFound {
+                                        Text("lc.settings.refreshCertificateFromStore %@".localizeWithFormat("App Store Connect"))
+                                    } else {
+                                        Text("lc.settings.importCertificateFromStore %@".localizeWithFormat("App Store Connect"))
+                                    }
+                                }
+                            } else {
+                                Button {
+                                    Task{ await importCertificateFromSideStore() }
+                                } label: {
+                                    if certificateDataFound {
+                                        Text("lc.settings.refreshCertificateFromStore %@".localizeWithFormat(storeName))
+                                    } else {
+                                        Text("lc.settings.importCertificateFromStore %@".localizeWithFormat(storeName))
+                                    }
                                 }
                             }
                         }
                         
-                        NavigationLink {
-                            LCJITLessDiagnoseView()
-                        } label: {
-                            Text("lc.settings.jitlessDiagnose".loc)
+                        // Certificate info display
+                        if certificateDataFound {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text("lc.settings.certificateInfo".loc)
+                                        .font(.headline)
+                                    Spacer()
+                                }
+                                
+                                if let teamId = LCUtils.certificateTeamId() {
+                                    Text("Team ID: \(teamId)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                if let expirationDate = LCUtils.certificateExpirationDate() {
+                                    Text("Expires: \(expirationDate, style: .date)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
                         }
-
+                        
                     } header: {
                         Text("lc.settings.jitLess".loc)
                     } footer: {
