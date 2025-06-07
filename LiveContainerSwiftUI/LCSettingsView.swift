@@ -85,72 +85,81 @@ struct LCSettingsView: View {
             Form {
                 if sharedModel.multiLCStatus != 2 {
                     Section{
-                        // Always show manual certificate import option
-                        if !certificateDataFound {
+                        if store == .Unknown {
+                            if !sharedModel.certificateImported {
+                                Button {
+                                    Task{ await importCertificate() }
+                                } label: {
+                                    Text("lc.settings.importCertificate".loc)
+                                }
+                            } else {
+                                Button {
+                                    Task{ await removeCertificate() }
+                                } label: {
+                                    Text("lc.settings.removeCertificate".loc)
+                                }
+                            }
+                        } else if store == .ADP {
+                            if !certificateDataFound {
+                                Button {
+                                    Task{ await importCertificate() }
+                                } label: {
+                                    Text("lc.settings.importCertificate".loc)
+                                }
+                            } else {
+                                Button {
+                                    Task{ await removeCertificate() }
+                                } label: {
+                                    Text("lc.settings.removeCertificate".loc)
+                                }
+                            }
+                        } else {
+                            // SideStore/AltStore import option
+                            Button {
+                                Task{ await importCertificateFromSideStore() }
+                            } label: {
+                                if certificateDataFound {
+                                    Text("lc.settings.refreshCertificateFromStore %@".localizeWithFormat(storeName))
+                                } else {
+                                    Text("lc.settings.importCertificateFromStore %@".localizeWithFormat(storeName))
+                                }
+                            }
+                            
+                            // Manual certificate import option (always show)
                             Button {
                                 Task{ await importCertificate() }
                             } label: {
                                 Text("lc.settings.importCertificate".loc)
                             }
-                        } else {
-                            Button {
-                                Task{ await removeCertificate() }
-                            } label: {
-                                Text("lc.settings.removeCertificate".loc)
-                            }
-                            .foregroundColor(.red)
-                        }
-                        
-                        // Show SideStore/AltStore import as additional option if available
-                        if store != .Unknown {
-                            Divider()
                             
-                            if store == .ADP {
+                            // Remove certificate option (only if certificate exists)
+                            if certificateDataFound {
                                 Button {
-                                    Task{ await importCertificateFromADP() }
+                                    Task{ await removeCertificate() }
                                 } label: {
-                                    if certificateDataFound {
-                                        Text("lc.settings.refreshCertificateFromStore %@".localizeWithFormat("App Store Connect"))
-                                    } else {
-                                        Text("lc.settings.importCertificateFromStore %@".localizeWithFormat("App Store Connect"))
-                                    }
+                                    Text("lc.settings.removeCertificate".loc)
                                 }
-                            } else {
-                                Button {
-                                    Task{ await importCertificateFromSideStore() }
-                                } label: {
-                                    if certificateDataFound {
-                                        Text("lc.settings.refreshCertificateFromStore %@".localizeWithFormat(storeName))
-                                    } else {
-                                        Text("lc.settings.importCertificateFromStore %@".localizeWithFormat(storeName))
-                                    }
+                                .foregroundColor(.red)
+                            }
+                            
+                            // Patch store button
+                            Button {
+                                Task { await patchAltStore() }
+                            } label: {
+                                if isAltStorePatched {
+                                    Text("lc.settings.patchStoreAgain %@".localizeWithFormat(storeName))
+                                } else {
+                                    Text("lc.settings.patchStore %@".localizeWithFormat(storeName))
                                 }
                             }
                         }
                         
-                        // Certificate info display
-                        if certificateDataFound {
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Text("lc.settings.certificateInfo".loc)
-                                        .font(.headline)
-                                    Spacer()
-                                }
-                                
-                                if let teamId = LCUtils.certificateTeamId() {
-                                    Text("Team ID: \(teamId)")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                
-                                if let expirationDate = LCUtils.certificateExpirationDate() {
-                                    Text("Expires: \(expirationDate, style: .date)")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
+                        NavigationLink {
+                            LCJITLessDiagnoseView()
+                        } label: {
+                            Text("lc.settings.jitlessDiagnose".loc)
                         }
-                        
+
                     } header: {
                         Text("lc.settings.jitLess".loc)
                     } footer: {
