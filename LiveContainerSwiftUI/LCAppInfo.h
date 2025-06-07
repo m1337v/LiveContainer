@@ -43,6 +43,7 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property CLLocationDegrees spoofLongitude;
 @property CLLocationDistance spoofAltitude;
 @property NSString* spoofLocationName;  // Add this line
+@property NSDate* lastLaunched;
 
 - (void)setBundlePath:(NSString*)newBundlePath;
 - (NSMutableDictionary*)info;

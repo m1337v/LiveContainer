@@ -93,7 +93,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
                 }
                 .zIndex(.infinity)
                 LazyVStack {
-                    ForEach(sharedModel.apps, id: \.self) { app in
+                    ForEach(sortedApps, id: \.self) { app in
                         LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames)
                     }
                     .transition(.scale)
@@ -912,5 +912,29 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
 //            }
 //        }
 
+    }
+    
+    // Add this computed property to LCAppListView
+    private var sortedApps: [LCAppModel] {
+        return sharedModel.apps.sorted { app1, app2 in
+            let date1 = app1.appInfo.lastLaunched
+            let date2 = app2.appInfo.lastLaunched
+            
+            // If both have launch dates, sort by most recent first
+            if let date1 = date1, let date2 = date2 {
+                return date1 > date2
+            }
+            
+            // If only one has a launch date, it comes first
+            if date1 != nil && date2 == nil {
+                return true
+            }
+            if date1 == nil && date2 != nil {
+                return false
+            }
+            
+            // If neither has been launched, sort alphabetically
+            return app1.appInfo.displayName().localizedCaseInsensitiveCompare(app2.appInfo.displayName()) == .orderedAscending
+        }
     }
 }

@@ -686,4 +686,13 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     }
     [self save];
 }
+
+- (NSDate*)lastLaunched {
+    return _info[@"lastLaunched"];
+}
+
+- (void)setLastLaunched:(NSDate*)lastLaunched {
+    _info[@"lastLaunched"] = lastLaunched;
+    [self save];
+}
 @end
