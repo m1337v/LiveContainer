@@ -17,8 +17,8 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var signProgress = 0.0
     private var observer : NSKeyValueObservation?
     
-    // Add the missing supportedLanaguages property
-    @Published var supportedLanaguages: [String]?
+    // Add the missing supportedLanguages property
+    @Published var supportedLanguages: [String]?
     
     @Published var uiIsJITNeeded : Bool {
         didSet {
@@ -410,16 +410,16 @@ class LCAppModel: ObservableObject, Hashable {
     
     func loadSupportedLanguages() throws {
         let fm = FileManager.default
-        if supportedLanaguages != nil {
+        if supportedLanguages != nil {
             return
         }
-        supportedLanaguages = []
+        supportedLanguages = []
         let fileURLs = try fm.contentsOfDirectory(at: URL(fileURLWithPath: appInfo.bundlePath()!) , includingPropertiesForKeys: nil)
         for fileURL in fileURLs {
             let attributes = try fm.attributesOfItem(atPath: fileURL.path)
             let fileType = attributes[.type] as? FileAttributeType
             if(fileType == .typeDirectory && fileURL.lastPathComponent.hasSuffix(".lproj")) {
-                supportedLanaguages?.append(fileURL.deletingPathExtension().lastPathComponent)
+                supportedLanguages?.append(fileURL.deletingPathExtension().lastPathComponent)
             }
         }
         
