@@ -288,6 +288,9 @@ struct LCContainerView : View {
     @available(iOS 16.0, *)
     func retrieveDataFromLiveProcess() async {
         do {
+            if MultitaskManager.isUsing(container: container.folderName) {
+                throw "lc.container.inUseBy %@".localizeWithFormat("Multitask")
+            }
         
             UserDefaults.standard.set("", forKey: "selected")
             UserDefaults.standard.set(container.folderName, forKey: "selectedContainer")

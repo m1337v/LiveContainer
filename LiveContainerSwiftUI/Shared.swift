@@ -230,7 +230,7 @@ extension View {
 }
 
 public struct DocModifier: ViewModifier {
-
+    @EnvironmentObject var sceneDelegate: SceneDelegate
     @State private var docController: UIDocumentPickerViewController?
     @State private var delegate : UIDocumentPickerDelegate
     
@@ -260,7 +260,7 @@ public struct DocModifier: ViewModifier {
                 guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
                     return
                 }
-                scene.windows.first?.rootViewController?.present(controller, animated: true)
+                sceneDelegate.window?.rootViewController?.present(controller, animated: true)
             } else if !isPresented, let docController = docController {
                 docController.dismiss(animated: true)
                 self.docController = nil
@@ -294,7 +294,7 @@ public struct DocModifier: ViewModifier {
 }
 
 public struct TextFieldAlertModifier: ViewModifier {
-
+    @EnvironmentObject var sceneDelegate: SceneDelegate
     @State private var alertController: UIAlertController?
 
     @Binding var isPresented: Bool
@@ -310,10 +310,7 @@ public struct TextFieldAlertModifier: ViewModifier {
             if isPresented, alertController == nil {
                 let alertController = makeAlertController()
                 self.alertController = alertController
-                guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
-                    return
-                }
-                scene.windows.first?.rootViewController?.present(alertController, animated: true)
+                sceneDelegate.window?.rootViewController?.present(alertController, animated: true)
             } else if !isPresented, let alertController = alertController {
                 alertController.dismiss(animated: true)
                 self.alertController = nil

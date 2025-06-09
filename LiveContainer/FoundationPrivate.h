@@ -20,3 +20,4 @@
 
 void* SecTaskCreateFromSelf(CFAllocatorRef allocator);
 NSString *SecTaskCopyTeamIdentifier(void *task, NSError **error);
+CFTypeRef SecTaskCopyValueForEntitlement(void *task, CFStringRef key, CFErrorRef *error);

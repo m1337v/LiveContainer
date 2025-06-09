@@ -17,9 +17,6 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var signProgress = 0.0
     private var observer : NSKeyValueObservation?
     
-    // Add the missing supportedLanguages property
-    @Published var supportedLanguages: [String]?
-    
     @Published var uiIsJITNeeded : Bool {
         didSet {
             appInfo.isJITNeeded = uiIsJITNeeded
@@ -93,6 +90,8 @@ class LCAppModel: ObservableObject, Hashable {
         }
     }
     
+    @Published var supportedLanguages : [String]?
+
     // Add the missing GPS properties
     @Published var uiSpoofGPS : Bool {
         didSet {
@@ -176,6 +175,10 @@ class LCAppModel: ObservableObject, Hashable {
     func runApp(multitask: Bool = false, containerFolderName : String? = nil) async throws{
         if isAppRunning {
             return
+        }
+        
+        if multitask && !uiIsShared {
+            throw "It's not possible to multitask with private apps."
         }
         
         // ask user if they want to terminate all multitasking apps

@@ -55,7 +55,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>3.4.63</string>
+	<string>3.4.64</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleURLTypes</key>
@@ -70,7 +70,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>3.4.63</string>
+	<string>3.4.64</string>
 	<key>GCSupportedGameControllers</key>
 	<array>
 		<dict>
@@ -136,8 +136,6 @@
 	<string>The guest app is requesting for this permission.</string>
 	<key>NSHealthClinicalHealthRecordsShareUsageDescription</key>
 	<string>The guest app is requesting for this permission.</string>
-	<key>NSHealthRequiredReadAuthorizationTypeIdentifiers</key>
-	<string>The guest app is requesting for this permission.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>The guest app is requesting for this permission.</string>
 	<key>NSHealthUpdateUsageDescription</key>
@@ -151,7 +149,7 @@
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>The guest app is requesting for this permission.</string>
 	<key>NSLocationDefaultAccuracyReduced</key>
-	<string>The guest app is requesting for this permission.</string>
+	<true/>
 	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
 	<string>The guest app is requesting for this permission.</string>
 	<key>NSLocationUsageDescription</key>

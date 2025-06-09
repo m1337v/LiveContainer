@@ -184,6 +184,9 @@ static void *getAppEntryPoint(void *handle) {
 
 static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContainer, int argc, char *argv[]) {
     NSString *appError = nil;
+    if([[lcUserDefaults objectForKey:@"LCWaitForDebugger"] boolValue]) {
+        sleep(100);
+    }
     if (!LCSharedUtils.certificatePassword) {
         // First of all, let's check if we have JIT
         for (int i = 0; i < 10 && !checkJITEnabled(); i++) {
@@ -305,35 +308,13 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     remove(newTmpPath.UTF8String);
     symlink(getenv("TMPDIR"), newTmpPath.UTF8String);
     
-    if([guestAppInfo[@"doSymlinkInbox"] boolValue]) {
-        NSString* inboxSymlinkPath = [NSString stringWithFormat:@"%s/%@-Inbox", getenv("TMPDIR"), [appBundle bundleIdentifier]];
-        NSString* inboxPath = [newHomePath stringByAppendingPathComponent:@"Inbox"];
-        
-        if (![fm fileExistsAtPath:inboxPath]) {
-            [fm createDirectoryAtPath:inboxPath withIntermediateDirectories:YES attributes:nil error:&error];
+    // We don't use the "asCopy" fix since we have filePickerFix v2. We keep these codes here in case some users upgrade from older version and the symlink is still there
+    NSString* inboxSymlinkPath = [NSString stringWithFormat:@"%s/%@-Inbox", getenv("TMPDIR"), [appBundle bundleIdentifier]];
+    NSDictionary* targetAttribute = [fm attributesOfItemAtPath:inboxSymlinkPath error:&error];
+    if(targetAttribute) {
+        if(targetAttribute[NSFileType] == NSFileTypeSymbolicLink) {
+            [fm removeItemAtPath:inboxSymlinkPath error:&error];
         }
-        if([fm fileExistsAtPath:inboxSymlinkPath]) {
-            NSString* fileType = [fm attributesOfItemAtPath:inboxSymlinkPath error:&error][NSFileType];
-            if(fileType == NSFileTypeDirectory) {
-                NSArray* contents = [fm contentsOfDirectoryAtPath:inboxSymlinkPath error:&error];
-                for(NSString* content in contents) {
-                    [fm moveItemAtPath:[inboxSymlinkPath stringByAppendingPathComponent:content] toPath:[inboxPath stringByAppendingPathComponent:content] error:&error];
-                }
-                [fm removeItemAtPath:inboxSymlinkPath error:&error];
-            }
-        }
-        
-
-        symlink(inboxPath.UTF8String, inboxSymlinkPath.UTF8String);
-    } else {
-        NSString* inboxSymlinkPath = [NSString stringWithFormat:@"%s/%@-Inbox", getenv("TMPDIR"), [appBundle bundleIdentifier]];
-        NSDictionary* targetAttribute = [fm attributesOfItemAtPath:inboxSymlinkPath error:&error];
-        if(targetAttribute) {
-            if(targetAttribute[NSFileType] == NSFileTypeSymbolicLink) {
-                [fm removeItemAtPath:inboxSymlinkPath error:&error];
-            }
-        }
-
     }
     
     setenv("CFFIXED_USER_HOME", newHomePath.UTF8String, 1);
@@ -421,10 +402,6 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     
     if(![guestAppInfo[@"dontInjectTweakLoader"] boolValue]) {
         tweakLoaderLoaded = true;
-    }
-    
-    if([[lcUserDefaults objectForKey:@"LCWaitForDebugger"] boolValue]) {
-        sleep(100);
     }
     
     void *appHandle = dlopen(appExecPath, RTLD_LAZY|RTLD_GLOBAL|RTLD_FIRST);

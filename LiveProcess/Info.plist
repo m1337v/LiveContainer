@@ -61,10 +61,8 @@
         <key>NSExtensionContextHostClass</key>
         <string>NSExtensionContext</string>
 	</dict>
-	<key>NSHealthRequiredReadAuthorizationTypeIdentifiers</key>
-	<string>The guest app is requesting for this permission.</string>
 	<key>NSLocationDefaultAccuracyReduced</key>
-	<string>The guest app is requesting for this permission.</string>
+	<true/>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>The guest app is requesting for this permission.</string>
 	<key>SBAppUsesLocalNotifications</key>

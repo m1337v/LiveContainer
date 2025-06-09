@@ -20,6 +20,10 @@ import SwiftUI
                 UserDefaults.standard.removeObject(forKey: "LCLastLanguages")
             }
         }
+        method_exchangeImplementations(
+            class_getInstanceMethod(UIApplication.self, #selector(UIApplication.requestSceneSessionActivation(_ :userActivity:options:errorHandler:)))!,
+            class_getInstanceMethod(UIApplication.self, #selector(UIApplication.hook_requestSceneSessionActivation(_:userActivity:options:errorHandler:)))!)
+
         return true
     }
     
@@ -35,6 +39,25 @@ class SceneDelegate: NSObject, UIWindowSceneDelegate, ObservableObject { // Make
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         self.window = (scene as? UIWindowScene)?.keyWindow
+    }
+    
+}
+
+
+@objc extension UIApplication {
+    
+    func hook_requestSceneSessionActivation(
+        _ sceneSession: UISceneSession?,
+        userActivity: NSUserActivity?,
+        options: UIScene.ActivationRequestOptions?,
+        errorHandler: ((any Error) -> Void)? = nil
+    ) {
+        var newOptions = options
+        if newOptions == nil {
+            newOptions = UIScene.ActivationRequestOptions()
+        }
+        newOptions!._setRequestFullscreen(true)
+        self.hook_requestSceneSessionActivation(sceneSession, userActivity: userActivity, options: newOptions, errorHandler: errorHandler)
     }
     
 }

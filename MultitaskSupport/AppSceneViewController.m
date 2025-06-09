@@ -7,6 +7,7 @@
 #import "AppSceneViewController.h"
 #import "LiveContainerSwiftUI-Swift.h"
 #import "../LiveContainerSwiftUI/LCUtils.h"
+#import "PiPManager.h"
 
 @implementation AppSceneViewController {
     bool isAppRunning;
@@ -158,6 +159,8 @@
     if(isNativeWindow) {
         // directly update the settings
         baseSettings.interruptionPolicy = 0;
+        baseSettings.safeAreaInsetsPortrait = self.view.window.safeAreaInsets;
+        baseSettings.peripheryInsets = self.view.window.safeAreaInsets;
         [self.presenter.scene updateSettings:baseSettings withTransitionContext:newContext completion:nil];
     } else {
         UIMutableApplicationSceneSettings *newSettings = [self.presenter.scene.settings mutableCopy];

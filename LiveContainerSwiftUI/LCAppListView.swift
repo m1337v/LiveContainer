@@ -787,7 +787,19 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         }
 
         do {
-            try await appFound.runApp(multitask: launchInMultitaskMode, containerFolderName: container)
+            if launchInMultitaskMode && appFound.uiIsShared {
+                if #available(iOS 16.1, *) {
+                    if let currentDataFolder = container != nil ? container : appFound.uiSelectedContainer?.folderName,
+                        MultitaskManager.isUsing(container: currentDataFolder),
+                        MultitaskWindowManager.openExistingAppWindow(dataUUID: currentDataFolder) {
+                        return
+                    }
+                }
+
+                try await appFound.runApp(multitask: true, containerFolderName: container)
+            } else {
+                try await appFound.runApp(multitask: false, containerFolderName: container)
+            }
         } catch {
             errorInfo = error.localizedDescription
             errorShow = true

@@ -13,7 +13,9 @@ extern NSString* getLCEntitlementXML(void);
     static NSString* ans = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        ans = SecTaskCopyTeamIdentifier(SecTaskCreateFromSelf(NULL), nil);
+        void* taskSelf = SecTaskCreateFromSelf(NULL);
+        ans = SecTaskCopyTeamIdentifier(taskSelf, nil);
+        CFRelease(taskSelf);
         if(!ans) {
             // the above seems not to work if the device is jailbroken by Palera1n, so we use the public api one as backup
             // https://stackoverflow.com/a/11841898

@@ -95,3 +95,11 @@
 @interface _UIPrototypingMenuSlider : UISlider
 @property(nonatomic, assign, readwrite) CGFloat stepSize;
 @end
+
+@interface UISceneActivationRequestOptions(private)
+-(void)_setRequestFullscreen:(BOOL)arg1;
+@end
+
+@interface DOCConfiguration : NSObject
+- (void)setHostIdentifier:(NSString *)ignored;
+@end

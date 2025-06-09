@@ -89,10 +89,6 @@ struct LiveContainerSwiftUIApp : App {
         WindowGroup(id: "Main") {
             LCTabView(appDataFolderNames: $appDataFolderNames, tweakFolderNames: $tweakFolderNames)
                 .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
-            if #available(iOS 16.1, *) {
-                GetOpenWindowActionView()
-                    .hidden()
-            }
         }
         
         if UIApplication.shared.supportsMultipleScenes, #available(iOS 16.1, *) {
