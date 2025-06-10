@@ -5,7 +5,6 @@
 extern NSUserDefaults *lcUserDefaults;
 extern NSString *lcAppUrlScheme;
 extern NSBundle *lcMainBundle;
-extern NSString* getLCEntitlementXML(void);
 
 @implementation LCSharedUtils
 
@@ -49,9 +48,7 @@ extern NSString* getLCEntitlementXML(void);
     dispatch_once(&once, ^{
         NSArray* possibleAppGroups = @[
             [@"group.com.SideStore.SideStore." stringByAppendingString:[self teamIdentifier]],
-            [@"group.com.rileytestut.AltStore." stringByAppendingString:[self teamIdentifier]],
-            @"group.com.SideStore.SideStore",
-            @"group.com.rileytestut.AltStore"
+            [@"group.com.rileytestut.AltStore." stringByAppendingString:[self teamIdentifier]]
         ];
         
         // we prefer app groups with "Apps" in it, which indicate this app group is actually used by the store.
@@ -85,20 +82,18 @@ extern NSString* getLCEntitlementXML(void);
             appGroupID = cached;
             return;
         }
-        NSString *entitlementXML = getLCEntitlementXML();
-        if (!entitlementXML) {
+        CFErrorRef error = NULL;
+        void* taskSelf = SecTaskCreateFromSelf(NULL);
+        CFTypeRef value = SecTaskCopyValueForEntitlement(taskSelf, CFSTR("com.apple.security.application-groups"), &error);
+        CFRelease(taskSelf);
+        
+        if(!value) {
             return;
         }
-        NSData *xmlData = [entitlementXML dataUsingEncoding:NSUTF8StringEncoding];
-        id entitlementDict = [NSPropertyListSerialization propertyListWithData:xmlData options:0 format:NULL error:NULL];
-        if (![entitlementDict isKindOfClass:[NSDictionary class]]) {
-            return;
+        NSArray* appGroups = (__bridge NSArray *)value;
+        if(appGroups.count > 0) {
+            appGroupID = [appGroups firstObject];
         }
-        NSArray<NSString *> *appGroups = entitlementDict[@"com.apple.security.application-groups"];
-        if (!appGroups || ![appGroups firstObject]) {
-            return;
-        }
-        appGroupID = [appGroups firstObject];
     });
     return appGroupID;
 }
@@ -113,13 +108,12 @@ extern NSString* getLCEntitlementXML(void);
 }
 
 + (NSString *)certificatePassword {
-    if([NSUserDefaults.standardUserDefaults boolForKey:@"LCCertificateImported"]) {
-        NSString* ans = [NSUserDefaults.standardUserDefaults objectForKey:@"LCCertificatePassword"];
-        return ans;
-    } else {
-        // password of cert retrieved from the store tweak is always @"". We just keep this function so we can check if certificate presents without changing codes.
-        return [[[NSUserDefaults alloc] initWithSuiteName:[self appGroupID]] objectForKey:@"LCCertificatePassword"];
+    NSUserDefaults* nud = [[NSUserDefaults alloc] initWithSuiteName:[self appGroupID]];
+    if(!nud) {
+        nud = NSUserDefaults.standardUserDefaults;
     }
+    
+    return [nud objectForKey:@"LCCertificatePassword"];
 }
 
 + (BOOL)launchToGuestApp {

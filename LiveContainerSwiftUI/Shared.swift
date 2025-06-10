@@ -58,7 +58,6 @@ class SharedModel: ObservableObject {
     // 0= not installed, 1= is installed, 2=current liveContainer is the second one
     @Published var multiLCStatus = 0
     @Published var isJITModalOpen = false
-    @AppStorage("LCCertificateImported") var certificateImported = false
     
     @Published var enableMultipleWindow = false
     

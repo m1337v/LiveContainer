@@ -34,15 +34,11 @@ Class LCSharedUtilsClass = nil;
 }
 
 + (NSData *)certificateData {
-    NSData* ans;
-    if([NSUserDefaults.standardUserDefaults boolForKey:@"LCCertificateImported"]) {
-        ans = [NSUserDefaults.standardUserDefaults objectForKey:@"LCCertificateData"];
-    } else {
-        ans = [[[NSUserDefaults alloc] initWithSuiteName:[self appGroupID]] objectForKey:@"LCCertificateData"];
+    NSUserDefaults* nud = [[NSUserDefaults alloc] initWithSuiteName:[self appGroupID]];
+    if(!nud) {
+        nud = NSUserDefaults.standardUserDefaults;
     }
-    
-    return ans;
-    
+    return [nud objectForKey:@"LCCertificateData"];
 }
 
 + (NSString *)certificatePassword {

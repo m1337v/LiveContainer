@@ -222,9 +222,21 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     
     if([guestAppInfo[@"doUseLCBundleId"] boolValue] ) {
         NSMutableDictionary* infoPlist = [NSMutableDictionary dictionaryWithContentsOfFile:[NSString stringWithFormat:@"%@/Info.plist", bundlePath]];
-        if(![infoPlist[@"CFBundleIdentifier"] isEqualToString:NSBundle.mainBundle.bundleIdentifier]) {
-            infoPlist[@"CFBundleIdentifier"] = NSBundle.mainBundle.bundleIdentifier;
-            [infoPlist writeToFile:[NSString stringWithFormat:@"%@/Info.plist", bundlePath] atomically:YES];
+        CFErrorRef error = NULL;
+        void* taskSelf = SecTaskCreateFromSelf(NULL);
+        CFTypeRef value = SecTaskCopyValueForEntitlement(taskSelf, CFSTR("application-identifier"), &error);
+        CFRelease(taskSelf);
+        if (value) {
+            NSString *entStr = (__bridge NSString *)value;
+            CFRelease(value);
+            NSRange dotRange = [entStr rangeOfString:@"."];
+            if (dotRange.location != NSNotFound) {
+                NSString *expectedBundleId = [entStr substringFromIndex:dotRange.location + 1];
+                if(![infoPlist[@"CFBundleIdentifier"] isEqualToString:expectedBundleId]) {
+                    infoPlist[@"CFBundleIdentifier"] = expectedBundleId;
+                    [infoPlist writeToFile:[NSString stringWithFormat:@"%@/Info.plist", bundlePath] atomically:YES];
+                }
+            }
         }
     }
     

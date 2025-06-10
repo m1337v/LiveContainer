@@ -7,8 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		171739A42DE9516900C768A9 /* LCMachOUtils.m in Sources */ = {isa = PBXBuildFile; fileRef = 171739832DE9516900C768A9 /* LCMachOUtils.m */; };
-		17173A052DE955AD00C768A9 /* LCMachOUtils.m in Sources */ = {isa = PBXBuildFile; fileRef = 171739832DE9516900C768A9 /* LCMachOUtils.m */; };
 		17413FBC2D9C0BAE00F3F928 /* LiveContainerSwiftUI.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 17413FB52D9C0BAE00F3F928 /* LiveContainerSwiftUI.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		174140902D9C0E8200F3F928 /* TweakLoader.dylib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 1741403A2D9C0D0000F3F928 /* TweakLoader.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		174140942D9C0E8200F3F928 /* ZSign.dylib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 174140542D9C0D6D00F3F928 /* ZSign.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -116,7 +114,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		171739832DE9516900C768A9 /* LCMachOUtils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LCMachOUtils.m; sourceTree = "<group>"; };
 		172CA8542D9D721700CF6989 /* dyld_bypass_validation.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = dyld_bypass_validation.m; sourceTree = "<group>"; };
 		172CA8552D9D721700CF6989 /* FoundationPrivate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FoundationPrivate.h; sourceTree = "<group>"; };
 		172CA8562D9D721700CF6989 /* LCSharedUtils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LCSharedUtils.h; sourceTree = "<group>"; };
@@ -325,7 +322,6 @@
 		172CA85F2D9D721700CF6989 /* LiveContainer */ = {
 			isa = PBXGroup;
 			children = (
-				171739832DE9516900C768A9 /* LCMachOUtils.m */,
 				E1292C032DCA3C160065E12D /* empty.m */,
 				E1292C1A2DCA48F00065E12D /* Tweaks */,
 				172CA8542D9D721700CF6989 /* dyld_bypass_validation.m */,
@@ -778,7 +774,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				171739A42DE9516900C768A9 /* LCMachOUtils.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -829,7 +824,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				17173A052DE955AD00C768A9 /* LCMachOUtils.m in Sources */,
 				E1292C072DCA434C0065E12D /* dyld_bypass_validation.m in Sources */,
 				E1292C092DCA43510065E12D /* Localization.m in Sources */,
 				E1292C082DCA434F0065E12D /* LCSharedUtils.m in Sources */,

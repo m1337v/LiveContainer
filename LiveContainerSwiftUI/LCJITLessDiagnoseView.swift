@@ -180,7 +180,7 @@ struct LCJITLessDiagnoseView : View {
                             .foregroundStyle(.gray)
                             .textSelection(.enabled)
                     }
-                    if !sharedModel.certificateImported {
+
                         HStack {
                             Text("lc.jitlessDiag.appGroupId".loc)
                             Spacer()
@@ -260,7 +260,7 @@ struct LCJITLessDiagnoseView : View {
                                     .foregroundStyle(certificateStatus == 0 ? .green : .red)
                             }
                         }
-                    }
+                    
                     NavigationLink {
                         LCEntitlementView()
                     } label: {
@@ -351,23 +351,12 @@ struct LCJITLessDiagnoseView : View {
     }
     
     func testJITLessMode() {
-        if store == .ADP && !certificateDataFound {
+        if !certificateDataFound {
             errorInfo = "lc.settings.error.certNotImported".loc
             errorShow = true
             return;
         }
-        
-        if !sharedModel.certificateImported && !LCUtils.isAppGroupAltStoreLike() && store != .ADP {
-            errorInfo = "lc.settings.unsupportedInstallMethod".loc
-            errorShow = true
-            return;
-        }
-        
-        if !sharedModel.certificateImported && !certificateDataFound {
-            errorInfo = "lc.settings.error.storeNotPatched %@".localizeWithFormat(storeName)
-            errorShow = true
-            return;
-        }
+
         isJITLessTestInProgress = true
         LCUtils.validateJITLessSetup { success, error in
             if success {
