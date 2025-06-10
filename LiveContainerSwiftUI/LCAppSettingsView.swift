@@ -18,7 +18,7 @@ struct GPSSettingsSection: View {
     @Binding var latitude: CLLocationDegrees
     @Binding var longitude: CLLocationDegrees
     @Binding var altitude: CLLocationDistance
-    @Binding var locationName: String // Change this to @Binding
+    @Binding var locationName: String
     
     @State private var showMapPicker = false
     @State private var showCityPicker = false
@@ -606,7 +606,7 @@ struct LCAppSettingsView : View{
             
             // Camera Settings Section
             Section {
-                Toggle("Camera Settings", isOn: $model.uiSpoofCamera)
+                Toggle("Spoof Camera", isOn: $model.uiSpoofCamera)
                 
                 if model.uiSpoofCamera {
                     Picker("Camera Type", selection: $model.uiSpoofCameraType) {
@@ -629,9 +629,15 @@ struct LCAppSettingsView : View{
                             errorShow: $errorShow
                         )
                     }
+                    
+                    if #unavailable(iOS 16.0) {
+                        Text("Note: Photo library access requires iOS 16.0 or later. Use Files or manual path entry instead.")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    }
                 }
             } header: {
-                Text("Camera Settings")
+                Text("Camera Spoofing")
             } footer: {
                 if model.uiSpoofCamera {
                     Text("When enabled, this app will receive the specified camera input instead of the device's actual camera data. Media files are copied to LiveContainer's Documents folder.")
@@ -1138,8 +1144,10 @@ struct CameraImagePickerView: View {
     @Binding var errorInfo: String
     @Binding var errorShow: Bool
     
-    @State private var showingPhotoPicker = false
     @State private var showingFilePicker = false
+    @available(iOS 16.0, *)
+    @State private var showingPhotoPicker = false
+    @available(iOS 16.0, *)
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var previewImage: UIImage?
     
@@ -1191,18 +1199,31 @@ struct CameraImagePickerView: View {
             
             // Picker buttons
             HStack(spacing: 12) {
-                PhotosPicker(
-                    selection: $selectedPhotoItem,
-                    matching: .images
-                ) {
-                    Label("Photos", systemImage: "photo.on.rectangle")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .onChange(of: selectedPhotoItem) { newItem in
-                    Task {
-                        await loadSelectedPhoto(newItem)
+                if #available(iOS 16.0, *) {
+                    PhotosPicker(
+                        selection: $selectedPhotoItem,
+                        matching: .images
+                    ) {
+                        Label("Photos", systemImage: "photo.on.rectangle")
+                            .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.bordered)
+                    .onChange(of: selectedPhotoItem) { newItem in
+                        Task {
+                            await loadSelectedPhoto(newItem)
+                        }
+                    }
+                } else {
+                    Button(action: {
+                        // Fallback for iOS 15 and earlier
+                        errorInfo = "Photo picker requires iOS 16.0 or later. Please use the Files option instead."
+                        errorShow = true
+                    }) {
+                        Label("Photos (iOS 16+)", systemImage: "photo.on.rectangle")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(true)
                 }
                 
                 Button(action: {
@@ -1240,6 +1261,7 @@ struct CameraImagePickerView: View {
         }
     }
     
+    @available(iOS 16.0, *)
     private func loadSelectedPhoto(_ item: PhotosPickerItem?) async {
         guard let item = item else { return }
         
@@ -1328,8 +1350,10 @@ struct CameraVideoPickerView: View {
     @Binding var errorInfo: String
     @Binding var errorShow: Bool
     
-    @State private var showingPhotoPicker = false
     @State private var showingFilePicker = false
+    @available(iOS 16.0, *)
+    @State private var showingPhotoPicker = false
+    @available(iOS 16.0, *)
     @State private var selectedVideoItem: PhotosPickerItem?
     @State private var videoThumbnail: UIImage?
     @State private var videoDuration: String = ""
@@ -1402,18 +1426,30 @@ struct CameraVideoPickerView: View {
             
             // Picker buttons
             HStack(spacing: 12) {
-                PhotosPicker(
-                    selection: $selectedVideoItem,
-                    matching: .videos
-                ) {
-                    Label("Photos", systemImage: "photo.on.rectangle")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .onChange(of: selectedVideoItem) { newItem in
-                    Task {
-                        await loadSelectedVideo(newItem)
+                if #available(iOS 16.0, *) {
+                    PhotosPicker(
+                        selection: $selectedVideoItem,
+                        matching: .videos
+                    ) {
+                        Label("Photos", systemImage: "photo.on.rectangle")
+                            .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.bordered)
+                    .onChange(of: selectedVideoItem) { newItem in
+                        Task {
+                            await loadSelectedVideo(newItem)
+                        }
+                    }
+                } else {
+                    Button(action: {
+                        errorInfo = "Photo picker requires iOS 16.0 or later. Please use the Files option instead."
+                        errorShow = true
+                    }) {
+                        Label("Photos (iOS 16+)", systemImage: "photo.on.rectangle")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(true)
                 }
                 
                 Button(action: {
@@ -1451,6 +1487,7 @@ struct CameraVideoPickerView: View {
         }
     }
     
+    @available(iOS 16.0, *)
     private func loadSelectedVideo(_ item: PhotosPickerItem?) async {
         guard let item = item else { return }
         
