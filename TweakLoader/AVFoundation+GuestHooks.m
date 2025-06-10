@@ -2,7 +2,7 @@
 //  AVFoundation+GuestHooks.m
 //  LiveContainer
 //
-//  Enhanced camera spoofing implementation
+//  Camera Addon implementation with actual frame delivery
 //
 
 #import "AVFoundation+GuestHooks.h"
