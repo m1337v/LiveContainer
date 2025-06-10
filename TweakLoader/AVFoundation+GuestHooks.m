@@ -273,8 +273,8 @@ static void deliverSpoofedFramesToOutput(AVCaptureOutput *output, AVCaptureConne
 @interface AVCaptureSession(LiveContainerHooks)
 - (void)lc_startRunning;
 - (void)lc_stopRunning;
-- (BOOL)lc_addInput:(AVCaptureInput *)input error:(NSError **)error;
-- (BOOL)lc_addOutput:(AVCaptureOutput *)output;
+- (void)lc_addInput:(AVCaptureInput *)input;
+- (void)lc_addOutput:(AVCaptureOutput *)output;
 - (BOOL)lc_canAddInput:(AVCaptureInput *)input;
 - (BOOL)lc_canAddOutput:(AVCaptureOutput *)output;
 @end
@@ -336,21 +336,21 @@ static void deliverSpoofedFramesToOutput(AVCaptureOutput *output, AVCaptureConne
     [self lc_stopRunning];
 }
 
-- (BOOL)lc_addInput:(AVCaptureInput *)input error:(NSError **)error {
+- (void)lc_addInput:(AVCaptureInput *)input {
     NSLog(@"[LC] AVCaptureSession addInput called: %@", input);
     
     if (spoofCameraEnabled && [input isKindOfClass:[AVCaptureDeviceInput class]]) {
         AVCaptureDeviceInput *deviceInput = (AVCaptureDeviceInput *)input;
         if ([deviceInput.device hasMediaType:AVMediaTypeVideo]) {
             NSLog(@"[LC] Blocking camera input due to spoofing");
-            return YES; // Pretend success but don't actually add
+            return; // Don't add camera input
         }
     }
     
-    return [self lc_addInput:input error:error];
+    [self lc_addInput:input];
 }
 
-- (BOOL)lc_addOutput:(AVCaptureOutput *)output {
+- (void)lc_addOutput:(AVCaptureOutput *)output {
     NSLog(@"[LC] AVCaptureSession addOutput called: %@", output);
     
     if (spoofCameraEnabled) {
@@ -377,10 +377,10 @@ static void deliverSpoofedFramesToOutput(AVCaptureOutput *output, AVCaptureConne
         }];
         
         NSLog(@"[LC] Output added to spoofed session tracking");
-        return YES; // Pretend success
+        return; // Don't call original
     }
     
-    return [self lc_addOutput:output];
+    [self lc_addOutput:output];
 }
 
 - (BOOL)lc_canAddInput:(AVCaptureInput *)input {
@@ -458,15 +458,9 @@ static void deliverSpoofedFramesToOutput(AVCaptureOutput *output, AVCaptureConne
     if (spoofCameraEnabled && spoofPixelBuffer) {
         NSLog(@"[LC] Handling spoofed photo capture");
         
-        // For photo output, we need to create a more complex response
-        // This is a simplified implementation - real photo output spoofing would need
-        // to create proper AVCapturePhoto objects
-        
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             if ([delegate respondsToSelector:@selector(captureOutput:didFinishProcessingPhoto:error:)]) {
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    // This is a simplified approach - in practice, you'd need to create
-                    // a proper AVCapturePhoto object with the spoofed image data
                     NSError *error = [NSError errorWithDomain:@"LiveContainerCameraSpoof" 
                                                          code:0 
                                                      userInfo:@{NSLocalizedDescriptionKey: @"Photo capture completed with spoofed content"}];
@@ -524,7 +518,7 @@ void AVFoundationGuestHooksInit(void) {
             
             swizzle(captureSessionClass, @selector(startRunning), @selector(lc_startRunning));
             swizzle(captureSessionClass, @selector(stopRunning), @selector(lc_stopRunning));
-            swizzle(captureSessionClass, @selector(addInput:error:), @selector(lc_addInput:error:));
+            swizzle(captureSessionClass, @selector(addInput:), @selector(lc_addInput:));
             swizzle(captureSessionClass, @selector(addOutput:), @selector(lc_addOutput:));
             swizzle(captureSessionClass, @selector(canAddInput:), @selector(lc_canAddInput:));
             swizzle(captureSessionClass, @selector(canAddOutput:), @selector(lc_canAddOutput:));
