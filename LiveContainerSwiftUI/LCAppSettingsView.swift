@@ -1145,10 +1145,8 @@ struct CameraImagePickerView: View {
     @Binding var errorShow: Bool
     
     @State private var showingFilePicker = false
-    @available(iOS 16.0, *)
     @State private var showingPhotoPicker = false
-    @available(iOS 16.0, *)
-    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var selectedPhotoItem: Any? // Use Any instead of PhotosPickerItem
     @State private var previewImage: UIImage?
     
     var body: some View {
@@ -1201,7 +1199,10 @@ struct CameraImagePickerView: View {
             HStack(spacing: 12) {
                 if #available(iOS 16.0, *) {
                     PhotosPicker(
-                        selection: $selectedPhotoItem,
+                        selection: Binding<PhotosPickerItem?>(
+                            get: { selectedPhotoItem as? PhotosPickerItem },
+                            set: { selectedPhotoItem = $0 }
+                        ),
                         matching: .images
                     ) {
                         Label("Photos", systemImage: "photo.on.rectangle")
@@ -1209,13 +1210,14 @@ struct CameraImagePickerView: View {
                     }
                     .buttonStyle(.bordered)
                     .onChange(of: selectedPhotoItem) { newItem in
-                        Task {
-                            await loadSelectedPhoto(newItem)
+                        if let photoItem = newItem as? PhotosPickerItem {
+                            Task {
+                                await loadSelectedPhoto(photoItem)
+                            }
                         }
                     }
                 } else {
                     Button(action: {
-                        // Fallback for iOS 15 and earlier
                         errorInfo = "Photo picker requires iOS 16.0 or later. Please use the Files option instead."
                         errorShow = true
                     }) {
@@ -1262,9 +1264,7 @@ struct CameraImagePickerView: View {
     }
     
     @available(iOS 16.0, *)
-    private func loadSelectedPhoto(_ item: PhotosPickerItem?) async {
-        guard let item = item else { return }
-        
+    private func loadSelectedPhoto(_ item: PhotosPickerItem) async {
         do {
             if let data = try await item.loadTransferable(type: Data.self) {
                 let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
@@ -1351,10 +1351,8 @@ struct CameraVideoPickerView: View {
     @Binding var errorShow: Bool
     
     @State private var showingFilePicker = false
-    @available(iOS 16.0, *)
     @State private var showingPhotoPicker = false
-    @available(iOS 16.0, *)
-    @State private var selectedVideoItem: PhotosPickerItem?
+    @State private var selectedVideoItem: Any? // Use Any instead of PhotosPickerItem
     @State private var videoThumbnail: UIImage?
     @State private var videoDuration: String = ""
     
@@ -1428,7 +1426,10 @@ struct CameraVideoPickerView: View {
             HStack(spacing: 12) {
                 if #available(iOS 16.0, *) {
                     PhotosPicker(
-                        selection: $selectedVideoItem,
+                        selection: Binding<PhotosPickerItem?>(
+                            get: { selectedVideoItem as? PhotosPickerItem },
+                            set: { selectedVideoItem = $0 }
+                        ),
                         matching: .videos
                     ) {
                         Label("Photos", systemImage: "photo.on.rectangle")
@@ -1436,8 +1437,10 @@ struct CameraVideoPickerView: View {
                     }
                     .buttonStyle(.bordered)
                     .onChange(of: selectedVideoItem) { newItem in
-                        Task {
-                            await loadSelectedVideo(newItem)
+                        if let videoItem = newItem as? PhotosPickerItem {
+                            Task {
+                                await loadSelectedVideo(videoItem)
+                            }
                         }
                     }
                 } else {
@@ -1488,9 +1491,7 @@ struct CameraVideoPickerView: View {
     }
     
     @available(iOS 16.0, *)
-    private func loadSelectedVideo(_ item: PhotosPickerItem?) async {
-        guard let item = item else { return }
-        
+    private func loadSelectedVideo(_ item: PhotosPickerItem) async {
         do {
             if let movieData = try await item.loadTransferable(type: Data.self) {
                 let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
