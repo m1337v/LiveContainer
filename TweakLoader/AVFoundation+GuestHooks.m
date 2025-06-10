@@ -44,6 +44,19 @@ static NSMutableSet *activeCaptureSessions = nil;
 static NSMutableSet *activeTimers = nil;
 static BOOL isCleaningUp = NO;
 
+// Add more tracking for session state
+static NSMutableDictionary *sessionStates = nil;
+static NSMutableDictionary *outputStates = nil;
+
+// Add session state enum
+typedef NS_ENUM(NSInteger, LCSpoofSessionState) {
+    LCSpoofSessionStateIdle = 0,
+    LCSpoofSessionStateStarting,
+    LCSpoofSessionStateRunning,
+    LCSpoofSessionStateStopping,
+    LCSpoofSessionStateResetting
+};
+
 @interface NSUserDefaults(LiveContainerPrivate)
 + (NSDictionary*)guestAppInfo;
 @end
@@ -52,6 +65,8 @@ static BOOL isCleaningUp = NO;
 
 static void cleanupSpoofResources(void);
 static void refreshSpoofState(void);
+static void setSessionState(AVCaptureSession *session, LCSpoofSessionState state);
+static LCSpoofSessionState getSessionState(AVCaptureSession *session);
 
 #pragma mark - Video Processing Support
 
@@ -268,35 +283,61 @@ static CMSampleBufferRef createSpoofSampleBuffer(void) {
 
 #pragma mark - Cleanup Functions
 
+// Enhanced session state tracking
+static void setSessionState(AVCaptureSession *session, LCSpoofSessionState state) {
+    if (!sessionStates) {
+        sessionStates = [[NSMutableDictionary alloc] init];
+    }
+    
+    NSValue *sessionKey = [NSValue valueWithNonretainedObject:session];
+    sessionStates[sessionKey] = @(state);
+    
+    NSLog(@"[LC] Session %p state changed to: %ld", session, (long)state);
+}
+
+static LCSpoofSessionState getSessionState(AVCaptureSession *session) {
+    if (!sessionStates) return LCSpoofSessionStateIdle;
+    
+    NSValue *sessionKey = [NSValue valueWithNonretainedObject:session];
+    NSNumber *stateNum = sessionStates[sessionKey];
+    return stateNum ? (LCSpoofSessionState)[stateNum integerValue] : LCSpoofSessionStateIdle;
+}
+
 static void cleanupSpoofResources(void) {
-    NSLog(@"[LC] Cleaning up spoof resources");
+    NSLog(@"[LC] Enhanced cleanup - stopping all spoof resources");
     isCleaningUp = YES;
     
-    // Stop all active timers
+    // Stop all active timers immediately
     if (activeTimers) {
-        for (NSTimer *timer in [activeTimers copy]) {
+        NSArray *timersToStop = [activeTimers allObjects];
+        [activeTimers removeAllObjects];
+        
+        for (NSTimer *timer in timersToStop) {
             if ([timer isValid]) {
                 [timer invalidate];
             }
         }
-        [activeTimers removeAllObjects];
     }
     
-    // Clear active delegates
+    // Clear all delegates and their associated timers
     if (activeVideoOutputDelegates) {
+        NSArray *allKeys = [activeVideoOutputDelegates allKeys];
+        for (NSValue *key in allKeys) {
+            NSDictionary *delegateInfo = activeVideoOutputDelegates[key];
+            NSTimer *timer = delegateInfo[@"timer"];
+            if (timer && [timer isValid]) {
+                [timer invalidate];
+            }
+        }
         [activeVideoOutputDelegates removeAllObjects];
     }
     
-    // Clear tracking sets
-    if (activeCaptureDevices) {
-        [activeCaptureDevices removeAllObjects];
-    }
-    if (activeCaptureInputs) {
-        [activeCaptureInputs removeAllObjects];
-    }
-    if (activeCaptureSessions) {
-        [activeCaptureSessions removeAllObjects];
-    }
+    // Clear all tracking sets
+    if (sessionStates) [sessionStates removeAllObjects];
+    if (outputStates) [outputStates removeAllObjects];
+    if (activeCaptureDevices) [activeCaptureDevices removeAllObjects];
+    if (activeCaptureInputs) [activeCaptureInputs removeAllObjects];
+    if (activeCaptureSessions) [activeCaptureSessions removeAllObjects];
     
     // Clean up video resources
     if (currentVideoReader) {
@@ -309,8 +350,15 @@ static void cleanupSpoofResources(void) {
     videoReaderFinished = NO;
     currentVideoTime = kCMTimeZero;
     
+    // Force re-setup of video if needed
+    if ([spoofCameraType isEqualToString:@"video"] && spoofVideoAsset) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            setupVideoReader();
+        });
+    }
+    
     isCleaningUp = NO;
-    NSLog(@"[LC] Spoof resources cleanup completed");
+    NSLog(@"[LC] Enhanced cleanup completed");
 }
 
 static void refreshSpoofState(void) {
@@ -500,6 +548,15 @@ static void refreshSpoofState(void) {
         AVCaptureDeviceInput *deviceInput = (AVCaptureDeviceInput *)input;
         if ([activeCaptureDevices containsObject:deviceInput.device]) {
             NSLog(@"[LC] Allowing spoofed input");
+            
+            // Check if this is a reset scenario
+            LCSpoofSessionState currentState = getSessionState(self);
+            if (currentState == LCSpoofSessionStateRunning || currentState == LCSpoofSessionStateStopping) {
+                NSLog(@"[LC] Detected session reset during add input - cleaning up");
+                setSessionState(self, LCSpoofSessionStateResetting);
+                cleanupSpoofResources();
+            }
+            
             return YES;
         }
     }
@@ -513,12 +570,15 @@ static void refreshSpoofState(void) {
     if (spoofCameraEnabled && [input isKindOfClass:[AVCaptureDeviceInput class]]) {
         AVCaptureDeviceInput *deviceInput = (AVCaptureDeviceInput *)input;
         if ([activeCaptureDevices containsObject:deviceInput.device]) {
-            NSLog(@"[LC] Adding spoofed input - allowing but tracking session");
+            NSLog(@"[LC] Adding spoofed input - tracking session");
             
             if (!activeCaptureSessions) {
                 activeCaptureSessions = [[NSMutableSet alloc] init];
             }
             [activeCaptureSessions addObject:self];
+            
+            // Set session state
+            setSessionState(self, LCSpoofSessionStateIdle);
             
             [self lc_addInput:input];
             return;
@@ -533,6 +593,15 @@ static void refreshSpoofState(void) {
     
     if (spoofCameraEnabled && [activeCaptureSessions containsObject:self]) {
         NSLog(@"[LC] Allowing spoofed output");
+        
+        // Check for reset scenario
+        LCSpoofSessionState currentState = getSessionState(self);
+        if (currentState == LCSpoofSessionStateRunning) {
+            NSLog(@"[LC] Detected session reset during add output - cleaning up");
+            setSessionState(self, LCSpoofSessionStateResetting);
+            cleanupSpoofResources();
+        }
+        
         return YES;
     }
     
@@ -543,7 +612,7 @@ static void refreshSpoofState(void) {
     NSLog(@"[LC] AVCaptureSession addOutput intercepted");
     
     if (spoofCameraEnabled && [activeCaptureSessions containsObject:self]) {
-        NSLog(@"[LC] Adding spoofed output - allowing but will intercept frames");
+        NSLog(@"[LC] Adding spoofed output");
         [self lc_addOutput:output];
         return;
     }
@@ -557,7 +626,25 @@ static void refreshSpoofState(void) {
     refreshSpoofState();
     
     if (spoofCameraEnabled && [activeCaptureSessions containsObject:self]) {
-        NSLog(@"[LC] Starting spoofed session - blocking real camera");
+        NSLog(@"[LC] Starting spoofed session");
+        
+        LCSpoofSessionState currentState = getSessionState(self);
+        
+        // If we're already running, this might be a reset
+        if (currentState == LCSpoofSessionStateRunning) {
+            NSLog(@"[LC] Session already running - potential reset detected");
+            setSessionState(self, LCSpoofSessionStateResetting);
+            cleanupSpoofResources();
+            
+            // Wait a bit before setting to starting
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                setSessionState(self, LCSpoofSessionStateStarting);
+            });
+        } else {
+            setSessionState(self, LCSpoofSessionStateStarting);
+        }
+        
+        // Don't start the real camera
         return;
     }
     
@@ -568,14 +655,14 @@ static void refreshSpoofState(void) {
     NSLog(@"[LC] AVCaptureSession stopRunning intercepted");
     
     if (spoofCameraEnabled && [activeCaptureSessions containsObject:self]) {
-        NSLog(@"[LC] Stopping spoofed session - cleaning up for this session");
+        NSLog(@"[LC] Stopping spoofed session");
         
-        // Clean up resources associated with this session
+        setSessionState(self, LCSpoofSessionStateStopping);
+        
+        // Clean up resources for this session
         if (activeVideoOutputDelegates) {
             NSArray *allKeys = [activeVideoOutputDelegates allKeys];
             for (NSValue *key in allKeys) {
-                AVCaptureVideoDataOutput *output = [key nonretainedObjectValue];
-                // Remove session check since AVCaptureVideoDataOutput doesn't have session property
                 NSDictionary *delegateInfo = activeVideoOutputDelegates[key];
                 NSTimer *timer = delegateInfo[@"timer"];
                 if (timer && [timer isValid]) {
@@ -586,7 +673,16 @@ static void refreshSpoofState(void) {
             }
         }
         
-        [activeCaptureSessions removeObject:self];
+        // Remove from active sessions after a delay to allow for potential restart
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            LCSpoofSessionState currentState = getSessionState(self);
+            if (currentState == LCSpoofSessionStateStopping) {
+                [activeCaptureSessions removeObject:self];
+                setSessionState(self, LCSpoofSessionStateIdle);
+                NSLog(@"[LC] Session fully stopped and removed");
+            }
+        });
+        
         return;
     }
     
@@ -595,12 +691,7 @@ static void refreshSpoofState(void) {
 
 @end
 
-// Hook AVCaptureVideoDataOutput
-@interface AVCaptureVideoDataOutput(LiveContainerLowLevelHooks)
-- (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate 
-                             queue:(dispatch_queue_t)sampleBufferCallbackQueue;
-@end
-
+// Enhanced video output hooks with better reset detection
 @implementation AVCaptureVideoDataOutput(LiveContainerLowLevelHooks)
 
 - (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate 
@@ -609,10 +700,12 @@ static void refreshSpoofState(void) {
     
     refreshSpoofState();
     
-    // If setting delegate to nil, clean up
+    NSValue *outputKey = [NSValue valueWithNonretainedObject:self];
+    
+    // If setting delegate to nil, clean up immediately
     if (!sampleBufferDelegate) {
-        NSLog(@"[LC] Delegate set to nil, cleaning up");
-        NSValue *outputKey = [NSValue valueWithNonretainedObject:self];
+        NSLog(@"[LC] Delegate set to nil - immediate cleanup");
+        
         if (activeVideoOutputDelegates && activeVideoOutputDelegates[outputKey]) {
             NSDictionary *delegateInfo = activeVideoOutputDelegates[outputKey];
             NSTimer *timer = delegateInfo[@"timer"];
@@ -623,12 +716,43 @@ static void refreshSpoofState(void) {
             [activeVideoOutputDelegates removeObjectForKey:outputKey];
         }
         
+        // Mark output as idle
+        if (!outputStates) outputStates = [[NSMutableDictionary alloc] init];
+        outputStates[outputKey] = @(LCSpoofSessionStateIdle);
+        
         [self lc_setSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue];
         return;
     }
     
     if (spoofCameraEnabled && sampleBufferDelegate && !isCleaningUp) {
         NSLog(@"[LC] Registering spoofed delegate");
+        
+        // Check if this output was already active (reset scenario)
+        if (!outputStates) outputStates = [[NSMutableDictionary alloc] init];
+        
+        NSNumber *currentOutputState = outputStates[outputKey];
+        if (currentOutputState && [currentOutputState integerValue] == LCSpoofSessionStateRunning) {
+            NSLog(@"[LC] Output delegate reset detected - cleaning up first");
+            
+            // Clean up existing timer
+            if (activeVideoOutputDelegates && activeVideoOutputDelegates[outputKey]) {
+                NSDictionary *delegateInfo = activeVideoOutputDelegates[outputKey];
+                NSTimer *timer = delegateInfo[@"timer"];
+                if (timer && [timer isValid]) {
+                    [timer invalidate];
+                    if (activeTimers) [activeTimers removeObject:timer];
+                }
+                [activeVideoOutputDelegates removeObjectForKey:outputKey];
+            }
+            
+            // Wait before restarting
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [self lc_setSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue];
+            });
+            return;
+        }
+        
+        outputStates[outputKey] = @(LCSpoofSessionStateStarting);
         
         if (!activeVideoOutputDelegates) {
             activeVideoOutputDelegates = [[NSMutableDictionary alloc] init];
@@ -637,27 +761,16 @@ static void refreshSpoofState(void) {
             activeTimers = [[NSMutableSet alloc] init];
         }
         
-        NSValue *outputKey = [NSValue valueWithNonretainedObject:self];
-        
-        // Clean up any existing timer for this output
-        NSDictionary *existingInfo = activeVideoOutputDelegates[outputKey];
-        if (existingInfo && existingInfo[@"timer"]) {
-            NSTimer *existingTimer = existingInfo[@"timer"];
-            if ([existingTimer isValid]) {
-                [existingTimer invalidate];
-            }
-            [activeTimers removeObject:existingTimer];
-        }
-        
         activeVideoOutputDelegates[outputKey] = @{
             @"delegate": sampleBufferDelegate,
             @"queue": sampleBufferCallbackQueue ?: dispatch_get_main_queue()
         };
         
-        // Start frame delivery - using regular references instead of weak
+        // Start frame delivery with enhanced reset detection
         dispatch_async(dispatch_get_main_queue(), ^{
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 if (isCleaningUp || !spoofCameraEnabled) {
+                    outputStates[outputKey] = @(LCSpoofSessionStateIdle);
                     return;
                 }
                 
@@ -673,11 +786,23 @@ static void refreshSpoofState(void) {
                         if (isCleaningUp) {
                             [timer invalidate];
                             if (activeTimers) [activeTimers removeObject:timer];
+                            outputStates[outputKeyRef] = @(LCSpoofSessionStateIdle);
                             return;
                         }
                         
+                        // Check for state changes more frequently
                         refreshSpoofState();
                         if (!spoofCameraEnabled) {
+                            [timer invalidate];
+                            if (activeTimers) [activeTimers removeObject:timer];
+                            outputStates[outputKeyRef] = @(LCSpoofSessionStateIdle);
+                            return;
+                        }
+                        
+                        // Check if output was reset
+                        NSNumber *outputState = outputStates[outputKeyRef];
+                        if (outputState && [outputState integerValue] == LCSpoofSessionStateIdle) {
+                            NSLog(@"[LC] Output was reset, stopping timer");
                             [timer invalidate];
                             if (activeTimers) [activeTimers removeObject:timer];
                             return;
@@ -709,10 +834,12 @@ static void refreshSpoofState(void) {
                             NSLog(@"[LC] Delegate removed, invalidating timer");
                             [timer invalidate];
                             if (activeTimers) [activeTimers removeObject:timer];
+                            outputStates[outputKeyRef] = @(LCSpoofSessionStateIdle);
                         }
                     }];
                     
                     [activeTimers addObject:timer];
+                    outputStates[outputKeyRef] = @(LCSpoofSessionStateRunning);
                     
                     NSMutableDictionary *updatedInfo = [activeVideoOutputDelegates[outputKey] mutableCopy];
                     if (updatedInfo) {
@@ -794,9 +921,11 @@ static void refreshSpoofState(void) {
 
 void AVFoundationGuestHooksInit(void) {
     @try {
-        NSLog(@"[LC] Low-level AVFoundation camera spoofing init");
+        NSLog(@"[LC] Enhanced low-level AVFoundation camera spoofing init");
         
         activeTimers = [[NSMutableSet alloc] init];
+        sessionStates = [[NSMutableDictionary alloc] init];
+        outputStates = [[NSMutableDictionary alloc] init];
         
         NSDictionary *guestAppInfo = NSUserDefaults.guestAppInfo;
         if (!guestAppInfo) {
@@ -845,7 +974,7 @@ void AVFoundationGuestHooksInit(void) {
         
         prepareImageResources();
         
-        // Setup hooks
+        // Setup all existing hooks plus preview layer
         Class captureDeviceClass = NSClassFromString(@"AVCaptureDevice");
         if (captureDeviceClass) {
             swizzle(captureDeviceClass, @selector(devicesWithMediaType:), @selector(lc_devicesWithMediaType:));
@@ -876,6 +1005,12 @@ void AVFoundationGuestHooksInit(void) {
                    @selector(lc_setSampleBufferDelegate:queue:));
         }
         
+        // Add preview layer hooks
+        Class previewLayerClass = NSClassFromString(@"AVCaptureVideoPreviewLayer");
+        if (previewLayerClass) {
+            swizzle(previewLayerClass, @selector(setSession:), @selector(lc_setSession:));
+        }
+        
         Class stillImageOutputClass = NSClassFromString(@"AVCaptureStillImageOutput");
         if (stillImageOutputClass) {
             swizzle(stillImageOutputClass, 
@@ -890,12 +1025,12 @@ void AVFoundationGuestHooksInit(void) {
                    @selector(lc_capturePhotoWithSettings:delegate:));
         }
         
-        // Add app state monitoring
+        // Enhanced app state monitoring with more aggressive cleanup
         [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidEnterBackgroundNotification
                                                           object:nil
                                                            queue:nil
                                                       usingBlock:^(NSNotification *note) {
-            NSLog(@"[LC] App entering background - cleaning up camera resources");
+            NSLog(@"[LC] App background - aggressive cleanup");
             cleanupSpoofResources();
         }];
         
@@ -903,7 +1038,7 @@ void AVFoundationGuestHooksInit(void) {
                                                           object:nil
                                                            queue:nil
                                                       usingBlock:^(NSNotification *note) {
-            NSLog(@"[LC] App entering foreground - refreshing camera state");
+            NSLog(@"[LC] App foreground - refresh state");
             refreshSpoofState();
         }];
         
@@ -911,11 +1046,11 @@ void AVFoundationGuestHooksInit(void) {
                                                           object:nil
                                                            queue:nil
                                                       usingBlock:^(NSNotification *note) {
-            NSLog(@"[LC] Memory warning - cleaning up camera resources");
+            NSLog(@"[LC] Memory warning - cleanup");
             cleanupSpoofResources();
         }];
         
-        NSLog(@"[LC] Low-level camera spoofing initialized with cleanup (mode: %@)", spoofCameraType);
+        NSLog(@"[LC] Enhanced camera spoofing initialized with reset detection (mode: %@)", spoofCameraType);
         
     } @catch (NSException *exception) {
         NSLog(@"[LC] Exception in init: %@", exception);
