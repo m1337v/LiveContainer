@@ -621,6 +621,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     [self save];
 }
 
+// GPS Addon Section
 - (bool)spoofGPS {
     if(_info[@"spoofGPS"] != nil) {
         return [_info[@"spoofGPS"] boolValue];
@@ -674,7 +675,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     if (locationName && [locationName isKindOfClass:[NSString class]]) {
         return locationName;
     } else {
-        return @""; // Return empty NSString, not nil
+        return @"";
     }
 }
 
@@ -682,11 +683,88 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     if (spoofLocationName && [spoofLocationName length] > 0) {
         _info[@"spoofLocationName"] = spoofLocationName;
     } else {
-        _info[@"spoofLocationName"] = @""; // Store empty string instead of nil
+        _info[@"spoofLocationName"] = @"";
     }
     [self save];
 }
 
+// Camera Addon Section
+- (bool)spoofCamera {
+    if(_info[@"spoofCamera"] != nil) {
+        return [_info[@"spoofCamera"] boolValue];
+    } else {
+        return NO;
+    }
+}
+- (void)setSpoofCamera:(bool)spoofCamera {
+    _info[@"spoofCamera"] = [NSNumber numberWithBool:spoofCamera];
+    [self save];
+}
+
+- (NSString*)spoofCameraType {
+    NSString* cameraType = _info[@"spoofCameraType"];
+    if (cameraType && [cameraType isKindOfClass:[NSString class]]) {
+        return cameraType;
+    } else {
+        return @"image";
+    }
+}
+- (void)setSpoofCameraType:(NSString*)spoofCameraType {
+    if (spoofCameraType && [spoofCameraType length] > 0) {
+        _info[@"spoofCameraType"] = spoofCameraType;
+    } else {
+        _info[@"spoofCameraType"] = @"image";
+    }
+    [self save];
+}
+
+- (NSString*)spoofCameraImagePath {
+    NSString* imagePath = _info[@"spoofCameraImagePath"];
+    if (imagePath && [imagePath isKindOfClass:[NSString class]]) {
+        return imagePath;
+    } else {
+        return @"";
+    }
+}
+- (void)setSpoofCameraImagePath:(NSString*)spoofCameraImagePath {
+    if (spoofCameraImagePath && [spoofCameraImagePath length] > 0) {
+        _info[@"spoofCameraImagePath"] = spoofCameraImagePath;
+    } else {
+        _info[@"spoofCameraImagePath"] = @"";
+    }
+    [self save];
+}
+
+- (NSString*)spoofCameraVideoPath {
+    NSString* videoPath = _info[@"spoofCameraVideoPath"];
+    if (videoPath && [videoPath isKindOfClass:[NSString class]]) {
+        return videoPath;
+    } else {
+        return @"";
+    }
+}
+- (void)setSpoofCameraVideoPath:(NSString*)spoofCameraVideoPath {
+    if (spoofCameraVideoPath && [spoofCameraVideoPath length] > 0) {
+        _info[@"spoofCameraVideoPath"] = spoofCameraVideoPath;
+    } else {
+        _info[@"spoofCameraVideoPath"] = @"";
+    }
+    [self save];
+}
+
+- (bool)spoofCameraLoop {
+    if(_info[@"spoofCameraLoop"] != nil) {
+        return [_info[@"spoofCameraLoop"] boolValue];
+    } else {
+        return YES; // Default to looping
+    }
+}
+- (void)setSpoofCameraLoop:(bool)spoofCameraLoop {
+    _info[@"spoofCameraLoop"] = [NSNumber numberWithBool:spoofCameraLoop];
+    [self save];
+}
+
+// UI Addon Section
 - (NSDate*)lastLaunched {
     return _info[@"lastLaunched"];
 }

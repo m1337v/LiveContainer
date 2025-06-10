@@ -99,6 +99,15 @@ struct LCAppBanner : View {
                                     Capsule().fill(Color("BadgeColor"))
                                 )
                         }
+                        if model.uiSpoofCamera {
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 8))
+                                .foregroundColor(.white)
+                                .frame(width: 16, height:16)
+                                .background(
+                                    Capsule().fill(Color.purple)
+                                )
+                        }
                     }
                     
                     HStack {

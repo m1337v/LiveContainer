@@ -92,7 +92,7 @@ class LCAppModel: ObservableObject, Hashable {
     
     @Published var supportedLanguages : [String]?
 
-    // Add the missing GPS properties
+    // GPS Addon Section
     @Published var uiSpoofGPS : Bool {
         didSet {
             appInfo.spoofGPS = uiSpoofGPS
@@ -115,8 +115,34 @@ class LCAppModel: ObservableObject, Hashable {
     }
     @Published var uiSpoofLocationName : String {
         didSet {
-            // Change this line:
             appInfo.spoofLocationName = uiSpoofLocationName
+        }
+    }
+    
+    // Camera Addon Section
+    @Published var uiSpoofCamera : Bool {
+        didSet {
+            appInfo.spoofCamera = uiSpoofCamera
+        }
+    }
+    @Published var uiSpoofCameraType : String {
+        didSet {
+            appInfo.spoofCameraType = uiSpoofCameraType
+        }
+    }
+    @Published var uiSpoofCameraImagePath : String {
+        didSet {
+            appInfo.spoofCameraImagePath = uiSpoofCameraImagePath
+        }
+    }
+    @Published var uiSpoofCameraVideoPath : String {
+        didSet {
+            appInfo.spoofCameraVideoPath = uiSpoofCameraVideoPath
+        }
+    }
+    @Published var uiSpoofCameraLoop : Bool {
+        didSet {
+            appInfo.spoofCameraLoop = uiSpoofCameraLoop
         }
     }
     
@@ -150,11 +176,19 @@ class LCAppModel: ObservableObject, Hashable {
         
         self.uiIs32bit = appInfo.is32bit
         
+        // GPS Addon Section
         self.uiSpoofGPS = appInfo.spoofGPS
         self.uiSpoofLatitude = appInfo.spoofLatitude
         self.uiSpoofLongitude = appInfo.spoofLongitude
         self.uiSpoofAltitude = appInfo.spoofAltitude
         self.uiSpoofLocationName = appInfo.spoofLocationName ?? ""
+        
+        // Camera Addon Section
+        self.uiSpoofCamera = appInfo.spoofCamera
+        self.uiSpoofCameraType = appInfo.spoofCameraType ?? "image"
+        self.uiSpoofCameraImagePath = appInfo.spoofCameraImagePath ?? ""
+        self.uiSpoofCameraVideoPath = appInfo.spoofCameraVideoPath ?? ""
+        self.uiSpoofCameraLoop = appInfo.spoofCameraLoop
         
         for container in uiContainers {
             if container.folderName == uiDefaultDataFolder {

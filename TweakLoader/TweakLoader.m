@@ -4,8 +4,10 @@
 #include <objc/runtime.h>
 #include "utils.h"
 #import "CoreLocation+GuestHooks.h"
+#import "AVFoundation+GuestHooks.h"
 
 void CoreLocationGuestHooksInit(void);
+void AVFoundationGuestHooksInit(void);
 
 static NSString *loadTweakAtURL(NSURL *url) {
     NSString *tweakPath = url.path;
@@ -114,12 +116,19 @@ static void TweakLoaderConstructor() {
         }
     }
 
+    // GPS Addon Section
     // Initialize GPS hooks if needed - this is now safer since it uses NSUserDefaults.guestAppInfo
     // which is the same pattern used by other hooks like SecItem
     if (NSUserDefaults.guestAppInfo[@"spoofGPS"] && [NSUserDefaults.guestAppInfo[@"spoofGPS"] boolValue]) {
         CoreLocationGuestHooksInit();
     }
     
+    // Camera Addon Section
+
+    if (NSUserDefaults.guestAppInfo[@"spoofCamera"] && [NSUserDefaults.guestAppInfo[@"spoofCamera"] boolValue]) {
+        AVFoundationGuestHooksInit();
+    }
+
     if (errors.count > 0) {
         dispatch_async(dispatch_get_main_queue(), ^{
             NSString *error = [errors componentsJoinedByString:@"\n"];

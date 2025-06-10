@@ -601,6 +601,43 @@ struct LCAppSettingsView : View{
                 locationName: $model.uiSpoofLocationName
             )
             
+            // Camera Settings Section
+            Section {
+                Toggle("Spoof Camera", isOn: $model.uiSpoofCamera)
+                
+                if model.uiSpoofCamera {
+                    Picker("Camera Type", selection: $model.uiSpoofCameraType) {
+                        Text("Static Image").tag("image")
+                        Text("Video").tag("video")
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
+                    
+                    if model.uiSpoofCameraType == "image" {
+                        HStack {
+                            Text("Image Path")
+                            Spacer()
+                            TextField("Path to image file", text: $model.uiSpoofCameraImagePath)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                        }
+                    } else {
+                        HStack {
+                            Text("Video Path")
+                            Spacer()
+                            TextField("Path to video file", text: $model.uiSpoofCameraVideoPath)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                        }
+                        
+                        Toggle("Loop Video", isOn: $model.uiSpoofCameraLoop)
+                    }
+                }
+            } header: {
+                Text("Camera Spoofing")
+            } footer: {
+                if model.uiSpoofCamera {
+                    Text("Camera spoofing will block real camera access and provide fake camera data to the app.")
+                }
+            }
+
             Section {
                 Toggle(isOn: $model.uiIsJITNeeded) {
                     Text("lc.appSettings.launchWithJit".loc)

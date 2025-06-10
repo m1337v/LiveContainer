@@ -926,7 +926,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
 
     }
     
-    // Add this computed property to LCAppListView
+    // UI Addon Section
     private var sortedApps: [LCAppModel] {
         return sharedModel.apps.sorted { app1, app2 in
             let date1 = app1.appInfo.lastLaunched

@@ -37,13 +37,20 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 
 @property bool is32bit;
 
-// Add these properties to the interface
+// GPS Spoofing Section
 @property BOOL spoofGPS;
 @property CLLocationDegrees spoofLatitude;
 @property CLLocationDegrees spoofLongitude;
 @property CLLocationDistance spoofAltitude;
-@property NSString* spoofLocationName;  // Add this line
+@property NSString* spoofLocationName;
 @property NSDate* lastLaunched;
+
+// Camera Addon Section
+@property BOOL spoofCamera;
+@property NSString* spoofCameraType; // "image" or "video"
+@property NSString* spoofCameraImagePath;
+@property NSString* spoofCameraVideoPath;
+@property BOOL spoofCameraLoop;
 
 - (void)setBundlePath:(NSString*)newBundlePath;
 - (NSMutableDictionary*)info;
