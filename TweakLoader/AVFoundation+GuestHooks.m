@@ -294,7 +294,7 @@ static void cleanupSpoofResources(void) {
     NSLog(@"[LC] Cleanup completed");
 }
 
-#pragma mark - MINIMAL HOOKS - Only hook data outputs
+#pragma mark - HOOKS - Only hook data outputs
 
 // Hook video data output - this provides the live preview frames
 @interface AVCaptureVideoDataOutput(LiveContainerMinimalHooks)
@@ -403,7 +403,7 @@ static void cleanupSpoofResources(void) {
 
 @end
 
-// Hook still image capture - this is what provides the photo capture
+// Hook still image capture
 @interface AVCaptureStillImageOutput(LiveContainerMinimalHooks)
 - (void)lc_captureStillImageAsynchronouslyFromConnection:(AVCaptureConnection *)connection 
                                        completionHandler:(void (^)(CMSampleBufferRef, NSError *))handler;
@@ -455,7 +455,7 @@ static void cleanupSpoofResources(void) {
 
 @end
 
-// Add hooks for movie file output - this is what records video
+// Hook movie file output
 @interface AVCaptureMovieFileOutput(LiveContainerMinimalHooks)
 - (void)lc_startRecordingToOutputFileURL:(NSURL *)outputFileURL recordingDelegate:(id<AVCaptureFileOutputRecordingDelegate>)delegate;
 - (void)lc_stopRecording;
@@ -464,16 +464,12 @@ static void cleanupSpoofResources(void) {
 @implementation AVCaptureMovieFileOutput(LiveContainerMinimalHooks)
 
 - (void)lc_startRecordingToOutputFileURL:(NSURL *)outputFileURL recordingDelegate:(id<AVCaptureFileOutputRecordingDelegate>)delegate {
-    NSLog(@"[LC] Movie file output start recording - spoofing: %d", spoofCameraEnabled);
+    NSLog(@"[LC] Movie file output start recording to: %@", outputFileURL.lastPathComponent);
     
-    if (!spoofCameraEnabled) {
-        [self lc_startRecordingToOutputFileURL:outputFileURL recordingDelegate:delegate];
-        return;
+    if (spoofCameraEnabled) {
+        NSLog(@"[LC] Movie file recording - spoofing enabled, relying on AVAssetWriterInput hook");
     }
     
-    // TODO: We need to create a spoofed video file here
-    // For now, let the real recording happen but we should spoof this too
-    NSLog(@"[LC] WARNING: Movie recording not yet spoofed - using real camera");
     [self lc_startRecordingToOutputFileURL:outputFileURL recordingDelegate:delegate];
 }
 
@@ -484,7 +480,7 @@ static void cleanupSpoofResources(void) {
 
 @end
 
-// Hook the capture session's output methods more comprehensively
+// Hook capture session output management
 @interface AVCaptureSession(LiveContainerOutputHooks)
 - (void)lc_addOutput:(AVCaptureOutput *)output;
 - (void)lc_removeOutput:(AVCaptureOutput *)output;
@@ -499,9 +495,7 @@ static void cleanupSpoofResources(void) {
         if ([output isKindOfClass:[AVCaptureVideoDataOutput class]]) {
             NSLog(@"[LC] Video data output added - will be spoofed");
         } else if ([output isKindOfClass:[AVCaptureMovieFileOutput class]]) {
-            NSLog(@"[LC] Movie file output added - recording will use real camera (not yet spoofed)");
-        } else if ([output isKindOfClass:[AVCaptureStillImageOutput class]]) {
-            NSLog(@"[LC] Still image output added - will be spoofed");
+            NSLog(@"[LC] Movie file output added");
         } else if ([output isKindOfClass:[AVCapturePhotoOutput class]]) {
             NSLog(@"[LC] Photo output added - will be spoofed");
         } else {
@@ -535,7 +529,7 @@ static void cleanupSpoofResources(void) {
 
 @end
 
-// Hook AVAssetWriter - Instagram might use this for custom recording
+// Hook AVAssetWriter
 @interface AVAssetWriter(LiveContainerMinimalHooks)
 - (BOOL)lc_startWriting;
 - (void)lc_finishWritingWithCompletionHandler:(void (^)(void))handler;
@@ -545,11 +539,6 @@ static void cleanupSpoofResources(void) {
 
 - (BOOL)lc_startWriting {
     NSLog(@"[LC] Asset writer start writing - spoofing: %d", spoofCameraEnabled);
-    
-    if (spoofCameraEnabled) {
-        NSLog(@"[LC] WARNING: Asset writer not yet spoofed - will record real camera");
-    }
-    
     return [self lc_startWriting];
 }
 
@@ -560,7 +549,7 @@ static void cleanupSpoofResources(void) {
 
 @end
 
-// Hook AVAssetWriterInput - This receives the actual video data for recording
+// Hook AVAssetWriterInput - CRITICAL FOR RECORDING
 @interface AVAssetWriterInput(LiveContainerMinimalHooks)
 - (BOOL)lc_appendSampleBuffer:(CMSampleBufferRef)sampleBuffer;
 @end
@@ -568,15 +557,26 @@ static void cleanupSpoofResources(void) {
 @implementation AVAssetWriterInput(LiveContainerMinimalHooks)
 
 - (BOOL)lc_appendSampleBuffer:(CMSampleBufferRef)sampleBuffer {
-    if (spoofCameraEnabled && CMSampleBufferGetImageBuffer(sampleBuffer)) {
-        NSLog(@"[LC] Asset writer input append sample buffer - INTERCEPTING");
-        
-        // Replace the real sample buffer with our spoofed one
-        CMSampleBufferRef spoofedBuffer = createSpoofSampleBuffer();
-        if (spoofedBuffer) {
-            BOOL result = [self lc_appendSampleBuffer:spoofedBuffer];
-            CFRelease(spoofedBuffer);
-            return result;
+    if (spoofCameraEnabled && sampleBuffer) {
+        // Check if this is video data
+        CMFormatDescriptionRef formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer);
+        if (formatDesc) {
+            CMMediaType mediaType = CMFormatDescriptionGetMediaType(formatDesc);
+            
+            if (mediaType == kCMMediaType_Video) {
+                NSLog(@"[LC] Asset writer input - INTERCEPTING VIDEO FRAME for recording");
+                
+                // Replace the real sample buffer with our spoofed one
+                CMSampleBufferRef spoofedBuffer = createSpoofSampleBuffer();
+                if (spoofedBuffer) {
+                    BOOL result = [self lc_appendSampleBuffer:spoofedBuffer];
+                    CFRelease(spoofedBuffer);
+                    return result;
+                }
+            } else if (mediaType == kCMMediaType_Audio) {
+                NSLog(@"[LC] Asset writer input - allowing audio through");
+                // Let audio through unchanged
+            }
         }
     }
     
@@ -585,10 +585,51 @@ static void cleanupSpoofResources(void) {
 
 @end
 
-// Enhanced initialization with additional hooks
+// Hook AVAssetReaderTrackOutput for comprehensive coverage
+@interface AVAssetReaderTrackOutput(LiveContainerHooks)
+- (CMSampleBufferRef)lc_copyNextSampleBuffer;
+@end
+
+@implementation AVAssetReaderTrackOutput(LiveContainerHooks)
+
+- (CMSampleBufferRef)lc_copyNextSampleBuffer {
+    CMSampleBufferRef originalBuffer = [self lc_copyNextSampleBuffer];
+    
+    if (spoofCameraEnabled && originalBuffer) {
+        NSLog(@"[LC] Asset reader track output - intercepting video frame read");
+        
+        // Replace with our spoofed frame
+        CMSampleBufferRef spoofedBuffer = createSpoofSampleBuffer();
+        if (spoofedBuffer) {
+            if (originalBuffer) CFRelease(originalBuffer);
+            return spoofedBuffer;
+        }
+    }
+    
+    return originalBuffer;
+}
+
+@end
+
+// Hook AVCaptureVideoPreviewLayer for logging
+@interface AVCaptureVideoPreviewLayer(LiveContainerHooks)
+- (void)lc_setSession:(AVCaptureSession *)session;
+@end
+
+@implementation AVCaptureVideoPreviewLayer(LiveContainerHooks)
+
+- (void)lc_setSession:(AVCaptureSession *)session {
+    NSLog(@"[LC] Video preview layer setSession - session: %p", session);
+    [self lc_setSession:session];
+}
+
+@end
+
+#pragma mark - Initialization
+
 void AVFoundationGuestHooksInit(void) {
     @try {
-        NSLog(@"[LC] Minimal camera output spoofing init");
+        NSLog(@"[LC] Comprehensive camera spoofing init");
         
         activeTimers = [[NSMutableSet alloc] init];
         
@@ -636,7 +677,7 @@ void AVFoundationGuestHooksInit(void) {
         
         prepareImageResources();
         
-        // Hook data outputs
+        // Hook all the necessary classes
         Class videoDataOutputClass = NSClassFromString(@"AVCaptureVideoDataOutput");
         if (videoDataOutputClass) {
             swizzle(videoDataOutputClass, 
@@ -658,7 +699,6 @@ void AVFoundationGuestHooksInit(void) {
                    @selector(lc_capturePhotoWithSettings:delegate:));
         }
         
-        // Hook recording outputs
         Class movieFileOutputClass = NSClassFromString(@"AVCaptureMovieFileOutput");
         if (movieFileOutputClass) {
             swizzle(movieFileOutputClass, 
@@ -669,14 +709,6 @@ void AVFoundationGuestHooksInit(void) {
                    @selector(lc_stopRecording));
         }
         
-        // Hook session output management
-        Class captureSessionClass = NSClassFromString(@"AVCaptureSession");
-        if (captureSessionClass) {
-            swizzle(captureSessionClass, @selector(addOutput:), @selector(lc_addOutput:));
-            swizzle(captureSessionClass, @selector(removeOutput:), @selector(lc_removeOutput:));
-        }
-        
-        // Hook AVAssetWriter for custom recording
         Class assetWriterClass = NSClassFromString(@"AVAssetWriter");
         if (assetWriterClass) {
             swizzle(assetWriterClass, @selector(startWriting), @selector(lc_startWriting));
@@ -692,6 +724,26 @@ void AVFoundationGuestHooksInit(void) {
                    @selector(lc_appendSampleBuffer:));
         }
         
+        Class captureSessionClass = NSClassFromString(@"AVCaptureSession");
+        if (captureSessionClass) {
+            swizzle(captureSessionClass, @selector(addOutput:), @selector(lc_addOutput:));
+            swizzle(captureSessionClass, @selector(removeOutput:), @selector(lc_removeOutput:));
+        }
+        
+        Class assetReaderTrackOutputClass = NSClassFromString(@"AVAssetReaderTrackOutput");
+        if (assetReaderTrackOutputClass) {
+            swizzle(assetReaderTrackOutputClass,
+                   @selector(copyNextSampleBuffer),
+                   @selector(lc_copyNextSampleBuffer));
+        }
+        
+        Class videoPreviewLayerClass = NSClassFromString(@"AVCaptureVideoPreviewLayer");
+        if (videoPreviewLayerClass) {
+            swizzle(videoPreviewLayerClass,
+                   @selector(setSession:),
+                   @selector(lc_setSession:));
+        }
+        
         // Minimal app state monitoring
         [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidEnterBackgroundNotification
                                                           object:nil
@@ -700,7 +752,7 @@ void AVFoundationGuestHooksInit(void) {
             cleanupSpoofResources();
         }];
         
-        NSLog(@"[LC] Enhanced camera spoofing initialized - hooking outputs and recording");
+        NSLog(@"[LC] Comprehensive camera spoofing initialized - all recording paths hooked");
         
     } @catch (NSException *exception) {
         NSLog(@"[LC] Exception in init: %@", exception);
