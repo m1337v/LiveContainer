@@ -9,6 +9,9 @@ import Foundation
 import SwiftUI
 import CoreLocation
 import MapKit
+import AVFoundation
+import PhotosUI
+import Photos
 
 struct GPSSettingsSection: View {
     @Binding var spoofGPS: Bool
@@ -603,7 +606,7 @@ struct LCAppSettingsView : View{
             
             // Camera Settings Section
             Section {
-                Toggle("Spoof Camera", isOn: $model.uiSpoofCamera)
+                Toggle("Camera Settings", isOn: $model.uiSpoofCamera)
                 
                 if model.uiSpoofCamera {
                     Picker("Camera Type", selection: $model.uiSpoofCameraType) {
@@ -613,28 +616,25 @@ struct LCAppSettingsView : View{
                     .pickerStyle(SegmentedPickerStyle())
                     
                     if model.uiSpoofCameraType == "image" {
-                        HStack {
-                            Text("Image Path")
-                            Spacer()
-                            TextField("Path to image file", text: $model.uiSpoofCameraImagePath)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                        }
+                        CameraImagePickerView(
+                            imagePath: $model.uiSpoofCameraImagePath,
+                            errorInfo: $errorInfo,
+                            errorShow: $errorShow
+                        )
                     } else {
-                        HStack {
-                            Text("Video Path")
-                            Spacer()
-                            TextField("Path to video file", text: $model.uiSpoofCameraVideoPath)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                        }
-                        
-                        Toggle("Loop Video", isOn: $model.uiSpoofCameraLoop)
+                        CameraVideoPickerView(
+                            videoPath: $model.uiSpoofCameraVideoPath,
+                            loopVideo: $model.uiSpoofCameraLoop,
+                            errorInfo: $errorInfo,
+                            errorShow: $errorShow
+                        )
                     }
                 }
             } header: {
-                Text("Camera Spoofing")
+                Text("Camera Settings")
             } footer: {
                 if model.uiSpoofCamera {
-                    Text("Camera spoofing will block real camera access and provide fake camera data to the app.")
+                    Text("When enabled, this app will receive the specified camera input instead of the device's actual camera data. Media files are copied to LiveContainer's Documents folder.")
                 }
             }
 
@@ -1130,5 +1130,427 @@ extension LCAppSettingsView : LCSelectContainerViewDelegate {
         }
         appInfo.containers = model.uiContainers;
 
+    }
+}
+
+struct CameraImagePickerView: View {
+    @Binding var imagePath: String
+    @Binding var errorInfo: String
+    @Binding var errorShow: Bool
+    
+    @State private var showingPhotoPicker = false
+    @State private var showingFilePicker = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var previewImage: UIImage?
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Current image display
+            if !imagePath.isEmpty {
+                HStack {
+                    Text("Current Image:")
+                        .font(.headline)
+                    Spacer()
+                    Button("Clear") {
+                        imagePath = ""
+                        previewImage = nil
+                    }
+                    .font(.caption)
+                    .foregroundColor(.red)
+                }
+                
+                if let previewImage = previewImage {
+                    Image(uiImage: previewImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxHeight: 120)
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                        )
+                } else {
+                    HStack {
+                        Image(systemName: "photo")
+                            .foregroundColor(.secondary)
+                        Text(URL(fileURLWithPath: imagePath).lastPathComponent)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .padding()
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(8)
+                }
+                
+                Text("Path: \(imagePath)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .textSelection(.enabled)
+            }
+            
+            // Picker buttons
+            HStack(spacing: 12) {
+                PhotosPicker(
+                    selection: $selectedPhotoItem,
+                    matching: .images
+                ) {
+                    Label("Photos", systemImage: "photo.on.rectangle")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .onChange(of: selectedPhotoItem) { newItem in
+                    Task {
+                        await loadSelectedPhoto(newItem)
+                    }
+                }
+                
+                Button(action: {
+                    showingFilePicker = true
+                }) {
+                    Label("Files", systemImage: "folder")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+            
+            // Manual path entry
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Manual Path")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                TextField("Path to image file", text: $imagePath)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .onChange(of: imagePath) { newPath in
+                        loadImagePreview(from: newPath)
+                    }
+            }
+        }
+        .onAppear {
+            if !imagePath.isEmpty {
+                loadImagePreview(from: imagePath)
+            }
+        }
+        .fileImporter(
+            isPresented: $showingFilePicker,
+            allowedContentTypes: [.image],
+            allowsMultipleSelection: false
+        ) { result in
+            handleFileImport(result)
+        }
+    }
+    
+    private func loadSelectedPhoto(_ item: PhotosPickerItem?) async {
+        guard let item = item else { return }
+        
+        do {
+            if let data = try await item.loadTransferable(type: Data.self) {
+                let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+                let cameraImagesFolder = documentsPath.appendingPathComponent("CameraSpoof/Images")
+                
+                // Create directory if it doesn't exist
+                try FileManager.default.createDirectory(at: cameraImagesFolder, withIntermediateDirectories: true)
+                
+                // Generate unique filename
+                let fileName = "camera_image_\(Date().timeIntervalSince1970).jpg"
+                let filePath = cameraImagesFolder.appendingPathComponent(fileName)
+                
+                // Save the image
+                try data.write(to: filePath)
+                
+                await MainActor.run {
+                    imagePath = filePath.path
+                    if let image = UIImage(data: data) {
+                        previewImage = image
+                    }
+                }
+            }
+        } catch {
+            await MainActor.run {
+                errorInfo = "Failed to import image: \(error.localizedDescription)"
+                errorShow = true
+            }
+        }
+    }
+    
+    private func handleFileImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            
+            do {
+                let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+                let cameraImagesFolder = documentsPath.appendingPathComponent("CameraSpoof/Images")
+                
+                // Create directory if it doesn't exist
+                try FileManager.default.createDirectory(at: cameraImagesFolder, withIntermediateDirectories: true)
+                
+                let fileName = url.lastPathComponent
+                let destinationPath = cameraImagesFolder.appendingPathComponent(fileName)
+                
+                // Copy file to documents
+                if FileManager.default.fileExists(atPath: destinationPath.path) {
+                    try FileManager.default.removeItem(at: destinationPath)
+                }
+                try FileManager.default.copyItem(at: url, to: destinationPath)
+                
+                imagePath = destinationPath.path
+                loadImagePreview(from: imagePath)
+                
+            } catch {
+                errorInfo = "Failed to import image file: \(error.localizedDescription)"
+                errorShow = true
+            }
+            
+        case .failure(let error):
+            errorInfo = "File selection failed: \(error.localizedDescription)"
+            errorShow = true
+        }
+    }
+    
+    private func loadImagePreview(from path: String) {
+        guard !path.isEmpty, FileManager.default.fileExists(atPath: path) else {
+            previewImage = nil
+            return
+        }
+        
+        if let image = UIImage(contentsOfFile: path) {
+            previewImage = image
+        } else {
+            previewImage = nil
+        }
+    }
+}
+
+struct CameraVideoPickerView: View {
+    @Binding var videoPath: String
+    @Binding var loopVideo: Bool
+    @Binding var errorInfo: String
+    @Binding var errorShow: Bool
+    
+    @State private var showingPhotoPicker = false
+    @State private var showingFilePicker = false
+    @State private var selectedVideoItem: PhotosPickerItem?
+    @State private var videoThumbnail: UIImage?
+    @State private var videoDuration: String = ""
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Current video display
+            if !videoPath.isEmpty {
+                HStack {
+                    Text("Current Video:")
+                        .font(.headline)
+                    Spacer()
+                    Button("Clear") {
+                        videoPath = ""
+                        videoThumbnail = nil
+                        videoDuration = ""
+                    }
+                    .font(.caption)
+                    .foregroundColor(.red)
+                }
+                
+                if let videoThumbnail = videoThumbnail {
+                    ZStack {
+                        Image(uiImage: videoThumbnail)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(maxHeight: 120)
+                            .cornerRadius(8)
+                        
+                        // Play button overlay
+                        Image(systemName: "play.circle.fill")
+                            .font(.largeTitle)
+                            .foregroundColor(.white)
+                            .background(Circle().fill(Color.black.opacity(0.3)))
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                    )
+                    
+                    if !videoDuration.isEmpty {
+                        Text("Duration: \(videoDuration)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    HStack {
+                        Image(systemName: "video")
+                            .foregroundColor(.secondary)
+                        Text(URL(fileURLWithPath: videoPath).lastPathComponent)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .padding()
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(8)
+                }
+                
+                Text("Path: \(videoPath)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .textSelection(.enabled)
+            }
+            
+            // Video settings
+            if !videoPath.isEmpty {
+                Toggle("Loop Video", isOn: $loopVideo)
+            }
+            
+            // Picker buttons
+            HStack(spacing: 12) {
+                PhotosPicker(
+                    selection: $selectedVideoItem,
+                    matching: .videos
+                ) {
+                    Label("Photos", systemImage: "photo.on.rectangle")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .onChange(of: selectedVideoItem) { newItem in
+                    Task {
+                        await loadSelectedVideo(newItem)
+                    }
+                }
+                
+                Button(action: {
+                    showingFilePicker = true
+                }) {
+                    Label("Files", systemImage: "folder")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+            
+            // Manual path entry
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Manual Path")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                TextField("Path to video file", text: $videoPath)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .onChange(of: videoPath) { newPath in
+                        loadVideoPreview(from: newPath)
+                    }
+            }
+        }
+        .onAppear {
+            if !videoPath.isEmpty {
+                loadVideoPreview(from: videoPath)
+            }
+        }
+        .fileImporter(
+            isPresented: $showingFilePicker,
+            allowedContentTypes: [.movie, .video],
+            allowsMultipleSelection: false
+        ) { result in
+            handleFileImport(result)
+        }
+    }
+    
+    private func loadSelectedVideo(_ item: PhotosPickerItem?) async {
+        guard let item = item else { return }
+        
+        do {
+            if let movieData = try await item.loadTransferable(type: Data.self) {
+                let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+                let cameraVideosFolder = documentsPath.appendingPathComponent("CameraSpoof/Videos")
+                
+                // Create directory if it doesn't exist
+                try FileManager.default.createDirectory(at: cameraVideosFolder, withIntermediateDirectories: true)
+                
+                // Generate unique filename
+                let fileName = "camera_video_\(Date().timeIntervalSince1970).mp4"
+                let filePath = cameraVideosFolder.appendingPathComponent(fileName)
+                
+                // Save the video
+                try movieData.write(to: filePath)
+                
+                await MainActor.run {
+                    videoPath = filePath.path
+                    loadVideoPreview(from: videoPath)
+                }
+            }
+        } catch {
+            await MainActor.run {
+                errorInfo = "Failed to import video: \(error.localizedDescription)"
+                errorShow = true
+            }
+        }
+    }
+    
+    private func handleFileImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            
+            do {
+                let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+                let cameraVideosFolder = documentsPath.appendingPathComponent("CameraSpoof/Videos")
+                
+                // Create directory if it doesn't exist
+                try FileManager.default.createDirectory(at: cameraVideosFolder, withIntermediateDirectories: true)
+                
+                let fileName = url.lastPathComponent
+                let destinationPath = cameraVideosFolder.appendingPathComponent(fileName)
+                
+                // Copy file to documents
+                if FileManager.default.fileExists(atPath: destinationPath.path) {
+                    try FileManager.default.removeItem(at: destinationPath)
+                }
+                try FileManager.default.copyItem(at: url, to: destinationPath)
+                
+                videoPath = destinationPath.path
+                loadVideoPreview(from: videoPath)
+                
+            } catch {
+                errorInfo = "Failed to import video file: \(error.localizedDescription)"
+                errorShow = true
+            }
+            
+        case .failure(let error):
+            errorInfo = "File selection failed: \(error.localizedDescription)"
+            errorShow = true
+        }
+    }
+    
+    private func loadVideoPreview(from path: String) {
+        guard !path.isEmpty, FileManager.default.fileExists(atPath: path) else {
+            videoThumbnail = nil
+            videoDuration = ""
+            return
+        }
+        
+        let url = URL(fileURLWithPath: path)
+        let asset = AVAsset(url: url)
+        
+        // Generate thumbnail
+        let imageGenerator = AVAssetImageGenerator(asset: asset)
+        imageGenerator.appliesPreferredTrackTransform = true
+        
+        do {
+            let cgImage = try imageGenerator.copyCGImage(at: .zero, actualTime: nil)
+            videoThumbnail = UIImage(cgImage: cgImage)
+        } catch {
+            videoThumbnail = nil
+        }
+        
+        // Get duration
+        Task {
+            do {
+                let duration = try await asset.load(.duration)
+                let seconds = CMTimeGetSeconds(duration)
+                await MainActor.run {
+                    videoDuration = String(format: "%.1fs", seconds)
+                }
+            } catch {
+                await MainActor.run {
+                    videoDuration = ""
+                }
+            }
+        }
     }
 }
