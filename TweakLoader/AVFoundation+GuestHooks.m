@@ -2,7 +2,7 @@
 //  AVFoundation+GuestHooks.m
 //  LiveContainer
 //
-//  Camera spoofing based on capture patterns
+//  Camera Addon using proven patterns
 //
 
 #import "AVFoundation+GuestHooks.h"
@@ -16,18 +16,18 @@
 static BOOL spoofCameraEnabled = NO;
 static NSString *spoofCameraImagePath = @"";
 static UIImage *spoofImage = nil;
-static CVPixelBufferRef cachedPixelBuffer = NULL;
-static CMVideoFormatDescriptionRef cachedFormatDesc = NULL;
+static CVPixelBufferRef globalSpoofBuffer = NULL;
+static CMVideoFormatDescriptionRef globalFormatDesc = NULL;
+static dispatch_queue_t spoofDeliveryQueue = NULL;
 
-// Track active delegates and their queues
-static NSMutableDictionary *activeVideoOutputs = nil;
-static dispatch_queue_t spoofQueue = NULL;
+// Track active video outputs and their delegates 
+static NSMutableDictionary *activeVideoOutputDelegates = nil;
 
 @interface NSUserDefaults(LiveContainerPrivate)
 + (NSDictionary*)guestAppInfo;
 @end
 
-#pragma mark - Utility Functions
+#pragma mark - Resource Management (Capture Style)
 
 static UIImage *createDefaultTestImage(void) {
     CGSize size = CGSizeMake(1280, 720);
@@ -35,7 +35,7 @@ static UIImage *createDefaultTestImage(void) {
     
     CGContextRef context = UIGraphicsGetCurrentContext();
     
-    // Create a more distinctive test pattern
+    // Gradient background
     CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
     CGFloat colors[] = {
         0.0, 0.5, 1.0, 1.0,  // Blue
@@ -46,7 +46,7 @@ static UIImage *createDefaultTestImage(void) {
     CGContextDrawLinearGradient(context, gradient, CGPointZero, 
                                CGPointMake(size.width, size.height), 0);
     
-    // Add branding
+    // Text overlay
     UIFont *font = [UIFont boldSystemFontOfSize:48];
     NSDictionary *attributes = @{
         NSFontAttributeName: font,
@@ -68,18 +68,17 @@ static UIImage *createDefaultTestImage(void) {
     return image;
 }
 
-static void prepareCameraResources(void) {
+static void prepareGlobalSpoofResources(void) {
     // Clean up existing resources
-    if (cachedPixelBuffer) {
-        CVPixelBufferRelease(cachedPixelBuffer);
-        cachedPixelBuffer = NULL;
+    if (globalSpoofBuffer) {
+        CVPixelBufferRelease(globalSpoofBuffer);
+        globalSpoofBuffer = NULL;
     }
-    if (cachedFormatDesc) {
-        CFRelease(cachedFormatDesc);
-        cachedFormatDesc = NULL;
+    if (globalFormatDesc) {
+        CFRelease(globalFormatDesc);
+        globalFormatDesc = NULL;
     }
     
-    // Get image to use
     UIImage *imageToUse = spoofImage ?: createDefaultTestImage();
     if (!imageToUse) return;
     
@@ -87,32 +86,30 @@ static void prepareCameraResources(void) {
     size_t width = CGImageGetWidth(cgImage);
     size_t height = CGImageGetHeight(cgImage);
     
-    // Create pixel buffer with optimal settings
-    NSDictionary *pixelBufferAttributes = @{
+    // Create pixel buffer
+    NSDictionary *attributes = @{
         (NSString *)kCVPixelBufferCGImageCompatibilityKey: @YES,
         (NSString *)kCVPixelBufferCGBitmapContextCompatibilityKey: @YES,
-        (NSString *)kCVPixelBufferIOSurfacePropertiesKey: @{},
-        (NSString *)kCVPixelBufferMetalCompatibilityKey: @YES
+        (NSString *)kCVPixelBufferIOSurfacePropertiesKey: @{}
     };
     
     CVReturn result = CVPixelBufferCreate(
         kCFAllocatorDefault,
-        width,
-        height,
+        width, height,
         kCVPixelFormatType_32BGRA,
-        (__bridge CFDictionaryRef)pixelBufferAttributes,
-        &cachedPixelBuffer
+        (__bridge CFDictionaryRef)attributes,
+        &globalSpoofBuffer
     );
     
     if (result != kCVReturnSuccess) {
-        NSLog(@"[LC] Failed to create cached pixel buffer: %d", result);
+        NSLog(@"[LC] Failed to create global spoof buffer: %d", result);
         return;
     }
     
-    // Fill pixel buffer
-    CVPixelBufferLockBaseAddress(cachedPixelBuffer, 0);
-    void *baseAddress = CVPixelBufferGetBaseAddress(cachedPixelBuffer);
-    size_t bytesPerRow = CVPixelBufferGetBytesPerRow(cachedPixelBuffer);
+    // Fill the pixel buffer
+    CVPixelBufferLockBaseAddress(globalSpoofBuffer, 0);
+    void *baseAddress = CVPixelBufferGetBaseAddress(globalSpoofBuffer);
+    size_t bytesPerRow = CVPixelBufferGetBytesPerRow(globalSpoofBuffer);
     
     CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
     CGContextRef context = CGBitmapContextCreate(
@@ -121,29 +118,33 @@ static void prepareCameraResources(void) {
     );
     
     if (context) {
+        // Use CGContextDrawImage
         CGContextDrawImage(context, CGRectMake(0, 0, width, height), cgImage);
         CGContextRelease(context);
     }
     
     CGColorSpaceRelease(colorSpace);
-    CVPixelBufferUnlockBaseAddress(cachedPixelBuffer, 0);
+    CVPixelBufferUnlockBaseAddress(globalSpoofBuffer, 0);
     
     // Create format description
-    CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, 
-                                                 cachedPixelBuffer, 
-                                                 &cachedFormatDesc);
+    CMVideoFormatDescriptionCreateForImageBuffer(
+        kCFAllocatorDefault,
+        globalSpoofBuffer,
+        &globalFormatDesc
+    );
     
-    NSLog(@"[LC] Camera resources prepared: %zux%zu", width, height);
+    NSLog(@"[LC] Global spoof resources prepared: %zux%zu", width, height);
 }
 
 static CMSampleBufferRef createSpoofSampleBuffer(void) {
-    if (!cachedPixelBuffer || !cachedFormatDesc) {
+    if (!globalSpoofBuffer || !globalFormatDesc) {
         return NULL;
     }
     
+    // Create timing info with current time
     CMTime presentationTime = CMTimeMakeWithSeconds(CACurrentMediaTime(), 1000000);
     CMSampleTimingInfo timingInfo = {
-        .duration = CMTimeMake(1, 30),
+        .duration = CMTimeMake(1, 30), // 30 FPS
         .presentationTimeStamp = presentationTime,
         .decodeTimeStamp = kCMTimeInvalid
     };
@@ -151,50 +152,43 @@ static CMSampleBufferRef createSpoofSampleBuffer(void) {
     CMSampleBufferRef sampleBuffer = NULL;
     OSStatus result = CMSampleBufferCreateReadyWithImageBuffer(
         kCFAllocatorDefault,
-        cachedPixelBuffer,
-        cachedFormatDesc,
+        globalSpoofBuffer,
+        globalFormatDesc,
         &timingInfo,
         &sampleBuffer
     );
     
     if (result != noErr) {
-        NSLog(@"[LC] Failed to create sample buffer: %d", result);
+        NSLog(@"[LC] Failed to create spoof sample buffer: %d", result);
         return NULL;
     }
     
     return sampleBuffer;
 }
 
-static void deliverSpoofFramesToAllOutputs(void) {
-    if (!spoofCameraEnabled || !activeVideoOutputs) return;
+// Frame delivery function
+static void deliverFrameToDelegate(NSValue *outputKey, NSDictionary *delegateInfo) {
+    AVCaptureVideoDataOutput *output = [outputKey nonretainedObjectValue];
+    id<AVCaptureVideoDataOutputSampleBufferDelegate> delegate = delegateInfo[@"delegate"];
+    dispatch_queue_t queue = delegateInfo[@"queue"];
+    
+    if (!output || !delegate || !queue) return;
     
     CMSampleBufferRef sampleBuffer = createSpoofSampleBuffer();
     if (!sampleBuffer) return;
     
-    // Deliver to all registered video outputs
-    for (NSValue *outputKey in activeVideoOutputs.allKeys) {
-        AVCaptureVideoDataOutput *output = [outputKey nonretainedObjectValue];
-        NSDictionary *outputInfo = activeVideoOutputs[outputKey];
-        
-        id<AVCaptureVideoDataOutputSampleBufferDelegate> delegate = outputInfo[@"delegate"];
-        dispatch_queue_t queue = outputInfo[@"queue"];
-        
-        if (delegate && queue) {
-            // Create a connection object (simplified)
-            AVCaptureConnection *connection = [[AVCaptureConnection alloc] init];
-            
-            dispatch_async(queue, ^{
-                if ([delegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-                    [delegate captureOutput:output didOutputSampleBuffer:sampleBuffer fromConnection:connection];
-                }
-            });
-        }
-    }
+    // Create a fake connection
+    AVCaptureConnection *connection = [[AVCaptureConnection alloc] init];
     
-    CFRelease(sampleBuffer);
+    dispatch_async(queue, ^{
+        if ([delegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
+            [delegate captureOutput:output didOutputSampleBuffer:sampleBuffer fromConnection:connection];
+        }
+        CFRelease(sampleBuffer);
+    });
 }
 
-#pragma mark - AVCaptureVideoDataOutput Hooks (Capture-style)
+#pragma mark - Core Hook: AVCaptureVideoDataOutput (Capture's Key Pattern)
 
 @interface AVCaptureVideoDataOutput(LiveContainerHooks)
 - (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate 
@@ -205,99 +199,78 @@ static void deliverSpoofFramesToAllOutputs(void) {
 
 - (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate 
                              queue:(dispatch_queue_t)sampleBufferCallbackQueue {
-    NSLog(@"[LC] AVCaptureVideoDataOutput setSampleBufferDelegate called");
+    NSLog(@"[LC] AVCaptureVideoDataOutput setSampleBufferDelegate intercepted");
     
     if (spoofCameraEnabled && sampleBufferDelegate) {
-        NSLog(@"[LC] Registering spoofed video data output delegate");
+        NSLog(@"[LC] Registering spoofed delegate ");
         
-        if (!activeVideoOutputs) {
-            activeVideoOutputs = [[NSMutableDictionary alloc] init];
+        if (!activeVideoOutputDelegates) {
+            activeVideoOutputDelegates = [[NSMutableDictionary alloc] init];
         }
         
         NSValue *outputKey = [NSValue valueWithNonretainedObject:self];
-        activeVideoOutputs[outputKey] = @{
+        activeVideoOutputDelegates[outputKey] = @{
             @"delegate": sampleBufferDelegate,
             @"queue": sampleBufferCallbackQueue ?: dispatch_get_main_queue()
         };
         
-        NSLog(@"[LC] Added video output to spoof tracking");
+        // Start immediate frame delivery for this output
+        dispatch_async(spoofDeliveryQueue, ^{
+            dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, spoofDeliveryQueue);
+            dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 0), 
+                                     NSEC_PER_SEC / 30, NSEC_PER_SEC / 100); // 30 FPS
+            
+            dispatch_source_set_event_handler(timer, ^{
+                @synchronized(activeVideoOutputDelegates) {
+                    NSDictionary *delegateInfo = activeVideoOutputDelegates[outputKey];
+                    if (delegateInfo) {
+                        deliverFrameToDelegate(outputKey, delegateInfo);
+                    } else {
+                        // Delegate removed, cancel timer
+                        dispatch_source_cancel(timer);
+                    }
+                }
+            });
+            
+            dispatch_resume(timer);
+        });
         
-        // Don't call original - we'll handle frame delivery ourselves
+        NSLog(@"[LC] Started frame delivery for output");
+        
+        // DON'T call original - we handle everything ourselves
         return;
     }
     
+    // Call original for non-spoofed case
     [self lc_setSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue];
 }
 
 @end
 
-#pragma mark - AVCaptureSession Hooks
+#pragma mark - Session Management (Minimal)
 
 @interface AVCaptureSession(LiveContainerHooks)
 - (void)lc_startRunning;
-- (void)lc_stopRunning;
-- (BOOL)lc_addInput:(AVCaptureInput *)input error:(NSError **)error;
 @end
 
 @implementation AVCaptureSession(LiveContainerHooks)
 
 - (void)lc_startRunning {
-    NSLog(@"[LC] AVCaptureSession startRunning called");
+    NSLog(@"[LC] AVCaptureSession startRunning - spoof enabled: %d", spoofCameraEnabled);
     
     if (spoofCameraEnabled) {
-        NSLog(@"[LC] Starting spoofed camera session");
-        
-        // Start frame delivery timer
-        static dispatch_source_t frameTimer = nil;
-        if (frameTimer) {
-            dispatch_source_cancel(frameTimer);
-        }
-        
-        frameTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, spoofQueue);
-        dispatch_source_set_timer(frameTimer, dispatch_time(DISPATCH_TIME_NOW, 0), 
-                                 NSEC_PER_SEC / 30, NSEC_PER_SEC / 100); // 30 FPS
-        
-        dispatch_source_set_event_handler(frameTimer, ^{
-            deliverSpoofFramesToAllOutputs();
-        });
-        
-        dispatch_resume(frameTimer);
-        
-        // Don't start real camera
+        NSLog(@"[LC] Session start intercepted - letting delegates handle data");
+        // Unlike blocking approach, we let the session "run" but data comes from our delegates
+        // This maintains app compatibility
         return;
     }
     
     [self lc_startRunning];
 }
 
-- (void)lc_stopRunning {
-    NSLog(@"[LC] AVCaptureSession stopRunning called");
-    
-    if (spoofCameraEnabled) {
-        NSLog(@"[LC] Stopping spoofed camera session");
-        // Timer cleanup is handled automatically
-    }
-    
-    [self lc_stopRunning];
-}
-
-- (BOOL)lc_addInput:(AVCaptureInput *)input error:(NSError **)error {
-    NSLog(@"[LC] AVCaptureSession addInput called: %@", input);
-    
-    if (spoofCameraEnabled && [input isKindOfClass:[AVCaptureDeviceInput class]]) {
-        AVCaptureDeviceInput *deviceInput = (AVCaptureDeviceInput *)input;
-        if ([deviceInput.device hasMediaType:AVMediaTypeVideo]) {
-            NSLog(@"[LC] Allowing camera input for spoofing compatibility");
-            return YES; // Pretend success but don't actually use it
-        }
-    }
-    
-    return [self lc_addInput:input error:error];
-}
-
 @end
 
-#pragma mark - AVCaptureStillImageOutput Hooks
+#pragma mark - Still Image Support
 
 @interface AVCaptureStillImageOutput(LiveContainerHooks)
 - (void)lc_captureStillImageAsynchronouslyFromConnection:(AVCaptureConnection *)connection 
@@ -308,24 +281,14 @@ static void deliverSpoofFramesToAllOutputs(void) {
 
 - (void)lc_captureStillImageAsynchronouslyFromConnection:(AVCaptureConnection *)connection 
                                        completionHandler:(void (^)(CMSampleBufferRef, NSError *))handler {
-    NSLog(@"[LC] AVCaptureStillImageOutput capture called");
+    NSLog(@"[LC] Still image capture intercepted");
     
     if (spoofCameraEnabled) {
-        NSLog(@"[LC] Returning spoofed still image");
-        
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             CMSampleBufferRef sampleBuffer = createSpoofSampleBuffer();
-            
             dispatch_async(dispatch_get_main_queue(), ^{
-                if (sampleBuffer) {
-                    handler(sampleBuffer, nil);
-                    CFRelease(sampleBuffer);
-                } else {
-                    NSError *error = [NSError errorWithDomain:@"LiveContainerCameraSpoof" 
-                                                         code:1 
-                                                     userInfo:@{NSLocalizedDescriptionKey: @"Failed to create spoofed image"}];
-                    handler(NULL, error);
-                }
+                handler(sampleBuffer, nil);
+                if (sampleBuffer) CFRelease(sampleBuffer);
             });
         });
         return;
@@ -340,11 +303,11 @@ static void deliverSpoofFramesToAllOutputs(void) {
 
 void AVFoundationGuestHooksInit(void) {
     @try {
-        NSLog(@"[LC] AVFoundationGuestHooksInit starting (capture-style)");
+        NSLog(@"[LC] AVFoundationGuestHooksInit");
         
         NSDictionary *guestAppInfo = NSUserDefaults.guestAppInfo;
         if (!guestAppInfo) {
-            NSLog(@"[LC] No guest app info available");
+            NSLog(@"[LC] No guest app info");
             return;
         }
         
@@ -352,55 +315,46 @@ void AVFoundationGuestHooksInit(void) {
         NSLog(@"[LC] Camera spoofing enabled: %d", spoofCameraEnabled);
         
         if (!spoofCameraEnabled) {
-            NSLog(@"[LC] Camera spoofing disabled, skipping initialization");
             return;
         }
         
-        // Initialize spoof queue
-        spoofQueue = dispatch_queue_create("com.livecontainer.cameraspoof", DISPATCH_QUEUE_SERIAL);
+        // Initialize delivery queue
+        spoofDeliveryQueue = dispatch_queue_create("com.livecontainer.cameraspoof.delivery", DISPATCH_QUEUE_SERIAL);
         
-        // Load spoofed image if available
+        // Load spoof image
         spoofCameraImagePath = guestAppInfo[@"spoofCameraImagePath"] ?: @"";
         if (spoofCameraImagePath.length > 0) {
             spoofImage = [UIImage imageWithContentsOfFile:spoofCameraImagePath];
-            if (spoofImage) {
-                NSLog(@"[LC] Loaded spoof image: %@", spoofCameraImagePath);
-            } else {
-                NSLog(@"[LC] Failed to load spoof image: %@", spoofCameraImagePath);
-            }
+            NSLog(@"[LC] Loaded spoof image: %@", spoofImage ? @"SUCCESS" : @"FAILED");
         }
         
-        // Prepare camera resources
-        prepareCameraResources();
+        // Prepare global resources
+        prepareGlobalSpoofResources();
         
-        // Hook AVCaptureVideoDataOutput (key difference from your current approach)
+        // KEY HOOK
         Class videoDataOutputClass = NSClassFromString(@"AVCaptureVideoDataOutput");
         if (videoDataOutputClass) {
-            NSLog(@"[LC] Hooking AVCaptureVideoDataOutput methods");
+            NSLog(@"[LC] Hooking AVCaptureVideoDataOutput setSampleBufferDelegate:queue:");
             swizzle(videoDataOutputClass, 
                    @selector(setSampleBufferDelegate:queue:), 
                    @selector(lc_setSampleBufferDelegate:queue:));
         }
         
-        // Hook AVCaptureSession
+        // Minimal session hooks
         Class captureSessionClass = NSClassFromString(@"AVCaptureSession");
         if (captureSessionClass) {
-            NSLog(@"[LC] Hooking AVCaptureSession methods");
             swizzle(captureSessionClass, @selector(startRunning), @selector(lc_startRunning));
-            swizzle(captureSessionClass, @selector(stopRunning), @selector(lc_stopRunning));
-            swizzle(captureSessionClass, @selector(addInput:error:), @selector(lc_addInput:error:));
         }
         
-        // Hook AVCaptureStillImageOutput
+        // Still image support
         Class stillImageOutputClass = NSClassFromString(@"AVCaptureStillImageOutput");
         if (stillImageOutputClass) {
-            NSLog(@"[LC] Hooking AVCaptureStillImageOutput methods");
             swizzle(stillImageOutputClass, 
                    @selector(captureStillImageAsynchronouslyFromConnection:completionHandler:),
                    @selector(lc_captureStillImageAsynchronouslyFromConnection:completionHandler:));
         }
         
-        NSLog(@"[LC] Camera spoofing hooks initialized successfully (capture-style)");
+        NSLog(@"[LC] Camera spoofing initialized ");
         
     } @catch (NSException *exception) {
         NSLog(@"[LC] Exception in AVFoundationGuestHooksInit: %@", exception);
