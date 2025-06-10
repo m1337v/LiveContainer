@@ -2,7 +2,7 @@
 //  AVFoundation+GuestHooks.m
 //  LiveContainer
 //
-//  Enhanced camera spoofing with video support
+//  Simple camera spoofing with video support
 //
 
 #import "AVFoundation+GuestHooks.h"
@@ -27,16 +27,14 @@ static AVAsset *spoofVideoAsset = nil;
 static AVAssetReader *currentVideoReader = nil;
 static AVAssetReaderTrackOutput *videoTrackOutput = nil;
 static CMTime currentVideoTime;
-static CMTime videoDuration;
 static BOOL videoReaderFinished = NO;
 
-// Enhanced resources
+// Resources
 static CVPixelBufferRef globalSpoofBuffer = NULL;
 static CMVideoFormatDescriptionRef globalFormatDesc = NULL;
 static dispatch_queue_t spoofDeliveryQueue = NULL;
 static NSMutableDictionary *activeVideoOutputDelegates = nil;
 static dispatch_semaphore_t frameDeliverySemaphore = NULL;
-static NSTimeInterval lastFrameTime = 0;
 
 @interface NSUserDefaults(LiveContainerPrivate)
 + (NSDictionary*)guestAppInfo;
@@ -70,14 +68,12 @@ static void setupVideoReader(void) {
     
     AVAssetTrack *videoTrack = videoTracks.firstObject;
     
-    // Configure output settings for better performance
+    // Simple output settings
     NSDictionary *outputSettings = @{
-        (NSString *)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA),
-        (NSString *)kCVPixelBufferIOSurfacePropertiesKey: @{}
+        (NSString *)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA)
     };
     
     videoTrackOutput = [[AVAssetReaderTrackOutput alloc] initWithTrack:videoTrack outputSettings:outputSettings];
-    videoTrackOutput.alwaysCopiesSampleData = NO; // Performance optimization
     
     if ([currentVideoReader canAddOutput:videoTrackOutput]) {
         [currentVideoReader addOutput:videoTrackOutput];
@@ -107,7 +103,6 @@ static CMSampleBufferRef getNextVideoFrame(void) {
         CMSampleBufferRef sampleBuffer = [videoTrackOutput copyNextSampleBuffer];
         
         if (sampleBuffer) {
-            // Update current time
             currentVideoTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
             return sampleBuffer;
         } else {
@@ -117,8 +112,8 @@ static CMSampleBufferRef getNextVideoFrame(void) {
             // Loop if enabled
             if (spoofCameraLoop) {
                 NSLog(@"[LC] Video finished, looping...");
-                setupVideoReader(); // Restart from beginning
-                return getNextVideoFrame(); // Try again
+                setupVideoReader();
+                return getNextVideoFrame();
             }
         }
     } else if (currentVideoReader.status == AVAssetReaderStatusFailed) {
@@ -128,53 +123,10 @@ static CMSampleBufferRef getNextVideoFrame(void) {
     return NULL;
 }
 
-static CVPixelBufferRef extractPixelBufferFromVideoFrame(CMSampleBufferRef sampleBuffer) {
-    if (!sampleBuffer) return NULL;
-    
-    CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-    if (!imageBuffer) return NULL;
-    
-    // Use CVPixelBufferCreateWithBytes instead of CVPixelBufferCreateCopyWithAlignment
-    CVPixelBufferRef pixelBufferCopy = NULL;
-    
-    CVPixelBufferLockBaseAddress(imageBuffer, kCVPixelBufferLock_ReadOnly);
-    void *baseAddress = CVPixelBufferGetBaseAddress(imageBuffer);
-    size_t bytesPerRow = CVPixelBufferGetBytesPerRow(imageBuffer);
-    size_t width = CVPixelBufferGetWidth(imageBuffer);
-    size_t height = CVPixelBufferGetHeight(imageBuffer);
-    OSType pixelFormat = CVPixelBufferGetPixelFormatType(imageBuffer);
-    
-    CVReturn result = CVPixelBufferCreate(
-        kCFAllocatorDefault,
-        width, height,
-        pixelFormat,
-        NULL,
-        &pixelBufferCopy
-    );
-    
-    if (result == kCVReturnSuccess && pixelBufferCopy) {
-        CVPixelBufferLockBaseAddress(pixelBufferCopy, 0);
-        void *copyBaseAddress = CVPixelBufferGetBaseAddress(pixelBufferCopy);
-        size_t copyBytesPerRow = CVPixelBufferGetBytesPerRow(pixelBufferCopy);
-        
-        for (size_t row = 0; row < height; row++) {
-            memcpy((char*)copyBaseAddress + row * copyBytesPerRow,
-                   (char*)baseAddress + row * bytesPerRow,
-                   MIN(bytesPerRow, copyBytesPerRow));
-        }
-        
-        CVPixelBufferUnlockBaseAddress(pixelBufferCopy, 0);
-    }
-    
-    CVPixelBufferUnlockBaseAddress(imageBuffer, kCVPixelBufferLock_ReadOnly);
-    
-    return pixelBufferCopy;
-}
+#pragma mark - Resource Management
 
-#pragma mark - Enhanced Resource Management
-
-static UIImage *createEnhancedTestImage(void) {
-    CGSize size = CGSizeMake(1920, 1080);
+static UIImage *createTestImage(void) {
+    CGSize size = CGSizeMake(1280, 720);
     UIGraphicsBeginImageContextWithOptions(size, YES, 1.0);
     
     CGContextRef context = UIGraphicsGetCurrentContext();
@@ -192,34 +144,14 @@ static UIImage *createEnhancedTestImage(void) {
     
     // Add text
     UIFont *titleFont = [UIFont boldSystemFontOfSize:48];
-    NSShadow *shadow = [[NSShadow alloc] init];
-    shadow.shadowOffset = CGSizeMake(2, 2);
-    shadow.shadowBlurRadius = 4;
-    shadow.shadowColor = [UIColor blackColor];
-    
     NSDictionary *titleAttrs = @{
         NSFontAttributeName: titleFont,
-        NSForegroundColorAttributeName: [UIColor whiteColor],
-        NSShadowAttributeName: shadow
+        NSForegroundColorAttributeName: [UIColor whiteColor]
     };
     
-    NSString *title = @"LiveContainer Pro\nCamera Spoofing";
+    NSString *title = @"LiveContainer\nCamera Spoofing";
     CGRect titleRect = CGRectMake(50, size.height/2 - 50, size.width - 100, 100);
     [title drawInRect:titleRect withAttributes:titleAttrs];
-    
-    // Add timestamp
-    NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
-    formatter.dateFormat = @"HH:mm:ss";
-    NSString *timestamp = [formatter stringFromDate:[NSDate date]];
-    
-    UIFont *infoFont = [UIFont systemFontOfSize:24];
-    NSDictionary *infoAttrs = @{
-        NSFontAttributeName: infoFont,
-        NSForegroundColorAttributeName: [[UIColor whiteColor] colorWithAlphaComponent:0.8]
-    };
-    
-    CGRect timestampRect = CGRectMake(50, size.height - 80, size.width - 100, 30);
-    [timestamp drawInRect:timestampRect withAttributes:infoAttrs];
     
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
@@ -230,7 +162,7 @@ static UIImage *createEnhancedTestImage(void) {
     return image;
 }
 
-static void prepareImageSpoofResources(void) {
+static void prepareImageResources(void) {
     // Clean up existing resources
     if (globalSpoofBuffer) {
         CVPixelBufferRelease(globalSpoofBuffer);
@@ -241,20 +173,18 @@ static void prepareImageSpoofResources(void) {
         globalFormatDesc = NULL;
     }
     
-    UIImage *imageToUse = spoofImage ?: createEnhancedTestImage();
+    UIImage *imageToUse = spoofImage ?: createTestImage();
     if (!imageToUse) return;
     
     CGImageRef cgImage = imageToUse.CGImage;
     size_t width = CGImageGetWidth(cgImage);
     size_t height = CGImageGetHeight(cgImage);
     
-    NSLog(@"[LC] Creating image spoof buffer: %zux%zu", width, height);
+    NSLog(@"[LC] Creating spoof buffer: %zux%zu", width, height);
     
-    // Enhanced pixel buffer attributes
     NSDictionary *attributes = @{
         (NSString *)kCVPixelBufferCGImageCompatibilityKey: @YES,
-        (NSString *)kCVPixelBufferCGBitmapContextCompatibilityKey: @YES,
-        (NSString *)kCVPixelBufferIOSurfacePropertiesKey: @{}
+        (NSString *)kCVPixelBufferCGBitmapContextCompatibilityKey: @YES
     };
     
     CVReturn result = CVPixelBufferCreate(
@@ -266,7 +196,7 @@ static void prepareImageSpoofResources(void) {
     );
     
     if (result != kCVReturnSuccess) {
-        NSLog(@"[LC] Failed to create image spoof buffer: %d", result);
+        NSLog(@"[LC] Failed to create spoof buffer: %d", result);
         return;
     }
     
@@ -296,22 +226,57 @@ static void prepareImageSpoofResources(void) {
         &globalFormatDesc
     );
     
-    NSLog(@"[LC] Image spoof resources prepared successfully");
+    NSLog(@"[LC] Image resources prepared successfully");
 }
 
-static CMSampleBufferRef createSampleBufferFromPixelBuffer(CVPixelBufferRef pixelBuffer) {
-    if (!pixelBuffer) return NULL;
+static CMSampleBufferRef createSampleBuffer(void) {
+    CMSampleBufferRef sampleBuffer = NULL;
     
-    // Create format description for this pixel buffer
-    CMVideoFormatDescriptionRef formatDesc = NULL;
-    CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, pixelBuffer, &formatDesc);
+    if ([spoofCameraType isEqualToString:@"video"] && spoofVideoAsset) {
+        // Try to get video frame first
+        CMSampleBufferRef videoFrame = getNextVideoFrame();
+        if (videoFrame) {
+            // Use the video frame directly with updated timing
+            CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(videoFrame);
+            if (imageBuffer) {
+                CMVideoFormatDescriptionRef formatDesc = NULL;
+                CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, imageBuffer, &formatDesc);
+                
+                if (formatDesc) {
+                    CMTime presentationTime = CMTimeMakeWithSeconds(CACurrentMediaTime(), 1000000);
+                    CMSampleTimingInfo timingInfo = {
+                        .duration = CMTimeMake(1, 30),
+                        .presentationTimeStamp = presentationTime,
+                        .decodeTimeStamp = kCMTimeInvalid
+                    };
+                    
+                    OSStatus result = CMSampleBufferCreateReadyWithImageBuffer(
+                        kCFAllocatorDefault,
+                        imageBuffer,
+                        formatDesc,
+                        &timingInfo,
+                        &sampleBuffer
+                    );
+                    
+                    CFRelease(formatDesc);
+                    
+                    if (result == noErr && sampleBuffer) {
+                        CFRelease(videoFrame);
+                        return sampleBuffer;
+                    }
+                }
+            }
+            CFRelease(videoFrame);
+        }
+        
+        NSLog(@"[LC] Video frame failed, using fallback image");
+    }
     
-    if (!formatDesc) {
-        NSLog(@"[LC] Failed to create format description");
+    // Fallback to image
+    if (!globalSpoofBuffer || !globalFormatDesc) {
         return NULL;
     }
     
-    // Create timing info
     CMTime presentationTime = CMTimeMakeWithSeconds(CACurrentMediaTime(), 1000000);
     CMSampleTimingInfo timingInfo = {
         .duration = CMTimeMake(1, 30),
@@ -319,58 +284,6 @@ static CMSampleBufferRef createSampleBufferFromPixelBuffer(CVPixelBufferRef pixe
         .decodeTimeStamp = kCMTimeInvalid
     };
     
-    CMSampleBufferRef sampleBuffer = NULL;
-    OSStatus result = CMSampleBufferCreateReadyWithImageBuffer(
-        kCFAllocatorDefault,
-        pixelBuffer,
-        formatDesc,
-        &timingInfo,
-        &sampleBuffer
-    );
-    
-    CFRelease(formatDesc);
-    
-    if (result != noErr) {
-        NSLog(@"[LC] Failed to create sample buffer: %d", result);
-        return NULL;
-    }
-    
-    return sampleBuffer;
-}
-
-static CMSampleBufferRef createEnhancedSampleBuffer(BOOL forLivestream) {
-    if ([spoofCameraType isEqualToString:@"video"] && spoofVideoAsset) {
-        // Video mode - get next frame from video
-        CMSampleBufferRef videoFrame = getNextVideoFrame();
-        if (videoFrame) {
-            // Extract pixel buffer and create new sample buffer with current timing
-            CVPixelBufferRef pixelBuffer = extractPixelBufferFromVideoFrame(videoFrame);
-            CFRelease(videoFrame);
-            
-            if (pixelBuffer) {
-                CMSampleBufferRef newSampleBuffer = createSampleBufferFromPixelBuffer(pixelBuffer);
-                CVPixelBufferRelease(pixelBuffer);
-                return newSampleBuffer;
-            }
-        }
-        
-        // Fallback to image if video fails
-        NSLog(@"[LC] Video frame failed, falling back to image");
-    }
-    
-    // Image mode or video fallback
-    if (!globalSpoofBuffer || !globalFormatDesc) {
-        return NULL;
-    }
-    
-    CMTime presentationTime = CMTimeMakeWithSeconds(CACurrentMediaTime(), 1000000);
-    CMSampleTimingInfo timingInfo = {
-        .duration = forLivestream ? CMTimeMake(1, 30) : CMTimeMake(1, 24),
-        .presentationTimeStamp = presentationTime,
-        .decodeTimeStamp = kCMTimeInvalid
-    };
-    
-    CMSampleBufferRef sampleBuffer = NULL;
     OSStatus result = CMSampleBufferCreateReadyWithImageBuffer(
         kCFAllocatorDefault,
         globalSpoofBuffer,
@@ -380,37 +293,28 @@ static CMSampleBufferRef createEnhancedSampleBuffer(BOOL forLivestream) {
     );
     
     if (result != noErr) {
-        NSLog(@"[LC] Failed to create image sample buffer: %d", result);
+        NSLog(@"[LC] Failed to create sample buffer: %d", result);
         return NULL;
     }
     
     return sampleBuffer;
 }
 
-#pragma mark - Enhanced Frame Delivery
+#pragma mark - Frame Delivery
 
-static void deliverEnhancedFrameToDelegate(NSValue *outputKey, NSDictionary *delegateInfo, BOOL isLivestream) {
+static void deliverFrameToDelegate(NSValue *outputKey, NSDictionary *delegateInfo) {
     AVCaptureVideoDataOutput *output = [outputKey nonretainedObjectValue];
     id<AVCaptureVideoDataOutputSampleBufferDelegate> delegate = delegateInfo[@"delegate"];
     dispatch_queue_t queue = delegateInfo[@"queue"];
     
     if (!output || !delegate || !queue) return;
     
-    // Performance throttling
-    NSTimeInterval currentTime = CACurrentMediaTime();
-    NSTimeInterval frameInterval = isLivestream ? (1.0/30.0) : (1.0/24.0);
-    
-    if (currentTime - lastFrameTime < frameInterval * 0.8) {
-        return; // Skip frame to maintain performance
-    }
-    lastFrameTime = currentTime;
-    
     // Use semaphore to prevent frame backup
     if (dispatch_semaphore_wait(frameDeliverySemaphore, DISPATCH_TIME_NOW) != 0) {
-        return; // Previous frame still processing, skip
+        return;
     }
     
-    CMSampleBufferRef sampleBuffer = createEnhancedSampleBuffer(isLivestream);
+    CMSampleBufferRef sampleBuffer = createSampleBuffer();
     if (!sampleBuffer) {
         dispatch_semaphore_signal(frameDeliverySemaphore);
         return;
@@ -422,20 +326,15 @@ static void deliverEnhancedFrameToDelegate(NSValue *outputKey, NSDictionary *del
                 NSArray *connections = output.connections;
                 AVCaptureConnection *connection = connections.firstObject;
                 
+                // Create a dummy connection if none exists
                 if (!connection) {
-                    NSObject *enhancedStub = [[NSObject alloc] init];
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wnonnull"
-                    [delegate captureOutput:output 
-                           didOutputSampleBuffer:sampleBuffer 
-                              fromConnection:(AVCaptureConnection *)enhancedStub];
-#pragma clang diagnostic pop
-                } else {
-                    [delegate captureOutput:output didOutputSampleBuffer:sampleBuffer fromConnection:connection];
+                    connection = [[AVCaptureConnection alloc] initWithInputPorts:@[] output:output];
                 }
+                
+                [delegate captureOutput:output didOutputSampleBuffer:sampleBuffer fromConnection:connection];
             }
         } @catch (NSException *exception) {
-            NSLog(@"[LC] Enhanced delivery exception: %@", exception.name);
+            NSLog(@"[LC] Frame delivery exception: %@", exception.name);
         } @finally {
             CFRelease(sampleBuffer);
             dispatch_semaphore_signal(frameDeliverySemaphore);
@@ -443,21 +342,21 @@ static void deliverEnhancedFrameToDelegate(NSValue *outputKey, NSDictionary *del
     });
 }
 
-#pragma mark - Enhanced AVCaptureVideoDataOutput Hook
+#pragma mark - Hooks
 
-@interface AVCaptureVideoDataOutput(LiveContainerUniversalHooks)
+@interface AVCaptureVideoDataOutput(LiveContainerHooks)
 - (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate 
                              queue:(dispatch_queue_t)sampleBufferCallbackQueue;
 @end
 
-@implementation AVCaptureVideoDataOutput(LiveContainerUniversalHooks)
+@implementation AVCaptureVideoDataOutput(LiveContainerHooks)
 
 - (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate 
                              queue:(dispatch_queue_t)sampleBufferCallbackQueue {
-    NSLog(@"[LC] Universal AVCaptureVideoDataOutput setSampleBufferDelegate intercepted");
+    NSLog(@"[LC] AVCaptureVideoDataOutput setSampleBufferDelegate intercepted");
     
     if (spoofCameraEnabled && sampleBufferDelegate) {
-        NSLog(@"[LC] Registering universal spoofed delegate");
+        NSLog(@"[LC] Registering spoofed delegate");
         
         if (!activeVideoOutputDelegates) {
             activeVideoOutputDelegates = [[NSMutableDictionary alloc] init];
@@ -465,46 +364,34 @@ static void deliverEnhancedFrameToDelegate(NSValue *outputKey, NSDictionary *del
         
         NSValue *outputKey = [NSValue valueWithNonretainedObject:self];
         
-        // Enhanced delegate detection
-        NSString *delegateClass = NSStringFromClass([sampleBufferDelegate class]);
-        BOOL detectedLivestream = [delegateClass containsString:@"Live"] || 
-                                 [delegateClass containsString:@"Stream"] ||
-                                 [delegateClass containsString:@"Broadcast"] ||
-                                 [delegateClass containsString:@"RTMP"];
-        
         activeVideoOutputDelegates[outputKey] = @{
             @"delegate": sampleBufferDelegate,
-            @"queue": sampleBufferCallbackQueue ?: dispatch_get_main_queue(),
-            @"isLivestream": @(detectedLivestream),
-            @"registrationTime": @(CACurrentMediaTime())
+            @"queue": sampleBufferCallbackQueue ?: dispatch_get_main_queue()
         };
         
-        // Start enhanced frame delivery
+        // Start simple frame delivery - 30fps
         dispatch_async(spoofDeliveryQueue, ^{
             dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, spoofDeliveryQueue);
             
-            // Default timing - 30fps for livestream, 24fps for regular
-            uint64_t interval = detectedLivestream ? (NSEC_PER_SEC / 30) : (NSEC_PER_SEC / 24);
-            uint64_t leeway = interval / 20; // 5% leeway
-            
-            dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 0), interval, leeway);
+            uint64_t interval = NSEC_PER_SEC / 30; // 30fps
+            dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 0), interval, interval / 10);
             
             dispatch_source_set_event_handler(timer, ^{
                 @synchronized(activeVideoOutputDelegates) {
                     NSDictionary *delegateInfo = activeVideoOutputDelegates[outputKey];
                     if (delegateInfo) {
-                        BOOL isLive = [delegateInfo[@"isLivestream"] boolValue];
-                        deliverEnhancedFrameToDelegate(outputKey, delegateInfo, isLive);
+                        deliverFrameToDelegate(outputKey, delegateInfo);
                     } else {
+                        NSLog(@"[LC] Delegate removed, cancelling timer");
                         dispatch_source_cancel(timer);
                     }
                 }
             });
             
             dispatch_resume(timer);
+            NSLog(@"[LC] Frame delivery timer started");
         });
         
-        NSLog(@"[LC] Started enhanced frame delivery (livestream: %d)", detectedLivestream);
         return;
     }
     
@@ -512,8 +399,6 @@ static void deliverEnhancedFrameToDelegate(NSValue *outputKey, NSDictionary *del
 }
 
 @end
-
-#pragma mark - Session and Still Image Hooks
 
 @interface AVCaptureSession(LiveContainerHooks)
 - (void)lc_startRunning;
@@ -525,7 +410,7 @@ static void deliverEnhancedFrameToDelegate(NSValue *outputKey, NSDictionary *del
     NSLog(@"[LC] AVCaptureSession startRunning - spoof enabled: %d", spoofCameraEnabled);
     
     if (spoofCameraEnabled) {
-        NSLog(@"[LC] Session start intercepted");
+        NSLog(@"[LC] Session start intercepted - not starting real camera");
         return;
     }
     
@@ -547,7 +432,7 @@ static void deliverEnhancedFrameToDelegate(NSValue *outputKey, NSDictionary *del
     
     if (spoofCameraEnabled) {
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-            CMSampleBufferRef sampleBuffer = createEnhancedSampleBuffer(NO);
+            CMSampleBufferRef sampleBuffer = createSampleBuffer();
             dispatch_async(dispatch_get_main_queue(), ^{
                 handler(sampleBuffer, nil);
                 if (sampleBuffer) CFRelease(sampleBuffer);
@@ -561,11 +446,11 @@ static void deliverEnhancedFrameToDelegate(NSValue *outputKey, NSDictionary *del
 
 @end
 
-#pragma mark - Enhanced Initialization
+#pragma mark - Initialization
 
 void AVFoundationGuestHooksInit(void) {
     @try {
-        NSLog(@"[LC] Enhanced AVFoundationGuestHooksInit with video support");
+        NSLog(@"[LC] Simple AVFoundation camera spoofing init");
         
         NSDictionary *guestAppInfo = NSUserDefaults.guestAppInfo;
         if (!guestAppInfo) {
@@ -577,19 +462,18 @@ void AVFoundationGuestHooksInit(void) {
         spoofCameraType = guestAppInfo[@"spoofCameraType"] ?: @"image";
         spoofCameraLoop = guestAppInfo[@"spoofCameraLoop"] ? [guestAppInfo[@"spoofCameraLoop"] boolValue] : YES;
         
-        NSLog(@"[LC] Camera spoofing enabled: %d, type: %@, loop: %d", 
+        NSLog(@"[LC] Camera spoofing - enabled: %d, type: %@, loop: %d", 
               spoofCameraEnabled, spoofCameraType, spoofCameraLoop);
         
         if (!spoofCameraEnabled) {
             return;
         }
         
-        // Initialize enhanced resources
-        spoofDeliveryQueue = dispatch_queue_create("com.livecontainer.cameraspoof.enhanced", 
-                                                  DISPATCH_QUEUE_SERIAL);
+        // Initialize resources
+        spoofDeliveryQueue = dispatch_queue_create("com.livecontainer.cameraspoof", DISPATCH_QUEUE_SERIAL);
         frameDeliverySemaphore = dispatch_semaphore_create(1);
         
-        // Load spoof content based on type
+        // Load video if specified
         if ([spoofCameraType isEqualToString:@"video"]) {
             spoofCameraVideoPath = guestAppInfo[@"spoofCameraVideoPath"] ?: @"";
             if (spoofCameraVideoPath.length > 0) {
@@ -597,34 +481,30 @@ void AVFoundationGuestHooksInit(void) {
                 spoofVideoAsset = [AVAsset assetWithURL:videoURL];
                 
                 if (spoofVideoAsset) {
-                    videoDuration = spoofVideoAsset.duration;
                     setupVideoReader();
-                    NSLog(@"[LC] Loaded video asset: %@ (duration: %.2fs)", 
-                          spoofCameraVideoPath, CMTimeGetSeconds(videoDuration));
+                    NSLog(@"[LC] Loaded video: %@", spoofCameraVideoPath);
                 } else {
-                    NSLog(@"[LC] Failed to load video asset: %@", spoofCameraVideoPath);
-                    spoofCameraType = @"image"; // Fallback to image
+                    NSLog(@"[LC] Failed to load video: %@", spoofCameraVideoPath);
+                    spoofCameraType = @"image";
                 }
             } else {
-                NSLog(@"[LC] No video path specified, falling back to image");
                 spoofCameraType = @"image";
             }
         }
         
-        // Load image (either primary or fallback)
+        // Load image
         spoofCameraImagePath = guestAppInfo[@"spoofCameraImagePath"] ?: @"";
         if (spoofCameraImagePath.length > 0) {
             spoofImage = [UIImage imageWithContentsOfFile:spoofCameraImagePath];
-            NSLog(@"[LC] Loaded custom spoof image: %@", spoofImage ? @"SUCCESS" : @"FAILED");
+            NSLog(@"[LC] Loaded image: %@", spoofImage ? @"SUCCESS" : @"FAILED");
         }
         
-        // Prepare image resources (always needed as fallback)
-        prepareImageSpoofResources();
+        // Always prepare image resources (fallback)
+        prepareImageResources();
         
-        // Enhanced hooks
+        // Setup hooks
         Class videoDataOutputClass = NSClassFromString(@"AVCaptureVideoDataOutput");
         if (videoDataOutputClass) {
-            NSLog(@"[LC] Hooking enhanced AVCaptureVideoDataOutput");
             swizzle(videoDataOutputClass, 
                    @selector(setSampleBufferDelegate:queue:), 
                    @selector(lc_setSampleBufferDelegate:queue:));
@@ -642,9 +522,9 @@ void AVFoundationGuestHooksInit(void) {
                    @selector(lc_captureStillImageAsynchronouslyFromConnection:completionHandler:));
         }
         
-        NSLog(@"[LC] Enhanced camera spoofing initialized successfully (mode: %@)", spoofCameraType);
+        NSLog(@"[LC] Camera spoofing initialized (mode: %@)", spoofCameraType);
         
     } @catch (NSException *exception) {
-        NSLog(@"[LC] Exception in enhanced init: %@", exception);
+        NSLog(@"[LC] Exception in init: %@", exception);
     }
 }
