@@ -1146,7 +1146,7 @@ struct CameraImagePickerView: View {
     
     @State private var showingFilePicker = false
     @State private var showingPhotoPicker = false
-    @State private var selectedPhotoItem: Any? // Use Any instead of PhotosPickerItem
+    @State private var selectedPhotoItem: Any? = nil
     @State private var previewImage: UIImage?
     
     var body: some View {
@@ -1195,27 +1195,16 @@ struct CameraImagePickerView: View {
                     .textSelection(.enabled)
             }
             
-            // Picker buttons
+            // Picker buttons - FIXED VERSION
             HStack(spacing: 12) {
                 if #available(iOS 16.0, *) {
-                    PhotosPicker(
-                        selection: Binding<PhotosPickerItem?>(
-                            get: { selectedPhotoItem as? PhotosPickerItem },
-                            set: { selectedPhotoItem = $0 }
-                        ),
-                        matching: .images
-                    ) {
-                        Label("Photos", systemImage: "photo.on.rectangle")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .onChange(of: selectedPhotoItem) { newItem in
-                        if let photoItem = newItem as? PhotosPickerItem {
+                    PhotosPickerWrapper(
+                        onPhotoSelected: { photoItem in
                             Task {
                                 await loadSelectedPhoto(photoItem)
                             }
                         }
-                    }
+                    )
                 } else {
                     Button(action: {
                         errorInfo = "Photo picker requires iOS 16.0 or later. Please use the Files option instead."
@@ -1351,8 +1340,6 @@ struct CameraVideoPickerView: View {
     @Binding var errorShow: Bool
     
     @State private var showingFilePicker = false
-    @State private var showingPhotoPicker = false
-    @State private var selectedVideoItem: Any? // Use Any instead of PhotosPickerItem
     @State private var videoThumbnail: UIImage?
     @State private var videoDuration: String = ""
     
@@ -1422,27 +1409,16 @@ struct CameraVideoPickerView: View {
                 Toggle("Loop Video", isOn: $loopVideo)
             }
             
-            // Picker buttons
+            // Picker buttons - FIXED VERSION
             HStack(spacing: 12) {
                 if #available(iOS 16.0, *) {
-                    PhotosPicker(
-                        selection: Binding<PhotosPickerItem?>(
-                            get: { selectedVideoItem as? PhotosPickerItem },
-                            set: { selectedVideoItem = $0 }
-                        ),
-                        matching: .videos
-                    ) {
-                        Label("Photos", systemImage: "photo.on.rectangle")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .onChange(of: selectedVideoItem) { newItem in
-                        if let videoItem = newItem as? PhotosPickerItem {
+                    VideoPickerWrapper(
+                        onVideoSelected: { videoItem in
                             Task {
                                 await loadSelectedVideo(videoItem)
                             }
                         }
-                    }
+                    )
                 } else {
                     Button(action: {
                         errorInfo = "Photo picker requires iOS 16.0 or later. Please use the Files option instead."
@@ -1588,6 +1564,52 @@ struct CameraVideoPickerView: View {
                 await MainActor.run {
                     videoDuration = ""
                 }
+            }
+        }
+    }
+}
+
+@available(iOS 16.0, *)
+struct PhotosPickerWrapper: View {
+    let onPhotoSelected: (PhotosPickerItem) -> Void
+    @State private var selectedItem: PhotosPickerItem?
+    
+    var body: some View {
+        PhotosPicker(
+            selection: $selectedItem,
+            matching: .images
+        ) {
+            Label("Photos", systemImage: "photo.on.rectangle")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .onChange(of: selectedItem) { newItem in
+            if let item = newItem {
+                onPhotoSelected(item)
+                selectedItem = nil // Reset selection
+            }
+        }
+    }
+}
+
+@available(iOS 16.0, *)
+struct VideoPickerWrapper: View {
+    let onVideoSelected: (PhotosPickerItem) -> Void
+    @State private var selectedItem: PhotosPickerItem?
+    
+    var body: some View {
+        PhotosPicker(
+            selection: $selectedItem,
+            matching: .videos
+        ) {
+            Label("Photos", systemImage: "photo.on.rectangle")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .onChange(of: selectedItem) { newItem in
+            if let item = newItem {
+                onVideoSelected(item)
+                selectedItem = nil // Reset selection
             }
         }
     }
