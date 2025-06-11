@@ -50,7 +50,9 @@ static CMSampleBufferRef createSpoofedSampleBuffer(void);
 
 #pragma mark - Pixel Buffer Utilities
 
-// Helper to create a CVPixelBufferRef by scaling another CVPixelBufferRef
+// Cache CIContext for createScaledPixelBuffer
+static CIContext *sharedCIContext = nil;
+
 static CVPixelBufferRef createScaledPixelBuffer(CVPixelBufferRef sourceBuffer, CGSize scaleToSize) {
     if (!sourceBuffer) return NULL;
 
@@ -58,7 +60,6 @@ static CVPixelBufferRef createScaledPixelBuffer(CVPixelBufferRef sourceBuffer, C
     size_t sourceHeight = CVPixelBufferGetHeight(sourceBuffer);
     OSType sourceFormat = CVPixelBufferGetPixelFormatType(sourceBuffer);
 
-    // If already the correct size and format (assuming 32BGRA for output), just retain and return
     if (sourceWidth == (size_t)scaleToSize.width && sourceHeight == (size_t)scaleToSize.height && sourceFormat == kCVPixelFormatType_32BGRA) {
         CVPixelBufferRetain(sourceBuffer);
         return sourceBuffer;
@@ -74,30 +75,37 @@ static CVPixelBufferRef createScaledPixelBuffer(CVPixelBufferRef sourceBuffer, C
     CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
                                           (size_t)scaleToSize.width,
                                           (size_t)scaleToSize.height,
-                                          kCVPixelFormatType_32BGRA, // Output format
+                                          kCVPixelFormatType_32BGRA,
                                           (__bridge CFDictionaryRef)pixelAttributes,
                                           &scaledPixelBuffer);
     if (status != kCVReturnSuccess || !scaledPixelBuffer) {
-        NSLog(@"[LC] Error creating scaled pixel buffer: %d", status);
+        NSLog(@"[LC] Error creating scaled pixel buffer for scaling: %d", status);
         return NULL;
     }
 
+    // Initialize shared CIContext on first use
+    if (!sharedCIContext) {
+        sharedCIContext = [CIContext contextWithOptions:nil];
+        if (!sharedCIContext) {
+            NSLog(@"[LC] CRITICAL: Failed to create shared CIContext for scaling.");
+            CVPixelBufferRelease(scaledPixelBuffer); // Release the buffer we created
+            return NULL; 
+        }
+    }
+    
     CIImage *ciImage = [CIImage imageWithCVPixelBuffer:sourceBuffer];
-    CIContext *ciContext = [CIContext contextWithOptions:nil]; // Create a new context or use a shared one
-
     CGFloat scaleX = scaleToSize.width / sourceWidth;
     CGFloat scaleY = scaleToSize.height / sourceHeight;
     ciImage = [ciImage imageByApplyingTransform:CGAffineTransformMakeScale(scaleX, scaleY)];
     
-    // Adjust for potential origin differences after scaling if aspect ratios differ
     CGRect extent = ciImage.extent;
     if (extent.origin.x != 0 || extent.origin.y != 0) {
         ciImage = [ciImage imageByApplyingTransform:CGAffineTransformMakeTranslation(-extent.origin.x, -extent.origin.y)];
     }
 
-    [ciContext render:ciImage toCVPixelBuffer:scaledPixelBuffer];
+    [sharedCIContext render:ciImage toCVPixelBuffer:scaledPixelBuffer];
 
-    return scaledPixelBuffer; // Caller must release
+    return scaledPixelBuffer;
 }
 
 // Helper to update the last good spoofed frame
@@ -542,7 +550,7 @@ static void setupVideoSpoofingResources() {
 void AVFoundationGuestHooksInit(void) {
     @try {
         NSLog(@"[LC] Initializing AVFoundation Guest Hooks (Build: %s %s)...", __DATE__, __TIME__);
-        // ... (guestAppInfo and spoofCameraEnabled checks remain the same) ...
+        
         NSDictionary *guestAppInfo = [NSUserDefaults guestAppInfo];
         if (!guestAppInfo) {
             NSLog(@"[LC] No guestAppInfo found. Hooks not applied.");
@@ -550,9 +558,6 @@ void AVFoundationGuestHooksInit(void) {
         }
 
         spoofCameraEnabled = [guestAppInfo[@"spoofCamera"] boolValue];
-        // Dynamic resolution detection will happen later if spoofing is off initially.
-        // If spoofing is on from the start, it uses default targetResolution.
-
         spoofCameraType = guestAppInfo[@"spoofCameraType"] ?: @"image";
         spoofCameraImagePath = guestAppInfo[@"spoofCameraImagePath"] ?: @"";
         spoofCameraVideoPath = guestAppInfo[@"spoofCameraVideoPath"] ?: @"";
@@ -563,33 +568,97 @@ void AVFoundationGuestHooksInit(void) {
         
         videoProcessingQueue = dispatch_queue_create("com.livecontainer.videoprocessingqueue", DISPATCH_QUEUE_SERIAL);
 
-        // Setup image resources first. This is synchronous and provides a fallback.
-        // It will use the initial targetResolution and populate lastGoodSpoofedPixelBuffer.
+        // 1. Setup primary image resources. This attempts to load user image or default blue.
+        // It will also try to set lastGoodSpoofedPixelBuffer.
         setupImageSpoofingResources();
 
+        // 2. Failsafe: If lastGoodSpoofedPixelBuffer is still NULL, create an emergency one.
+        if (!lastGoodSpoofedPixelBuffer) {
+            NSLog(@"[LC] Warning: lastGoodSpoofedPixelBuffer is NULL after primary image setup. Creating emergency fallback.");
+            CVPixelBufferRef emergencyPixelBuffer = NULL;
+            CGSize emergencySize = targetResolution; // Use current targetResolution
+
+            NSDictionary *pixelAttributes = @{
+                (NSString*)kCVPixelBufferCGImageCompatibilityKey : @YES,
+                (NSString*)kCVPixelBufferCGBitmapContextCompatibilityKey : @YES,
+                (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
+            };
+            CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
+                                                  (size_t)emergencySize.width, (size_t)emergencySize.height,
+                                                  kCVPixelFormatType_32BGRA,
+                                                  (__bridge CFDictionaryRef)pixelAttributes,
+                                                  &emergencyPixelBuffer);
+
+            if (status == kCVReturnSuccess && emergencyPixelBuffer) {
+                CVPixelBufferLockBaseAddress(emergencyPixelBuffer, 0);
+                void *baseAddress = CVPixelBufferGetBaseAddress(emergencyPixelBuffer);
+                CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+                CGContextRef cgContext = CGBitmapContextCreate(baseAddress,
+                                                               emergencySize.width, emergencySize.height,
+                                                               8, CVPixelBufferGetBytesPerRow(emergencyPixelBuffer), colorSpace,
+                                                               kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
+                if (cgContext) {
+                    CGContextSetRGBFillColor(cgContext, 1.0, 0.0, 1.0, 1.0); // Magenta
+                    CGContextFillRect(cgContext, CGRectMake(0, 0, emergencySize.width, emergencySize.height));
+                    
+                    NSString *text = @"EMERGENCY\nFALLBACK";
+                    NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
+                    style.alignment = NSTextAlignmentCenter;
+                    NSDictionary *attrs = @{ NSFontAttributeName: [UIFont boldSystemFontOfSize:emergencySize.width * 0.04],
+                                             NSForegroundColorAttributeName: [UIColor blackColor], // Black text on magenta
+                                             NSParagraphStyleAttributeName: style };
+                    CGSize textSize = [text sizeWithAttributes:attrs];
+                    CGRect textRect = CGRectMake((emergencySize.width - textSize.width) / 2,
+                                                 (emergencySize.height - textSize.height) / 2,
+                                                 textSize.width, textSize.height);
+                    
+                    UIGraphicsPushContext(cgContext);
+                    [text drawInRect:textRect withAttributes:attrs];
+                    UIGraphicsPopContext();
+                    
+                    CGContextRelease(cgContext);
+                } else {
+                    NSLog(@"[LC] Failed to create CGContext for emergency buffer. It might appear as uninitialized (black).");
+                }
+                CGColorSpaceRelease(colorSpace);
+                CVPixelBufferUnlockBaseAddress(emergencyPixelBuffer, 0);
+
+                CMVideoFormatDescriptionRef emergencyFormatDesc = NULL;
+                CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, emergencyPixelBuffer, &emergencyFormatDesc);
+                updateLastGoodSpoofedFrame(emergencyPixelBuffer, emergencyFormatDesc); // This retains them
+                
+                if (emergencyFormatDesc) CFRelease(emergencyFormatDesc);
+                CVPixelBufferRelease(emergencyPixelBuffer); // Release our local instance
+                NSLog(@"[LC] Emergency fallback pixel buffer created and set as lastGood.");
+            } else {
+                NSLog(@"[LC] CRITICAL: Failed to create CVPixelBuffer for emergency fallback. Status: %d. Spoofing may be unreliable.", status);
+            }
+        }
+
+        // 3. Setup video resources if in video mode
         if (spoofCameraEnabled && [spoofCameraType isEqualToString:@"video"]) {
             if (spoofCameraVideoPath && spoofCameraVideoPath.length > 0) {
                 NSLog(@"[LC] Video mode configured. Initiating video resource setup...");
                 setupVideoSpoofingResources(); 
             } else {
-                NSLog(@"[LC] Video mode configured, but no video path. Will use image fallback.");
-                // spoofCameraType is already "image" by default or if video path is bad
+                NSLog(@"[LC] Video mode configured, but no video path. Will use image fallback (static, default blue, or emergency).");
             }
         }
         
-        if (spoofCameraEnabled && ![spoofCameraType isEqualToString:@"video"] && !staticImageSpoofBuffer) {
-            NSLog(@"[LC] ❌ Image mode active but failed to prepare image resources. Disabling spoofing.");
-            spoofCameraEnabled = NO; // This might be too aggressive if lastGoodFrame can cover it.
-                                     // For now, if static image fails, and it's image mode, disable.
+        // 4. Check image mode status
+        if (spoofCameraEnabled && ![spoofCameraType isEqualToString:@"video"]) {
+            if (!staticImageSpoofBuffer) {
+                 NSLog(@"[LC] ⚠️ Image mode: Primary staticImageSpoofBuffer (user/default blue) failed. Relying on emergency fallback.");
+            } else if (!lastGoodSpoofedPixelBuffer) {
+                 NSLog(@"[LC] ⚠️ Image mode: lastGoodSpoofedPixelBuffer is NULL despite staticImageSpoofBuffer potentially being OK. This is unexpected.");
+            }
         }
         
         if (!spoofCameraEnabled && !resolutionDetected) {
              NSLog(@"[LC] Spoofing disabled, but resolution detection will run on first real frame.");
         }
 
-
-        // Apply hooks regardless of initial spoofCameraEnabled state,
-        // so that resolution detection can occur if spoofing is turned on later or for the first frame.
+        // 5. Apply hooks
         static dispatch_once_t onceToken;
         dispatch_once(&onceToken, ^{
             NSLog(@"[LC] Applying AVFoundation hooks...");
@@ -599,9 +668,9 @@ void AVFoundationGuestHooksInit(void) {
         });
         
         if (spoofCameraEnabled) {
-             NSLog(@"[LC] ✅ Spoofing initialized. Configured mode: %@.", spoofCameraType);
+             NSLog(@"[LC] ✅ Spoofing initialized. Configured mode: %@. LastGoodBuffer is %s.", 
+                   spoofCameraType, lastGoodSpoofedPixelBuffer ? "VALID" : "NULL (Problem!)");
         }
-
 
     } @catch (NSException *exception) {
         NSLog(@"[LC] ❌ Exception during AVFoundationGuestHooksInit: %@", exception);
