@@ -366,11 +366,139 @@ static void prepareImageResources(void) {
 
 @end
 
-#pragma mark - Initialization
+#pragma mark - Complete Camera Blocking
+
+@interface AVCaptureVideoDataOutput(LiveContainerCompleteBlock)
+- (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue;
+@end
+
+@implementation AVCaptureVideoDataOutput(LiveContainerCompleteBlock)
+
+- (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue {
+    if (spoofCameraEnabled) {
+        NSLog(@"[LC] BLOCKING real camera - providing ONLY spoofed frames");
+        
+        // DO NOT call the original method - this completely blocks real camera input
+        // [self lc_setSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue]; // REMOVED
+        
+        if (!sampleBufferDelegate) {
+            return;
+        }
+        
+        dispatch_queue_t spoofQueue = sampleBufferCallbackQueue ?: dispatch_get_main_queue();
+        
+        // Create timer that provides ONLY spoofed frames - no real camera at all
+        NSTimer *spoofTimer = [NSTimer timerWithTimeInterval:1.0/30.0 repeats:YES block:^(NSTimer *timer) {
+            @try {
+                if (!spoofCameraEnabled) {
+                    [timer invalidate];
+                    if (activeTimers) {
+                        [activeTimers removeObject:timer];
+                    }
+                    return;
+                }
+                
+                CMSampleBufferRef spoofedFrame = getCurrentSpoofFrame();
+                if (spoofedFrame) {
+                    dispatch_async(spoofQueue, ^{
+                        @try {
+                            // Create a basic connection for the spoofed frame
+                            AVCaptureConnection *connection = [[AVCaptureConnection alloc] initWithInputPorts:@[] output:self];
+                            
+                            // Deliver ONLY spoofed frame - Instagram never sees real camera
+                            if ([sampleBufferDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
+                                [sampleBufferDelegate captureOutput:self didOutputSampleBuffer:spoofedFrame fromConnection:connection];
+                            }
+                            
+                        } @catch (NSException *exception) {
+                            NSLog(@"[LC] Exception delivering spoofed frame: %@", exception);
+                        } @finally {
+                            CFRelease(spoofedFrame);
+                        }
+                    });
+                }
+                
+            } @catch (NSException *exception) {
+                NSLog(@"[LC] Exception in spoofed timer: %@", exception);
+                [timer invalidate];
+                if (activeTimers) {
+                    [activeTimers removeObject:timer];
+                }
+            }
+        }];
+        
+        // Track timer
+        if (!activeTimers) {
+            activeTimers = [[NSMutableSet alloc] init];
+        }
+        [activeTimers addObject:spoofTimer];
+        
+        [[NSRunLoop mainRunLoop] addTimer:spoofTimer forMode:NSDefaultRunLoopMode];
+        NSLog(@"[LC] Started PURE spoofed video stream - real camera completely blocked");
+        return;
+    }
+    
+    // If spoofing disabled, allow normal camera
+    [self lc_setSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue];
+}
+
+@end
+
+// Also block at the session level to prevent any real camera initialization
+@interface AVCaptureSession(LiveContainerSessionBlock)
+- (void)lc_startRunning;
+- (void)lc_stopRunning;
+@end
+
+@implementation AVCaptureSession(LiveContainerSessionBlock)
+
+- (void)lc_startRunning {
+    if (spoofCameraEnabled) {
+        NSLog(@"[LC] BLOCKING camera session start - preventing real camera access");
+        // Don't call original - completely block real camera session
+        return;
+    }
+    
+    // Normal operation
+    [self lc_startRunning];
+}
+
+- (void)lc_stopRunning {
+    NSLog(@"[LC] Camera session stop");
+    [self lc_stopRunning];
+}
+
+@end
+
+// Block camera input at the source level
+@interface AVCaptureDeviceInput(LiveContainerInputBlock)
++ (instancetype)lc_deviceInputWithDevice:(AVCaptureDevice *)device error:(NSError **)outError;
+@end
+
+@implementation AVCaptureDeviceInput(LiveContainerInputBlock)
+
++ (instancetype)lc_deviceInputWithDevice:(AVCaptureDevice *)device error:(NSError **)outError {
+    if (spoofCameraEnabled && [device hasMediaType:AVMediaTypeVideo]) {
+        NSLog(@"[LC] BLOCKING camera device input creation - no real camera hardware access");
+        
+        // Return nil to block camera input creation, but don't set error to avoid crashes
+        if (outError) {
+            *outError = nil;
+        }
+        return nil;
+    }
+    
+    // Allow non-camera devices (microphone, etc.)
+    return [self lc_deviceInputWithDevice:device error:outError];
+}
+
+@end
+
+#pragma mark - Enhanced Initialization
 
 void AVFoundationGuestHooksInit(void) {
     @try {
-        NSLog(@"[LC] Safe universal camera spoofing init");
+        NSLog(@"[LC] Complete camera blocking initialization");
         
         activeTimers = [[NSMutableSet alloc] init];
         
@@ -419,7 +547,9 @@ void AVFoundationGuestHooksInit(void) {
         // Prepare resources
         prepareImageResources();
         
-        // Only hook video data output
+        // COMPLETE CAMERA BLOCKING - Hook all camera-related classes
+        
+        // 1. Block video data output delegate setting
         Class videoDataOutputClass = NSClassFromString(@"AVCaptureVideoDataOutput");
         if (videoDataOutputClass) {
             swizzle(videoDataOutputClass, 
@@ -427,7 +557,26 @@ void AVFoundationGuestHooksInit(void) {
                    @selector(lc_setSampleBufferDelegate:queue:));
         }
         
-        NSLog(@"[LC] Safe camera spoofing initialized");
+        // 2. Block camera session starting
+        Class captureSessionClass = NSClassFromString(@"AVCaptureSession");
+        if (captureSessionClass) {
+            swizzle(captureSessionClass, 
+                   @selector(startRunning), 
+                   @selector(lc_startRunning));
+            swizzle(captureSessionClass, 
+                   @selector(stopRunning), 
+                   @selector(lc_stopRunning));
+        }
+        
+        // 3. Block camera device input creation
+        Class deviceInputClass = NSClassFromString(@"AVCaptureDeviceInput");
+        if (deviceInputClass) {
+            swizzle(deviceInputClass, 
+                   @selector(deviceInputWithDevice:error:), 
+                   @selector(lc_deviceInputWithDevice:error:));
+        }
+        
+        NSLog(@"[LC] Complete camera blocking initialized - NO real camera access allowed");
         
     } @catch (NSException *exception) {
         NSLog(@"[LC] Exception in init: %@", exception);
