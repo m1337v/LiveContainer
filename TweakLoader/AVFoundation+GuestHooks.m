@@ -544,15 +544,34 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
     if (imageBuffer) {
         g_cachedPhotoPixelBuffer = CVPixelBufferRetain(imageBuffer);
         
-        // Create CGImage
+        // Create CGImage with PROPER ORIENTATION for photos
         CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
+        
+        // Apply camera-like orientation transform for photos
+        // Photos typically need to be rotated and/or flipped to match expected orientation
+        CGAffineTransform transform = CGAffineTransformIdentity;
+        
+        // For front camera simulation - flip horizontally
+        transform = CGAffineTransformScale(transform, -1.0, 1.0);
+        transform = CGAffineTransformTranslate(transform, -ciImage.extent.size.width, 0);
+        
+        // Apply the transform
+        ciImage = [ciImage imageByApplyingTransform:transform];
+        
         CIContext *context = [CIContext context];
         g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
         
-        // Create JPEG data
+        // Create JPEG data with proper orientation
         if (g_cachedPhotoCGImage) {
             UIImage *image = [UIImage imageWithCGImage:g_cachedPhotoCGImage];
-            g_cachedPhotoJPEGData = UIImageJPEGRepresentation(image, 0.9);
+            
+            // Apply additional UIImage orientation correction if needed
+            // This ensures the final image has the correct orientation when saved
+            UIImage *orientedImage = [UIImage imageWithCGImage:image.CGImage 
+                                                         scale:image.scale 
+                                                   orientation:UIImageOrientationUp]; // Force upright orientation
+            
+            g_cachedPhotoJPEGData = UIImageJPEGRepresentation(orientedImage, 0.9);
         }
     }
 }
