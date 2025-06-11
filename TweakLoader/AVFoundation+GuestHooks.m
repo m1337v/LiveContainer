@@ -50,28 +50,42 @@ static CMSampleBufferRef createSpoofedSampleBuffer() {
     CVPixelBufferRef currentPixelBuffer = NULL;
     BOOL ownPixelBuffer = NO; // True if we copied/created and need to release currentPixelBuffer
 
-    if (isVideoSetupSuccessfully && [spoofCameraType isEqualToString:@"video"] && videoSpoofPlayerOutput && 
-        videoSpoofPlayer.currentItem && videoSpoofPlayer.currentItem.status == AVPlayerItemStatusReadyToPlay) {
-        
-        CMTime playerTime = [videoSpoofPlayer.currentItem currentTime];
-        if ([videoSpoofPlayerOutput hasNewPixelBufferForItemTime:playerTime]) {
-            currentPixelBuffer = [videoSpoofPlayerOutput copyPixelBufferForItemTime:playerTime itemTimeForDisplay:NULL];
-            if (currentPixelBuffer) {
-                ownPixelBuffer = YES;
+    // Attempt to get video frame if in video mode
+    if ([spoofCameraType isEqualToString:@"video"]) {
+        if (isVideoSetupSuccessfully) { // Check if video setup was marked as successful
+            if (videoSpoofPlayerOutput && videoSpoofPlayer.currentItem && videoSpoofPlayer.currentItem.status == AVPlayerItemStatusReadyToPlay) {
+                CMTime playerTime = [videoSpoofPlayer.currentItem currentTime];
+                if ([videoSpoofPlayerOutput hasNewPixelBufferForItemTime:playerTime]) {
+                    currentPixelBuffer = [videoSpoofPlayerOutput copyPixelBufferForItemTime:playerTime itemTimeForDisplay:NULL];
+                    if (currentPixelBuffer) {
+                        ownPixelBuffer = YES;
+                        // Successfully got video frame, skip image fallback
+                         NSLog(@"[LC] Video: Successfully copied pixel buffer for time %lld/%d.", playerTime.value, playerTime.timescale);
+                    } else {
+                        NSLog(@"[LC] Video: copyPixelBufferForItemTime returned NULL for time %lld/%d.", playerTime.value, playerTime.timescale);
+                    }
+                } else {
+                    NSLog(@"[LC] Video: hasNewPixelBufferForItemTime is NO for time %lld/%d. Player status: %ld, Player rate: %.2f", 
+                          playerTime.value, playerTime.timescale, 
+                          (long)videoSpoofPlayer.currentItem.status, videoSpoofPlayer.rate);
+                }
             } else {
-                NSLog(@"[LC] Video: copyPixelBufferForItemTime returned NULL.");
+                NSLog(@"[LC] Video: Player/item not ready or output nil. Output: %p, Item: %p, Status: %ld",
+                      videoSpoofPlayerOutput,
+                      videoSpoofPlayer.currentItem,
+                      videoSpoofPlayer.currentItem ? (long)videoSpoofPlayer.currentItem.status : -1L);
             }
         } else {
-             // It's possible there's no *new* frame if called too frequently or player hasn't advanced.
-             // Try to get the existing one without copy if hasNewPixelBufferForItemTime is NO but a buffer exists.
-             // This part is tricky; for simplicity, if no new buffer, we might fall back or return last known.
-             // For now, if no *new* buffer, we'll try to fall back to static image.
+            NSLog(@"[LC] Video: Mode is video, but isVideoSetupSuccessfully is NO.");
         }
     }
 
-    // Fallback to static image if video frame not available or in image mode
+    // Fallback to static image if video frame not obtained or in image mode
     if (!currentPixelBuffer) {
         if (staticImageSpoofBuffer) {
+            if ([spoofCameraType isEqualToString:@"video"]) { // Log fallback if it was supposed to be video
+                NSLog(@"[LC] Video: Falling back to static image buffer.");
+            }
             currentPixelBuffer = staticImageSpoofBuffer; // Use the global static buffer
             CFRetain(currentPixelBuffer); // CMSampleBufferCreateReadyWithImageBuffer consumes a retain count
             ownPixelBuffer = YES;
@@ -81,7 +95,7 @@ static CMSampleBufferRef createSpoofedSampleBuffer() {
         }
     }
     
-    if (!currentPixelBuffer) { // Should not happen if staticImageSpoofBuffer is guaranteed
+    if (!currentPixelBuffer) { 
         NSLog(@"[LC] CRITICAL: currentPixelBuffer is NULL before format description.");
         return NULL;
     }
@@ -388,7 +402,6 @@ void AVFoundationGuestHooksInit(void) {
         spoofCameraType = guestAppInfo[@"spoofCameraType"] ?: @"image";
         spoofCameraImagePath = guestAppInfo[@"spoofCameraImagePath"] ?: @"";
         spoofCameraVideoPath = guestAppInfo[@"spoofCameraVideoPath"] ?: @"";
-        // Corrected ternary operator syntax
         spoofCameraLoop = (guestAppInfo[@"spoofCameraLoop"] != nil) ? [guestAppInfo[@"spoofCameraLoop"] boolValue] : YES;
 
         NSLog(@"[LC] Config: Enabled=%d, Type=%@, ImagePath='%@', VideoPath='%@', Loop=%d",
@@ -396,27 +409,35 @@ void AVFoundationGuestHooksInit(void) {
         
         videoProcessingQueue = dispatch_queue_create("com.livecontainer.videoprocessingqueue", DISPATCH_QUEUE_SERIAL);
 
+        // Always setup image resources first, as it's a fallback or primary mode.
+        setupImageSpoofingResources();
+
         if ([spoofCameraType isEqualToString:@"video"]) {
-            setupVideoSpoofingResources(); 
-            if (!isVideoSetupSuccessfully) { 
-                NSLog(@"[LC] Video setup failed or no video path, falling back to image mode.");
-                spoofCameraType = @"image"; 
-                setupImageSpoofingResources();
-            }
-        } else { 
-            setupImageSpoofingResources();
+            // Initiate video resource setup. isVideoSetupSuccessfully will be set asynchronously.
+            setupVideoSpoofingResources();
         }
         
-        if (!staticImageSpoofBuffer && !isVideoSetupSuccessfully) {
-            NSLog(@"[LC] ❌ Failed to prepare any spoofing resources. Disabling spoofing.");
+        // This check ensures that if image mode is selected and image setup failed,
+        // then there's nothing to spoof. If video mode is selected, we proceed,
+        // and createSpoofedSampleBuffer will handle fallback if video fails.
+        if (!staticImageSpoofBuffer && ![spoofCameraType isEqualToString:@"video"]) {
+            NSLog(@"[LC] ❌ Image mode selected but failed to prepare image resources. Disabling spoofing.");
             spoofCameraEnabled = NO;
             return;
         }
+        
+        if (!spoofCameraEnabled) { // Re-check in case it was disabled by the above condition
+            NSLog(@"[LC] Spoofing disabled due to resource preparation failure.");
+            return;
+        }
 
+        // Apply hooks
         swizzle([AVCaptureVideoDataOutput class], @selector(setSampleBufferDelegate:queue:), @selector(lc_setSampleBufferDelegate:queue:));
         swizzle([AVCapturePhotoOutput class], @selector(capturePhotoWithSettings:delegate:), @selector(lc_capturePhotoWithSettings:delegate:));
         
-        NSLog(@"[LC] ✅ AVFoundation Guest Hooks initialized successfully. Mode: %@", (isVideoSetupSuccessfully && [spoofCameraType isEqualToString:@"video"]) ? @"Video" : @"Image");
+        // The mode logged here reflects the initial configuration.
+        // Actual frames will depend on successful resource loading and the logic in createSpoofedSampleBuffer.
+        NSLog(@"[LC] ✅ AVFoundation Guest Hooks initialized. Configured mode: %@.", spoofCameraType);
 
     } @catch (NSException *exception) {
         NSLog(@"[LC] ❌ Exception during AVFoundationGuestHooksInit: %@", exception);
