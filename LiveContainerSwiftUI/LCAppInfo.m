@@ -258,6 +258,8 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 - (void)save {
     if(!_autoSaveDisabled) {
         [_info writeToFile:[NSString stringWithFormat:@"%@/LCAppInfo.plist", _bundlePath] atomically:YES];
+        // Trigger UserDefaults change notification for hooks
+        [[NSNotificationCenter defaultCenter] postNotificationName:NSUserDefaultsDidChangeNotification object:nil];
     }
 
 }
