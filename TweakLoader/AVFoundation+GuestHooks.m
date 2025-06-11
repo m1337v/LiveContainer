@@ -839,6 +839,19 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
     [self lc_startRunning];
 }
 
+- (void)lc_stopRunning {
+    if (spoofCameraEnabled) {
+        NSLog(@"[LC] 🎥 L4: Session stopping - cleaning up spoofed resources");
+        
+        // CRITICAL: Clean up photo cache when session stops (fixes Instagram discard)
+        cleanupPhotoCache();
+        
+        // Clean up any preview layer associations
+        objc_setAssociatedObject(self, @selector(lc_addInput:), nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    [self lc_stopRunning];
+}
+
 @end
 
 // pragma MARK: - LEVEL 5: Output Level Hooks
@@ -958,11 +971,56 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 
 @implementation AVCaptureVideoPreviewLayer(LiveContainerSpoof)
 - (void)lc_setSession:(AVCaptureSession *)session {
-    if (spoofCameraEnabled && session) {
-        NSLog(@"[LC] 📺 L5: Intercepting video preview layer session");
-        // TODO: Inject spoofed frames into preview layer
+    if (spoofCameraEnabled) {
+        if (session) {
+            NSLog(@"[LC] 📺 L5: Setting spoofed preview session");
+            objc_setAssociatedObject(self, @selector(lc_setSession:), @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            
+            // Start feeding spoofed frames to preview layer
+            [self startSpoofedPreviewFeed];
+        } else {
+            NSLog(@"[LC] 📺 L5: Clearing preview session (discard/cleanup)");
+            [self stopSpoofedPreviewFeed];
+            objc_setAssociatedObject(self, @selector(lc_setSession:), nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            cleanupPhotoCache();
+        }
     }
     [self lc_setSession:session];
+}
+
+- (void)startSpoofedPreviewFeed {
+    // Create a sample buffer display layer for spoofed content
+    AVSampleBufferDisplayLayer *spoofLayer = [[AVSampleBufferDisplayLayer alloc] init];
+    spoofLayer.frame = self.bounds;
+    spoofLayer.videoGravity = AVLayerVideoGravityResizeAspectFill;
+    [self addSublayer:spoofLayer];
+    
+    // Store reference for cleanup
+    objc_setAssociatedObject(self, @selector(startSpoofedPreviewFeed), spoofLayer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    
+    // Feed spoofed frames to the layer
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        while (spoofCameraEnabled && spoofLayer.superlayer) {
+            @autoreleasepool {
+                CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
+                if (spoofedFrame && spoofLayer.isReadyForMoreMediaData) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [spoofLayer enqueueSampleBuffer:spoofedFrame];
+                    });
+                    CFRelease(spoofedFrame);
+                }
+                [NSThread sleepForTimeInterval:1.0/30.0]; // 30 FPS
+            }
+        }
+    });
+}
+
+- (void)stopSpoofedPreviewFeed {
+    AVSampleBufferDisplayLayer *spoofLayer = objc_getAssociatedObject(self, @selector(startSpoofedPreviewFeed));
+    if (spoofLayer) {
+        [spoofLayer removeFromSuperlayer];
+        objc_setAssociatedObject(self, @selector(startSpoofedPreviewFeed), nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
 }
 @end
 
@@ -1099,22 +1157,22 @@ void AVFoundationGuestHooksInit(void) {
             // MSHookFunction(CVPixelBufferCreate, hook_CVPixelBufferCreate, (void**)&original_CVPixelBufferCreate);
             
             // LEVEL 2: Device Level
-            // swizzle([AVCaptureDevice class], @selector(devicesWithMediaType:), @selector(lc_devicesWithMediaType:));
-            // swizzle([AVCaptureDevice class], @selector(defaultDeviceWithMediaType:), @selector(lc_defaultDeviceWithMediaType:));
+            swizzle([AVCaptureDevice class], @selector(devicesWithMediaType:), @selector(lc_devicesWithMediaType:));
+            swizzle([AVCaptureDevice class], @selector(defaultDeviceWithMediaType:), @selector(lc_defaultDeviceWithMediaType:));
             
             // LEVEL 3: Device Input Level  
-            // swizzle([AVCaptureDeviceInput class], @selector(deviceInputWithDevice:error:), @selector(lc_deviceInputWithDevice:error:));
+            swizzle([AVCaptureDeviceInput class], @selector(deviceInputWithDevice:error:), @selector(lc_deviceInputWithDevice:error:));
             
             // LEVEL 4: Session Level
-            // swizzle([AVCaptureSession class], @selector(addInput:), @selector(lc_addInput:));
-            // swizzle([AVCaptureSession class], @selector(addOutput:), @selector(lc_addOutput:));
-            // swizzle([AVCaptureSession class], @selector(startRunning), @selector(lc_startRunning));
+            swizzle([AVCaptureSession class], @selector(addInput:), @selector(lc_addInput:));
+            swizzle([AVCaptureSession class], @selector(addOutput:), @selector(lc_addOutput:));
+            swizzle([AVCaptureSession class], @selector(startRunning), @selector(lc_startRunning));
             
             // LEVEL 5: Output Level
             swizzle([AVCaptureVideoDataOutput class], @selector(setSampleBufferDelegate:queue:), @selector(lc_setSampleBufferDelegate:queue:));
             swizzle([AVCapturePhotoOutput class], @selector(capturePhotoWithSettings:delegate:), @selector(lc_capturePhotoWithSettings:delegate:));
-            // swizzle([AVCaptureMovieFileOutput class], @selector(startRecordingToOutputFileURL:recordingDelegate:), @selector(lc_startRecordingToOutputFileURL:recordingDelegate:));
-            // swizzle([AVCaptureVideoPreviewLayer class], @selector(setSession:), @selector(lc_setSession:));
+            swizzle([AVCaptureMovieFileOutput class], @selector(startRecordingToOutputFileURL:recordingDelegate:), @selector(lc_startRecordingToOutputFileURL:recordingDelegate:));
+            swizzle([AVCaptureVideoPreviewLayer class], @selector(setSession:), @selector(lc_setSession:));
             
             // LEVEL 6: Photo Accessor Level
             Method pixelBufferMethod = class_getInstanceMethod([AVCapturePhoto class], @selector(pixelBuffer));
