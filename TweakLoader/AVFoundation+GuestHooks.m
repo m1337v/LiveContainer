@@ -38,12 +38,10 @@ static int frameCounter = 0;
         return originalFrame;
     }
     
-    NSLog(@"[LC] 🎯 GetFrame: Blocking real frame, providing spoofed frame");
+    NSLog(@"[LC] 🎯 GetFrame: Creating spoofed frame");
     
-    // Release original frame
-    if (originalFrame) {
-        CFRelease(originalFrame);
-    }
+    // DON'T release original frame here - just create spoofed frame
+    // The original frame will be ignored in the delegate
     
     // Return spoofed frame
     return [self createSpoofedFrame];
@@ -218,24 +216,47 @@ static int frameCounter = 0;
         _originalDelegate = delegate;
         _output = output;
         NSLog(@"[LC] ✅ Intercepting delegate installed for: %@", NSStringFromClass([delegate class]));
+        
+        // Start providing spoofed frames immediately at 30fps
+        [self startSpoofedFrameDelivery];
     }
     return self;
 }
 
-// CRITICAL: This method is called for EVERY camera frame - NO REAL FRAMES PASS THROUGH
-- (void)captureOutput:(AVCaptureOutput *)output didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection {
-    if (spoofCameraEnabled) {
-        // CRITICAL: Use GetFrame to COMPLETELY BLOCK real frame and provide ONLY spoofed frame
-        CMSampleBufferRef spoofedFrame = [GetFrame getCurrentFrame:sampleBuffer :YES];
+- (void)startSpoofedFrameDelivery {
+    dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+    dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
+    
+    uint64_t interval = NSEC_PER_SEC / 30; // 30fps
+    dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 0), interval, interval/10);
+    
+    dispatch_source_set_event_handler(timer, ^{
+        if (!spoofCameraEnabled) {
+            dispatch_source_cancel(timer);
+            return;
+        }
         
+        // Create spoofed frame
+        CMSampleBufferRef spoofedFrame = [GetFrame getCurrentFrame:NULL :YES];
         if (spoofedFrame && self.originalDelegate) {
-            // Deliver ONLY spoofed frame to app - no flickering, no real camera data
-            [self.originalDelegate captureOutput:output didOutputSampleBuffer:spoofedFrame fromConnection:connection];
+            // Use the existing connection from the capture session instead of creating a fake one
+            [self.originalDelegate captureOutput:self.output didOutputSampleBuffer:spoofedFrame fromConnection:nil];
             CFRelease(spoofedFrame);
         }
-        // Real sampleBuffer is already CFReleased in GetFrame - app NEVER sees it
+    });
+    
+    dispatch_resume(timer);
+    NSLog(@"[LC] ✅ Started spoofed frame delivery at 30fps");
+}
+
+// This method receives real camera frames - we ignore them completely
+- (void)captureOutput:(AVCaptureOutput *)output didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection {
+    if (spoofCameraEnabled) {
+        // Ignore real frames completely - our timer provides spoofed frames
+        NSLog(@"[LC] 🚫 Ignoring real camera frame");
+        return;
     } else {
-        // Only when spoofing disabled
+        // Pass through when spoofing disabled
         if (self.originalDelegate) {
             [self.originalDelegate captureOutput:output didOutputSampleBuffer:sampleBuffer fromConnection:connection];
         }
@@ -284,6 +305,36 @@ static int frameCounter = 0;
     }
     
     [self lc_capturePhotoWithSettings:settings delegate:delegate];
+}
+
+@end
+
+// Add missing still image output hook:
+
+@interface AVCaptureStillImageOutput(LiveContainerWorking)
+- (void)lc_captureStillImageAsynchronouslyFromConnection:(AVCaptureConnection *)connection completionHandler:(void (^)(CMSampleBufferRef, NSError *))handler;
+@end
+
+@implementation AVCaptureStillImageOutput(LiveContainerWorking)
+
+- (void)lc_captureStillImageAsynchronouslyFromConnection:(AVCaptureConnection *)connection completionHandler:(void (^)(CMSampleBufferRef, NSError *))handler {
+    if (spoofCameraEnabled) {
+        NSLog(@"[LC] 📸 Providing spoofed still image");
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            CMSampleBufferRef spoofedFrame = [GetFrame getCurrentFrame:NULL :YES];
+            if (spoofedFrame) {
+                handler(spoofedFrame, nil);
+                CFRelease(spoofedFrame);
+            } else {
+                NSError *error = [NSError errorWithDomain:@"LiveContainer" code:1001 userInfo:@{NSLocalizedDescriptionKey: @"Failed to create spoofed photo"}];
+                handler(NULL, error);
+            }
+        });
+        return;
+    }
+    
+    [self lc_captureStillImageAsynchronouslyFromConnection:connection completionHandler:handler];
 }
 
 @end
