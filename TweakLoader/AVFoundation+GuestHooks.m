@@ -166,7 +166,7 @@ static void setupImageSpoofingResources() {
 
     if (!image) { 
         NSLog(@"[LC] Creating default spoof image.");
-        CGSize size = CGSizeMake(1280, 720); // Standard HD size
+        CGSize size = CGSizeMake(1080, 1920); // Standard HD size
         UIGraphicsBeginImageContextWithOptions(size, YES, 1.0);
         CGContextRef uigraphicsContext = UIGraphicsGetCurrentContext();
         if (uigraphicsContext) {
