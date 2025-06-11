@@ -11,6 +11,8 @@
 #import <UIKit/UIKit.h>
 #import <CoreMedia/CoreMedia.h>
 #import <CoreVideo/CoreVideo.h>
+#import <MobileCoreServices/MobileCoreServices.h> 
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <objc/runtime.h>
 #import "../LiveContainer/Tweaks/Tweaks.h"
 
@@ -434,6 +436,8 @@ static void setupVideoSpoofingResources() {
 
 // pragma MARK: - Photo Data Management
 
+// pragma MARK: - Photo Caching (simple approach)
+
 static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
     if (!sampleBuffer) return;
     
@@ -453,22 +457,102 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
     if (imageBuffer) {
         g_cachedPhotoPixelBuffer = CVPixelBufferRetain(imageBuffer);
         
-        // Create CGImage (no transforms for universal compatibility)
+        // Create CGImage with NO orientation processing
         CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
         CIContext *context = [CIContext context];
         g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
         
-        // Create JPEG data
+        // Create JPEG data WITHOUT UIImage wrapper (preserves original orientation metadata)
         if (g_cachedPhotoCGImage) {
-            UIImage *image = [UIImage imageWithCGImage:g_cachedPhotoCGImage 
-                                                 scale:1.0 
-                                           orientation:UIImageOrientationUp];
-            g_cachedPhotoJPEGData = UIImageJPEGRepresentation(image, 0.9);
+            NSMutableData *jpegData = [NSMutableData data];
+            
+            // Use modern UTType API instead of deprecated kUTTypeJPEG
+            CFStringRef jpegType;
+            jpegType = (__bridge CFStringRef)UTTypeJPEG.identifier;
+            
+            CGImageDestinationRef destination = CGImageDestinationCreateWithData((__bridge CFMutableDataRef)jpegData, jpegType, 1, NULL);
+            
+            if (destination) {
+                // Add minimal metadata without forcing orientation
+                NSDictionary *properties = @{
+                    (__bridge NSString *)kCGImageDestinationLossyCompressionQuality: @0.9
+                    // NO orientation metadata - let app handle it naturally
+                };
+                
+                CGImageDestinationAddImage(destination, g_cachedPhotoCGImage, (__bridge CFDictionaryRef)properties);
+                CGImageDestinationFinalize(destination);
+                CFRelease(destination);
+                
+                g_cachedPhotoJPEGData = [jpegData copy];
+            }
         }
         
-        NSLog(@"[LC] 📷 Photo data cached for universal compatibility");
+        NSLog(@"[LC] 📷 Photo cached WITHOUT orientation interference");
     }
 }
+
+// pragma MARK: - Photo Caching (advanced approach with orientation handling)
+
+// static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
+//     if (!sampleBuffer) return;
+    
+//     // Clean up old cached data
+//     if (g_cachedPhotoPixelBuffer) {
+//         CVPixelBufferRelease(g_cachedPhotoPixelBuffer);
+//         g_cachedPhotoPixelBuffer = NULL;
+//     }
+//     if (g_cachedPhotoCGImage) {
+//         CGImageRelease(g_cachedPhotoCGImage);
+//         g_cachedPhotoCGImage = NULL;
+//     }
+//     g_cachedPhotoJPEGData = nil;
+    
+//     // Cache new data
+//     CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
+//     if (imageBuffer) {
+//         g_cachedPhotoPixelBuffer = CVPixelBufferRetain(imageBuffer);
+        
+//         // Create CGImage (no transforms for universal compatibility)
+//         CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
+//         CIContext *context = [CIContext context];
+//         g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
+        
+//         // FIXED: Don't force orientation - let the app handle it naturally
+//         if (g_cachedPhotoCGImage) {
+//             // Get current device orientation to preserve natural behavior
+//             UIInterfaceOrientation currentOrientation = [[UIApplication sharedApplication] statusBarOrientation];
+//             UIImageOrientation imageOrientation = UIImageOrientationUp; // Default
+            
+//             // Map interface orientation to image orientation (like camera would naturally do)
+//             switch (currentOrientation) {
+//                 case UIInterfaceOrientationPortrait:
+//                     imageOrientation = UIImageOrientationRight; // Camera natural orientation
+//                     break;
+//                 case UIInterfaceOrientationPortraitUpsideDown:
+//                     imageOrientation = UIImageOrientationLeft;
+//                     break;
+//                 case UIInterfaceOrientationLandscapeLeft:
+//                     imageOrientation = UIImageOrientationUp;
+//                     break;
+//                 case UIInterfaceOrientationLandscapeRight:
+//                     imageOrientation = UIImageOrientationDown;
+//                     break;
+//                 default:
+//                     imageOrientation = UIImageOrientationRight; // Portrait default
+//                     break;
+//             }
+            
+//             UIImage *image = [UIImage imageWithCGImage:g_cachedPhotoCGImage 
+//                                                  scale:1.0 
+//                                            orientation:imageOrientation]; // ← PRESERVE NATURAL ORIENTATION
+            
+//             g_cachedPhotoJPEGData = UIImageJPEGRepresentation(image, 0.9);
+            
+//             NSLog(@"[LC] 📷 Photo cached with natural orientation: %ld (interface: %ld)", 
+//                   (long)imageOrientation, (long)currentOrientation);
+//         }
+//     }
+// }
 
 static void cleanupPhotoCache(void) {
     if (g_cachedPhotoPixelBuffer) {
