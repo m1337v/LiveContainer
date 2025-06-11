@@ -544,34 +544,48 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
     if (imageBuffer) {
         g_cachedPhotoPixelBuffer = CVPixelBufferRetain(imageBuffer);
         
-        // Create CGImage with PROPER ORIENTATION for photos
+        // Create CGImage with camera-appropriate orientation
         CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
         
-        // Apply camera-like orientation transform for photos
-        // Photos typically need to be rotated and/or flipped to match expected orientation
-        CGAffineTransform transform = CGAffineTransformIdentity;
+        // Try different orientation corrections based on what Instagram expects:
         
-        // For front camera simulation - flip horizontally
-        transform = CGAffineTransformScale(transform, -1.0, 1.0);
-        transform = CGAffineTransformTranslate(transform, -ciImage.extent.size.width, 0);
+        // Option 1: No flip (back camera simulation)
+        // ciImage = ciImage; // No transform
         
-        // Apply the transform
+        // Option 2: Horizontal flip only (front camera simulation) - ORIGINAL
+        // CGAffineTransform transform = CGAffineTransformMakeScale(-1.0, 1.0);
+        // transform = CGAffineTransformTranslate(transform, -ciImage.extent.size.width, 0);
+        // ciImage = [ciImage imageByApplyingTransform:transform];
+        
+        // Option 3: Vertical flip
+        // CGAffineTransform transform = CGAffineTransformMakeScale(1.0, -1.0);
+        // transform = CGAffineTransformTranslate(transform, 0, -ciImage.extent.size.height);
+        // ciImage = [ciImage imageByApplyingTransform:transform];
+        
+        // Option 4: Both horizontal and vertical flip (180° rotation)
+        CGAffineTransform transform = CGAffineTransformMakeScale(-1.0, -1.0);
+        transform = CGAffineTransformTranslate(transform, -ciImage.extent.size.width, -ciImage.extent.size.height);
         ciImage = [ciImage imageByApplyingTransform:transform];
+        
+        // Option 5: 90° clockwise rotation
+        // CGAffineTransform transform = CGAffineTransformMakeRotation(M_PI_2);
+        // transform = CGAffineTransformTranslate(transform, ciImage.extent.size.height, 0);
+        // ciImage = [ciImage imageByApplyingTransform:transform];
+        
+        // Option 6: 90° counter-clockwise rotation
+        // CGAffineTransform transform = CGAffineTransformMakeRotation(-M_PI_2);
+        // transform = CGAffineTransformTranslate(transform, 0, ciImage.extent.size.width);
+        // ciImage = [ciImage imageByApplyingTransform:transform];
         
         CIContext *context = [CIContext context];
         g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
         
-        // Create JPEG data with proper orientation
+        // Create JPEG data
         if (g_cachedPhotoCGImage) {
-            UIImage *image = [UIImage imageWithCGImage:g_cachedPhotoCGImage];
-            
-            // Apply additional UIImage orientation correction if needed
-            // This ensures the final image has the correct orientation when saved
-            UIImage *orientedImage = [UIImage imageWithCGImage:image.CGImage 
-                                                         scale:image.scale 
-                                                   orientation:UIImageOrientationUp]; // Force upright orientation
-            
-            g_cachedPhotoJPEGData = UIImageJPEGRepresentation(orientedImage, 0.9);
+            UIImage *image = [UIImage imageWithCGImage:g_cachedPhotoCGImage 
+                                                 scale:1.0 
+                                           orientation:UIImageOrientationUp];
+            g_cachedPhotoJPEGData = UIImageJPEGRepresentation(image, 0.9);
         }
     }
 }
