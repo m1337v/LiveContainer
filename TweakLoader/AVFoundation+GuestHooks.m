@@ -2,7 +2,7 @@
 //  AVFoundation+GuestHooks.m
 //  LiveContainer
 //
-//  Universal camera spoofing - simplified and stable
+//  Camera spoofing based on CJ's approach
 //
 
 #import "AVFoundation+GuestHooks.h"
@@ -25,13 +25,15 @@ static UIImage *spoofImage = nil;
 static AVAsset *spoofVideoAsset = nil;
 static AVAssetReader *currentVideoReader = nil;
 static AVAssetReaderTrackOutput *videoTrackOutput = nil;
+static dispatch_queue_t videoQueue = nil;
 
 // Core spoofing resources
 static CVPixelBufferRef globalSpoofBuffer = NULL;
 static CMVideoFormatDescriptionRef globalFormatDesc = NULL;
 
-// Timers management to prevent memory leaks
-static NSMutableSet *activeTimers = nil;
+// Performance tracking
+static NSTimeInterval lastFrameTime = 0;
+static const NSTimeInterval frameInterval = 1.0/30.0; // 30fps
 
 // Forward declarations
 static CMSampleBufferRef getCurrentSpoofFrame(void);
@@ -44,13 +46,83 @@ static void prepareImageResources(void);
 + (NSDictionary*)guestAppInfo;
 @end
 
-#pragma mark - Safe Frame Generation
+#pragma mark - CJ-Style GetFrame Class
+
+// Replicate CJ's +[GetFrame getCurrentFrame::] functionality
+@interface LiveContainerGetFrame : NSObject
++ (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originalFrame shouldSpoof:(BOOL)shouldSpoof;
++ (UIWindow *)getKeyWindow;
+@end
+
+@implementation LiveContainerGetFrame
+
++ (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originalFrame shouldSpoof:(BOOL)shouldSpoof {
+    @try {
+        if (!shouldSpoof || !spoofCameraEnabled) {
+            return originalFrame;
+        }
+        
+        NSLog(@"[LC] GetFrame: Intercepting camera frame - providing spoofed content");
+        
+        // Release original frame to ensure no real camera data passes through
+        if (originalFrame) {
+            CFRelease(originalFrame);
+        }
+        
+        // Return spoofed frame instead
+        return getCurrentSpoofFrame();
+        
+    } @catch (NSException *exception) {
+        NSLog(@"[LC] Exception in GetFrame getCurrentFrame: %@", exception);
+        return originalFrame;
+    }
+}
+
++ (UIWindow *)getKeyWindow {
+    // Updated for iOS 13+ compatibility
+    if (@available(iOS 13.0, *)) {
+        NSSet<UIScene *> *connectedScenes = [UIApplication sharedApplication].connectedScenes;
+        for (UIScene *scene in connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                UIWindowScene *windowScene = (UIWindowScene *)scene;
+                for (UIWindow *window in windowScene.windows) {
+                    if (window.isKeyWindow) {
+                        return window;
+                    }
+                }
+            }
+        }
+    }
+    
+    // Fallback for older iOS versions
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    NSArray *windows = [[UIApplication sharedApplication] windows];
+    for (UIWindow *window in windows) {
+        if (window.isKeyWindow) {
+            return window;
+        }
+    }
+    return [[UIApplication sharedApplication] keyWindow];
+    #pragma clang diagnostic pop
+}
+
+@end
+
+#pragma mark - Core Frame Generation Functions
 
 static CMSampleBufferRef getCurrentSpoofFrame(void) {
     @try {
         if (!spoofCameraEnabled) {
             return NULL;
         }
+        
+        // Performance throttling
+        NSTimeInterval currentTime = CACurrentMediaTime();
+        if (currentTime - lastFrameTime < frameInterval * 0.8) {
+            return NULL;
+        }
+        lastFrameTime = currentTime;
         
         if ([spoofCameraType isEqualToString:@"video"] && spoofVideoAsset) {
             return getNextVideoFrame();
@@ -78,9 +150,8 @@ static CMSampleBufferRef getNextVideoFrame(void) {
             if (sampleBuffer) {
                 return sampleBuffer;
             } else if (spoofCameraLoop) {
-                // Restart video for loop
                 setupVideoReader();
-                return createImageSampleBuffer(); // Return image while restarting
+                return createImageSampleBuffer();
             }
         }
         
@@ -131,7 +202,6 @@ static void setupVideoReader(void) {
     @try {
         if (!spoofVideoAsset) return;
         
-        // Clean up existing reader
         if (currentVideoReader) {
             [currentVideoReader cancelReading];
             currentVideoReader = nil;
@@ -181,7 +251,6 @@ static void setupVideoReader(void) {
 
 static void prepareImageResources(void) {
     @try {
-        // Clean up existing resources
         if (globalSpoofBuffer) {
             CVPixelBufferRelease(globalSpoofBuffer);
             globalSpoofBuffer = NULL;
@@ -191,11 +260,10 @@ static void prepareImageResources(void) {
             globalFormatDesc = NULL;
         }
         
-        // Use provided image or create default
         UIImage *imageToUse = spoofImage;
         if (!imageToUse) {
-            // Create default test image
-            CGSize size = CGSizeMake(1920, 1080); // High quality default
+            // Create high-quality default image
+            CGSize size = CGSizeMake(1920, 1080);
             UIGraphicsBeginImageContextWithOptions(size, YES, 1.0);
             
             [[UIColor colorWithRed:0.2 green:0.4 blue:0.8 alpha:1.0] setFill];
@@ -226,7 +294,6 @@ static void prepareImageResources(void) {
         size_t width = CGImageGetWidth(cgImage);
         size_t height = CGImageGetHeight(cgImage);
         
-        // Create pixel buffer with proper attributes
         NSDictionary *attributes = @{
             (NSString *)kCVPixelBufferCGImageCompatibilityKey: @YES,
             (NSString *)kCVPixelBufferCGBitmapContextCompatibilityKey: @YES,
@@ -246,7 +313,6 @@ static void prepareImageResources(void) {
             return;
         }
         
-        // Draw image into pixel buffer
         CVPixelBufferLockBaseAddress(globalSpoofBuffer, 0);
         void *baseAddress = CVPixelBufferGetBaseAddress(globalSpoofBuffer);
         size_t bytesPerRow = CVPixelBufferGetBytesPerRow(globalSpoofBuffer);
@@ -265,7 +331,6 @@ static void prepareImageResources(void) {
         CGColorSpaceRelease(colorSpace);
         CVPixelBufferUnlockBaseAddress(globalSpoofBuffer, 0);
         
-        // Create format description
         CMVideoFormatDescriptionCreateForImageBuffer(
             kCFAllocatorDefault,
             globalSpoofBuffer,
@@ -279,228 +344,138 @@ static void prepareImageResources(void) {
     }
 }
 
-#pragma mark - Safe Camera Hook
+#pragma mark - CJ-Style Camera Hooks
 
-@interface AVCaptureVideoDataOutput(LiveContainerSafeHooks)
-- (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue;
+// Block camera device discovery (like CJ's approach)
+@interface AVCaptureDevice(LiveContainerCJStyle)
++ (NSArray<AVCaptureDevice *> *)lc_devicesWithMediaType:(AVMediaType)mediaType;
++ (AVCaptureDevice *)lc_defaultDeviceWithMediaType:(AVMediaType)mediaType;
 @end
 
-@implementation AVCaptureVideoDataOutput(LiveContainerSafeHooks)
+@implementation AVCaptureDevice(LiveContainerCJStyle)
 
-- (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue {
-    if (spoofCameraEnabled && sampleBufferDelegate) {
-        NSLog(@"[LC] Installing safe camera spoofing");
-        
-        // Call original to maintain normal setup
-        [self lc_setSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue];
-        
-        // Add spoofed frame delivery
-        dispatch_queue_t spoofQueue = sampleBufferCallbackQueue ?: dispatch_get_main_queue();
-        
-        NSTimer *spoofTimer = [NSTimer timerWithTimeInterval:1.0/30.0 repeats:YES block:^(NSTimer *timer) {
-            @try {
-                if (!spoofCameraEnabled) {
-                    [timer invalidate];
-                    if (activeTimers) {
-                        [activeTimers removeObject:timer];
-                    }
-                    return;
-                }
-                
-                CMSampleBufferRef spoofedFrame = getCurrentSpoofFrame();
-                if (spoofedFrame && sampleBufferDelegate) {
-                    dispatch_async(spoofQueue, ^{
-                        @try {
-                            // Create a simple connection - don't use complex initialization
-                            AVCaptureConnection *connection = nil;
-                            
-                            // Try to get existing connection from the output
-                            NSArray *connections = self.connections;
-                            if (connections.count > 0) {
-                                connection = connections.firstObject;
-                            }
-                            
-                            if (!connection) {
-                                // Create minimal connection if needed
-                                connection = [[AVCaptureConnection alloc] initWithInputPorts:@[] output:self];
-                            }
-                            
-                            // Deliver spoofed frame
-                            if ([sampleBufferDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-                                [sampleBufferDelegate captureOutput:self didOutputSampleBuffer:spoofedFrame fromConnection:connection];
-                            }
-                            
-                        } @catch (NSException *exception) {
-                            NSLog(@"[LC] Exception in frame delivery: %@", exception);
-                        } @finally {
-                            if (spoofedFrame) {
-                                CFRelease(spoofedFrame);
-                            }
-                        }
-                    });
-                }
-                
-            } @catch (NSException *exception) {
-                NSLog(@"[LC] Exception in timer block: %@", exception);
-                [timer invalidate];
-                if (activeTimers) {
-                    [activeTimers removeObject:timer];
-                }
-            }
-        }];
-        
-        // Track timer to prevent leaks
-        if (!activeTimers) {
-            activeTimers = [[NSMutableSet alloc] init];
-        }
-        [activeTimers addObject:spoofTimer];
-        
-        [[NSRunLoop mainRunLoop] addTimer:spoofTimer forMode:NSDefaultRunLoopMode];
-        NSLog(@"[LC] Started safe spoofed video stream");
-        return;
++ (NSArray<AVCaptureDevice *> *)lc_devicesWithMediaType:(AVMediaType)mediaType {
+    if (spoofCameraEnabled && [mediaType isEqualToString:AVMediaTypeVideo]) {
+        NSLog(@"[LC] CJ-style: BLOCKING camera device discovery");
+        return @[]; // No camera devices available
     }
     
-    // Normal operation
-    [self lc_setSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue];
+    return [self lc_devicesWithMediaType:mediaType];
+}
+
++ (AVCaptureDevice *)lc_defaultDeviceWithMediaType:(AVMediaType)mediaType {
+    if (spoofCameraEnabled && [mediaType isEqualToString:AVMediaTypeVideo]) {
+        NSLog(@"[LC] CJ-style: BLOCKING default camera device");
+        return nil; // No default camera
+    }
+    
+    return [self lc_defaultDeviceWithMediaType:mediaType];
 }
 
 @end
 
-#pragma mark - Complete Camera Blocking
-
-@interface AVCaptureVideoDataOutput(LiveContainerCompleteBlock)
-- (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue;
-@end
-
-@implementation AVCaptureVideoDataOutput(LiveContainerCompleteBlock)
-
-- (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue {
-    if (spoofCameraEnabled) {
-        NSLog(@"[LC] BLOCKING real camera - providing ONLY spoofed frames");
-        
-        // DO NOT call the original method - this completely blocks real camera input
-        // [self lc_setSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue]; // REMOVED
-        
-        if (!sampleBufferDelegate) {
-            return;
-        }
-        
-        dispatch_queue_t spoofQueue = sampleBufferCallbackQueue ?: dispatch_get_main_queue();
-        
-        // Create timer that provides ONLY spoofed frames - no real camera at all
-        NSTimer *spoofTimer = [NSTimer timerWithTimeInterval:1.0/30.0 repeats:YES block:^(NSTimer *timer) {
-            @try {
-                if (!spoofCameraEnabled) {
-                    [timer invalidate];
-                    if (activeTimers) {
-                        [activeTimers removeObject:timer];
-                    }
-                    return;
-                }
-                
-                CMSampleBufferRef spoofedFrame = getCurrentSpoofFrame();
-                if (spoofedFrame) {
-                    dispatch_async(spoofQueue, ^{
-                        @try {
-                            // Create a basic connection for the spoofed frame
-                            AVCaptureConnection *connection = [[AVCaptureConnection alloc] initWithInputPorts:@[] output:self];
-                            
-                            // Deliver ONLY spoofed frame - Instagram never sees real camera
-                            if ([sampleBufferDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-                                [sampleBufferDelegate captureOutput:self didOutputSampleBuffer:spoofedFrame fromConnection:connection];
-                            }
-                            
-                        } @catch (NSException *exception) {
-                            NSLog(@"[LC] Exception delivering spoofed frame: %@", exception);
-                        } @finally {
-                            CFRelease(spoofedFrame);
-                        }
-                    });
-                }
-                
-            } @catch (NSException *exception) {
-                NSLog(@"[LC] Exception in spoofed timer: %@", exception);
-                [timer invalidate];
-                if (activeTimers) {
-                    [activeTimers removeObject:timer];
-                }
-            }
-        }];
-        
-        // Track timer
-        if (!activeTimers) {
-            activeTimers = [[NSMutableSet alloc] init];
-        }
-        [activeTimers addObject:spoofTimer];
-        
-        [[NSRunLoop mainRunLoop] addTimer:spoofTimer forMode:NSDefaultRunLoopMode];
-        NSLog(@"[LC] Started PURE spoofed video stream - real camera completely blocked");
-        return;
-    }
-    
-    // If spoofing disabled, allow normal camera
-    [self lc_setSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue];
-}
-
-@end
-
-// Also block at the session level to prevent any real camera initialization
-@interface AVCaptureSession(LiveContainerSessionBlock)
+// Block camera session (like CJ's session hooks)
+@interface AVCaptureSession(LiveContainerCJStyle)
 - (void)lc_startRunning;
-- (void)lc_stopRunning;
+- (void)lc_addInput:(AVCaptureInput *)input;
 @end
 
-@implementation AVCaptureSession(LiveContainerSessionBlock)
+@implementation AVCaptureSession(LiveContainerCJStyle)
 
 - (void)lc_startRunning {
     if (spoofCameraEnabled) {
-        NSLog(@"[LC] BLOCKING camera session start - preventing real camera access");
-        // Don't call original - completely block real camera session
+        NSLog(@"[LC] CJ-style: BLOCKING camera session start");
+        // Don't call original - completely prevent real camera session
+        return;
+    }
+    
+    [self lc_startRunning];
+}
+
+- (void)lc_addInput:(AVCaptureInput *)input {
+    if (spoofCameraEnabled && [input isKindOfClass:[AVCaptureDeviceInput class]]) {
+        AVCaptureDeviceInput *deviceInput = (AVCaptureDeviceInput *)input;
+        if ([deviceInput.device hasMediaType:AVMediaTypeVideo]) {
+            NSLog(@"[LC] CJ-style: BLOCKING camera input addition");
+            return; // Don't add camera input
+        }
+    }
+    
+    [self lc_addInput:input];
+}
+
+@end
+
+// Replace video data output (CJ's main spoofing point)
+@interface AVCaptureVideoDataOutput(LiveContainerCJStyle)
+- (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue;
+@end
+
+@implementation AVCaptureVideoDataOutput(LiveContainerCJStyle)
+
+- (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue {
+    if (spoofCameraEnabled && sampleBufferDelegate) {
+        NSLog(@"[LC] CJ-style: Installing spoofed video data output");
+        
+        // Don't call original - we completely replace camera functionality
+        dispatch_queue_t spoofQueue = sampleBufferCallbackQueue ?: dispatch_get_main_queue();
+        
+        // Use dispatch_source for timer-based delivery
+        dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, spoofQueue);
+        
+        uint64_t interval = (uint64_t)(frameInterval * NSEC_PER_SEC);
+        uint64_t leeway = interval / 10; // 10% leeway
+        
+        dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 0), interval, leeway);
+        
+        // Store references (avoiding __weak in manual reference counting)
+        id<AVCaptureVideoDataOutputSampleBufferDelegate> strongDelegate = sampleBufferDelegate;
+        AVCaptureVideoDataOutput *strongOutput = self;
+        
+        dispatch_source_set_event_handler(timer, ^{
+            if (!spoofCameraEnabled) {
+                dispatch_source_cancel(timer);
+                return;
+            }
+            
+            // Use GetFrame approach like CJ
+            CMSampleBufferRef spoofedFrame = [LiveContainerGetFrame getCurrentFrame:NULL shouldSpoof:YES];
+            if (spoofedFrame && strongDelegate) {
+                @try {
+                    // Create basic connection
+                    AVCaptureConnection *connection = [[AVCaptureConnection alloc] initWithInputPorts:@[] output:strongOutput];
+                    
+                    // Deliver ONLY spoofed frames (like CJ)
+                    if ([strongDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
+                        [strongDelegate captureOutput:strongOutput didOutputSampleBuffer:spoofedFrame fromConnection:connection];
+                    }
+                    
+                } @catch (NSException *exception) {
+                    NSLog(@"[LC] Exception delivering spoofed frame: %@", exception);
+                } @finally {
+                    if (spoofedFrame) {
+                        CFRelease(spoofedFrame);
+                    }
+                }
+            }
+        });
+        
+        dispatch_resume(timer);
+        NSLog(@"[LC] CJ-style spoofed video stream started");
         return;
     }
     
     // Normal operation
-    [self lc_startRunning];
-}
-
-- (void)lc_stopRunning {
-    NSLog(@"[LC] Camera session stop");
-    [self lc_stopRunning];
+    [self lc_setSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue];
 }
 
 @end
 
-// Block camera input at the source level
-@interface AVCaptureDeviceInput(LiveContainerInputBlock)
-+ (instancetype)lc_deviceInputWithDevice:(AVCaptureDevice *)device error:(NSError **)outError;
-@end
-
-@implementation AVCaptureDeviceInput(LiveContainerInputBlock)
-
-+ (instancetype)lc_deviceInputWithDevice:(AVCaptureDevice *)device error:(NSError **)outError {
-    if (spoofCameraEnabled && [device hasMediaType:AVMediaTypeVideo]) {
-        NSLog(@"[LC] BLOCKING camera device input creation - no real camera hardware access");
-        
-        // Return nil to block camera input creation, but don't set error to avoid crashes
-        if (outError) {
-            *outError = nil;
-        }
-        return nil;
-    }
-    
-    // Allow non-camera devices (microphone, etc.)
-    return [self lc_deviceInputWithDevice:device error:outError];
-}
-
-@end
-
-#pragma mark - Enhanced Initialization
+#pragma mark - CJ-Style Initialization
 
 void AVFoundationGuestHooksInit(void) {
     @try {
-        NSLog(@"[LC] Complete camera blocking initialization");
-        
-        activeTimers = [[NSMutableSet alloc] init];
+        NSLog(@"[LC] CJ-style camera spoofing initialization");
         
         NSDictionary *guestAppInfo = NSUserDefaults.guestAppInfo;
         if (!guestAppInfo) {
@@ -512,24 +487,34 @@ void AVFoundationGuestHooksInit(void) {
         spoofCameraType = guestAppInfo[@"spoofCameraType"] ?: @"image";
         spoofCameraLoop = guestAppInfo[@"spoofCameraLoop"] ? [guestAppInfo[@"spoofCameraLoop"] boolValue] : YES;
         
-        NSLog(@"[LC] Camera spoofing - enabled: %d, type: %@", spoofCameraEnabled, spoofCameraType);
+        NSLog(@"[LC] Camera spoofing config - enabled: %d, type: %@, loop: %d", 
+              spoofCameraEnabled, spoofCameraType, spoofCameraLoop);
         
         if (!spoofCameraEnabled) {
             return;
         }
+        
+        // Create video processing queue
+        videoQueue = dispatch_queue_create("com.livecontainer.video", DISPATCH_QUEUE_SERIAL);
         
         // Load video if specified
         if ([spoofCameraType isEqualToString:@"video"]) {
             spoofCameraVideoPath = guestAppInfo[@"spoofCameraVideoPath"] ?: @"";
             if (spoofCameraVideoPath.length > 0) {
                 NSURL *videoURL = [NSURL fileURLWithPath:spoofCameraVideoPath];
-                spoofVideoAsset = [AVAsset assetWithURL:videoURL];
                 
-                if (spoofVideoAsset) {
-                    setupVideoReader();
-                    NSLog(@"[LC] Loaded video: %@", spoofCameraVideoPath);
+                if ([[NSFileManager defaultManager] fileExistsAtPath:spoofCameraVideoPath]) {
+                    spoofVideoAsset = [AVAsset assetWithURL:videoURL];
+                    
+                    if (spoofVideoAsset && spoofVideoAsset.isPlayable) {
+                        setupVideoReader();
+                        NSLog(@"[LC] Successfully loaded video: %@", spoofCameraVideoPath);
+                    } else {
+                        NSLog(@"[LC] Video asset not playable, falling back to image");
+                        spoofCameraType = @"image";
+                    }
                 } else {
-                    NSLog(@"[LC] Failed to load video, using image");
+                    NSLog(@"[LC] Video file not found: %@", spoofCameraVideoPath);
                     spoofCameraType = @"image";
                 }
             } else {
@@ -541,15 +526,37 @@ void AVFoundationGuestHooksInit(void) {
         spoofCameraImagePath = guestAppInfo[@"spoofCameraImagePath"] ?: @"";
         if (spoofCameraImagePath.length > 0) {
             spoofImage = [UIImage imageWithContentsOfFile:spoofCameraImagePath];
-            NSLog(@"[LC] Loaded image: %@", spoofImage ? @"SUCCESS" : @"FAILED");
+            NSLog(@"[LC] Custom image loaded: %@", spoofImage ? @"SUCCESS" : @"FAILED");
         }
         
-        // Prepare resources
+        // Prepare image resources
         prepareImageResources();
         
-        // COMPLETE CAMERA BLOCKING - Hook all camera-related classes
+        // HOOK LIKE CJ - Multiple levels of blocking
         
-        // 1. Block video data output delegate setting
+        // 1. Device discovery level (highest)
+        Class captureDeviceClass = NSClassFromString(@"AVCaptureDevice");
+        if (captureDeviceClass) {
+            swizzle(captureDeviceClass, 
+                   @selector(devicesWithMediaType:), 
+                   @selector(lc_devicesWithMediaType:));
+            swizzle(captureDeviceClass, 
+                   @selector(defaultDeviceWithMediaType:), 
+                   @selector(lc_defaultDeviceWithMediaType:));
+        }
+        
+        // 2. Session level
+        Class captureSessionClass = NSClassFromString(@"AVCaptureSession");
+        if (captureSessionClass) {
+            swizzle(captureSessionClass, 
+                   @selector(startRunning), 
+                   @selector(lc_startRunning));
+            swizzle(captureSessionClass, 
+                   @selector(addInput:), 
+                   @selector(lc_addInput:));
+        }
+        
+        // 3. Video data output level (main spoofing point like CJ)
         Class videoDataOutputClass = NSClassFromString(@"AVCaptureVideoDataOutput");
         if (videoDataOutputClass) {
             swizzle(videoDataOutputClass, 
@@ -557,28 +564,10 @@ void AVFoundationGuestHooksInit(void) {
                    @selector(lc_setSampleBufferDelegate:queue:));
         }
         
-        // 2. Block camera session starting
-        Class captureSessionClass = NSClassFromString(@"AVCaptureSession");
-        if (captureSessionClass) {
-            swizzle(captureSessionClass, 
-                   @selector(startRunning), 
-                   @selector(lc_startRunning));
-            swizzle(captureSessionClass, 
-                   @selector(stopRunning), 
-                   @selector(lc_stopRunning));
-        }
-        
-        // 3. Block camera device input creation
-        Class deviceInputClass = NSClassFromString(@"AVCaptureDeviceInput");
-        if (deviceInputClass) {
-            swizzle(deviceInputClass, 
-                   @selector(deviceInputWithDevice:error:), 
-                   @selector(lc_deviceInputWithDevice:error:));
-        }
-        
-        NSLog(@"[LC] Complete camera blocking initialized - NO real camera access allowed");
+        NSLog(@"[LC] CJ-style hooks installed successfully");
+        NSLog(@"[LC] Camera spoofing mode: %@ (blocking at: Device -> Session -> VideoOutput)", spoofCameraType);
         
     } @catch (NSException *exception) {
-        NSLog(@"[LC] Exception in init: %@", exception);
+        NSLog(@"[LC] Exception in CJ-style init: %@", exception);
     }
 }
