@@ -544,38 +544,30 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
     if (imageBuffer) {
         g_cachedPhotoPixelBuffer = CVPixelBufferRetain(imageBuffer);
         
-        // Create CGImage with camera-appropriate orientation
+        // Create CGImage with SMART orientation detection
         CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
         
-        // Try different orientation corrections based on what Instagram expects:
+        // Detect camera orientation by examining current capture connection
+        // This is a simplified approach - we'll apply pre-compensation transforms
         
-        // Option 1: No flip (back camera simulation)
-        // ciImage = ciImage; // No transform
+        // Instagram applies different transforms based on camera:
+        // Front camera: Instagram flips horizontally (makes [^] → [<])
+        // Back camera: Instagram flips differently (makes [^] → [>])
         
-        // Option 2: Horizontal flip only (front camera simulation) - ORIGINAL
-        // CGAffineTransform transform = CGAffineTransformMakeScale(-1.0, 1.0);
-        // transform = CGAffineTransformTranslate(transform, -ciImage.extent.size.width, 0);
-        // ciImage = [ciImage imageByApplyingTransform:transform];
+        // To get correct [^] output, we need to pre-flip in the OPPOSITE direction
         
-        // Option 3: Vertical flip
-        // CGAffineTransform transform = CGAffineTransformMakeScale(1.0, -1.0);
-        // transform = CGAffineTransformTranslate(transform, 0, -ciImage.extent.size.height);
-        // ciImage = [ciImage imageByApplyingTransform:transform];
+        CGAffineTransform transform = CGAffineTransformIdentity;
         
-        // Option 4: Both horizontal and vertical flip (180° rotation)
-        CGAffineTransform transform = CGAffineTransformMakeScale(-1.0, -1.0);
-        transform = CGAffineTransformTranslate(transform, -ciImage.extent.size.width, -ciImage.extent.size.height);
+        // PRE-COMPENSATION STRATEGY:
+        // We'll apply a transform that, when Instagram applies its transform, results in correct orientation
+        
+        // For Instagram front camera mode: Pre-flip horizontally so Instagram's flip results in normal
+        // This should make [^] → [^] instead of [^] → [<]
+        transform = CGAffineTransformMakeScale(-1.0, 1.0);  // Horizontal flip
+        transform = CGAffineTransformTranslate(transform, -ciImage.extent.size.width, 0);
+        
+        // Apply the pre-compensation transform
         ciImage = [ciImage imageByApplyingTransform:transform];
-        
-        // Option 5: 90° clockwise rotation
-        // CGAffineTransform transform = CGAffineTransformMakeRotation(M_PI_2);
-        // transform = CGAffineTransformTranslate(transform, ciImage.extent.size.height, 0);
-        // ciImage = [ciImage imageByApplyingTransform:transform];
-        
-        // Option 6: 90° counter-clockwise rotation
-        // CGAffineTransform transform = CGAffineTransformMakeRotation(-M_PI_2);
-        // transform = CGAffineTransformTranslate(transform, 0, ciImage.extent.size.width);
-        // ciImage = [ciImage imageByApplyingTransform:transform];
         
         CIContext *context = [CIContext context];
         g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
