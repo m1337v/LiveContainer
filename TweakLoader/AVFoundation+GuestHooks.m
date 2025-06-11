@@ -206,36 +206,54 @@ static CMSampleBufferRef createSpoofedSampleBuffer() {
 #pragma mark - Resource Setup
 
 static void setupVideoSpoofingResources() {
-    NSLog(@"[LC] Setting up video spoofing resources for path: %@", spoofCameraVideoPath);
+    NSLog(@"[LC] 🎬 Setting up video spoofing resources for path: %@", spoofCameraVideoPath);
+    
     if (!spoofCameraVideoPath || spoofCameraVideoPath.length == 0) {
-        NSLog(@"[LC] Video path is empty.");
+        NSLog(@"[LC] ❌ Video path is empty.");
         isVideoSetupSuccessfully = NO;
         return;
     }
     
     NSURL *videoURL = [NSURL fileURLWithPath:spoofCameraVideoPath];
     if (![[NSFileManager defaultManager] fileExistsAtPath:spoofCameraVideoPath]) {
-        NSLog(@"[LC] Video file not found at path: %@", spoofCameraVideoPath);
+        NSLog(@"[LC] ❌ Video file not found at path: %@", spoofCameraVideoPath);
         isVideoSetupSuccessfully = NO;
         return;
     }
 
+    NSLog(@"[LC] 📹 Video file found, creating AVURLAsset...");
     AVURLAsset *asset = [AVURLAsset assetWithURL:videoURL];
+    
+    // Add immediate asset debugging
+    NSLog(@"[LC] 🔍 Asset created, tracks: %@", asset.tracks);
+    NSLog(@"[LC] 🔍 Asset readable: %d", asset.readable);
+    
     [asset loadValuesAsynchronouslyForKeys:@[@"tracks"] completionHandler:^{
         NSError *error = nil;
         AVKeyValueStatus status = [asset statusOfValueForKey:@"tracks" error:&error];
+        
+        NSLog(@"[LC] 📊 Asset tracks load status: %ld, error: %@", (long)status, error);
 
         if (status != AVKeyValueStatusLoaded) {
-            NSLog(@"[LC] Failed to load tracks for asset: %@. Error: %@", spoofCameraVideoPath, error);
+            NSLog(@"[LC] ❌ Failed to load tracks for asset: %@. Error: %@", spoofCameraVideoPath, error);
             isVideoSetupSuccessfully = NO;
             return;
         }
 
         NSArray *tracks = [asset tracksWithMediaType:AVMediaTypeVideo];
+        NSLog(@"[LC] 🎥 Video tracks found: %lu", (unsigned long)tracks.count);
+        
         if (tracks.count == 0) {
-            NSLog(@"[LC] No video tracks found in asset: %@", spoofCameraVideoPath);
+            NSLog(@"[LC] ❌ No video tracks found in asset: %@", spoofCameraVideoPath);
             isVideoSetupSuccessfully = NO;
             return;
+        }
+        
+        // Log track details
+        for (AVAssetTrack *track in tracks) {
+            NSLog(@"[LC] 📐 Track size: %.0fx%.0f, duration: %.2fs", 
+                  track.naturalSize.width, track.naturalSize.height, 
+                  CMTimeGetSeconds(track.timeRange.duration));
         }
 
         if (videoSpoofPlayer) {
@@ -409,25 +427,43 @@ static void loadSpoofingConfiguration(void) {
     
     NSDictionary *guestAppInfo = [NSUserDefaults guestAppInfo];
     if (!guestAppInfo) {
-        NSLog(@"[LC] No guestAppInfo found.");
+        NSLog(@"[LC] ❌ No guestAppInfo found.");
         spoofCameraEnabled = NO;
         return;
     }
+
+    NSLog(@"[LC] 📋 Full guestAppInfo contents: %@", guestAppInfo);
 
     spoofCameraEnabled = [guestAppInfo[@"spoofCamera"] boolValue];
     spoofCameraVideoPath = guestAppInfo[@"spoofCameraVideoPath"] ?: @"";
     spoofCameraLoop = (guestAppInfo[@"spoofCameraLoop"] != nil) ? [guestAppInfo[@"spoofCameraLoop"] boolValue] : YES;
 
-    NSLog(@"[LC] Config: Enabled=%d, VideoPath='%@', Loop=%d", 
+    NSLog(@"[LC] ⚙️ Config parsed: Enabled=%d, VideoPath='%@', Loop=%d", 
           spoofCameraEnabled, spoofCameraVideoPath, spoofCameraLoop);
     
-    // Debug file existence
-    if (spoofCameraEnabled && spoofCameraVideoPath.length > 0) {
-        BOOL exists = [[NSFileManager defaultManager] fileExistsAtPath:spoofCameraVideoPath];
-        NSLog(@"[LC] Video file exists: %d at path: %@", exists, spoofCameraVideoPath);
-        if (!exists) {
-            NSLog(@"[LC] Camera spoofing disabled - video file not found");
+    // Enhanced file existence debugging
+    if (spoofCameraEnabled) {
+        if (spoofCameraVideoPath.length == 0) {
+            NSLog(@"[LC] ❌ Camera spoofing enabled but no video path provided");
             spoofCameraEnabled = NO;
+        } else {
+            BOOL exists = [[NSFileManager defaultManager] fileExistsAtPath:spoofCameraVideoPath];
+            NSLog(@"[LC] 📁 Video file exists: %d at path: %@", exists, spoofCameraVideoPath);
+            
+            if (exists) {
+                // Check file size and type
+                NSError *error;
+                NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:spoofCameraVideoPath error:&error];
+                if (attributes) {
+                    NSNumber *fileSize = attributes[NSFileSize];
+                    NSLog(@"[LC] 📊 Video file size: %@ bytes", fileSize);
+                } else {
+                    NSLog(@"[LC] ⚠️ Could not get video file attributes: %@", error);
+                }
+            } else {
+                NSLog(@"[LC] ❌ Camera spoofing disabled - video file not found");
+                spoofCameraEnabled = NO;
+            }
         }
     }
 }
@@ -442,7 +478,7 @@ void AVFoundationGuestHooksInit(void) {
         
         videoProcessingQueue = dispatch_queue_create("com.livecontainer.videoprocessingqueue", DISPATCH_QUEUE_SERIAL);
 
-        // Create emergency fallback buffer
+        // Create emergency fallback buffer with proper camera orientation
         if (!lastGoodSpoofedPixelBuffer) {
             CVPixelBufferRef emergencyPixelBuffer = NULL;
             CGSize emergencySize = targetResolution;
@@ -467,14 +503,24 @@ void AVFoundationGuestHooksInit(void) {
                                                                8, CVPixelBufferGetBytesPerRow(emergencyPixelBuffer), colorSpace,
                                                                kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
                 if (cgContext) {
-                    CGContextSetRGBFillColor(cgContext, 0.2, 0.4, 0.8, 1.0); // Blue background
-                    CGContextFillRect(cgContext, CGRectMake(0, 0, emergencySize.width, emergencySize.height));
+                    // Apply camera-like transform to fix orientation
+                    // Flip vertically and horizontally to match camera expectation
+                    CGContextTranslateCTM(cgContext, emergencySize.width, emergencySize.height);
+                    CGContextScaleCTM(cgContext, -1.0, -1.0);
                     
+                    // Create gradient background (like original working version)
+                    CGFloat colors[] = { 0.2, 0.4, 0.8, 1.0, 0.1, 0.2, 0.4, 1.0 };
+                    CGFloat locations[] = {0.0, 1.0};
+                    CGGradientRef gradient = CGGradientCreateWithColorComponents(colorSpace, colors, locations, 2);
+                    CGContextDrawLinearGradient(cgContext, gradient, CGPointMake(0,0), CGPointMake(0,emergencySize.height), 0);
+                    CGGradientRelease(gradient);
+                    
+                    // Add text
                     NSString *text = @"LiveContainer\nCamera Spoof";
                     NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
                     style.alignment = NSTextAlignmentCenter;
                     NSDictionary *attrs = @{ 
-                        NSFontAttributeName: [UIFont boldSystemFontOfSize:emergencySize.width * 0.04],
+                        NSFontAttributeName: [UIFont boldSystemFontOfSize:emergencySize.width * 0.06],
                         NSForegroundColorAttributeName: [UIColor whiteColor],
                         NSParagraphStyleAttributeName: style 
                     };
@@ -498,7 +544,7 @@ void AVFoundationGuestHooksInit(void) {
                 
                 if (emergencyFormatDesc) CFRelease(emergencyFormatDesc);
                 CVPixelBufferRelease(emergencyPixelBuffer);
-                NSLog(@"[LC] Emergency fallback buffer created.");
+                NSLog(@"[LC] Emergency fallback buffer created with camera orientation.");
             }
         }
 
