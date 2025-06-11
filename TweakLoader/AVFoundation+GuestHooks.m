@@ -14,7 +14,7 @@
 #import <objc/runtime.h>
 #import "../LiveContainer/Tweaks/Tweaks.h"
 
-#pragma mark - Global State
+// pragma MARK: - Global State
 
 // Core configuration
 static BOOL spoofCameraEnabled = NO;
@@ -42,13 +42,13 @@ static CVPixelBufferRef g_cachedPhotoPixelBuffer = NULL;
 static CGImageRef g_cachedPhotoCGImage = NULL;
 static NSData *g_cachedPhotoJPEGData = nil;
 
-#pragma mark - Helper Interface
+// pragma MARK: - Helper Interface
 
 @interface NSUserDefaults(LiveContainerPrivate)
 + (NSDictionary*)guestAppInfo;
 @end
 
-#pragma mark - Forward Declarations
+// pragma MARK: - Forward Declarations
 
 // Core functions
 static void setupImageSpoofingResources(void);
@@ -81,7 +81,7 @@ CVPixelBufferRef hook_AVCapturePhoto_pixelBuffer(id self, SEL _cmd);
 CGImageRef hook_AVCapturePhoto_CGImageRepresentation(id self, SEL _cmd);
 NSData *hook_AVCapturePhoto_fileDataRepresentation(id self, SEL _cmd);
 
-#pragma mark - Core Utilities
+// pragma MARK: - Core Utilities
 
 // Pixel buffer utilities
 static CIContext *sharedCIContext = nil;
@@ -159,7 +159,7 @@ static void updateLastGoodSpoofedFrame(CVPixelBufferRef newPixelBuffer, CMVideoF
     }
 }
 
-#pragma mark - Frame Generation Logic
+// pragma MARK: - Frame Generation Logic
 
 static CMSampleBufferRef createSpoofedSampleBuffer() {
     CVPixelBufferRef sourcePixelBuffer = NULL;
@@ -250,7 +250,7 @@ static CMSampleBufferRef createSpoofedSampleBuffer() {
     return sampleBuffer;
 }
 
-#pragma mark - Resource Setup
+// pragma MARK: - Resource Setup
 
 static void setupImageSpoofingResources() {
     NSLog(@"[LC] 🖼️ Setting up image spoofing resources: %.0fx%.0f", targetResolution.width, targetResolution.height);
@@ -432,7 +432,7 @@ static void setupVideoSpoofingResources() {
     }];
 }
 
-#pragma mark - Photo Data Management
+// pragma MARK: - Photo Data Management
 
 static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
     if (!sampleBuffer) return;
@@ -482,7 +482,7 @@ static void cleanupPhotoCache(void) {
     g_cachedPhotoJPEGData = nil;
 }
 
-#pragma mark - Delegate Wrapper
+// pragma MARK: - Delegate Wrapper
 
 @interface SimpleSpoofDelegate : NSObject <AVCaptureVideoDataOutputSampleBufferDelegate>
 @property (nonatomic, strong) id<AVCaptureVideoDataOutputSampleBufferDelegate> originalDelegate;
@@ -539,7 +539,7 @@ static void cleanupPhotoCache(void) {
 }
 @end
 
-#pragma mark - LEVEL 1: Core Video Hooks (Lowest Level)
+// pragma MARK: - LEVEL 1: Core Video Hooks (Lowest Level)
 
 CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t height, OSType pixelFormatType, CFDictionaryRef pixelBufferAttributes, CVPixelBufferRef *pixelBufferOut) {
     
@@ -561,7 +561,7 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
     return original_CVPixelBufferCreate(allocator, width, height, pixelFormatType, pixelBufferAttributes, pixelBufferOut);
 }
 
-#pragma mark - LEVEL 2: Device Level Hooks
+// pragma MARK: - LEVEL 2: Device Level Hooks
 
 @implementation AVCaptureDevice(LiveContainerSpoof)
 
@@ -585,7 +585,7 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 
 @end
 
-#pragma mark - LEVEL 3: Device Input Level Hooks
+// pragma MARK: - LEVEL 3: Device Input Level Hooks
 
 @implementation AVCaptureDeviceInput(LiveContainerSpoof)
 
@@ -604,7 +604,7 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 
 @end
 
-#pragma mark - LEVEL 4: Session Level Hooks
+// pragma MARK: - LEVEL 4: Session Level Hooks
 
 @implementation AVCaptureSession(LiveContainerSpoof)
 
@@ -658,7 +658,7 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 
 @end
 
-#pragma mark - LEVEL 5: Output Level Hooks
+// pragma MARK: - LEVEL 5: Output Level Hooks
 
 @implementation AVCaptureVideoDataOutput(LiveContainerSpoof)
 - (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue {
@@ -710,7 +710,7 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 }
 @end
 
-#pragma mark - LEVEL 6: Photo Accessor Hooks (Highest Level)
+// pragma MARK: - LEVEL 6: Photo Accessor Hooks (Highest Level)
 
 CVPixelBufferRef hook_AVCapturePhoto_pixelBuffer(id self, SEL _cmd) {
     if (spoofCameraEnabled && g_cachedPhotoPixelBuffer) {
@@ -736,7 +736,7 @@ NSData *hook_AVCapturePhoto_fileDataRepresentation(id self, SEL _cmd) {
     return original_AVCapturePhoto_fileDataRepresentation(self, _cmd);
 }
 
-#pragma mark - Configuration Loading
+// pragma MARK: - Configuration Loading
 
 static void loadSpoofingConfiguration(void) {
     NSLog(@"[LC] Loading camera spoofing configuration...");
@@ -770,7 +770,7 @@ static void loadSpoofingConfiguration(void) {
     }
 }
 
-#pragma mark - Initialization
+// pragma MARK: - Initialization
 
 void AVFoundationGuestHooksInit(void) {
     @try {
@@ -843,22 +843,22 @@ void AVFoundationGuestHooksInit(void) {
             // MSHookFunction(CVPixelBufferCreate, hook_CVPixelBufferCreate, (void**)&original_CVPixelBufferCreate);
             
             // LEVEL 2: Device Level
-            swizzle([AVCaptureDevice class], @selector(devicesWithMediaType:), @selector(lc_devicesWithMediaType:));
-            swizzle([AVCaptureDevice class], @selector(defaultDeviceWithMediaType:), @selector(lc_defaultDeviceWithMediaType:));
+            // swizzle([AVCaptureDevice class], @selector(devicesWithMediaType:), @selector(lc_devicesWithMediaType:));
+            // swizzle([AVCaptureDevice class], @selector(defaultDeviceWithMediaType:), @selector(lc_defaultDeviceWithMediaType:));
             
             // LEVEL 3: Device Input Level  
-            swizzle([AVCaptureDeviceInput class], @selector(deviceInputWithDevice:error:), @selector(lc_deviceInputWithDevice:error:));
+            // swizzle([AVCaptureDeviceInput class], @selector(deviceInputWithDevice:error:), @selector(lc_deviceInputWithDevice:error:));
             
             // LEVEL 4: Session Level
-            swizzle([AVCaptureSession class], @selector(addInput:), @selector(lc_addInput:));
-            swizzle([AVCaptureSession class], @selector(addOutput:), @selector(lc_addOutput:));
-            swizzle([AVCaptureSession class], @selector(startRunning), @selector(lc_startRunning));
+            // swizzle([AVCaptureSession class], @selector(addInput:), @selector(lc_addInput:));
+            // swizzle([AVCaptureSession class], @selector(addOutput:), @selector(lc_addOutput:));
+            // swizzle([AVCaptureSession class], @selector(startRunning), @selector(lc_startRunning));
             
             // LEVEL 5: Output Level
-            swizzle([AVCaptureVideoDataOutput class], @selector(setSampleBufferDelegate:queue:), @selector(lc_setSampleBufferDelegate:queue:));
-            swizzle([AVCapturePhotoOutput class], @selector(capturePhotoWithSettings:delegate:), @selector(lc_capturePhotoWithSettings:delegate:));
-            swizzle([AVCaptureMovieFileOutput class], @selector(startRecordingToOutputFileURL:recordingDelegate:), @selector(lc_startRecordingToOutputFileURL:recordingDelegate:));
-            swizzle([AVCaptureVideoPreviewLayer class], @selector(setSession:), @selector(lc_setSession:));
+            // swizzle([AVCaptureVideoDataOutput class], @selector(setSampleBufferDelegate:queue:), @selector(lc_setSampleBufferDelegate:queue:));
+            // swizzle([AVCapturePhotoOutput class], @selector(capturePhotoWithSettings:delegate:), @selector(lc_capturePhotoWithSettings:delegate:));
+            // swizzle([AVCaptureMovieFileOutput class], @selector(startRecordingToOutputFileURL:recordingDelegate:), @selector(lc_startRecordingToOutputFileURL:recordingDelegate:));
+            // swizzle([AVCaptureVideoPreviewLayer class], @selector(setSession:), @selector(lc_setSession:));
             
             // LEVEL 6: Photo Accessor Level
             Method pixelBufferMethod = class_getInstanceMethod([AVCapturePhoto class], @selector(pixelBuffer));
