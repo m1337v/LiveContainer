@@ -434,64 +434,108 @@ static void setupVideoSpoofingResources() {
     }];
 }
 
-// pragma MARK: - Photo Data Management
+//pragma MARK: - Centralized Frame Manager (cj Pattern)
 
-// pragma MARK: - Photo Caching (simple approach)
+@interface GetFrame : NSObject
++ (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originalFrame preserveOrientation:(BOOL)preserve;
++ (UIWindow *)getKeyWindow;
+@end
 
-static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
-    if (!sampleBuffer) return;
-    
-    // Clean up old cached data
-    if (g_cachedPhotoPixelBuffer) {
-        CVPixelBufferRelease(g_cachedPhotoPixelBuffer);
-        g_cachedPhotoPixelBuffer = NULL;
+@implementation GetFrame
+
++ (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originalFrame preserveOrientation:(BOOL)preserve {
+    if (!spoofCameraEnabled) {
+        return originalFrame; // Pass through when disabled
     }
-    if (g_cachedPhotoCGImage) {
-        CGImageRelease(g_cachedPhotoCGImage);
-        g_cachedPhotoCGImage = NULL;
-    }
-    g_cachedPhotoJPEGData = nil;
     
-    // Cache new data
-    CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-    if (imageBuffer) {
-        g_cachedPhotoPixelBuffer = CVPixelBufferRetain(imageBuffer);
-        
-        // Create CGImage with NO orientation processing
-        CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
-        CIContext *context = [CIContext context];
-        g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
-        
-        // Create JPEG data WITHOUT UIImage wrapper (preserves original orientation metadata)
-        if (g_cachedPhotoCGImage) {
-            NSMutableData *jpegData = [NSMutableData data];
-            
-            // Use modern UTType API instead of deprecated kUTTypeJPEG
-            CFStringRef jpegType;
-            jpegType = (__bridge CFStringRef)UTTypeJPEG.identifier;
-            
-            CGImageDestinationRef destination = CGImageDestinationCreateWithData((__bridge CFMutableDataRef)jpegData, jpegType, 1, NULL);
-            
-            if (destination) {
-                // Add minimal metadata without forcing orientation
-                NSDictionary *properties = @{
-                    (__bridge NSString *)kCGImageDestinationLossyCompressionQuality: @0.9
-                    // NO orientation metadata - let app handle it naturally
-                };
-                
-                CGImageDestinationAddImage(destination, g_cachedPhotoCGImage, (__bridge CFDictionaryRef)properties);
-                CGImageDestinationFinalize(destination);
-                CFRelease(destination);
-                
-                g_cachedPhotoJPEGData = [jpegData copy];
-            }
-        }
-        
-        NSLog(@"[LC] 📷 Photo cached WITHOUT orientation interference");
+    // Get spoofed frame
+    CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
+    if (!spoofedFrame) {
+        return originalFrame; // Fallback to original
+    }
+    
+    if (preserve) {
+        // Return spoofed frame with ORIGINAL orientation context
+        // This is key for photo capture where orientation must be preserved
+        return spoofedFrame;
+    } else {
+        // Return spoofed frame with orientation processing
+        // This might be for preview layers where transform is expected
+        return spoofedFrame;
     }
 }
 
-// pragma MARK: - Photo Caching (advanced approach with orientation handling)
++ (UIWindow *)getKeyWindow {
+    // Use modern UIWindowScene API for iOS 15+, fallback for older versions
+    if (@available(iOS 15.0, *)) {
+        NSSet<UIScene *> *connectedScenes = [UIApplication sharedApplication].connectedScenes;
+        for (UIScene *scene in connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                UIWindowScene *windowScene = (UIWindowScene *)scene;
+                for (UIWindow *window in windowScene.windows) {
+                    if (window.isKeyWindow) {
+                        return window;
+                    }
+                }
+            }
+        }
+        
+        // Fallback to first window if no key window found
+        for (UIScene *scene in connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                UIWindowScene *windowScene = (UIWindowScene *)scene;
+                if (windowScene.windows.count > 0) {
+                    return windowScene.windows.firstObject;
+                }
+            }
+        }
+        return nil;
+    } else {
+        // iOS 14 and earlier
+        #pragma clang diagnostic push
+        #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        NSArray *windows = [[UIApplication sharedApplication] windows];
+        for (UIWindow *window in windows) {
+            if (window.isKeyWindow) {
+                return window;
+            }
+        }
+        return windows.firstObject;
+        #pragma clang diagnostic pop
+    }
+}
+
+@end
+
+@interface GetFrameDelegate : NSObject <AVCaptureVideoDataOutputSampleBufferDelegate>
+@property (nonatomic, strong) id<AVCaptureVideoDataOutputSampleBufferDelegate> originalDelegate;
+@property (nonatomic, assign) AVCaptureOutput *originalOutput;
+@end
+
+@implementation GetFrameDelegate
+
+- (void)captureOutput:(AVCaptureOutput *)output didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection {
+    if (spoofCameraEnabled) {
+        // Use GetFrame with preserve orientation = NO for video streams (preview)
+        CMSampleBufferRef processedFrame = [GetFrame getCurrentFrame:sampleBuffer preserveOrientation:NO];
+        if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
+            [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:processedFrame fromConnection:connection];
+        }
+        if (processedFrame != sampleBuffer) {
+            CFRelease(processedFrame);
+        }
+    } else {
+        if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
+            [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:sampleBuffer fromConnection:connection];
+        }
+    }
+}
+
+@end
+
+// pragma MARK: - Photo Data Management
+
+// pragma MARK: - Photo Caching (simple approach - still rotation issues)
 
 // static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
 //     if (!sampleBuffer) return;
@@ -512,47 +556,102 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
 //     if (imageBuffer) {
 //         g_cachedPhotoPixelBuffer = CVPixelBufferRetain(imageBuffer);
         
-//         // Create CGImage (no transforms for universal compatibility)
+//         // Create CGImage with NO orientation processing
 //         CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
 //         CIContext *context = [CIContext context];
 //         g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
         
-//         // FIXED: Don't force orientation - let the app handle it naturally
+//         // Create JPEG data WITHOUT UIImage wrapper (preserves original orientation metadata)
 //         if (g_cachedPhotoCGImage) {
-//             // Get current device orientation to preserve natural behavior
-//             UIInterfaceOrientation currentOrientation = [[UIApplication sharedApplication] statusBarOrientation];
-//             UIImageOrientation imageOrientation = UIImageOrientationUp; // Default
+//             NSMutableData *jpegData = [NSMutableData data];
             
-//             // Map interface orientation to image orientation (like camera would naturally do)
-//             switch (currentOrientation) {
-//                 case UIInterfaceOrientationPortrait:
-//                     imageOrientation = UIImageOrientationRight; // Camera natural orientation
-//                     break;
-//                 case UIInterfaceOrientationPortraitUpsideDown:
-//                     imageOrientation = UIImageOrientationLeft;
-//                     break;
-//                 case UIInterfaceOrientationLandscapeLeft:
-//                     imageOrientation = UIImageOrientationUp;
-//                     break;
-//                 case UIInterfaceOrientationLandscapeRight:
-//                     imageOrientation = UIImageOrientationDown;
-//                     break;
-//                 default:
-//                     imageOrientation = UIImageOrientationRight; // Portrait default
-//                     break;
+//             // Use modern UTType API instead of deprecated kUTTypeJPEG
+//             CFStringRef jpegType;
+//             jpegType = (__bridge CFStringRef)UTTypeJPEG.identifier;
+            
+//             CGImageDestinationRef destination = CGImageDestinationCreateWithData((__bridge CFMutableDataRef)jpegData, jpegType, 1, NULL);
+            
+//             if (destination) {
+//                 // Add minimal metadata without forcing orientation
+//                 NSDictionary *properties = @{
+//                     (__bridge NSString *)kCGImageDestinationLossyCompressionQuality: @0.9
+//                     // NO orientation metadata - let app handle it naturally
+//                 };
+                
+//                 CGImageDestinationAddImage(destination, g_cachedPhotoCGImage, (__bridge CFDictionaryRef)properties);
+//                 CGImageDestinationFinalize(destination);
+//                 CFRelease(destination);
+                
+//                 g_cachedPhotoJPEGData = [jpegData copy];
 //             }
-            
-//             UIImage *image = [UIImage imageWithCGImage:g_cachedPhotoCGImage 
-//                                                  scale:1.0 
-//                                            orientation:imageOrientation]; // ← PRESERVE NATURAL ORIENTATION
-            
-//             g_cachedPhotoJPEGData = UIImageJPEGRepresentation(image, 0.9);
-            
-//             NSLog(@"[LC] 📷 Photo cached with natural orientation: %ld (interface: %ld)", 
-//                   (long)imageOrientation, (long)currentOrientation);
 //         }
+        
+//         NSLog(@"[LC] 📷 Photo cached WITHOUT orientation interference");
 //     }
 // }
+
+// pragma MARK: - Photo Caching (advanced approach with orientation handling)
+
+static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
+    if (!sampleBuffer) return;
+    
+    // Clean up old cached data
+    if (g_cachedPhotoPixelBuffer) {
+        CVPixelBufferRelease(g_cachedPhotoPixelBuffer);
+        g_cachedPhotoPixelBuffer = NULL;
+    }
+    if (g_cachedPhotoCGImage) {
+        CGImageRelease(g_cachedPhotoCGImage);
+        g_cachedPhotoCGImage = NULL;
+    }
+    g_cachedPhotoJPEGData = nil;
+    
+    // Cache new data
+    CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
+    if (imageBuffer) {
+        g_cachedPhotoPixelBuffer = CVPixelBufferRetain(imageBuffer);
+        
+        // Create CGImage (no transforms for universal compatibility)
+        CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
+        CIContext *context = [CIContext context];
+        g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
+        
+        // SIMPLIFIED: Just create basic JPEG without forced orientation
+        if (g_cachedPhotoCGImage) {
+            // Get orientation from device motion instead of deprecated statusBarOrientation
+            UIDeviceOrientation deviceOrientation = [[UIDevice currentDevice] orientation];
+            UIImageOrientation imageOrientation = UIImageOrientationUp; // Default
+            
+            // Map device orientation to image orientation
+            switch (deviceOrientation) {
+                case UIDeviceOrientationPortrait:
+                    imageOrientation = UIImageOrientationRight;
+                    break;
+                case UIDeviceOrientationPortraitUpsideDown:
+                    imageOrientation = UIImageOrientationLeft;
+                    break;
+                case UIDeviceOrientationLandscapeLeft:
+                    imageOrientation = UIImageOrientationUp;
+                    break;
+                case UIDeviceOrientationLandscapeRight:
+                    imageOrientation = UIImageOrientationDown;
+                    break;
+                default:
+                    imageOrientation = UIImageOrientationUp; // Fallback
+                    break;
+            }
+            
+            UIImage *image = [UIImage imageWithCGImage:g_cachedPhotoCGImage 
+                                                 scale:1.0 
+                                           orientation:imageOrientation];
+            
+            g_cachedPhotoJPEGData = UIImageJPEGRepresentation(image, 0.9);
+            
+            NSLog(@"[LC] 📷 Photo cached with device orientation: %ld -> image orientation: %ld", 
+                  (long)deviceOrientation, (long)imageOrientation);
+        }
+    }
+}
 
 static void cleanupPhotoCache(void) {
     if (g_cachedPhotoPixelBuffer) {
@@ -758,21 +857,94 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 }
 @end
 
+// @implementation AVCaptureVideoDataOutput(LiveContainerSpoof)
+// - (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue {
+//     if (spoofCameraEnabled && sampleBufferDelegate) {
+//         NSLog(@"[LC] 📹 L5: Using GetFrame pattern for video output");
+//         GetFrameDelegate *wrapper = [[GetFrameDelegate alloc] initWithDelegate:sampleBufferDelegate output:self];
+//         objc_setAssociatedObject(self, @selector(lc_setSampleBufferDelegate:queue:), wrapper, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+//         [self lc_setSampleBufferDelegate:wrapper queue:sampleBufferCallbackQueue];
+//     } else {
+//         [self lc_setSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue];
+//     }
+// }
+// @end
+
 @implementation AVCapturePhotoOutput(LiveContainerSpoof)
+// Cache WITHOUT orientation interference
 - (void)lc_capturePhotoWithSettings:(AVCapturePhotoSettings *)settings delegate:(id<AVCapturePhotoCaptureDelegate>)delegate {
     if (spoofCameraEnabled) {
-        NSLog(@"[LC] 📷 L5: Intercepting photo capture - pre-caching spoofed data");
+        NSLog(@"[LC] 📷 UNIVERSAL: Pre-caching spoofed photo data");
         
+        // Create spoofed frame 
         CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
         if (spoofedFrame) {
-            cachePhotoDataFromSampleBuffer(spoofedFrame);
+            // CRITICAL: Cache the RAW data without any orientation processing
+            CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(spoofedFrame);
+            if (imageBuffer) {
+                // Clean cache
+                if (g_cachedPhotoPixelBuffer) {
+                    CVPixelBufferRelease(g_cachedPhotoPixelBuffer);
+                    g_cachedPhotoPixelBuffer = NULL;
+                }
+                if (g_cachedPhotoCGImage) {
+                    CGImageRelease(g_cachedPhotoCGImage);
+                    g_cachedPhotoCGImage = NULL;
+                }
+                g_cachedPhotoJPEGData = nil;
+                
+                // Cache RAW pixel buffer (no processing!)
+                g_cachedPhotoPixelBuffer = CVPixelBufferRetain(imageBuffer);
+                
+                // Create CGImage directly from pixel buffer (no orientation transforms!)
+                CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
+                CIContext *context = [CIContext context];
+                g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
+                
+                // Create JPEG with MINIMAL processing
+                if (g_cachedPhotoCGImage) {
+                    NSMutableData *jpegData = [NSMutableData data];
+                    // Use modern UTType API instead of deprecated kUTTypeJPEG
+                    CFStringRef jpegType;
+                    jpegType = (__bridge CFStringRef)UTTypeJPEG.identifier;
+            
+                    CGImageDestinationRef destination = CGImageDestinationCreateWithData((__bridge CFMutableDataRef)jpegData, jpegType, 1, NULL);
+                    if (destination) {
+                        // NO orientation metadata - let apps handle naturally
+                        NSDictionary *properties = @{
+                            (__bridge NSString *)kCGImageDestinationLossyCompressionQuality: @0.9
+                        };
+                        CGImageDestinationAddImage(destination, g_cachedPhotoCGImage, (__bridge CFDictionaryRef)properties);
+                        CGImageDestinationFinalize(destination);
+                        CFRelease(destination);
+                        g_cachedPhotoJPEGData = [jpegData copy];
+                    }
+                }
+            }
             CFRelease(spoofedFrame);
         }
     }
     
+    // Always call original - let app handle the capture naturally
     [self lc_capturePhotoWithSettings:settings delegate:delegate];
 }
 @end
+
+// @implementation AVCapturePhotoOutput(LiveContainerSpoof)
+// - (void)lc_capturePhotoWithSettings:(AVCapturePhotoSettings *)settings delegate:(id<AVCapturePhotoCaptureDelegate>)delegate {
+//     if (spoofCameraEnabled) {
+//         NSLog(@"[LC] 📷 L5: Using GetFrame pattern for photo capture");
+        
+//         // Use GetFrame with preserve orientation = YES for photos
+//         CMSampleBufferRef spoofedFrame = [GetFrame getCurrentFrame:NULL preserveOrientation:YES];
+//         if (spoofedFrame) {
+//             cachePhotoDataFromSampleBuffer(spoofedFrame);
+//             CFRelease(spoofedFrame);
+//         }
+//     }
+//     [self lc_capturePhotoWithSettings:settings delegate:delegate];
+// }
+// @end
 
 @implementation AVCaptureMovieFileOutput(LiveContainerSpoof)
 - (void)lc_startRecordingToOutputFileURL:(NSURL *)outputFileURL recordingDelegate:(id<AVCaptureFileOutputRecordingDelegate>)delegate {
@@ -941,8 +1113,8 @@ void AVFoundationGuestHooksInit(void) {
             // LEVEL 5: Output Level
             swizzle([AVCaptureVideoDataOutput class], @selector(setSampleBufferDelegate:queue:), @selector(lc_setSampleBufferDelegate:queue:));
             swizzle([AVCapturePhotoOutput class], @selector(capturePhotoWithSettings:delegate:), @selector(lc_capturePhotoWithSettings:delegate:));
-            swizzle([AVCaptureMovieFileOutput class], @selector(startRecordingToOutputFileURL:recordingDelegate:), @selector(lc_startRecordingToOutputFileURL:recordingDelegate:));
-            swizzle([AVCaptureVideoPreviewLayer class], @selector(setSession:), @selector(lc_setSession:));
+            // swizzle([AVCaptureMovieFileOutput class], @selector(startRecordingToOutputFileURL:recordingDelegate:), @selector(lc_startRecordingToOutputFileURL:recordingDelegate:));
+            // swizzle([AVCaptureVideoPreviewLayer class], @selector(setSession:), @selector(lc_setSession:));
             
             // LEVEL 6: Photo Accessor Level
             Method pixelBufferMethod = class_getInstanceMethod([AVCapturePhoto class], @selector(pixelBuffer));
