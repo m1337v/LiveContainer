@@ -28,6 +28,7 @@ static CGSize targetResolution = {1080, 1920};
 static BOOL resolutionDetected = NO;
 static CVPixelBufferRef lastGoodSpoofedPixelBuffer = NULL;
 static CMVideoFormatDescriptionRef lastGoodSpoofedFormatDesc = NULL;
+static OSType lastRequestedFormat = 0;
 
 // Image spoofing resources
 static CVPixelBufferRef staticImageSpoofBuffer = NULL;
@@ -35,6 +36,8 @@ static CVPixelBufferRef staticImageSpoofBuffer = NULL;
 // Video spoofing resources
 static AVPlayer *videoSpoofPlayer = nil;
 static AVPlayerItemVideoOutput *videoSpoofPlayerOutput = nil;
+static AVPlayerItemVideoOutput *yuvOutput1 = nil;  // For 420v format
+static AVPlayerItemVideoOutput *yuvOutput2 = nil;  // For 420f format
 static dispatch_queue_t videoProcessingQueue = NULL;
 static BOOL isVideoSetupSuccessfully = NO;
 static id playerDidPlayToEndTimeObserver = nil;
@@ -164,19 +167,47 @@ static void updateLastGoodSpoofedFrame(CVPixelBufferRef newPixelBuffer, CMVideoF
 // pragma MARK: - Frame Generation Logic
 
 static CMSampleBufferRef createSpoofedSampleBuffer() {
+    // Get desired format from current context if available
+    OSType preferredFormat = kCVPixelFormatType_32BGRA; // Default
+    
+    // Try to match the format being requested by the app
+    if (lastRequestedFormat != 0) {
+        preferredFormat = lastRequestedFormat;
+    }
+    
     CVPixelBufferRef sourcePixelBuffer = NULL;
     BOOL ownSourcePixelBuffer = NO;
 
-    // 1. Try video frame first
-    if (isVideoSetupSuccessfully &&
-        videoSpoofPlayerOutput && videoSpoofPlayer.currentItem &&
+    // 1. Try video frame first with format matching (CaptureJailed pattern)
+    if (isVideoSetupSuccessfully && videoSpoofPlayer.currentItem &&
         videoSpoofPlayer.currentItem.status == AVPlayerItemStatusReadyToPlay && videoSpoofPlayer.rate > 0.0f) {
         
         CMTime playerTime = [videoSpoofPlayer.currentItem currentTime];
-        if ([videoSpoofPlayerOutput hasNewPixelBufferForItemTime:playerTime]) {
-            sourcePixelBuffer = [videoSpoofPlayerOutput copyPixelBufferForItemTime:playerTime itemTimeForDisplay:NULL];
+        
+        // IMPROVEMENT: Choose best output based on preferred format (like CaptureJailed)
+        AVPlayerItemVideoOutput *bestOutput = videoSpoofPlayerOutput; // Default BGRA
+        NSString *formatName = @"BGRA";
+        
+        if (preferredFormat == 875704422) { // '420v'
+            if (yuvOutput1 && [yuvOutput1 hasNewPixelBufferForItemTime:playerTime]) {
+                bestOutput = yuvOutput1;
+                formatName = @"420v";
+            }
+        } else if (preferredFormat == 875704438) { // '420f'
+            if (yuvOutput2 && [yuvOutput2 hasNewPixelBufferForItemTime:playerTime]) {
+                bestOutput = yuvOutput2;
+                formatName = @"420f";
+            }
+        }
+        
+        if ([bestOutput hasNewPixelBufferForItemTime:playerTime]) {
+            sourcePixelBuffer = [bestOutput copyPixelBufferForItemTime:playerTime itemTimeForDisplay:NULL];
             if (sourcePixelBuffer) {
                 ownSourcePixelBuffer = YES;
+                NSLog(@"[LC] Using format-matched video output: %@ for requested format: %c%c%c%c", 
+                      formatName,
+                      (preferredFormat >> 24) & 0xFF, (preferredFormat >> 16) & 0xFF, 
+                      (preferredFormat >> 8) & 0xFF, preferredFormat & 0xFF);
             }
         }
     }
@@ -356,6 +387,38 @@ static void setupVideoSpoofingResources() {
         return;
     }
 
+    // IMPROVEMENT: Clean up ALL outputs first
+    if (videoSpoofPlayer && videoSpoofPlayer.currentItem) {
+        if (videoSpoofPlayerOutput) {
+            [videoSpoofPlayer.currentItem removeOutput:videoSpoofPlayerOutput];
+            videoSpoofPlayerOutput = nil;
+        }
+        if (yuvOutput1) {
+            [videoSpoofPlayer.currentItem removeOutput:yuvOutput1];
+            yuvOutput1 = nil;
+        }
+        if (yuvOutput2) {
+            [videoSpoofPlayer.currentItem removeOutput:yuvOutput2];
+            yuvOutput2 = nil;
+        }
+    }
+    
+    // Create multiple format outputs for better compatibility (CaptureJailed pattern)
+    NSDictionary *bgraAttributes = @{
+        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA),
+        (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
+    };
+    
+    NSDictionary *yuv420vAttributes = @{
+        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704422), // '420v'
+        (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
+    };
+    
+    NSDictionary *yuv420fAttributes = @{
+        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704438), // '420f'
+        (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
+    };
+
     AVURLAsset *asset = [AVURLAsset assetWithURL:videoURL];
     [asset loadValuesAsynchronouslyForKeys:@[@"tracks"] completionHandler:^{
         NSError *error = nil;
@@ -381,11 +444,7 @@ static void setupVideoSpoofingResources() {
                 [[NSNotificationCenter defaultCenter] removeObserver:playerDidPlayToEndTimeObserver];
                 playerDidPlayToEndTimeObserver = nil;
             }
-            if (videoSpoofPlayer.currentItem) {
-                [videoSpoofPlayer.currentItem removeOutput:videoSpoofPlayerOutput];
-            }
             videoSpoofPlayer = nil;
-            videoSpoofPlayerOutput = nil;
         }
 
         AVPlayerItem *playerItem = [AVPlayerItem playerItemWithAsset:asset];
@@ -393,11 +452,10 @@ static void setupVideoSpoofingResources() {
         videoSpoofPlayer.actionAtItemEnd = AVPlayerActionAtItemEndNone;
         videoSpoofPlayer.muted = YES;
 
-        NSDictionary *pixelBufferAttributes = @{
-            (NSString*)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA),
-            (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
-        };
-        videoSpoofPlayerOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:pixelBufferAttributes];
+        // CREATE ALL THREE OUTPUTS (like CaptureJailed)
+        videoSpoofPlayerOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:bgraAttributes];
+        yuvOutput1 = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420vAttributes];
+        yuvOutput2 = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420fAttributes];
         
         dispatch_async(videoProcessingQueue, ^{
             while (playerItem.status != AVPlayerItemStatusReadyToPlay) {
@@ -409,8 +467,18 @@ static void setupVideoSpoofingResources() {
                 }
             }
             
+            // ADD ALL THREE OUTPUTS TO PLAYER ITEM
             if (![playerItem.outputs containsObject:videoSpoofPlayerOutput]) {
                 [playerItem addOutput:videoSpoofPlayerOutput];
+                NSLog(@"[LC] ✅ Added BGRA output");
+            }
+            if (![playerItem.outputs containsObject:yuvOutput1]) {
+                [playerItem addOutput:yuvOutput1];
+                NSLog(@"[LC] ✅ Added 420v output");
+            }
+            if (![playerItem.outputs containsObject:yuvOutput2]) {
+                [playerItem addOutput:yuvOutput2];
+                NSLog(@"[LC] ✅ Added 420f output");
             }
             
             if (spoofCameraLoop) {
@@ -429,7 +497,7 @@ static void setupVideoSpoofingResources() {
             
             [videoSpoofPlayer play];
             isVideoSetupSuccessfully = YES;
-            NSLog(@"[LC] ✅ Video spoofing ready");
+            NSLog(@"[LC] ✅ Video spoofing ready with 3 format outputs");
         });
     }];
 }
@@ -683,25 +751,16 @@ static void cleanupPhotoCache(void) {
 }
 
 - (void)captureOutput:(AVCaptureOutput *)output didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection {
-    // Dynamic resolution detection
-    if (!resolutionDetected && !spoofCameraEnabled && sampleBuffer) {
-        CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-        if (imageBuffer) {
-            size_t width = CVPixelBufferGetWidth(imageBuffer);
-            size_t height = CVPixelBufferGetHeight(imageBuffer);
-            if (width > 0 && height > 0) {
-                CGSize detectedRes = CGSizeMake(width, height);
-                if (fabs(detectedRes.width - targetResolution.width) > 1 || fabs(detectedRes.height - targetResolution.height) > 1) {
-                    NSLog(@"[LC] 📐 Detected resolution: %zux%zu, updating from %.0fx%.0f", width, height, targetResolution.width, targetResolution.height);
-                    targetResolution = detectedRes;
-                    resolutionDetected = YES;
-                    
-                    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                        setupImageSpoofingResources(); 
-                    });
-                } else {
-                     resolutionDetected = YES; 
-                }
+    // IMPROVEMENT: Track format for better matching
+    if (!spoofCameraEnabled && sampleBuffer) {
+        CMFormatDescriptionRef formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer);
+        if (formatDesc) {
+            OSType mediaSubType = CMFormatDescriptionGetMediaSubType(formatDesc);
+            if (mediaSubType != lastRequestedFormat) {
+                lastRequestedFormat = mediaSubType;
+                NSLog(@"[LC] 📐 Detected format preference: %c%c%c%c", 
+                      (mediaSubType >> 24) & 0xFF, (mediaSubType >> 16) & 0xFF, 
+                      (mediaSubType >> 8) & 0xFF, mediaSubType & 0xFF);
             }
         }
     }
@@ -859,7 +918,20 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 @implementation AVCaptureVideoDataOutput(LiveContainerSpoof)
 - (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue {
     if (spoofCameraEnabled && sampleBufferDelegate) {
-        NSLog(@"[LC] 📹 L5: Hooking video data output delegate");
+        NSLog(@"[LC] 📹 L5: Hooking video data output delegate with format detection");
+        
+        // IMPROVEMENT: Detect preferred format from output settings
+        NSDictionary *videoSettings = self.videoSettings;
+        if (videoSettings) {
+            NSNumber *formatNum = videoSettings[(NSString*)kCVPixelBufferPixelFormatTypeKey];
+            if (formatNum) {
+                lastRequestedFormat = [formatNum unsignedIntValue];
+                NSLog(@"[LC] 📐 Output requests format: %c%c%c%c", 
+                      (lastRequestedFormat >> 24) & 0xFF, (lastRequestedFormat >> 16) & 0xFF, 
+                      (lastRequestedFormat >> 8) & 0xFF, lastRequestedFormat & 0xFF);
+            }
+        }
+        
         SimpleSpoofDelegate *wrapper = [[SimpleSpoofDelegate alloc] initWithDelegate:sampleBufferDelegate output:self];
         objc_setAssociatedObject(self, @selector(lc_setSampleBufferDelegate:queue:), wrapper, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [self lc_setSampleBufferDelegate:wrapper queue:sampleBufferCallbackQueue];
@@ -970,6 +1042,7 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 @end
 
 @implementation AVCaptureVideoPreviewLayer(LiveContainerSpoof)
+
 - (void)lc_setSession:(AVCaptureSession *)session {
     if (spoofCameraEnabled) {
         if (session) {
@@ -1157,8 +1230,8 @@ void AVFoundationGuestHooksInit(void) {
             // MSHookFunction(CVPixelBufferCreate, hook_CVPixelBufferCreate, (void**)&original_CVPixelBufferCreate);
             
             // LEVEL 2: Device Level
-            swizzle([AVCaptureDevice class], @selector(devicesWithMediaType:), @selector(lc_devicesWithMediaType:));
-            swizzle([AVCaptureDevice class], @selector(defaultDeviceWithMediaType:), @selector(lc_defaultDeviceWithMediaType:));
+            // swizzle([AVCaptureDevice class], @selector(devicesWithMediaType:), @selector(lc_devicesWithMediaType:));
+            // swizzle([AVCaptureDevice class], @selector(defaultDeviceWithMediaType:), @selector(lc_defaultDeviceWithMediaType:));
             
             // LEVEL 3: Device Input Level  
             swizzle([AVCaptureDeviceInput class], @selector(deviceInputWithDevice:error:), @selector(lc_deviceInputWithDevice:error:));
