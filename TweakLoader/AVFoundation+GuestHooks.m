@@ -544,31 +544,10 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
     if (imageBuffer) {
         g_cachedPhotoPixelBuffer = CVPixelBufferRetain(imageBuffer);
         
-        // Create CGImage with SMART orientation detection
+        // UNIVERSAL: No transforms - let apps handle orientation themselves
         CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
         
-        // Detect camera orientation by examining current capture connection
-        // This is a simplified approach - we'll apply pre-compensation transforms
-        
-        // Instagram applies different transforms based on camera:
-        // Front camera: Instagram flips horizontally (makes [^] → [<])
-        // Back camera: Instagram flips differently (makes [^] → [>])
-        
-        // To get correct [^] output, we need to pre-flip in the OPPOSITE direction
-        
-        CGAffineTransform transform = CGAffineTransformIdentity;
-        
-        // PRE-COMPENSATION STRATEGY:
-        // We'll apply a transform that, when Instagram applies its transform, results in correct orientation
-        
-        // For Instagram front camera mode: Pre-flip horizontally so Instagram's flip results in normal
-        // This should make [^] → [^] instead of [^] → [<]
-        transform = CGAffineTransformMakeScale(-1.0, 1.0);  // Horizontal flip
-        transform = CGAffineTransformTranslate(transform, -ciImage.extent.size.width, 0);
-        
-        // Apply the pre-compensation transform
-        ciImage = [ciImage imageByApplyingTransform:transform];
-        
+        // No transform applied - this works for most apps
         CIContext *context = [CIContext context];
         g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
         
@@ -579,6 +558,8 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
                                            orientation:UIImageOrientationUp];
             g_cachedPhotoJPEGData = UIImageJPEGRepresentation(image, 0.9);
         }
+        
+        NSLog(@"[LC] 📷 Universal photo cached - no orientation transform applied");
     }
 }
 
