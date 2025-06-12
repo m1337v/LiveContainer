@@ -1669,28 +1669,52 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 }
 
 - (void)lc_startRunning {
+    NSLog(@"[LC] 🎥 L4: Session startRunning called - spoofing: %@", spoofCameraEnabled ? @"ON" : @"OFF");
+    
     if (spoofCameraEnabled) {
         NSLog(@"[LC] 🎥 L4: Session starting - checking for camera inputs");
+        NSLog(@"[LC] 🔍 DEBUG L4: Session inputs count: %lu", (unsigned long)self.inputs.count);
+        NSLog(@"[LC] 🔍 DEBUG L4: Session outputs count: %lu", (unsigned long)self.outputs.count);
         
         BOOL hasCameraInput = NO;
+        BOOL hasVideoDataOutput = NO;
         BOOL hasPhotoOutput = NO;
         
         for (AVCaptureInput *input in self.inputs) {
+            NSLog(@"[LC] 🔍 DEBUG L4: Input: %@", NSStringFromClass([input class]));
             if ([input isKindOfClass:[AVCaptureDeviceInput class]]) {
                 AVCaptureDeviceInput *deviceInput = (AVCaptureDeviceInput *)input;
+                NSLog(@"[LC] 🔍 DEBUG L4: Device input: %@ (hasVideo: %@)", 
+                      deviceInput.device.localizedName, [deviceInput.device hasMediaType:AVMediaTypeVideo] ? @"YES" : @"NO");
                 if ([deviceInput.device hasMediaType:AVMediaTypeVideo]) {
                     hasCameraInput = YES;
-                    break;
                 }
             }
         }
         
         for (AVCaptureOutput *output in self.outputs) {
-            if ([output isKindOfClass:[AVCapturePhotoOutput class]]) {
+            NSLog(@"[LC] 🔍 DEBUG L4: Output: %@", NSStringFromClass([output class]));
+            if ([output isKindOfClass:[AVCaptureVideoDataOutput class]]) {
+                hasVideoDataOutput = YES;
+                
+                AVCaptureVideoDataOutput *videoOutput = (AVCaptureVideoDataOutput *)output;
+                id delegate = videoOutput.sampleBufferDelegate;
+                NSLog(@"[LC] 🔍 DEBUG L4: VideoDataOutput delegate: %@", NSStringFromClass([delegate class]));
+                
+                // Check if our wrapper is in place
+                SimpleSpoofDelegate *wrapper = objc_getAssociatedObject(videoOutput, @selector(lc_setSampleBufferDelegate:queue:));
+                if (wrapper) {
+                    NSLog(@"[LC] ✅ L4: Our SimpleSpoofDelegate wrapper is in place: %@", wrapper);
+                } else {
+                    NSLog(@"[LC] ❌ L4: No SimpleSpoofDelegate wrapper found!");
+                }
+            } else if ([output isKindOfClass:[AVCapturePhotoOutput class]]) {
                 hasPhotoOutput = YES;
-                break;
             }
         }
+        
+        NSLog(@"[LC] 🔍 DEBUG L4: Camera input: %@, VideoData output: %@, Photo output: %@", 
+              hasCameraInput ? @"YES" : @"NO", hasVideoDataOutput ? @"YES" : @"NO", hasPhotoOutput ? @"YES" : @"NO");
         
         if (hasCameraInput) {
             NSLog(@"[LC] 🎥 L4: Camera session detected - spoofing will be active");
@@ -1698,12 +1722,10 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
             // CRITICAL: ALWAYS pre-cache photo data for ALL camera sessions
             NSLog(@"[LC] 📷 L4: FORCE caching spoofed photo data");
             dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
-                // Force call our caching function
-                cachePhotoDataFromSampleBuffer(NULL); // Pass NULL - we don't use it anyway
+                cachePhotoDataFromSampleBuffer(NULL);
                 NSLog(@"[LC] 📷 L4: Photo cache creation completed");
             });
             
-            // Additional cache for photo outputs
             if (hasPhotoOutput) {
                 NSLog(@"[LC] 📷 L4: Photo output detected - additional caching");
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
@@ -1711,9 +1733,18 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
                     NSLog(@"[LC] 📷 L4: Additional photo cache completed");
                 });
             }
+            
+            if (!hasVideoDataOutput) {
+                NSLog(@"[LC] ⚠️ L4: Camera session has no video data output - this might be why we see original camera");
+            }
+        } else {
+            NSLog(@"[LC] 🔍 DEBUG L4: No camera input detected");
         }
     }
+    
+    NSLog(@"[LC] 🎥 L4: Calling original startRunning");
     [self lc_startRunning];
+    NSLog(@"[LC] 🎥 L4: startRunning completed");
 }
 
 - (void)lc_stopRunning {
@@ -1736,8 +1767,11 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 @implementation AVCaptureVideoDataOutput(LiveContainerSpoof)
 
 - (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue {
+    NSLog(@"[LC] 🔍 DEBUG L5: setSampleBufferDelegate called - delegate: %@, spoofing: %@", 
+          NSStringFromClass([sampleBufferDelegate class]), spoofCameraEnabled ? @"ON" : @"OFF");
+    
     if (spoofCameraEnabled && sampleBufferDelegate) {
-        NSLog(@"[LC] 📹 L5: Using primary spoofing system (SimpleSpoofDelegate)");
+        NSLog(@"[LC] 📹 L5: Creating SimpleSpoofDelegate wrapper for: %@", NSStringFromClass([sampleBufferDelegate class]));
         
         // IMPROVEMENT: Detect preferred format from output settings
         NSDictionary *videoSettings = self.videoSettings;
@@ -1751,11 +1785,18 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
             }
         }
         
-        // TEMPORARY: Use SimpleSpoofDelegate for stability
+        // Create wrapper and store reference
         SimpleSpoofDelegate *wrapper = [[SimpleSpoofDelegate alloc] initWithDelegate:sampleBufferDelegate output:self];
         objc_setAssociatedObject(self, @selector(lc_setSampleBufferDelegate:queue:), wrapper, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        
+        NSLog(@"[LC] ✅ L5: SimpleSpoofDelegate wrapper created: %@", wrapper);
+        NSLog(@"[LC] 🔗 L5: Setting wrapper as delegate instead of original");
+        
         [self lc_setSampleBufferDelegate:wrapper queue:sampleBufferCallbackQueue];
+        
+        NSLog(@"[LC] ✅ L5: Video hook installation completed");
     } else {
+        NSLog(@"[LC] 📹 L5: Spoofing disabled or no delegate - using original");
         objc_setAssociatedObject(self, @selector(lc_setSampleBufferDelegate:queue:), nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [self lc_setSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue];
     }
