@@ -619,6 +619,13 @@ static void setupVideoSpoofingResources() {
             [videoSpoofPlayer play];
             isVideoSetupSuccessfully = YES;
             NSLog(@"[LC] ✅ Video spoofing ready with 3 format outputs");
+            
+            // CRITICAL: Pre-cache photo data immediately when video is ready
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+                NSLog(@"[LC] 📷 Emergency: Creating photo cache from video setup");
+                cachePhotoDataFromSampleBuffer(NULL);
+                NSLog(@"[LC] 📷 Emergency: Photo cache ready");
+            });
         });
     }];
 }
@@ -1579,16 +1586,20 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
         if (hasCameraInput) {
             NSLog(@"[LC] 🎥 L4: Camera session detected - spoofing will be active");
             
-            // CRITICAL: Pre-cache photo data immediately for Instagram
+            // CRITICAL: ALWAYS pre-cache photo data for ALL camera sessions
+            NSLog(@"[LC] 📷 L4: FORCE caching spoofed photo data");
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+                // Force call our caching function
+                cachePhotoDataFromSampleBuffer(NULL); // Pass NULL - we don't use it anyway
+                NSLog(@"[LC] 📷 L4: Photo cache creation completed");
+            });
+            
+            // Additional cache for photo outputs
             if (hasPhotoOutput) {
-                NSLog(@"[LC] 📷 L4: Photo output detected - pre-caching spoofed photo");
-                dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
-                    CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
-                    if (spoofedFrame) {
-                        cachePhotoDataFromSampleBuffer(spoofedFrame);
-                        CFRelease(spoofedFrame);
-                        NSLog(@"[LC] 📷 Photo pre-cached successfully");
-                    }
+                NSLog(@"[LC] 📷 L4: Photo output detected - additional caching");
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+                    cachePhotoDataFromSampleBuffer(NULL);
+                    NSLog(@"[LC] 📷 L4: Additional photo cache completed");
                 });
             }
         }
