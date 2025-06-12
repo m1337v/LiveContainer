@@ -146,6 +146,12 @@ class LCAppModel: ObservableObject, Hashable {
         }
     }
     
+    @Published var uiSpoofCameraMode : String {
+        didSet {
+            appInfo.spoofCameraMode = uiSpoofCameraMode
+        }
+    }
+
     var delegate : LCAppModelDelegate?
     
     init(appInfo : LCAppInfo, delegate: LCAppModelDelegate? = nil) {
@@ -185,10 +191,11 @@ class LCAppModel: ObservableObject, Hashable {
         
         // Camera Addon Section
         self.uiSpoofCamera = appInfo.spoofCamera
-        self.uiSpoofCameraType = appInfo.spoofCameraType ?? "image"
+        self.uiSpoofCameraType = appInfo.spoofCameraType ?? "video"
         self.uiSpoofCameraImagePath = appInfo.spoofCameraImagePath ?? ""
         self.uiSpoofCameraVideoPath = appInfo.spoofCameraVideoPath ?? ""
         self.uiSpoofCameraLoop = appInfo.spoofCameraLoop
+        self.uiSpoofCameraMode = appInfo.spoofCameraMode ?? "standard"
         
         for container in uiContainers {
             if container.folderName == uiDefaultDataFolder {

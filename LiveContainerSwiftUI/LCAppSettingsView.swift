@@ -609,12 +609,22 @@ struct LCAppSettingsView : View{
                 Toggle("Spoof Camera", isOn: $model.uiSpoofCamera)
                 
                 if model.uiSpoofCamera {
+                    // Camera Mode Picker - ALWAYS VISIBLE
+                    Picker("Camera Mode", selection: $model.uiSpoofCameraMode) {
+                        Text("Standard").tag("standard")
+                        Text("Aggressive").tag("aggressive") 
+                        Text("Compatibility").tag("compatibility")
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
+                    
+                    // Media Type Picker - SEPARATE FROM MODE
                     Picker("Camera Type", selection: $model.uiSpoofCameraType) {
                         Text("Static Image").tag("image")
                         Text("Video").tag("video")
                     }
                     .pickerStyle(SegmentedPickerStyle())
                     
+                    // Media Selection based on type
                     if model.uiSpoofCameraType == "image" {
                         CameraImagePickerView(
                             imagePath: $model.uiSpoofCameraImagePath,
@@ -640,7 +650,18 @@ struct LCAppSettingsView : View{
                 Text("Camera Spoofing")
             } footer: {
                 if model.uiSpoofCamera {
-                    Text("When enabled, this app will receive the specified camera input instead of the device's actual camera data. Media files are copied to LiveContainer's Documents folder.")
+                    switch model.uiSpoofCameraMode {
+                    case "standard":
+                        Text("Standard mode: Normal caching and hook coverage. Works with most apps.")
+                    case "aggressive":
+                        Text("Aggressive mode: Enhanced caching with multiple pre-loads and extended timing. For apps with strict timing requirements.")
+                    case "compatibility":
+                        Text("Compatibility mode: Maximum hook coverage with all fallback mechanisms. For legacy or problematic apps.")
+                    default:
+                        Text("When enabled, this app will receive the specified camera input instead of the device's actual camera data.")
+                    }
+                } else {
+                    Text("When enabled, this app will receive the specified camera input instead of the device's actual camera data.")
                 }
             }
 

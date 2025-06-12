@@ -51,6 +51,7 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property NSString* spoofCameraImagePath;
 @property NSString* spoofCameraVideoPath;
 @property BOOL spoofCameraLoop;
+@property NSString* spoofCameraMode; // NEW: "standard", "aggressive", "compatibility"
 
 - (void)setBundlePath:(NSString*)newBundlePath;
 - (NSMutableDictionary*)info;

@@ -727,7 +727,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     if (spoofCameraType && [spoofCameraType length] > 0) {
         _info[@"spoofCameraType"] = spoofCameraType;
     } else {
-        _info[@"spoofCameraType"] = @"image";
+        _info[@"spoofCameraType"] = @"video";
     }
     [self save];
 }
@@ -775,6 +775,21 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 }
 - (void)setSpoofCameraLoop:(bool)spoofCameraLoop {
     _info[@"spoofCameraLoop"] = [NSNumber numberWithBool:spoofCameraLoop];
+    [self save];
+}
+
+// Mode 
+- (NSString*)spoofCameraMode {
+    NSString* cameraMode = _info[@"spoofCameraMode"];
+    if (cameraMode && [cameraMode isKindOfClass:[NSString class]]) {
+        return cameraMode;
+    } else {
+        return @"standard"; // Default mode
+    }
+}
+
+- (void)setSpoofCameraMode:(NSString*)spoofCameraMode {
+    _info[@"spoofCameraMode"] = spoofCameraMode ?: @"standard";
     [self save];
 }
 
