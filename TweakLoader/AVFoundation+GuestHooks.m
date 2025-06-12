@@ -1025,6 +1025,14 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
 
 // Update the SimpleSpoofDelegate to track formats from REAL frames too:
 - (void)captureOutput:(AVCaptureOutput *)output didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection {
+    static int frameCounter = 0;
+    frameCounter++;
+    
+    if (frameCounter % 30 == 0) { // Log every 30 frames to avoid spam
+        NSLog(@"[LC] 📹 GetFrame: Frame %d - spoofing: %@, mode: %@", 
+              frameCounter, spoofCameraEnabled ? @"ON" : @"OFF", spoofCameraMode);
+    }
+    
     @try {
         // DEFENSIVE: Track format from REAL frames with null checks
         if (sampleBuffer) {
@@ -1033,7 +1041,7 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
                 OSType mediaSubType = CMFormatDescriptionGetMediaSubType(formatDesc);
                 if (mediaSubType != lastRequestedFormat) {
                     lastRequestedFormat = mediaSubType;
-                    NSLog(@"[LC] 📐 Format detected from real frame: %c%c%c%c (Mode: %@)", 
+                    NSLog(@"[LC] 📐 GetFrame: Format detected from real frame: %c%c%c%c (Mode: %@)", 
                           (mediaSubType >> 24) & 0xFF, (mediaSubType >> 16) & 0xFF, 
                           (mediaSubType >> 8) & 0xFF, mediaSubType & 0xFF, spoofCameraMode);
                 }
@@ -1041,34 +1049,41 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
         }
 
         if (spoofCameraEnabled) {
+            NSLog(@"[LC] 🎬 GetFrame: Processing frame %d in mode: %@", frameCounter, spoofCameraMode);
+            
             if ([spoofCameraMode isEqualToString:@"standard"]) {
+                NSLog(@"[LC] 🎬 GetFrame: Standard mode processing");
                 // Standard mode: Normal spoofing
                 CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
                 if (spoofedFrame && self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
                     [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:spoofedFrame fromConnection:connection];
+                    NSLog(@"[LC] ✅ GetFrame: Standard frame delivered");
                 }
                 if (spoofedFrame) CFRelease(spoofedFrame);
                 
             } else if ([spoofCameraMode isEqualToString:@"aggressive"]) {
+                NSLog(@"[LC] 🎬 GetFrame: Aggressive mode processing");
                 // Aggressive mode: Multiple attempts and enhanced processing
                 CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
                 if (spoofedFrame) {
                     if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
                         [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:spoofedFrame fromConnection:connection];
+                        NSLog(@"[LC] ✅ GetFrame: Aggressive frame delivered (first attempt)");
                     }
                     CFRelease(spoofedFrame);
                 } else {
                     // Aggressive mode: Try harder before giving up
-                    NSLog(@"[LC] 🔄 Aggressive mode: First attempt failed, retrying...");
+                    NSLog(@"[LC] 🔄 GetFrame: Aggressive mode: First attempt failed, retrying...");
                     usleep(5000); // 5ms delay
                     spoofedFrame = createSpoofedSampleBuffer();
                     if (spoofedFrame) {
                         if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
                             [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:spoofedFrame fromConnection:connection];
+                            NSLog(@"[LC] ✅ GetFrame: Aggressive frame delivered (retry success)");
                         }
                         CFRelease(spoofedFrame);
                     } else {
-                        NSLog(@"[LC] ❌ Aggressive mode: Both attempts failed, passing through original");
+                        NSLog(@"[LC] ❌ GetFrame: Aggressive mode: Both attempts failed, passing through original");
                         if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
                             [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:sampleBuffer fromConnection:connection];
                         }
@@ -1076,47 +1091,56 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
                 }
                 
             } else if ([spoofCameraMode isEqualToString:@"compatibility"]) {
+                NSLog(@"[LC] 🎬 GetFrame: Compatibility mode processing");
                 // Compatibility mode: Conservative approach with fallback
                 if (lastGoodSpoofedPixelBuffer && staticImageSpoofBuffer) {
                     CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
                     if (spoofedFrame) {
                         if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
                             [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:spoofedFrame fromConnection:connection];
+                            NSLog(@"[LC] ✅ GetFrame: Compatibility frame delivered");
                         }
                         CFRelease(spoofedFrame);
                     } else {
                         // If spoofing fails, pass through original for compatibility
-                        NSLog(@"[LC] ⚠️ Compatibility mode: Spoofing failed, passing through original");
+                        NSLog(@"[LC] ⚠️ GetFrame: Compatibility mode: Spoofing failed, passing through original");
                         if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
                             [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:sampleBuffer fromConnection:connection];
                         }
                     }
                 } else {
                     // No reliable spoofed data - pass through original
-                    NSLog(@"[LC] ⚠️ Compatibility mode: No reliable spoof data, passing through original");
+                    NSLog(@"[LC] ⚠️ GetFrame: Compatibility mode: No reliable spoof data, passing through original");
                     if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
                         [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:sampleBuffer fromConnection:connection];
                     }
                 }
                 
             } else {
-                NSLog(@"[LC] ⚠️ Unknown camera mode: %@, using standard approach", spoofCameraMode);
+                NSLog(@"[LC] ⚠️ GetFrame: Unknown camera mode: %@, using standard approach", spoofCameraMode);
                 CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
                 if (spoofedFrame && self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
                     [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:spoofedFrame fromConnection:connection];
                 }
                 if (spoofedFrame) CFRelease(spoofedFrame);
             }
+        } else {
+            if (frameCounter % 30 == 0) {
+                NSLog(@"[LC] 📹 GetFrame: Spoofing disabled - passing through original frame %d", frameCounter);
+            }
+            if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
+                [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:sampleBuffer fromConnection:connection];
+            }
         }
     } @catch (NSException *exception) {
-        NSLog(@"[LC] ❌ Exception in captureOutput delegate (Mode: %@): %@", spoofCameraMode, exception);
+        NSLog(@"[LC] ❌ GetFrame: Exception in frame %d (Mode: %@): %@", frameCounter, spoofCameraMode, exception);
         // On exception, always try to pass through original
         @try {
             if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
                 [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:sampleBuffer fromConnection:connection];
             }
         } @catch (NSException *innerException) {
-            NSLog(@"[LC] ❌❌ Double exception in mode %@ - giving up: %@", spoofCameraMode, innerException);
+            NSLog(@"[LC] ❌❌ GetFrame: Double exception in frame %d, mode %@ - giving up: %@", frameCounter, spoofCameraMode, innerException);
         }
     }
 }
@@ -1454,6 +1478,10 @@ static void cleanupPhotoCache(void) {
 // pragma MARK: - LEVEL 1: Core Video Hooks (Lowest Level)
 
 CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t height, OSType pixelFormatType, CFDictionaryRef pixelBufferAttributes, CVPixelBufferRef *pixelBufferOut) {
+    NSLog(@"[LC] 🔧 L1: CVPixelBufferCreate called - %zux%zu, format: %c%c%c%c", 
+          width, height,
+          (pixelFormatType >> 24) & 0xFF, (pixelFormatType >> 16) & 0xFF, 
+          (pixelFormatType >> 8) & 0xFF, pixelFormatType & 0xFF);
     
     if (spoofCameraEnabled && width > 0 && height > 0) {
         NSLog(@"[LC] 🔧 L1: Intercepting CVPixelBuffer creation: %zux%zu", width, height);
@@ -1464,13 +1492,19 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
             if (spoofedBuffer) {
                 *pixelBufferOut = CVPixelBufferRetain(spoofedBuffer);
                 CFRelease(spoofedFrame);
+                NSLog(@"[LC] ✅ L1: Returned spoofed pixel buffer");
                 return kCVReturnSuccess;
             }
             CFRelease(spoofedFrame);
         }
+        NSLog(@"[LC] ❌ L1: Failed to create spoofed buffer, using original");
+    } else {
+        NSLog(@"[LC] 🔧 L1: Passing through original CVPixelBufferCreate");
     }
     
-    return original_CVPixelBufferCreate(allocator, width, height, pixelFormatType, pixelBufferAttributes, pixelBufferOut);
+    CVReturn result = original_CVPixelBufferCreate(allocator, width, height, pixelFormatType, pixelBufferAttributes, pixelBufferOut);
+    NSLog(@"[LC] 🔧 L1: Original CVPixelBufferCreate result: %d", result);
+    return result;
 }
 
 // pragma MARK: - LEVEL 2: Device Level Hooks
@@ -1478,20 +1512,35 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 @implementation AVCaptureDevice(LiveContainerSpoof)
 
 + (NSArray<AVCaptureDevice *> *)lc_devicesWithMediaType:(AVMediaType)mediaType {
+    NSLog(@"[LC] 🎥 L2: devicesWithMediaType called - mediaType: %@", mediaType);
+    
     NSArray *originalDevices = [self lc_devicesWithMediaType:mediaType];
     
-    if (spoofCameraEnabled && [mediaType isEqualToString:AVMediaTypeVideo]) {
-        NSLog(@"[LC] 🎥 L2: Intercepting device enumeration - %lu devices", (unsigned long)originalDevices.count);
+    if ([mediaType isEqualToString:AVMediaTypeVideo]) {
+        NSLog(@"[LC] 🎥 L2: Video device enumeration - %lu devices found", (unsigned long)originalDevices.count);
+        for (AVCaptureDevice *device in originalDevices) {
+            NSLog(@"[LC] 🎥 L2: Device: %@ (pos: %ld)", device.localizedName, (long)device.position);
+        }
+    } else {
+        NSLog(@"[LC] 🎥 L2: Non-video device enumeration: %@ - %lu devices", mediaType, (unsigned long)originalDevices.count);
     }
+    
     return originalDevices;
 }
 
 + (AVCaptureDevice *)lc_defaultDeviceWithMediaType:(AVMediaType)mediaType {
+    NSLog(@"[LC] 🎥 L2: defaultDeviceWithMediaType called - mediaType: %@", mediaType);
+    
     AVCaptureDevice *originalDevice = [self lc_defaultDeviceWithMediaType:mediaType];
     
-    if (spoofCameraEnabled && [mediaType isEqualToString:AVMediaTypeVideo]) {
-        NSLog(@"[LC] 🎥 L2: Intercepting default device: %@", originalDevice.localizedName);
+    if ([mediaType isEqualToString:AVMediaTypeVideo]) {
+        NSLog(@"[LC] 🎥 L2: Default video device: %@ (pos: %ld)", 
+              originalDevice.localizedName, (long)originalDevice.position);
+    } else {
+        NSLog(@"[LC] 🎥 L2: Default non-video device: %@ for type: %@", 
+              originalDevice.localizedName, mediaType);
     }
+    
     return originalDevice;
 }
 
@@ -1502,16 +1551,33 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 @implementation AVCaptureDeviceInput(LiveContainerSpoof)
 
 + (instancetype)lc_deviceInputWithDevice:(AVCaptureDevice *)device error:(NSError **)outError {
-    if (spoofCameraEnabled && device && [device hasMediaType:AVMediaTypeVideo]) {
-        NSLog(@"[LC] 🎥 L3: Intercepting device input creation: %@", device.localizedName);
+    NSLog(@"[LC] 🎥 L3: deviceInputWithDevice called - device: %@", device.localizedName);
+    
+    if (device && [device hasMediaType:AVMediaTypeVideo]) {
+        NSLog(@"[LC] 🎥 L3: Creating video device input: %@ (pos: %ld)", 
+              device.localizedName, (long)device.position);
         
         AVCaptureDeviceInput *originalInput = [self lc_deviceInputWithDevice:device error:outError];
         if (originalInput) {
-            objc_setAssociatedObject(originalInput, @selector(lc_deviceInputWithDevice:error:), @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            NSLog(@"[LC] ✅ L3: Video device input created successfully");
+            if (spoofCameraEnabled) {
+                objc_setAssociatedObject(originalInput, @selector(lc_deviceInputWithDevice:error:), @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                NSLog(@"[LC] 🏷️ L3: Marked input for spoofing");
+            }
+        } else {
+            NSLog(@"[LC] ❌ L3: Failed to create video device input - error: %@", outError ? *outError : nil);
         }
         return originalInput;
+    } else if (device) {
+        NSLog(@"[LC] 🎥 L3: Creating non-video device input: %@ (type: %@)", 
+              device.localizedName, device.hasMediaType(AVMediaTypeAudio) ? @"Audio" : @"Unknown");
+    } else {
+        NSLog(@"[LC] ❌ L3: deviceInputWithDevice called with nil device");
     }
-    return [self lc_deviceInputWithDevice:device error:outError];
+    
+    AVCaptureDeviceInput *result = [self lc_deviceInputWithDevice:device error:outError];
+    NSLog(@"[LC] 🎥 L3: deviceInputWithDevice completed - success: %@", result ? @"YES" : @"NO");
+    return result;
 }
 
 @end
@@ -1776,35 +1842,52 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 @implementation AVCaptureVideoPreviewLayer(LiveContainerSpoof)
 
 - (void)lc_setSession:(AVCaptureSession *)session {
+    NSLog(@"[LC] 📺 L5: setSession called - session: %p", session);
+    
     if (spoofCameraEnabled) {
         if (session) {
             NSLog(@"[LC] 📺 L5: Setting spoofed preview session");
+            NSLog(@"[LC] 📺 L5: Preview layer bounds: %@", NSStringFromCGRect(self.bounds));
+            NSLog(@"[LC] 📺 L5: Preview layer video gravity: %@", self.videoGravity);
+            
             objc_setAssociatedObject(self, @selector(lc_setSession:), @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             
             // Start feeding spoofed frames to preview layer
             [self startSpoofedPreviewFeed];
+            NSLog(@"[LC] 📺 L5: Spoofed preview feed started");
         } else {
             NSLog(@"[LC] 📺 L5: Clearing preview session (discard/cleanup)");
             [self stopSpoofedPreviewFeed];
             objc_setAssociatedObject(self, @selector(lc_setSession:), nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             cleanupPhotoCache();
+            NSLog(@"[LC] 📺 L5: Preview cleanup completed");
         }
+    } else {
+        NSLog(@"[LC] 📺 L5: Spoofing disabled - using original session");
     }
+    
     [self lc_setSession:session];
+    NSLog(@"[LC] 📺 L5: setSession completed");
 }
 
 - (void)startSpoofedPreviewFeed {
+    NSLog(@"[LC] 📺 L5: startSpoofedPreviewFeed called");
+    
     // Create a sample buffer display layer for spoofed content
     AVSampleBufferDisplayLayer *spoofLayer = [[AVSampleBufferDisplayLayer alloc] init];
     spoofLayer.frame = self.bounds;
     spoofLayer.videoGravity = AVLayerVideoGravityResizeAspectFill;
     [self addSublayer:spoofLayer];
     
+    NSLog(@"[LC] 📺 L5: Created spoofed display layer - frame: %@", NSStringFromCGRect(spoofLayer.frame));
+    
     // Store reference for cleanup
     objc_setAssociatedObject(self, @selector(startSpoofedPreviewFeed), spoofLayer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     
     // Feed spoofed frames to the layer
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSLog(@"[LC] 📺 L5: Starting spoofed frame feed loop");
+        int frameCount = 0;
         while (spoofCameraEnabled && spoofLayer.superlayer) {
             @autoreleasepool {
                 CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
@@ -1813,18 +1896,31 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
                         [spoofLayer enqueueSampleBuffer:spoofedFrame];
                     });
                     CFRelease(spoofedFrame);
+                    frameCount++;
+                    if (frameCount % 30 == 0) { // Log every 30 frames (1 second at 30fps)
+                        NSLog(@"[LC] 📺 L5: Fed %d spoofed frames to preview", frameCount);
+                    }
+                } else if (!spoofedFrame) {
+                    NSLog(@"[LC] ❌ L5: Failed to create spoofed frame for preview");
                 }
                 [NSThread sleepForTimeInterval:1.0/30.0]; // 30 FPS
             }
         }
+        NSLog(@"[LC] 📺 L5: Spoofed frame feed loop ended - total frames: %d", frameCount);
     });
 }
 
 - (void)stopSpoofedPreviewFeed {
+    NSLog(@"[LC] 📺 L5: stopSpoofedPreviewFeed called");
+    
     AVSampleBufferDisplayLayer *spoofLayer = objc_getAssociatedObject(self, @selector(startSpoofedPreviewFeed));
     if (spoofLayer) {
+        NSLog(@"[LC] 📺 L5: Removing spoofed display layer");
         [spoofLayer removeFromSuperlayer];
         objc_setAssociatedObject(self, @selector(startSpoofedPreviewFeed), nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        NSLog(@"[LC] ✅ L5: Spoofed display layer removed");
+    } else {
+        NSLog(@"[LC] 📺 L5: No spoofed display layer to remove");
     }
 }
 @end
