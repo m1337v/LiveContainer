@@ -568,21 +568,33 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
 
 @implementation GetFrame
 
+// Fix the GetFrame getCurrentFrame method to better handle sample buffer creation:
 + (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originalFrame preserveOrientation:(BOOL)preserve {
     if (!spoofCameraEnabled) {
         return originalFrame; // Pass through when disabled
     }
     
     if (!frameExtractionPlayer || !frameExtractionPlayer.currentItem) {
-        NSLog(@"[GetFrame] No player available, using fallback");
-        return createSpoofedSampleBuffer(); // Use your existing fallback
+        NSLog(@"[GetFrame] No player available, returning NULL (let primary system handle)");
+        return NULL; // Return NULL instead of fallback - let primary system handle
     }
     
     CMTime currentTime = [frameExtractionPlayer.currentItem currentTime];
     
+    // CRITICAL: Check if player is actually ready
+    if (frameExtractionPlayer.currentItem.status != AVPlayerItemStatusReadyToPlay) {
+        NSLog(@"[GetFrame] Player not ready, returning NULL");
+        return NULL;
+    }
+    
     // CRITICAL: CaptureJailed's format detection from originalFrame
-    CMFormatDescriptionRef formatDesc = CMSampleBufferGetFormatDescription(originalFrame);
-    OSType requestedFormat = CMFormatDescriptionGetMediaSubType(formatDesc);
+    OSType requestedFormat = kCVPixelFormatType_32BGRA; // Default
+    if (originalFrame) {
+        CMFormatDescriptionRef formatDesc = CMSampleBufferGetFormatDescription(originalFrame);
+        if (formatDesc) {
+            requestedFormat = CMFormatDescriptionGetMediaSubType(formatDesc);
+        }
+    }
     
     NSLog(@"[GetFrame] Processing format: %c%c%c%c", 
           (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
@@ -593,7 +605,7 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
     NSString *outputType = @"BGRA-default";
     
     switch (requestedFormat) {
-        case 875704422: // '420v' - exactly from CaptureJailed
+        case 875704422: // '420v'
             if (yuv420vOutput && [yuv420vOutput hasNewPixelBufferForItemTime:currentTime]) {
                 selectedOutput = yuv420vOutput;
                 outputType = @"420v-direct";
@@ -603,7 +615,7 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
             }
             break;
             
-        case 875704438: // '420f' - exactly from CaptureJailed
+        case 875704438: // '420f'
             if (yuv420fOutput && [yuv420fOutput hasNewPixelBufferForItemTime:currentTime]) {
                 selectedOutput = yuv420fOutput;
                 outputType = @"420f-direct";
@@ -627,60 +639,90 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
             break;
     }
     
-    if (selectedOutput && [selectedOutput hasNewPixelBufferForItemTime:currentTime]) {
-        CVPixelBufferRef pixelBuffer = [selectedOutput copyPixelBufferForItemTime:currentTime itemTimeForDisplay:NULL];
-        
-        if (pixelBuffer) {
-            // CRITICAL: Create sample buffer with SAME timing as original
-            CMSampleBufferRef newSampleBuffer = NULL;
-            CMVideoFormatDescriptionRef videoFormatDesc = NULL;
-            
-            OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(
-                kCFAllocatorDefault, pixelBuffer, &videoFormatDesc);
-            
-            if (status == noErr) {
-                // FIXED: Use correct type for timing count
-                CMSampleTimingInfo originalTiming;
-                CMItemCount timingCount = 0; // Changed from size_t to CMItemCount
-                CMSampleBufferGetSampleTimingInfoArray(originalFrame, 0, NULL, &timingCount);
-                
-                if (timingCount > 0) {
-                    CMSampleBufferGetSampleTimingInfoArray(originalFrame, 1, &originalTiming, &timingCount);
-                } else {
-                    // Fallback timing
-                    originalTiming = (CMSampleTimingInfo){
-                        .duration = CMTimeMake(1, 30),
-                        .presentationTimeStamp = currentTime,
-                        .decodeTimeStamp = kCMTimeInvalid
-                    };
-                }
-                
-                status = CMSampleBufferCreateReadyWithImageBuffer(
-                    kCFAllocatorDefault,
-                    pixelBuffer,
-                    videoFormatDesc,
-                    &originalTiming, // Use original timing!
-                    &newSampleBuffer
-                );
-                
-                if (videoFormatDesc) CFRelease(videoFormatDesc);
-            }
-            
-            OSType actualFormat = CVPixelBufferGetPixelFormatType(pixelBuffer);
-            NSLog(@"[GetFrame] ✅ Frame extracted via %@: req=%c%c%c%c → actual=%c%c%c%c", 
-                  outputType,
-                  (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
-                  (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF,
-                  (actualFormat >> 24) & 0xFF, (actualFormat >> 16) & 0xFF, 
-                  (actualFormat >> 8) & 0xFF, actualFormat & 0xFF);
-            
-            CVPixelBufferRelease(pixelBuffer);
-            return newSampleBuffer; // Return spoofed frame with original timing
-        }
+    if (!selectedOutput || ![selectedOutput hasNewPixelBufferForItemTime:currentTime]) {
+        NSLog(@"[GetFrame] No frames available from outputs");
+        return NULL; // Let primary system handle
     }
     
-    NSLog(@"[GetFrame] No spoofed frame available, using fallback");
-    return createSpoofedSampleBuffer(); // Use your existing fallback
+    CVPixelBufferRef pixelBuffer = [selectedOutput copyPixelBufferForItemTime:currentTime itemTimeForDisplay:NULL];
+    if (!pixelBuffer) {
+        NSLog(@"[GetFrame] Failed to get pixel buffer");
+        return NULL;
+    }
+    
+    // CRITICAL: Scale the pixel buffer to target resolution using existing system
+    CVPixelBufferRef scaledBuffer = createScaledPixelBuffer(pixelBuffer, targetResolution);
+    CVPixelBufferRelease(pixelBuffer); // Release original
+    
+    if (!scaledBuffer) {
+        NSLog(@"[GetFrame] Failed to scale buffer");
+        return NULL;
+    }
+    
+    // CRITICAL: Create sample buffer with proper timing
+    CMSampleBufferRef newSampleBuffer = NULL;
+    CMVideoFormatDescriptionRef videoFormatDesc = NULL;
+    
+    OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(
+        kCFAllocatorDefault, scaledBuffer, &videoFormatDesc);
+    
+    if (status != noErr || !videoFormatDesc) {
+        NSLog(@"[GetFrame] Failed to create format description: %d", status);
+        CVPixelBufferRelease(scaledBuffer);
+        return NULL;
+    }
+    
+    // CRITICAL: Use proper timing - either from original or current time
+    CMSampleTimingInfo timingInfo;
+    if (originalFrame) {
+        // Try to get timing from original frame
+        CMItemCount timingCount = 0;
+        CMSampleBufferGetSampleTimingInfoArray(originalFrame, 0, NULL, &timingCount);
+        
+        if (timingCount > 0) {
+            CMSampleBufferGetSampleTimingInfoArray(originalFrame, 1, &timingInfo, &timingCount);
+        } else {
+            // Fallback timing
+            timingInfo = (CMSampleTimingInfo){
+                .duration = CMTimeMake(1, 30),
+                .presentationTimeStamp = currentTime,
+                .decodeTimeStamp = kCMTimeInvalid
+            };
+        }
+    } else {
+        // Create new timing
+        timingInfo = (CMSampleTimingInfo){
+            .duration = CMTimeMake(1, 30),
+            .presentationTimeStamp = CMTimeMakeWithSeconds(CACurrentMediaTime(), NSEC_PER_SEC),
+            .decodeTimeStamp = kCMTimeInvalid
+        };
+    }
+    
+    status = CMSampleBufferCreateReadyWithImageBuffer(
+        kCFAllocatorDefault,
+        scaledBuffer,
+        videoFormatDesc,
+        &timingInfo,
+        &newSampleBuffer
+    );
+    
+    CFRelease(videoFormatDesc);
+    CVPixelBufferRelease(scaledBuffer);
+    
+    if (status != noErr || !newSampleBuffer) {
+        NSLog(@"[GetFrame] Failed to create sample buffer: %d", status);
+        return NULL;
+    }
+    
+    OSType actualFormat = CVPixelBufferGetPixelFormatType(scaledBuffer);
+    NSLog(@"[GetFrame] ✅ Frame created via %@: req=%c%c%c%c → actual=%c%c%c%c", 
+          outputType,
+          (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
+          (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF,
+          (actualFormat >> 24) & 0xFF, (actualFormat >> 16) & 0xFF, 
+          (actualFormat >> 8) & 0xFF, actualFormat & 0xFF);
+    
+    return newSampleBuffer;
 }
 
 + (CVPixelBufferRef)getCurrentFramePixelBuffer:(OSType)requestedFormat {
@@ -1254,7 +1296,7 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 
 - (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue {
     if (spoofCameraEnabled && sampleBufferDelegate) {
-        NSLog(@"[LC] 📹 Using GetFrame pattern for video output");
+        NSLog(@"[LC] 📹 L5: Using primary spoofing system (SimpleSpoofDelegate)");
         
         // IMPROVEMENT: Detect preferred format from output settings
         NSDictionary *videoSettings = self.videoSettings;
@@ -1268,11 +1310,8 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
             }
         }
         
-        // CRITICAL: Use GetFrameDelegate instead of SimpleSpoofDelegate
-        GetFrameDelegate *wrapper = [[GetFrameDelegate alloc] init];
-        wrapper.originalDelegate = sampleBufferDelegate;
-        wrapper.originalOutput = self;
-        
+        // TEMPORARY: Use SimpleSpoofDelegate for stability
+        SimpleSpoofDelegate *wrapper = [[SimpleSpoofDelegate alloc] initWithDelegate:sampleBufferDelegate output:self];
         objc_setAssociatedObject(self, @selector(lc_setSampleBufferDelegate:queue:), wrapper, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [self lc_setSampleBufferDelegate:wrapper queue:sampleBufferCallbackQueue];
     } else {
@@ -1400,18 +1439,21 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 
 - (void)lc_capturePhotoWithSettings:(AVCapturePhotoSettings *)settings delegate:(id<AVCapturePhotoCaptureDelegate>)delegate {
     if (spoofCameraEnabled) {
-        NSLog(@"[LC] 📷 Using GetFrame pattern for photo capture");
+        NSLog(@"[LC] 📷 Pre-caching photo using primary system");
         
-        // CRITICAL: Create dummy sample buffer for GetFrame
-        CMSampleBufferRef dummyFrame = createSpoofedSampleBuffer(); // Your existing function
-        if (dummyFrame) {
-            // CRITICAL: Use GetFrame with preserve orientation = YES for photos
-            CMSampleBufferRef spoofedFrame = [GetFrame getCurrentFrame:dummyFrame preserveOrientation:YES];
-            if (spoofedFrame) {
-                cachePhotoDataFromSampleBuffer(spoofedFrame);
-                if (spoofedFrame != dummyFrame) CFRelease(spoofedFrame);
+        // CRITICAL: Use your existing PRIMARY system for photo caching
+        CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
+        if (spoofedFrame) {
+            cachePhotoDataFromSampleBuffer(spoofedFrame);
+            CFRelease(spoofedFrame);
+        } else {
+            NSLog(@"[LC] 📷 Primary system failed, trying GetFrame");
+            // Only try GetFrame if primary fails
+            CMSampleBufferRef getFrameResult = [GetFrame getCurrentFrame:NULL preserveOrientation:YES];
+            if (getFrameResult) {
+                cachePhotoDataFromSampleBuffer(getFrameResult);
+                CFRelease(getFrameResult);
             }
-            CFRelease(dummyFrame);
         }
     }
     [self lc_capturePhotoWithSettings:settings delegate:delegate];
@@ -1541,8 +1583,9 @@ static void loadSpoofingConfiguration(void) {
                 NSLog(@"[LC] ❌ Video file not found - falling back to image mode");
                 spoofCameraVideoPath = @"";
             } else {
-                // CRITICAL: Setup GetFrame with the video path
-                [GetFrame setCurrentVideoPath:spoofCameraVideoPath];
+                // TEMPORARY: Disable GetFrame setup to avoid conflicts
+                // [GetFrame setCurrentVideoPath:spoofCameraVideoPath];
+                NSLog(@"[LC] GetFrame setup disabled - using primary video system only");
             }
         }
     }
@@ -1614,10 +1657,10 @@ void AVFoundationGuestHooksInit(void) {
 
         // Setup video resources if enabled
         if (spoofCameraEnabled && spoofCameraVideoPath && spoofCameraVideoPath.length > 0) {
-            NSLog(@"[LC] Video mode: Setting up video resources");
-            // pragma MARK: TODO 
-            // setupVideoSpoofingResources(); 
-            [GetFrame setCurrentVideoPath:spoofCameraVideoPath];
+            NSLog(@"[LC] Video mode: Setting up PRIMARY video system only");
+            setupVideoSpoofingResources(); // Use your working system
+            // TEMPORARY: Disable GetFrame to avoid conflicts
+            // [GetFrame setCurrentVideoPath:spoofCameraVideoPath];
         } else if (spoofCameraEnabled) {
             NSLog(@"[LC] Image mode: Using static image fallback");
         }
