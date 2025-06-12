@@ -370,12 +370,22 @@ static CMSampleBufferRef createSpoofedSampleBuffer() {
         };
 
         CMSampleBufferRef sampleBuffer = NULL;
-        OSStatus result = CMSampleBufferCreateReadyWithImageBuffer(
-            kCFAllocatorDefault,
-            finalScaledPixelBuffer,
-            currentFormatDesc,
-            &timingInfo,
-            &sampleBuffer
+        // OSStatus result = CMSampleBufferCreateReadyWithImageBuffer(
+        //     kCFAllocatorDefault,
+        //     finalScaledPixelBuffer,
+        //     currentFormatDesc,
+        //     &timingInfo,
+        //     &sampleBuffer
+        // );
+        OSStatus result = CMSampleBufferCreateForImageBuffer(
+        kCFAllocatorDefault,
+        finalScaledPixelBuffer,    // CVImageBufferRef (this is correct)
+        true,                      // dataReady (this is the key!)
+        NULL,                      // makeDataReadyCallback
+        NULL,                      // makeDataReadyRefcon
+        currentFormatDesc,         // formatDescription
+        &timingInfo,              // sampleTiming
+        &sampleBuffer             // sampleBufferOut
         );
 
         if (currentFormatDesc) CFRelease(currentFormatDesc);
@@ -1120,35 +1130,157 @@ static void initializePhotoCacheQueue(void) {
 
 // Debug logging:
 
+// static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
+//     if (!sampleBuffer) {
+//         NSLog(@"[LC] ⚠️ cachePhotoDataFromSampleBuffer: NULL sample buffer passed");
+//         return;
+//     }
+    
+//     NSLog(@"[LC] 🔍 DEBUG: cachePhotoDataFromSampleBuffer called with buffer: %p", sampleBuffer);
+    
+//     // DEBUG: Check sample buffer validity
+//     BOOL isValid = CMSampleBufferIsValid(sampleBuffer);
+//     NSLog(@"[LC] 🔍 DEBUG: Sample buffer valid: %d", isValid);
+    
+//     // DEBUG: Check if sample buffer is ready
+//     Boolean isReady = CMSampleBufferDataIsReady(sampleBuffer);
+//     NSLog(@"[LC] 🔍 DEBUG: Sample buffer data ready: %d", isReady);
+    
+//     // DEBUG: Get format description
+//     CMFormatDescriptionRef formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer);
+//     NSLog(@"[LC] 🔍 DEBUG: Format description: %p", formatDesc);
+    
+//     if (formatDesc) {
+//         CMMediaType mediaType = CMFormatDescriptionGetMediaType(formatDesc);
+//         OSType mediaSubType = CMFormatDescriptionGetMediaSubType(formatDesc);
+//         NSLog(@"[LC] 🔍 DEBUG: Media type: %c%c%c%c, subtype: %c%c%c%c", 
+//               (mediaType >> 24) & 0xFF, (mediaType >> 16) & 0xFF, 
+//               (mediaType >> 8) & 0xFF, mediaType & 0xFF,
+//               (mediaSubType >> 24) & 0xFF, (mediaSubType >> 16) & 0xFF, 
+//               (mediaSubType >> 8) & 0xFF, mediaSubType & 0xFF);
+//     }
+    
+//     initializePhotoCacheQueue();
+    
+//     dispatch_async(photoCacheQueue, ^{
+//         @autoreleasepool {
+//             // DEFENSIVE: Clean up old cached data safely
+//             if (g_cachedPhotoPixelBuffer) {
+//                 CVPixelBufferRelease(g_cachedPhotoPixelBuffer);
+//                 g_cachedPhotoPixelBuffer = NULL;
+//             }
+//             if (g_cachedPhotoCGImage) {
+//                 CGImageRelease(g_cachedPhotoCGImage);
+//                 g_cachedPhotoCGImage = NULL;
+//             }
+//             g_cachedPhotoJPEGData = nil;
+            
+//             // Cache new data with defensive checks
+//             CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
+//             NSLog(@"[LC] 🔍 DEBUG: CMSampleBufferGetImageBuffer returned: %p", imageBuffer);
+            
+//             if (!imageBuffer) {
+//                 NSLog(@"[LC] ⚠️ No image buffer in sample buffer");
+                
+//                 // CRITICAL: Try alternative extraction methods
+//                 NSLog(@"[LC] 🔍 DEBUG: Trying alternative extraction methods...");
+                
+//                 // Method 1: Try to get as CVPixelBuffer directly
+//                 CVPixelBufferRef pixelBuffer = NULL;
+//                 CMBlockBufferRef blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer);
+//                 NSLog(@"[LC] 🔍 DEBUG: Block buffer: %p", blockBuffer);
+                
+//                 // Method 2: Try to recreate the sample buffer
+//                 NSLog(@"[LC] 🔍 DEBUG: Attempting to recreate sample buffer from original data...");
+//                 CMSampleBufferRef newSampleBuffer = createSpoofedSampleBuffer();
+//                 if (newSampleBuffer) {
+//                     CVImageBufferRef newImageBuffer = CMSampleBufferGetImageBuffer(newSampleBuffer);
+//                     NSLog(@"[LC] 🔍 DEBUG: New sample buffer image buffer: %p", newImageBuffer);
+                    
+//                     if (newImageBuffer) {
+//                         // Use the new image buffer
+//                         imageBuffer = newImageBuffer;
+//                         CVPixelBufferRetain(imageBuffer); // Retain since we'll use it
+//                         NSLog(@"[LC] ✅ DEBUG: Successfully extracted image buffer from recreated sample buffer");
+//                     }
+//                     CFRelease(newSampleBuffer);
+//                 }
+                
+//                 if (!imageBuffer) {
+//                     NSLog(@"[LC] ❌ DEBUG: All extraction methods failed");
+//                     return;
+//                 }
+//             }
+            
+//             g_cachedPhotoPixelBuffer = CVPixelBufferRetain(imageBuffer);
+            
+//             // DEFENSIVE: Create CGImage with error checking
+//             @try {
+//                 CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
+//                 if (ciImage) {
+//                     CIContext *context = [CIContext context];
+//                     if (context) {
+//                         g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
+                        
+//                         if (g_cachedPhotoCGImage) {
+//                             // DEFENSIVE: Get device orientation safely
+//                             __block UIDeviceOrientation deviceOrientation = UIDeviceOrientationUnknown;
+                            
+//                             dispatch_sync(dispatch_get_main_queue(), ^{
+//                                 deviceOrientation = [[UIDevice currentDevice] orientation];
+//                             });
+                            
+//                             UIImageOrientation imageOrientation = UIImageOrientationUp; // Safe default
+                            
+//                             // Map device orientation safely
+//                             switch (deviceOrientation) {
+//                                 case UIDeviceOrientationPortrait:
+//                                     imageOrientation = UIImageOrientationRight;
+//                                     break;
+//                                 case UIDeviceOrientationPortraitUpsideDown:
+//                                     imageOrientation = UIImageOrientationLeft;
+//                                     break;
+//                                 case UIDeviceOrientationLandscapeLeft:
+//                                     imageOrientation = UIImageOrientationUp;
+//                                     break;
+//                                 case UIDeviceOrientationLandscapeRight:
+//                                     imageOrientation = UIImageOrientationDown;
+//                                     break;
+//                                 default:
+//                                     imageOrientation = UIImageOrientationUp; // Safe fallback
+//                                     break;
+//                             }
+                            
+//                             UIImage *image = [UIImage imageWithCGImage:g_cachedPhotoCGImage 
+//                                                                  scale:1.0 
+//                                                            orientation:imageOrientation];
+                            
+//                             if (image) {
+//                                 g_cachedPhotoJPEGData = UIImageJPEGRepresentation(image, 0.9);
+//                                 NSLog(@"[LC] 📷 Photo cached safely: %lu bytes", (unsigned long)g_cachedPhotoJPEGData.length);
+//                             }
+//                         }
+//                     }
+//                 }
+//             } @catch (NSException *exception) {
+//                 NSLog(@"[LC] ❌ Exception in photo caching: %@", exception);
+//                 // Clean up on error
+//                 if (g_cachedPhotoPixelBuffer) {
+//                     CVPixelBufferRelease(g_cachedPhotoPixelBuffer);
+//                     g_cachedPhotoPixelBuffer = NULL;
+//                 }
+//                 if (g_cachedPhotoCGImage) {
+//                     CGImageRelease(g_cachedPhotoCGImage);
+//                     g_cachedPhotoCGImage = NULL;
+//                 }
+//                 g_cachedPhotoJPEGData = nil;
+//             }
+//         }
+//     });
+// }
+
 static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
-    if (!sampleBuffer) {
-        NSLog(@"[LC] ⚠️ cachePhotoDataFromSampleBuffer: NULL sample buffer passed");
-        return;
-    }
-    
-    NSLog(@"[LC] 🔍 DEBUG: cachePhotoDataFromSampleBuffer called with buffer: %p", sampleBuffer);
-    
-    // DEBUG: Check sample buffer validity
-    BOOL isValid = CMSampleBufferIsValid(sampleBuffer);
-    NSLog(@"[LC] 🔍 DEBUG: Sample buffer valid: %d", isValid);
-    
-    // DEBUG: Check if sample buffer is ready
-    Boolean isReady = CMSampleBufferDataIsReady(sampleBuffer);
-    NSLog(@"[LC] 🔍 DEBUG: Sample buffer data ready: %d", isReady);
-    
-    // DEBUG: Get format description
-    CMFormatDescriptionRef formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer);
-    NSLog(@"[LC] 🔍 DEBUG: Format description: %p", formatDesc);
-    
-    if (formatDesc) {
-        CMMediaType mediaType = CMFormatDescriptionGetMediaType(formatDesc);
-        OSType mediaSubType = CMFormatDescriptionGetMediaSubType(formatDesc);
-        NSLog(@"[LC] 🔍 DEBUG: Media type: %c%c%c%c, subtype: %c%c%c%c", 
-              (mediaType >> 24) & 0xFF, (mediaType >> 16) & 0xFF, 
-              (mediaType >> 8) & 0xFF, mediaType & 0xFF,
-              (mediaSubType >> 24) & 0xFF, (mediaSubType >> 16) & 0xFF, 
-              (mediaSubType >> 8) & 0xFF, mediaSubType & 0xFF);
-    }
+    NSLog(@"[LC] 🔍 DEBUG: cachePhotoDataFromSampleBuffer called - skipping problematic extraction");
     
     initializePhotoCacheQueue();
     
@@ -1165,105 +1297,83 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
             }
             g_cachedPhotoJPEGData = nil;
             
-            // Cache new data with defensive checks
-            CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-            NSLog(@"[LC] 🔍 DEBUG: CMSampleBufferGetImageBuffer returned: %p", imageBuffer);
-            
-            if (!imageBuffer) {
-                NSLog(@"[LC] ⚠️ No image buffer in sample buffer");
+            // BYPASS THE PROBLEMATIC EXTRACTION - Always recreate
+            NSLog(@"[LC] 🔄 Creating fresh sample buffer for photo caching");
+            CMSampleBufferRef freshSampleBuffer = createSpoofedSampleBuffer();
+            if (freshSampleBuffer) {
+                CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(freshSampleBuffer);
+                NSLog(@"[LC] 🔍 DEBUG: Fresh sample buffer image buffer: %p", imageBuffer);
                 
-                // CRITICAL: Try alternative extraction methods
-                NSLog(@"[LC] 🔍 DEBUG: Trying alternative extraction methods...");
-                
-                // Method 1: Try to get as CVPixelBuffer directly
-                CVPixelBufferRef pixelBuffer = NULL;
-                CMBlockBufferRef blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer);
-                NSLog(@"[LC] 🔍 DEBUG: Block buffer: %p", blockBuffer);
-                
-                // Method 2: Try to recreate the sample buffer
-                NSLog(@"[LC] 🔍 DEBUG: Attempting to recreate sample buffer from original data...");
-                CMSampleBufferRef newSampleBuffer = createSpoofedSampleBuffer();
-                if (newSampleBuffer) {
-                    CVImageBufferRef newImageBuffer = CMSampleBufferGetImageBuffer(newSampleBuffer);
-                    NSLog(@"[LC] 🔍 DEBUG: New sample buffer image buffer: %p", newImageBuffer);
+                if (imageBuffer) {
+                    g_cachedPhotoPixelBuffer = CVPixelBufferRetain(imageBuffer);
                     
-                    if (newImageBuffer) {
-                        // Use the new image buffer
-                        imageBuffer = newImageBuffer;
-                        CVPixelBufferRetain(imageBuffer); // Retain since we'll use it
-                        NSLog(@"[LC] ✅ DEBUG: Successfully extracted image buffer from recreated sample buffer");
-                    }
-                    CFRelease(newSampleBuffer);
-                }
-                
-                if (!imageBuffer) {
-                    NSLog(@"[LC] ❌ DEBUG: All extraction methods failed");
-                    return;
-                }
-            }
-            
-            g_cachedPhotoPixelBuffer = CVPixelBufferRetain(imageBuffer);
-            
-            // DEFENSIVE: Create CGImage with error checking
-            @try {
-                CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
-                if (ciImage) {
-                    CIContext *context = [CIContext context];
-                    if (context) {
-                        g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
-                        
-                        if (g_cachedPhotoCGImage) {
-                            // DEFENSIVE: Get device orientation safely
-                            __block UIDeviceOrientation deviceOrientation = UIDeviceOrientationUnknown;
-                            
-                            dispatch_sync(dispatch_get_main_queue(), ^{
-                                deviceOrientation = [[UIDevice currentDevice] orientation];
-                            });
-                            
-                            UIImageOrientation imageOrientation = UIImageOrientationUp; // Safe default
-                            
-                            // Map device orientation safely
-                            switch (deviceOrientation) {
-                                case UIDeviceOrientationPortrait:
-                                    imageOrientation = UIImageOrientationRight;
-                                    break;
-                                case UIDeviceOrientationPortraitUpsideDown:
-                                    imageOrientation = UIImageOrientationLeft;
-                                    break;
-                                case UIDeviceOrientationLandscapeLeft:
-                                    imageOrientation = UIImageOrientationUp;
-                                    break;
-                                case UIDeviceOrientationLandscapeRight:
-                                    imageOrientation = UIImageOrientationDown;
-                                    break;
-                                default:
-                                    imageOrientation = UIImageOrientationUp; // Safe fallback
-                                    break;
-                            }
-                            
-                            UIImage *image = [UIImage imageWithCGImage:g_cachedPhotoCGImage 
-                                                                 scale:1.0 
-                                                           orientation:imageOrientation];
-                            
-                            if (image) {
-                                g_cachedPhotoJPEGData = UIImageJPEGRepresentation(image, 0.9);
-                                NSLog(@"[LC] 📷 Photo cached safely: %lu bytes", (unsigned long)g_cachedPhotoJPEGData.length);
+                    // DEFENSIVE: Create CGImage with error checking
+                    @try {
+                        CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
+                        if (ciImage) {
+                            CIContext *context = [CIContext context];
+                            if (context) {
+                                g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
+                                
+                                if (g_cachedPhotoCGImage) {
+                                    // DEFENSIVE: Get device orientation safely
+                                    __block UIDeviceOrientation deviceOrientation = UIDeviceOrientationUnknown;
+                                    
+                                    dispatch_sync(dispatch_get_main_queue(), ^{
+                                        deviceOrientation = [[UIDevice currentDevice] orientation];
+                                    });
+                                    
+                                    UIImageOrientation imageOrientation = UIImageOrientationUp; // Safe default
+                                    
+                                    // Map device orientation safely
+                                    switch (deviceOrientation) {
+                                        case UIDeviceOrientationPortrait:
+                                            imageOrientation = UIImageOrientationRight;
+                                            break;
+                                        case UIDeviceOrientationPortraitUpsideDown:
+                                            imageOrientation = UIImageOrientationLeft;
+                                            break;
+                                        case UIDeviceOrientationLandscapeLeft:
+                                            imageOrientation = UIImageOrientationUp;
+                                            break;
+                                        case UIDeviceOrientationLandscapeRight:
+                                            imageOrientation = UIImageOrientationDown;
+                                            break;
+                                        default:
+                                            imageOrientation = UIImageOrientationUp; // Safe fallback
+                                            break;
+                                    }
+                                    
+                                    UIImage *image = [UIImage imageWithCGImage:g_cachedPhotoCGImage 
+                                                                         scale:1.0 
+                                                                   orientation:imageOrientation];
+                                    
+                                    if (image) {
+                                        g_cachedPhotoJPEGData = UIImageJPEGRepresentation(image, 0.9);
+                                        NSLog(@"[LC] ✅ Photo cached successfully via fresh buffer: %lu bytes", (unsigned long)g_cachedPhotoJPEGData.length);
+                                    }
+                                }
                             }
                         }
+                    } @catch (NSException *exception) {
+                        NSLog(@"[LC] ❌ Exception in fresh photo caching: %@", exception);
+                        // Clean up on error
+                        if (g_cachedPhotoPixelBuffer) {
+                            CVPixelBufferRelease(g_cachedPhotoPixelBuffer);
+                            g_cachedPhotoPixelBuffer = NULL;
+                        }
+                        if (g_cachedPhotoCGImage) {
+                            CGImageRelease(g_cachedPhotoCGImage);
+                            g_cachedPhotoCGImage = NULL;
+                        }
+                        g_cachedPhotoJPEGData = nil;
                     }
+                } else {
+                    NSLog(@"[LC] ❌ Even fresh sample buffer has no image buffer!");
                 }
-            } @catch (NSException *exception) {
-                NSLog(@"[LC] ❌ Exception in photo caching: %@", exception);
-                // Clean up on error
-                if (g_cachedPhotoPixelBuffer) {
-                    CVPixelBufferRelease(g_cachedPhotoPixelBuffer);
-                    g_cachedPhotoPixelBuffer = NULL;
-                }
-                if (g_cachedPhotoCGImage) {
-                    CGImageRelease(g_cachedPhotoCGImage);
-                    g_cachedPhotoCGImage = NULL;
-                }
-                g_cachedPhotoJPEGData = nil;
+                CFRelease(freshSampleBuffer);
+            } else {
+                NSLog(@"[LC] ❌ Failed to create fresh sample buffer for photo caching");
             }
         }
     });
