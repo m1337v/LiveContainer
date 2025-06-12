@@ -225,143 +225,167 @@ static BOOL isValidPixelFormat(OSType format) {
     }
 }
 
+// New helper function for format conversion
+static CVPixelBufferRef createPixelBufferInFormat(CVPixelBufferRef sourceBuffer, OSType targetFormat, CGSize targetSize) {
+    if (!sourceBuffer) return NULL;
+
+    CVPixelBufferRef targetBuffer = NULL;
+    NSDictionary *pixelAttributes = @{
+        (NSString*)kCVPixelBufferCGImageCompatibilityKey : @YES,
+        (NSString*)kCVPixelBufferCGBitmapContextCompatibilityKey : @YES,
+        (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
+    };
+
+    // Create target buffer in the exact requested format
+    CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
+                                          (size_t)targetSize.width,
+                                          (size_t)targetSize.height,
+                                          targetFormat,
+                                          (__bridge CFDictionaryRef)pixelAttributes,
+                                          &targetBuffer);
+    
+    if (status != kCVReturnSuccess || !targetBuffer) {
+        NSLog(@"[LC] ❌ Failed to create target buffer in format %c%c%c%c: %d", 
+              (targetFormat >> 24) & 0xFF, (targetFormat >> 16) & 0xFF, 
+              (targetFormat >> 8) & 0xFF, targetFormat & 0xFF, status);
+        return NULL;
+    }
+
+    if (!sharedCIContext) {
+        sharedCIContext = [CIContext contextWithOptions:nil];
+        if (!sharedCIContext) {
+            NSLog(@"[LC] ❌ Failed to create CIContext");
+            CVPixelBufferRelease(targetBuffer);
+            return NULL; 
+        }
+    }
+    
+    // Convert using Core Image
+    CIImage *sourceImage = [CIImage imageWithCVPixelBuffer:sourceBuffer];
+    
+    // Scale if needed
+    size_t sourceWidth = CVPixelBufferGetWidth(sourceBuffer);
+    size_t sourceHeight = CVPixelBufferGetHeight(sourceBuffer);
+    if (sourceWidth != (size_t)targetSize.width || sourceHeight != (size_t)targetSize.height) {
+        CGFloat scaleX = targetSize.width / sourceWidth;
+        CGFloat scaleY = targetSize.height / sourceHeight;
+        sourceImage = [sourceImage imageByApplyingTransform:CGAffineTransformMakeScale(scaleX, scaleY)];
+    }
+    
+    // Ensure proper bounds
+    CGRect extent = sourceImage.extent;
+    if (extent.origin.x != 0 || extent.origin.y != 0) {
+        sourceImage = [sourceImage imageByApplyingTransform:CGAffineTransformMakeTranslation(-extent.origin.x, -extent.origin.y)];
+    }
+
+    // Render to target buffer (Core Image handles format conversion automatically)
+    [sharedCIContext render:sourceImage toCVPixelBuffer:targetBuffer];
+    
+    return targetBuffer;
+}
+
 // Replace crash-resistant version:
 static CMSampleBufferRef createSpoofedSampleBuffer() {
     @try {
-        // DEFENSIVE: Validate state before proceeding
         if (!spoofCameraEnabled) {
             return NULL;
         }
 
-        // Get desired format from current context if available
-        OSType preferredFormat = kCVPixelFormatType_32BGRA; // Safe default
+        // IMPROVEMENT: Get the ACTUAL requested format from the calling context
+        OSType targetFormat = kCVPixelFormatType_32BGRA; // Safe default
         
-        // Try to match the format being requested by the app
+        // Use the format that was actually requested by the app
         if (lastRequestedFormat != 0 && isValidPixelFormat(lastRequestedFormat)) {
-            preferredFormat = lastRequestedFormat;
-        }
-
-        // Mode-specific format handling
-        if ([spoofCameraMode isEqualToString:@"compatibility"]) {
-            preferredFormat = kCVPixelFormatType_32BGRA;
-            NSLog(@"[LC] 🔧 Compatibility mode: Forcing BGRA format for maximum compatibility");
+            targetFormat = lastRequestedFormat;
+            NSLog(@"[LC] 🎯 Using app-requested format: %c%c%c%c", 
+                  (targetFormat >> 24) & 0xFF, (targetFormat >> 16) & 0xFF, 
+                  (targetFormat >> 8) & 0xFF, targetFormat & 0xFF);
+        } else {
+            NSLog(@"[LC] 🎯 Using default BGRA format (no specific request detected)");
         }
 
         CVPixelBufferRef sourcePixelBuffer = NULL;
         BOOL ownSourcePixelBuffer = NO;
 
-        // 1. Try video frame first with format matching (with defensive checks)
+        // 1. Get source buffer (video or image)
         if (isVideoSetupSuccessfully && videoSpoofPlayer && videoSpoofPlayer.currentItem &&
-            videoSpoofPlayer.currentItem.status == AVPlayerItemStatusReadyToPlay && videoSpoofPlayer.rate > 0.0f) {
+            videoSpoofPlayer.currentItem.status == AVPlayerItemStatusReadyToPlay) {
             
             CMTime playerTime = [videoSpoofPlayer.currentItem currentTime];
             
-            // DEFENSIVE: Check if time is valid
             if (CMTIME_IS_VALID(playerTime) && !CMTIME_IS_INDEFINITE(playerTime)) {
-                AVPlayerItemVideoOutput *bestOutput = videoSpoofPlayerOutput; // Default BGRA
-                NSString *formatName = @"BGRA";
-                
-                // Format selection based on mode
-                if ([spoofCameraMode isEqualToString:@"standard"]) {
-                    // Standard mode: Try to match requested format
-                    if (preferredFormat == 875704422 && yuvOutput1) { // '420v'
-                        if ([yuvOutput1 hasNewPixelBufferForItemTime:playerTime]) {
-                            bestOutput = yuvOutput1;
-                            formatName = @"420v";
-                        }
-                    } else if (preferredFormat == 875704438 && yuvOutput2) { // '420f'
-                        if ([yuvOutput2 hasNewPixelBufferForItemTime:playerTime]) {
-                            bestOutput = yuvOutput2;
-                            formatName = @"420f";
-                        }
-                    }
-                } else if ([spoofCameraMode isEqualToString:@"aggressive"]) {
-                    // Aggressive mode: More flexible format matching with fallbacks
-                    if (preferredFormat == 875704422 && yuvOutput1 && [yuvOutput1 hasNewPixelBufferForItemTime:playerTime]) {
-                        bestOutput = yuvOutput1;
-                        formatName = @"420v-aggressive";
-                    } else if (preferredFormat == 875704438 && yuvOutput2 && [yuvOutput2 hasNewPixelBufferForItemTime:playerTime]) {
-                        bestOutput = yuvOutput2;
-                        formatName = @"420f-aggressive";
-                    } else if (videoSpoofPlayerOutput && [videoSpoofPlayerOutput hasNewPixelBufferForItemTime:playerTime]) {
-                        bestOutput = videoSpoofPlayerOutput;
-                        formatName = @"BGRA-aggressive-fallback";
-                    }
-                } else if ([spoofCameraMode isEqualToString:@"compatibility"]) {
-                    // Compatibility mode: Always use BGRA for maximum compatibility
-                    if (videoSpoofPlayerOutput && [videoSpoofPlayerOutput hasNewPixelBufferForItemTime:playerTime]) {
-                        bestOutput = videoSpoofPlayerOutput;
-                        formatName = @"BGRA-compatibility";
-                    }
-                } else {
-                    NSLog(@"[LC] ⚠️ Unknown camera mode: %@, using standard", spoofCameraMode);
-                }
-                
-                // DEFENSIVE: Check if output is valid and has frames
-                if (bestOutput && [bestOutput hasNewPixelBufferForItemTime:playerTime]) {
-                    sourcePixelBuffer = [bestOutput copyPixelBufferForItemTime:playerTime itemTimeForDisplay:NULL];
+                // Always use BGRA output as source - we'll convert to target format later
+                if (videoSpoofPlayerOutput && [videoSpoofPlayerOutput hasNewPixelBufferForItemTime:playerTime]) {
+                    sourcePixelBuffer = [videoSpoofPlayerOutput copyPixelBufferForItemTime:playerTime itemTimeForDisplay:NULL];
                     if (sourcePixelBuffer) {
                         ownSourcePixelBuffer = YES;
-                        NSLog(@"[LC] Using video output: %@ for mode: %@ (requested format: %c%c%c%c)", 
-                            formatName, spoofCameraMode,
-                            (preferredFormat >> 24) & 0xFF, (preferredFormat >> 16) & 0xFF, 
-                            (preferredFormat >> 8) & 0xFF, preferredFormat & 0xFF);
+                        NSLog(@"[LC] 📹 Got video frame from BGRA output");
                     }
                 }
             }
         }
 
-        // 2. Fallback to static image (with defensive checks)
+        // 2. Fallback to static image
         if (!sourcePixelBuffer && staticImageSpoofBuffer) {
             sourcePixelBuffer = staticImageSpoofBuffer;
             CVPixelBufferRetain(sourcePixelBuffer);
             ownSourcePixelBuffer = YES;
+            NSLog(@"[LC] 🖼️ Using static image buffer");
         }
         
-        // DEFENSIVE: Validate source buffer before scaling
         if (!sourcePixelBuffer) {
-            NSLog(@"[LC] ⚠️ No source buffer available");
+            NSLog(@"[LC] ❌ No source buffer available");
             return NULL;
         }
         
-        CVPixelBufferRef finalScaledPixelBuffer = NULL;
-        finalScaledPixelBuffer = createScaledPixelBuffer(sourcePixelBuffer, targetResolution);
+        // 3. CRITICAL: Convert to the exact format requested by the app
+        CVPixelBufferRef finalPixelBuffer = NULL;
+        OSType sourceFormat = CVPixelBufferGetPixelFormatType(sourcePixelBuffer);
+        size_t sourceWidth = CVPixelBufferGetWidth(sourcePixelBuffer);
+        size_t sourceHeight = CVPixelBufferGetHeight(sourcePixelBuffer);
+        
+        // Check if we need format conversion
+        BOOL needsFormatConversion = (sourceFormat != targetFormat);
+        BOOL needsResizeConversion = (sourceWidth != (size_t)targetResolution.width || 
+                                     sourceHeight != (size_t)targetResolution.height);
+        
+        if (!needsFormatConversion && !needsResizeConversion) {
+            // Perfect match - no conversion needed
+            finalPixelBuffer = sourcePixelBuffer;
+            CVPixelBufferRetain(finalPixelBuffer);
+            NSLog(@"[LC] ✅ Perfect match - no conversion needed");
+        } else {
+            // Need conversion - create buffer in target format
+            finalPixelBuffer = createPixelBufferInFormat(sourcePixelBuffer, targetFormat, targetResolution);
+            NSLog(@"[LC] 🔄 Converted %c%c%c%c→%c%c%c%c (%zux%zu→%.0fx%.0f)", 
+                  (sourceFormat >> 24) & 0xFF, (sourceFormat >> 16) & 0xFF, 
+                  (sourceFormat >> 8) & 0xFF, sourceFormat & 0xFF,
+                  (targetFormat >> 24) & 0xFF, (targetFormat >> 16) & 0xFF, 
+                  (targetFormat >> 8) & 0xFF, targetFormat & 0xFF,
+                  sourceWidth, sourceHeight, targetResolution.width, targetResolution.height);
+        }
         
         if (ownSourcePixelBuffer) {
             CVPixelBufferRelease(sourcePixelBuffer);
         }
 
-        // 3. Last resort - use previous good frame (with defensive checks)
-        if (!finalScaledPixelBuffer && lastGoodSpoofedPixelBuffer) {
-            finalScaledPixelBuffer = lastGoodSpoofedPixelBuffer;
-            CVPixelBufferRetain(finalScaledPixelBuffer);
-        }
-
-        if (!finalScaledPixelBuffer) {
-            NSLog(@"[LC] ❌ CRITICAL: No pixel buffer available for spoofing");
+        if (!finalPixelBuffer) {
+            NSLog(@"[LC] ❌ Format conversion failed");
             return NULL;
         }
 
-        // 4. Create format description (with defensive checks)
-        CMVideoFormatDescriptionRef currentFormatDesc = NULL;
-        if (finalScaledPixelBuffer == lastGoodSpoofedPixelBuffer && lastGoodSpoofedFormatDesc) {
-            currentFormatDesc = lastGoodSpoofedFormatDesc;
-            CFRetain(currentFormatDesc);
-        } else {
-            OSStatus formatDescStatus = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, finalScaledPixelBuffer, &currentFormatDesc);
-            if (formatDescStatus != noErr || !currentFormatDesc) {
-                NSLog(@"[LC] ❌ Failed to create format description: %d", (int)formatDescStatus);
-                CVPixelBufferRelease(finalScaledPixelBuffer);
-                return NULL;
-            }
-        }
+        // 4. Create sample buffer with correct format description
+        CMVideoFormatDescriptionRef formatDesc = NULL;
+        OSStatus formatStatus = CMVideoFormatDescriptionCreateForImageBuffer(
+            kCFAllocatorDefault, finalPixelBuffer, &formatDesc);
         
-        // 5. Update last good frame if we created a new one
-        if (finalScaledPixelBuffer != lastGoodSpoofedPixelBuffer) {
-            updateLastGoodSpoofedFrame(finalScaledPixelBuffer, currentFormatDesc);
+        if (formatStatus != noErr || !formatDesc) {
+            NSLog(@"[LC] ❌ Failed to create format description: %d", (int)formatStatus);
+            CVPixelBufferRelease(finalPixelBuffer);
+            return NULL;
         }
 
-        // 6. Create sample buffer (with defensive timing)
+        // 5. Create sample buffer with proper timing
         CMTime presentationTime = CMTimeMakeWithSeconds(CACurrentMediaTime(), NSEC_PER_SEC);
         CMSampleTimingInfo timingInfo = {
             .duration = CMTimeMake(1, 30),
@@ -370,36 +394,36 @@ static CMSampleBufferRef createSpoofedSampleBuffer() {
         };
 
         CMSampleBufferRef sampleBuffer = NULL;
-        // OSStatus result = CMSampleBufferCreateReadyWithImageBuffer(
-        //     kCFAllocatorDefault,
-        //     finalScaledPixelBuffer,
-        //     currentFormatDesc,
-        //     &timingInfo,
-        //     &sampleBuffer
-        // );
         OSStatus result = CMSampleBufferCreateForImageBuffer(
-        kCFAllocatorDefault,
-        finalScaledPixelBuffer,    // CVImageBufferRef (this is correct)
-        true,                      // dataReady (this is the key!)
-        NULL,                      // makeDataReadyCallback
-        NULL,                      // makeDataReadyRefcon
-        currentFormatDesc,         // formatDescription
-        &timingInfo,              // sampleTiming
-        &sampleBuffer             // sampleBufferOut
+            kCFAllocatorDefault,
+            finalPixelBuffer,
+            true,                    // dataReady
+            NULL,                   // makeDataReadyCallback
+            NULL,                   // makeDataReadyRefcon
+            formatDesc,             // formatDescription
+            &timingInfo,           // sampleTiming
+            &sampleBuffer          // sampleBufferOut
         );
 
-        if (currentFormatDesc) CFRelease(currentFormatDesc);
-        if (finalScaledPixelBuffer) CVPixelBufferRelease(finalScaledPixelBuffer);
+        CFRelease(formatDesc);
+        CVPixelBufferRelease(finalPixelBuffer);
 
         if (result != noErr || !sampleBuffer) {
-            NSLog(@"[LC] ❌ Failed to create CMSampleBuffer: %d", (int)result);
+            NSLog(@"[LC] ❌ Failed to create sample buffer: %d", (int)result);
             return NULL;
         }
+        
+        // Verify the final format
+        CMFormatDescriptionRef finalFormatDesc = CMSampleBufferGetFormatDescription(sampleBuffer);
+        OSType finalFormat = CMFormatDescriptionGetMediaSubType(finalFormatDesc);
+        NSLog(@"[LC] ✅ Sample buffer created in format: %c%c%c%c", 
+              (finalFormat >> 24) & 0xFF, (finalFormat >> 16) & 0xFF, 
+              (finalFormat >> 8) & 0xFF, finalFormat & 0xFF);
         
         return sampleBuffer;
         
     } @catch (NSException *exception) {
-        NSLog(@"[LC] ❌ CRITICAL Exception in createSpoofedSampleBuffer: %@", exception);
+        NSLog(@"[LC] ❌ Exception in createSpoofedSampleBuffer: %@", exception);
         return NULL;
     }
 }
@@ -1025,123 +1049,34 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
 
 // Update the SimpleSpoofDelegate to track formats from REAL frames too:
 - (void)captureOutput:(AVCaptureOutput *)output didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection {
-    static int frameCounter = 0;
-    frameCounter++;
-    
-    if (frameCounter % 30 == 0) { // Log every 30 frames to avoid spam
-        NSLog(@"[LC] 📹 GetFrame: Frame %d - spoofing: %@, mode: %@", 
-              frameCounter, spoofCameraEnabled ? @"ON" : @"OFF", spoofCameraMode);
-    }
-    
     @try {
-        // DEFENSIVE: Track format from REAL frames with null checks
+        // CRITICAL: Always track the format from real frames
         if (sampleBuffer) {
             CMFormatDescriptionRef formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer);
             if (formatDesc) {
-                OSType mediaSubType = CMFormatDescriptionGetMediaSubType(formatDesc);
-                if (mediaSubType != lastRequestedFormat) {
-                    lastRequestedFormat = mediaSubType;
-                    NSLog(@"[LC] 📐 GetFrame: Format detected from real frame: %c%c%c%c (Mode: %@)", 
-                          (mediaSubType >> 24) & 0xFF, (mediaSubType >> 16) & 0xFF, 
-                          (mediaSubType >> 8) & 0xFF, mediaSubType & 0xFF, spoofCameraMode);
+                OSType detectedFormat = CMFormatDescriptionGetMediaSubType(formatDesc);
+                if (detectedFormat != lastRequestedFormat) {
+                    lastRequestedFormat = detectedFormat;
+                    NSLog(@"[LC] 📐 Format detected: %c%c%c%c", 
+                          (detectedFormat >> 24) & 0xFF, (detectedFormat >> 16) & 0xFF, 
+                          (detectedFormat >> 8) & 0xFF, detectedFormat & 0xFF);
                 }
             }
         }
 
         if (spoofCameraEnabled) {
-            NSLog(@"[LC] 🎬 GetFrame: Processing frame %d in mode: %@", frameCounter, spoofCameraMode);
-            
-            if ([spoofCameraMode isEqualToString:@"standard"]) {
-                NSLog(@"[LC] 🎬 GetFrame: Standard mode processing");
-                // Standard mode: Normal spoofing
-                CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
-                if (spoofedFrame && self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-                    [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:spoofedFrame fromConnection:connection];
-                    NSLog(@"[LC] ✅ GetFrame: Standard frame delivered");
-                }
-                if (spoofedFrame) CFRelease(spoofedFrame);
-                
-            } else if ([spoofCameraMode isEqualToString:@"aggressive"]) {
-                NSLog(@"[LC] 🎬 GetFrame: Aggressive mode processing");
-                // Aggressive mode: Multiple attempts and enhanced processing
-                CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
-                if (spoofedFrame) {
-                    if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-                        [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:spoofedFrame fromConnection:connection];
-                        NSLog(@"[LC] ✅ GetFrame: Aggressive frame delivered (first attempt)");
-                    }
-                    CFRelease(spoofedFrame);
-                } else {
-                    // Aggressive mode: Try harder before giving up
-                    NSLog(@"[LC] 🔄 GetFrame: Aggressive mode: First attempt failed, retrying...");
-                    usleep(5000); // 5ms delay
-                    spoofedFrame = createSpoofedSampleBuffer();
-                    if (spoofedFrame) {
-                        if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-                            [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:spoofedFrame fromConnection:connection];
-                            NSLog(@"[LC] ✅ GetFrame: Aggressive frame delivered (retry success)");
-                        }
-                        CFRelease(spoofedFrame);
-                    } else {
-                        NSLog(@"[LC] ❌ GetFrame: Aggressive mode: Both attempts failed, passing through original");
-                        if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-                            [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:sampleBuffer fromConnection:connection];
-                        }
-                    }
-                }
-                
-            } else if ([spoofCameraMode isEqualToString:@"compatibility"]) {
-                NSLog(@"[LC] 🎬 GetFrame: Compatibility mode processing");
-                // Compatibility mode: Conservative approach with fallback
-                if (lastGoodSpoofedPixelBuffer && staticImageSpoofBuffer) {
-                    CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
-                    if (spoofedFrame) {
-                        if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-                            [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:spoofedFrame fromConnection:connection];
-                            NSLog(@"[LC] ✅ GetFrame: Compatibility frame delivered");
-                        }
-                        CFRelease(spoofedFrame);
-                    } else {
-                        // If spoofing fails, pass through original for compatibility
-                        NSLog(@"[LC] ⚠️ GetFrame: Compatibility mode: Spoofing failed, passing through original");
-                        if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-                            [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:sampleBuffer fromConnection:connection];
-                        }
-                    }
-                } else {
-                    // No reliable spoofed data - pass through original
-                    NSLog(@"[LC] ⚠️ GetFrame: Compatibility mode: No reliable spoof data, passing through original");
-                    if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-                        [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:sampleBuffer fromConnection:connection];
-                    }
-                }
-                
-            } else {
-                NSLog(@"[LC] ⚠️ GetFrame: Unknown camera mode: %@, using standard approach", spoofCameraMode);
-                CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
-                if (spoofedFrame && self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-                    [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:spoofedFrame fromConnection:connection];
-                }
-                if (spoofedFrame) CFRelease(spoofedFrame);
+            CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
+            if (spoofedFrame && self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
+                [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:spoofedFrame fromConnection:connection];
             }
+            if (spoofedFrame) CFRelease(spoofedFrame);
         } else {
-            if (frameCounter % 30 == 0) {
-                NSLog(@"[LC] 📹 GetFrame: Spoofing disabled - passing through original frame %d", frameCounter);
-            }
             if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
                 [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:sampleBuffer fromConnection:connection];
             }
         }
     } @catch (NSException *exception) {
-        NSLog(@"[LC] ❌ GetFrame: Exception in frame %d (Mode: %@): %@", frameCounter, spoofCameraMode, exception);
-        // On exception, always try to pass through original
-        @try {
-            if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-                [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:sampleBuffer fromConnection:connection];
-            }
-        } @catch (NSException *innerException) {
-            NSLog(@"[LC] ❌❌ GetFrame: Double exception in frame %d, mode %@ - giving up: %@", frameCounter, spoofCameraMode, innerException);
-        }
+        NSLog(@"[LC] ❌ Exception: %@", exception);
     }
 }
 
@@ -1161,163 +1096,14 @@ static void initializePhotoCacheQueue(void) {
 
 // Debug logging:
 
-// static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
-//     if (!sampleBuffer) {
-//         NSLog(@"[LC] ⚠️ cachePhotoDataFromSampleBuffer: NULL sample buffer passed");
-//         return;
-//     }
-    
-//     NSLog(@"[LC] 🔍 DEBUG: cachePhotoDataFromSampleBuffer called with buffer: %p", sampleBuffer);
-    
-//     // DEBUG: Check sample buffer validity
-//     BOOL isValid = CMSampleBufferIsValid(sampleBuffer);
-//     NSLog(@"[LC] 🔍 DEBUG: Sample buffer valid: %d", isValid);
-    
-//     // DEBUG: Check if sample buffer is ready
-//     Boolean isReady = CMSampleBufferDataIsReady(sampleBuffer);
-//     NSLog(@"[LC] 🔍 DEBUG: Sample buffer data ready: %d", isReady);
-    
-//     // DEBUG: Get format description
-//     CMFormatDescriptionRef formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer);
-//     NSLog(@"[LC] 🔍 DEBUG: Format description: %p", formatDesc);
-    
-//     if (formatDesc) {
-//         CMMediaType mediaType = CMFormatDescriptionGetMediaType(formatDesc);
-//         OSType mediaSubType = CMFormatDescriptionGetMediaSubType(formatDesc);
-//         NSLog(@"[LC] 🔍 DEBUG: Media type: %c%c%c%c, subtype: %c%c%c%c", 
-//               (mediaType >> 24) & 0xFF, (mediaType >> 16) & 0xFF, 
-//               (mediaType >> 8) & 0xFF, mediaType & 0xFF,
-//               (mediaSubType >> 24) & 0xFF, (mediaSubType >> 16) & 0xFF, 
-//               (mediaSubType >> 8) & 0xFF, mediaSubType & 0xFF);
-//     }
-    
-//     initializePhotoCacheQueue();
-    
-//     dispatch_async(photoCacheQueue, ^{
-//         @autoreleasepool {
-//             // DEFENSIVE: Clean up old cached data safely
-//             if (g_cachedPhotoPixelBuffer) {
-//                 CVPixelBufferRelease(g_cachedPhotoPixelBuffer);
-//                 g_cachedPhotoPixelBuffer = NULL;
-//             }
-//             if (g_cachedPhotoCGImage) {
-//                 CGImageRelease(g_cachedPhotoCGImage);
-//                 g_cachedPhotoCGImage = NULL;
-//             }
-//             g_cachedPhotoJPEGData = nil;
-            
-//             // Cache new data with defensive checks
-//             CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-//             NSLog(@"[LC] 🔍 DEBUG: CMSampleBufferGetImageBuffer returned: %p", imageBuffer);
-            
-//             if (!imageBuffer) {
-//                 NSLog(@"[LC] ⚠️ No image buffer in sample buffer");
-                
-//                 // CRITICAL: Try alternative extraction methods
-//                 NSLog(@"[LC] 🔍 DEBUG: Trying alternative extraction methods...");
-                
-//                 // Method 1: Try to get as CVPixelBuffer directly
-//                 CVPixelBufferRef pixelBuffer = NULL;
-//                 CMBlockBufferRef blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer);
-//                 NSLog(@"[LC] 🔍 DEBUG: Block buffer: %p", blockBuffer);
-                
-//                 // Method 2: Try to recreate the sample buffer
-//                 NSLog(@"[LC] 🔍 DEBUG: Attempting to recreate sample buffer from original data...");
-//                 CMSampleBufferRef newSampleBuffer = createSpoofedSampleBuffer();
-//                 if (newSampleBuffer) {
-//                     CVImageBufferRef newImageBuffer = CMSampleBufferGetImageBuffer(newSampleBuffer);
-//                     NSLog(@"[LC] 🔍 DEBUG: New sample buffer image buffer: %p", newImageBuffer);
-                    
-//                     if (newImageBuffer) {
-//                         // Use the new image buffer
-//                         imageBuffer = newImageBuffer;
-//                         CVPixelBufferRetain(imageBuffer); // Retain since we'll use it
-//                         NSLog(@"[LC] ✅ DEBUG: Successfully extracted image buffer from recreated sample buffer");
-//                     }
-//                     CFRelease(newSampleBuffer);
-//                 }
-                
-//                 if (!imageBuffer) {
-//                     NSLog(@"[LC] ❌ DEBUG: All extraction methods failed");
-//                     return;
-//                 }
-//             }
-            
-//             g_cachedPhotoPixelBuffer = CVPixelBufferRetain(imageBuffer);
-            
-//             // DEFENSIVE: Create CGImage with error checking
-//             @try {
-//                 CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
-//                 if (ciImage) {
-//                     CIContext *context = [CIContext context];
-//                     if (context) {
-//                         g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
-                        
-//                         if (g_cachedPhotoCGImage) {
-//                             // DEFENSIVE: Get device orientation safely
-//                             __block UIDeviceOrientation deviceOrientation = UIDeviceOrientationUnknown;
-                            
-//                             dispatch_sync(dispatch_get_main_queue(), ^{
-//                                 deviceOrientation = [[UIDevice currentDevice] orientation];
-//                             });
-                            
-//                             UIImageOrientation imageOrientation = UIImageOrientationUp; // Safe default
-                            
-//                             // Map device orientation safely
-//                             switch (deviceOrientation) {
-//                                 case UIDeviceOrientationPortrait:
-//                                     imageOrientation = UIImageOrientationRight;
-//                                     break;
-//                                 case UIDeviceOrientationPortraitUpsideDown:
-//                                     imageOrientation = UIImageOrientationLeft;
-//                                     break;
-//                                 case UIDeviceOrientationLandscapeLeft:
-//                                     imageOrientation = UIImageOrientationUp;
-//                                     break;
-//                                 case UIDeviceOrientationLandscapeRight:
-//                                     imageOrientation = UIImageOrientationDown;
-//                                     break;
-//                                 default:
-//                                     imageOrientation = UIImageOrientationUp; // Safe fallback
-//                                     break;
-//                             }
-                            
-//                             UIImage *image = [UIImage imageWithCGImage:g_cachedPhotoCGImage 
-//                                                                  scale:1.0 
-//                                                            orientation:imageOrientation];
-                            
-//                             if (image) {
-//                                 g_cachedPhotoJPEGData = UIImageJPEGRepresentation(image, 0.9);
-//                                 NSLog(@"[LC] 📷 Photo cached safely: %lu bytes", (unsigned long)g_cachedPhotoJPEGData.length);
-//                             }
-//                         }
-//                     }
-//                 }
-//             } @catch (NSException *exception) {
-//                 NSLog(@"[LC] ❌ Exception in photo caching: %@", exception);
-//                 // Clean up on error
-//                 if (g_cachedPhotoPixelBuffer) {
-//                     CVPixelBufferRelease(g_cachedPhotoPixelBuffer);
-//                     g_cachedPhotoPixelBuffer = NULL;
-//                 }
-//                 if (g_cachedPhotoCGImage) {
-//                     CGImageRelease(g_cachedPhotoCGImage);
-//                     g_cachedPhotoCGImage = NULL;
-//                 }
-//                 g_cachedPhotoJPEGData = nil;
-//             }
-//         }
-//     });
-// }
-
 static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
-    NSLog(@"[LC] 🔍 DEBUG: cachePhotoDataFromSampleBuffer called - skipping problematic extraction");
+    NSLog(@"[LC] 📷 Instagram photo caching with orientation fix");
     
     initializePhotoCacheQueue();
     
     dispatch_async(photoCacheQueue, ^{
         @autoreleasepool {
-            // DEFENSIVE: Clean up old cached data safely
+            // Clean up old cached data
             if (g_cachedPhotoPixelBuffer) {
                 CVPixelBufferRelease(g_cachedPhotoPixelBuffer);
                 g_cachedPhotoPixelBuffer = NULL;
@@ -1328,17 +1114,14 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
             }
             g_cachedPhotoJPEGData = nil;
             
-            // BYPASS THE PROBLEMATIC EXTRACTION - Always recreate
-            NSLog(@"[LC] 🔄 Creating fresh sample buffer for photo caching");
+            // Create fresh sample buffer
             CMSampleBufferRef freshSampleBuffer = createSpoofedSampleBuffer();
             if (freshSampleBuffer) {
                 CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(freshSampleBuffer);
-                NSLog(@"[LC] 🔍 DEBUG: Fresh sample buffer image buffer: %p", imageBuffer);
                 
                 if (imageBuffer) {
                     g_cachedPhotoPixelBuffer = CVPixelBufferRetain(imageBuffer);
                     
-                    // DEFENSIVE: Create CGImage with error checking
                     @try {
                         CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
                         if (ciImage) {
@@ -1347,31 +1130,33 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
                                 g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
                                 
                                 if (g_cachedPhotoCGImage) {
-                                    // DEFENSIVE: Get device orientation safely
-                                    __block UIDeviceOrientation deviceOrientation = UIDeviceOrientationUnknown;
+                                    // CRITICAL: Fix Instagram orientation
+                                    __block UIDeviceOrientation deviceOrientation = UIDeviceOrientationPortrait;
                                     
                                     dispatch_sync(dispatch_get_main_queue(), ^{
                                         deviceOrientation = [[UIDevice currentDevice] orientation];
                                     });
                                     
-                                    UIImageOrientation imageOrientation = UIImageOrientationUp; // Safe default
+                                    // IMPROVEMENT: Instagram-specific orientation mapping
+                                    UIImageOrientation imageOrientation = UIImageOrientationUp; // Default
                                     
-                                    // Map device orientation safely
+                                    // For Instagram, handle front camera differently
+                                    // Front camera images often need different orientation handling
                                     switch (deviceOrientation) {
                                         case UIDeviceOrientationPortrait:
-                                            imageOrientation = UIImageOrientationRight;
+                                            imageOrientation = UIImageOrientationUp; // Changed from Right
                                             break;
                                         case UIDeviceOrientationPortraitUpsideDown:
-                                            imageOrientation = UIImageOrientationLeft;
+                                            imageOrientation = UIImageOrientationDown; // Changed from Left
                                             break;
                                         case UIDeviceOrientationLandscapeLeft:
-                                            imageOrientation = UIImageOrientationUp;
+                                            imageOrientation = UIImageOrientationLeft; // Changed from Up
                                             break;
                                         case UIDeviceOrientationLandscapeRight:
-                                            imageOrientation = UIImageOrientationDown;
+                                            imageOrientation = UIImageOrientationRight; // Changed from Down
                                             break;
                                         default:
-                                            imageOrientation = UIImageOrientationUp; // Safe fallback
+                                            imageOrientation = UIImageOrientationUp;
                                             break;
                                     }
                                     
@@ -1380,14 +1165,15 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
                                                                    orientation:imageOrientation];
                                     
                                     if (image) {
-                                        g_cachedPhotoJPEGData = UIImageJPEGRepresentation(image, 0.9);
-                                        NSLog(@"[LC] ✅ Photo cached successfully via fresh buffer: %lu bytes", (unsigned long)g_cachedPhotoJPEGData.length);
+                                        g_cachedPhotoJPEGData = UIImageJPEGRepresentation(image, 0.95); // Higher quality
+                                        NSLog(@"[LC] ✅ Instagram photo cached: %lu bytes, orientation: %ld", 
+                                              (unsigned long)g_cachedPhotoJPEGData.length, (long)imageOrientation);
                                     }
                                 }
                             }
                         }
                     } @catch (NSException *exception) {
-                        NSLog(@"[LC] ❌ Exception in fresh photo caching: %@", exception);
+                        NSLog(@"[LC] ❌ Exception in Instagram photo caching: %@", exception);
                         // Clean up on error
                         if (g_cachedPhotoPixelBuffer) {
                             CVPixelBufferRelease(g_cachedPhotoPixelBuffer);
@@ -1399,12 +1185,8 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
                         }
                         g_cachedPhotoJPEGData = nil;
                     }
-                } else {
-                    NSLog(@"[LC] ❌ Even fresh sample buffer has no image buffer!");
                 }
                 CFRelease(freshSampleBuffer);
-            } else {
-                NSLog(@"[LC] ❌ Failed to create fresh sample buffer for photo caching");
             }
         }
     });
