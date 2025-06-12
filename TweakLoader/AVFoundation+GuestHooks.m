@@ -1801,45 +1801,43 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
         [self lc_setSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue];
     }
 }
-// old
-// - (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue {
-//     if (spoofCameraEnabled && sampleBufferDelegate) {
-//         NSLog(@"[LC] 📹 L5: Hooking video data output delegate with format detection");
-        
-//         // IMPROVEMENT: Detect preferred format from output settings
-//         NSDictionary *videoSettings = self.videoSettings;
-//         if (videoSettings) {
-//             NSNumber *formatNum = videoSettings[(NSString*)kCVPixelBufferPixelFormatTypeKey];
-//             if (formatNum) {
-//                 lastRequestedFormat = [formatNum unsignedIntValue];
-//                 NSLog(@"[LC] 📐 Output requests format: %c%c%c%c", 
-//                       (lastRequestedFormat >> 24) & 0xFF, (lastRequestedFormat >> 16) & 0xFF, 
-//                       (lastRequestedFormat >> 8) & 0xFF, lastRequestedFormat & 0xFF);
-//             }
-//         }
-        
-//         SimpleSpoofDelegate *wrapper = [[SimpleSpoofDelegate alloc] initWithDelegate:sampleBufferDelegate output:self];
-//         objc_setAssociatedObject(self, @selector(lc_setSampleBufferDelegate:queue:), wrapper, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-//         [self lc_setSampleBufferDelegate:wrapper queue:sampleBufferCallbackQueue];
-//     } else {
-//         objc_setAssociatedObject(self, @selector(lc_setSampleBufferDelegate:queue:), nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-//         [self lc_setSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue];
-//     }
-// }
+@end
 
+@implementation AVAssetWriter(LiveContainerSpoof)
 
-// @implementation AVCaptureVideoDataOutput(LiveContainerSpoof)
-// - (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue {
-//     if (spoofCameraEnabled && sampleBufferDelegate) {
-//         NSLog(@"[LC] 📹 L5: Using GetFrame pattern for video output");
-//         GetFrameDelegate *wrapper = [[GetFrameDelegate alloc] initWithDelegate:sampleBufferDelegate output:self];
-//         objc_setAssociatedObject(self, @selector(lc_setSampleBufferDelegate:queue:), wrapper, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-//         [self lc_setSampleBufferDelegate:wrapper queue:sampleBufferCallbackQueue];
-//     } else {
-//         [self lc_setSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue];
-//     }
-// }
-// 
+- (instancetype)lc_initWithURL:(NSURL *)outputURL fileType:(AVFileType)outputFileType error:(NSError **)outError {
+    NSLog(@"[LC] 🎬 DIAGNOSTIC: AVAssetWriter init - URL: %@, type: %@", outputURL.lastPathComponent, outputFileType);
+    
+    if ([outputURL.pathExtension.lowercaseString isEqualToString:@"mp4"] || 
+        [outputURL.pathExtension.lowercaseString isEqualToString:@"mov"]) {
+        NSLog(@"[LC] 🎯 DIAGNOSTIC: Video file creation detected via AVAssetWriter!");
+    }
+    
+    return [self lc_initWithURL:outputURL fileType:outputFileType error:outError];
+}
+
+- (BOOL)lc_startWriting {
+    NSLog(@"[LC] 🎬 DIAGNOSTIC: AVAssetWriter startWriting called");
+    return [self lc_startWriting];
+}
+
+- (BOOL)lc_finishWriting {
+    NSLog(@"[LC] 🎬 DIAGNOSTIC: AVAssetWriter finishWriting called");
+    return [self lc_finishWriting];
+}
+
+@end
+
+@implementation NSFileManager(LiveContainerSpoof)
+
+- (BOOL)lc_createFileAtPath:(NSString *)path contents:(NSData *)data attributes:(NSDictionary<NSFileAttributeKey, id> *)attr {
+    if ([path.pathExtension.lowercaseString isEqualToString:@"mp4"] || 
+        [path.pathExtension.lowercaseString isEqualToString:@"mov"]) {
+        NSLog(@"[LC] 🎬 DIAGNOSTIC: Video file creation at path: %@", path.lastPathComponent);
+    }
+    
+    return [self lc_createFileAtPath:path contents:data attributes:attr];
+}
 
 @end
 
@@ -2386,11 +2384,13 @@ void AVFoundationGuestHooksInit(void) {
                 @try {
                     swizzle([AVCaptureVideoDataOutput class], @selector(setSampleBufferDelegate:queue:), @selector(lc_setSampleBufferDelegate:queue:));
                     swizzle([AVCapturePhotoOutput class], @selector(capturePhotoWithSettings:delegate:), @selector(lc_capturePhotoWithSettings:delegate:));
+                    
                     swizzle([AVCaptureMovieFileOutput class], @selector(startRecordingToOutputFileURL:recordingDelegate:), @selector(lc_startRecordingToOutputFileURL:recordingDelegate:));
                     swizzle([AVCaptureMovieFileOutput class], @selector(stopRecording), @selector(lc_stopRecording));
+                    
                     swizzle([AVCaptureVideoPreviewLayer class], @selector(setSession:), @selector(lc_setSession:));
                     
-                    // CRITICAL: Add legacy still image capture hook for older apps
+                    // Legacy still image capture hook for older apps
                     swizzle([AVCaptureStillImageOutput class], @selector(captureStillImageAsynchronouslyFromConnection:completionHandler:), @selector(lc_captureStillImageAsynchronouslyFromConnection:completionHandler:));
 
                     NSLog(@"[LC] ✅ Level 5 hooks installed");
@@ -2398,6 +2398,24 @@ void AVFoundationGuestHooksInit(void) {
                     NSLog(@"[LC] ❌ Level 5 hook error: %@", e);
                 }
                 
+                // DIAGNOSTIC: Hook AVAssetWriter (common alternative to MovieFileOutput)
+                @try {
+                    swizzle([AVAssetWriter class], @selector(initWithURL:fileType:error:), @selector(lc_initWithURL:fileType:error:));
+                    swizzle([AVAssetWriter class], @selector(startWriting), @selector(lc_startWriting));
+                    swizzle([AVAssetWriter class], @selector(finishWriting), @selector(lc_finishWriting));
+                    NSLog(@"[LC] ✅ L5: AVAssetWriter diagnostic hooks installed");
+                } @catch (NSException *e) {
+                    NSLog(@"[LC] ❌ AVAssetWriter hook error: %@", e);
+                }
+
+                // DIAGNOSTIC: Hook any video file creation
+                @try {
+                    swizzle([NSFileManager class], @selector(createFileAtPath:contents:attributes:), @selector(lc_createFileAtPath:contents:attributes:));
+                    NSLog(@"[LC] ✅ L5: File creation diagnostic hooks installed");
+                } @catch (NSException *e) {
+                    NSLog(@"[LC] ❌ File creation hook error: %@", e);
+                }
+
                 // LEVEL 6: Photo Accessor Level (with error handling)
                 @try {
                     Method pixelBufferMethod = class_getInstanceMethod([AVCapturePhoto class], @selector(pixelBuffer));
