@@ -1986,17 +1986,42 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
                 NSLog(@"[LC] ❌ L5: Exception during video spoofing: %@", exception);
             }
             
-            // Fallback to original recording
+            // FIXED: Call the ORIGINAL method without recursion
             NSLog(@"[LC] ⚠️ L5: Falling back to original recording");
             dispatch_async(dispatch_get_main_queue(), ^{
-                [self lc_startRecordingToOutputFileURL:outputFileURL recordingDelegate:delegate];
+                // Get the original implementation
+                Method originalMethod = class_getInstanceMethod([AVCaptureMovieFileOutput class], @selector(startRecordingToOutputFileURL:recordingDelegate:));
+                IMP originalIMP = method_getImplementation(originalMethod);
+                
+                // Call original implementation directly
+                void (*originalFunc)(id, SEL, NSURL *, id) = (void (*)(id, SEL, NSURL *, id))originalIMP;
+                originalFunc(self, @selector(startRecordingToOutputFileURL:recordingDelegate:), outputFileURL, delegate);
             });
         });
     } else {
         NSLog(@"[LC] 🎬 L5: Spoofing disabled - using original recording");
-        [self lc_startRecordingToOutputFileURL:outputFileURL recordingDelegate:delegate];
+        
+        // Get and call original implementation directly
+        Method originalMethod = class_getInstanceMethod([AVCaptureMovieFileOutput class], @selector(startRecordingToOutputFileURL:recordingDelegate:));
+        IMP originalIMP = method_getImplementation(originalMethod);
+        void (*originalFunc)(id, SEL, NSURL *, id) = (void (*)(id, SEL, NSURL *, id))originalIMP;
+        originalFunc(self, @selector(startRecordingToOutputFileURL:recordingDelegate:), outputFileURL, delegate);
     }
 }
+
+- (void)lc_stopRecording {
+    NSLog(@"[LC] 🎬 L5: MovieFileOutput stopRecording intercepted");
+    
+    if (spoofCameraEnabled) {
+        NSLog(@"[LC] 🎬 L5: Spoofed recording stop - no action needed");
+        // For spoofed recordings, we already "finished" when we copied the file
+        return;
+    }
+    
+    // Call original stop recording
+    [self lc_stopRecording];
+}
+
 @end
 
 @implementation AVCaptureVideoPreviewLayer(LiveContainerSpoof)
@@ -2362,6 +2387,7 @@ void AVFoundationGuestHooksInit(void) {
                     swizzle([AVCaptureVideoDataOutput class], @selector(setSampleBufferDelegate:queue:), @selector(lc_setSampleBufferDelegate:queue:));
                     swizzle([AVCapturePhotoOutput class], @selector(capturePhotoWithSettings:delegate:), @selector(lc_capturePhotoWithSettings:delegate:));
                     swizzle([AVCaptureMovieFileOutput class], @selector(startRecordingToOutputFileURL:recordingDelegate:), @selector(lc_startRecordingToOutputFileURL:recordingDelegate:));
+                    swizzle([AVCaptureMovieFileOutput class], @selector(stopRecording), @selector(lc_stopRecording));
                     swizzle([AVCaptureVideoPreviewLayer class], @selector(setSession:), @selector(lc_setSession:));
                     
                     // CRITICAL: Add legacy still image capture hook for older apps
