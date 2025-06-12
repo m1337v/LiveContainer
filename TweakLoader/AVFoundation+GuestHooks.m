@@ -1253,6 +1253,19 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
     [self lc_addOutput:output];
 }
 
+- (void)lc_setSessionPreset:(AVCaptureSessionPreset)sessionPreset {
+    if (spoofCameraEnabled) {
+        NSLog(@"[LC] 📐 L4: Session preset change: %@", sessionPreset);
+        // Track format preferences from preset
+        if ([sessionPreset isEqualToString:AVCaptureSessionPresetPhoto]) {
+            lastRequestedFormat = kCVPixelFormatType_32BGRA;
+        } else if ([sessionPreset isEqualToString:AVCaptureSessionPresetHigh]) {
+            lastRequestedFormat = 875704422; // '420v'
+        }
+    }
+    [self lc_setSessionPreset:sessionPreset];
+}
+
 - (void)lc_startRunning {
     if (spoofCameraEnabled) {
         NSLog(@"[LC] 🎥 L4: Session starting - checking for camera inputs");
@@ -1671,11 +1684,13 @@ void AVFoundationGuestHooksInit(void) {
             NSLog(@"[LC] Installing hierarchical hooks...");
             
             // LEVEL 1: Core Video (commented out - requires MSHookFunction)
+            // #ifdef SUBSTRATE_AVAILABLE
             // MSHookFunction(CVPixelBufferCreate, hook_CVPixelBufferCreate, (void**)&original_CVPixelBufferCreate);
+            // #endif
             
             // LEVEL 2: Device Level
-            // swizzle([AVCaptureDevice class], @selector(devicesWithMediaType:), @selector(lc_devicesWithMediaType:));
-            // swizzle([AVCaptureDevice class], @selector(defaultDeviceWithMediaType:), @selector(lc_defaultDeviceWithMediaType:));
+            swizzle([AVCaptureDevice class], @selector(devicesWithMediaType:), @selector(lc_devicesWithMediaType:));
+            swizzle([AVCaptureDevice class], @selector(defaultDeviceWithMediaType:), @selector(lc_defaultDeviceWithMediaType:));
             
             // LEVEL 3: Device Input Level  
             swizzle([AVCaptureDeviceInput class], @selector(deviceInputWithDevice:error:), @selector(lc_deviceInputWithDevice:error:));
@@ -1684,7 +1699,9 @@ void AVFoundationGuestHooksInit(void) {
             swizzle([AVCaptureSession class], @selector(addInput:), @selector(lc_addInput:));
             swizzle([AVCaptureSession class], @selector(addOutput:), @selector(lc_addOutput:));
             swizzle([AVCaptureSession class], @selector(startRunning), @selector(lc_startRunning));
-            
+            swizzle([AVCaptureSession class], @selector(setSessionPreset:), @selector(lc_setSessionPreset:));
+            swizzle([AVCaptureSession class], @selector(stopRunning), @selector(lc_stopRunning:));
+
             // LEVEL 5: Output Level
             swizzle([AVCaptureVideoDataOutput class], @selector(setSampleBufferDelegate:queue:), @selector(lc_setSampleBufferDelegate:queue:));
             swizzle([AVCapturePhotoOutput class], @selector(capturePhotoWithSettings:delegate:), @selector(lc_capturePhotoWithSettings:delegate:));
@@ -1714,6 +1731,8 @@ void AVFoundationGuestHooksInit(void) {
             }
             
             NSLog(@"[LC] ✅ All hooks installed successfully");
+
+            // [self installDelegateProtocolHooks];
         });
         
         if (spoofCameraEnabled) {
