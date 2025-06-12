@@ -647,7 +647,7 @@ struct LCAppSettingsView : View{
                     }
                 }
             } header: {
-                Text("Camera Spoofing")
+                Text("Camera Settings")
             } footer: {
                 if model.uiSpoofCamera {
                     switch model.uiSpoofCameraMode {
