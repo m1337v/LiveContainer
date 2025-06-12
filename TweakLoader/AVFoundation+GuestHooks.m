@@ -1941,11 +1941,61 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 
 @implementation AVCaptureMovieFileOutput(LiveContainerSpoof)
 - (void)lc_startRecordingToOutputFileURL:(NSURL *)outputFileURL recordingDelegate:(id<AVCaptureFileOutputRecordingDelegate>)delegate {
+    NSLog(@"[LC] 🎬 L5: CRITICAL - MovieFileOutput recording intercepted: %@", NSStringFromClass([self class]));
+    
     if (spoofCameraEnabled) {
-        NSLog(@"[LC] 🎬 L5: Intercepting video recording to: %@", outputFileURL);
-        // TODO: Create spoofed video file instead of recording real camera
+        NSLog(@"[LC] 🎬 L5: Creating spoofed video file for: %@", outputFileURL.lastPathComponent);
+        
+        // Create a spoofed video file in the background
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+            @try {
+                // Copy our spoof video to the requested output location
+                NSError *error = nil;
+                if (spoofCameraVideoPath && [[NSFileManager defaultManager] fileExistsAtPath:spoofCameraVideoPath]) {
+                    NSLog(@"[LC] 🎬 L5: Copying spoof video to output location");
+                    
+                    // Remove existing file if it exists
+                    if ([[NSFileManager defaultManager] fileExistsAtPath:outputFileURL.path]) {
+                        [[NSFileManager defaultManager] removeItemAtURL:outputFileURL error:nil];
+                    }
+                    
+                    BOOL success = [[NSFileManager defaultManager] copyItemAtPath:spoofCameraVideoPath 
+                                                                           toPath:outputFileURL.path 
+                                                                            error:&error];
+                    if (success) {
+                        NSLog(@"[LC] ✅ L5: Spoofed video file created successfully");
+                        
+                        // Notify delegate of "successful" recording
+                        dispatch_async(dispatch_get_main_queue(), ^{
+                            if (delegate && [delegate respondsToSelector:@selector(captureOutput:didFinishRecordingToOutputFileAtURL:fromConnections:error:)]) {
+                                [delegate captureOutput:self 
+                                 didFinishRecordingToOutputFileAtURL:outputFileURL 
+                                                     fromConnections:@[] 
+                                                               error:nil];
+                                NSLog(@"[LC] ✅ L5: Delegate notified of spoofed recording completion");
+                            }
+                        });
+                        return;
+                    } else {
+                        NSLog(@"[LC] ❌ L5: Failed to copy spoof video: %@", error);
+                    }
+                } else {
+                    NSLog(@"[LC] ❌ L5: No spoof video available at: %@", spoofCameraVideoPath);
+                }
+            } @catch (NSException *exception) {
+                NSLog(@"[LC] ❌ L5: Exception during video spoofing: %@", exception);
+            }
+            
+            // Fallback to original recording
+            NSLog(@"[LC] ⚠️ L5: Falling back to original recording");
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self lc_startRecordingToOutputFileURL:outputFileURL recordingDelegate:delegate];
+            });
+        });
+    } else {
+        NSLog(@"[LC] 🎬 L5: Spoofing disabled - using original recording");
+        [self lc_startRecordingToOutputFileURL:outputFileURL recordingDelegate:delegate];
     }
-    [self lc_startRecordingToOutputFileURL:outputFileURL recordingDelegate:delegate];
 }
 @end
 
