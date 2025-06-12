@@ -91,6 +91,7 @@ NSData *hook_AVCapturePhoto_fileDataRepresentation(id self, SEL _cmd);
 // Pixel buffer utilities
 static CIContext *sharedCIContext = nil;
 
+// Replace the createScaledPixelBuffer function with this improved version:
 static CVPixelBufferRef createScaledPixelBuffer(CVPixelBufferRef sourceBuffer, CGSize scaleToSize) {
     if (!sourceBuffer) return NULL;
 
@@ -98,7 +99,19 @@ static CVPixelBufferRef createScaledPixelBuffer(CVPixelBufferRef sourceBuffer, C
     size_t sourceHeight = CVPixelBufferGetHeight(sourceBuffer);
     OSType sourceFormat = CVPixelBufferGetPixelFormatType(sourceBuffer);
 
-    if (sourceWidth == (size_t)scaleToSize.width && sourceHeight == (size_t)scaleToSize.height && sourceFormat == kCVPixelFormatType_32BGRA) {
+    // CRITICAL: Match the target format to what was requested
+    OSType targetFormat = kCVPixelFormatType_32BGRA; // Default
+    if (lastRequestedFormat != 0) {
+        targetFormat = lastRequestedFormat;
+        NSLog(@"[LC] 🎯 Creating buffer in requested format: %c%c%c%c", 
+              (targetFormat >> 24) & 0xFF, (targetFormat >> 16) & 0xFF, 
+              (targetFormat >> 8) & 0xFF, targetFormat & 0xFF);
+    }
+
+    // If source already matches target size and format, return as-is
+    if (sourceWidth == (size_t)scaleToSize.width && 
+        sourceHeight == (size_t)scaleToSize.height && 
+        sourceFormat == targetFormat) {
         CVPixelBufferRetain(sourceBuffer);
         return sourceBuffer;
     }
@@ -110,14 +123,17 @@ static CVPixelBufferRef createScaledPixelBuffer(CVPixelBufferRef sourceBuffer, C
         (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
     };
 
+    // IMPROVEMENT: Create buffer in the requested format, not always BGRA
     CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
                                           (size_t)scaleToSize.width,
                                           (size_t)scaleToSize.height,
-                                          kCVPixelFormatType_32BGRA,
+                                          targetFormat, // Use requested format!
                                           (__bridge CFDictionaryRef)pixelAttributes,
                                           &scaledPixelBuffer);
     if (status != kCVReturnSuccess || !scaledPixelBuffer) {
-        NSLog(@"[LC] Error creating scaled pixel buffer: %d", status);
+        NSLog(@"[LC] Error creating scaled pixel buffer with format %c%c%c%c: %d", 
+              (targetFormat >> 24) & 0xFF, (targetFormat >> 16) & 0xFF, 
+              (targetFormat >> 8) & 0xFF, targetFormat & 0xFF, status);
         return NULL;
     }
 
@@ -140,6 +156,7 @@ static CVPixelBufferRef createScaledPixelBuffer(CVPixelBufferRef sourceBuffer, C
         ciImage = [ciImage imageByApplyingTransform:CGAffineTransformMakeTranslation(-extent.origin.x, -extent.origin.y)];
     }
 
+    // CRITICAL: Render to the target format buffer
     [sharedCIContext render:ciImage toCVPixelBuffer:scaledPixelBuffer];
     return scaledPixelBuffer;
 }
@@ -166,6 +183,25 @@ static void updateLastGoodSpoofedFrame(CVPixelBufferRef newPixelBuffer, CMVideoF
 
 // pragma MARK: - Frame Generation Logic
 
+static BOOL isValidPixelFormat(OSType format) {
+    switch (format) {
+        case kCVPixelFormatType_32BGRA:
+            return YES;
+        case 875704422: // '420v' - YUV 4:2:0 video range
+            return YES;
+        case 875704438: // '420f' - YUV 4:2:0 full range  
+            return YES;
+        // NOTE: Don't use the constants as they have the same values as the literals above
+        // case kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange: // Same as 875704438
+        // case kCVPixelFormatType_420YpCbCr8BiPlanarFullRange:  // Same as 875704422
+        default:
+            NSLog(@"[LC] ⚠️ Unknown pixel format: %c%c%c%c (%u)", 
+                  (format >> 24) & 0xFF, (format >> 16) & 0xFF, 
+                  (format >> 8) & 0xFF, format & 0xFF, (unsigned int)format);
+            return NO;
+    }
+}
+
 static CMSampleBufferRef createSpoofedSampleBuffer() {
     // Get desired format from current context if available
     OSType preferredFormat = kCVPixelFormatType_32BGRA; // Default
@@ -184,19 +220,31 @@ static CMSampleBufferRef createSpoofedSampleBuffer() {
         
         CMTime playerTime = [videoSpoofPlayer.currentItem currentTime];
         
-        // IMPROVEMENT: Choose best output based on preferred format (like CaptureJailed)
+        // IMPROVEMENT: Better format matching with fallback
         AVPlayerItemVideoOutput *bestOutput = videoSpoofPlayerOutput; // Default BGRA
         NSString *formatName = @"BGRA";
         
-        if (preferredFormat == 875704422) { // '420v'
-            if (yuvOutput1 && [yuvOutput1 hasNewPixelBufferForItemTime:playerTime]) {
+        // Try to match exact format first
+        if (preferredFormat == 875704422 && yuvOutput1) { // '420v'
+            if ([yuvOutput1 hasNewPixelBufferForItemTime:playerTime]) {
                 bestOutput = yuvOutput1;
                 formatName = @"420v";
             }
-        } else if (preferredFormat == 875704438) { // '420f'
-            if (yuvOutput2 && [yuvOutput2 hasNewPixelBufferForItemTime:playerTime]) {
+        } else if (preferredFormat == 875704438 && yuvOutput2) { // '420f'
+            if ([yuvOutput2 hasNewPixelBufferForItemTime:playerTime]) {
                 bestOutput = yuvOutput2;
                 formatName = @"420f";
+            }
+        }
+        
+        // Fallback: Try any available output if exact format isn't available
+        if (bestOutput == videoSpoofPlayerOutput && ![bestOutput hasNewPixelBufferForItemTime:playerTime]) {
+            if (yuvOutput1 && [yuvOutput1 hasNewPixelBufferForItemTime:playerTime]) {
+                bestOutput = yuvOutput1;
+                formatName = @"420v-fallback";
+            } else if (yuvOutput2 && [yuvOutput2 hasNewPixelBufferForItemTime:playerTime]) {
+                bestOutput = yuvOutput2;
+                formatName = @"420f-fallback";
             }
         }
         
@@ -204,10 +252,10 @@ static CMSampleBufferRef createSpoofedSampleBuffer() {
             sourcePixelBuffer = [bestOutput copyPixelBufferForItemTime:playerTime itemTimeForDisplay:NULL];
             if (sourcePixelBuffer) {
                 ownSourcePixelBuffer = YES;
-                NSLog(@"[LC] Using format-matched video output: %@ for requested format: %c%c%c%c", 
-                      formatName,
-                      (preferredFormat >> 24) & 0xFF, (preferredFormat >> 16) & 0xFF, 
-                      (preferredFormat >> 8) & 0xFF, preferredFormat & 0xFF);
+                NSLog(@"[LC] Using video output: %@ for requested format: %c%c%c%c", 
+                    formatName,
+                    (preferredFormat >> 24) & 0xFF, (preferredFormat >> 16) & 0xFF, 
+                    (preferredFormat >> 8) & 0xFF, preferredFormat & 0xFF);
             }
         }
     }
@@ -506,8 +554,17 @@ static void setupVideoSpoofingResources() {
 
 @interface GetFrame : NSObject
 + (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originalFrame preserveOrientation:(BOOL)preserve;
++ (CVPixelBufferRef)getCurrentFramePixelBuffer:(OSType)requestedFormat;
++ (void)setCurrentVideoPath:(NSString *)path;
 + (UIWindow *)getKeyWindow;
 @end
+
+// Static variables
+static NSString *currentVideoPath = nil;
+static AVPlayer *frameExtractionPlayer = nil;
+static AVPlayerItemVideoOutput *bgraOutput = nil;
+static AVPlayerItemVideoOutput *yuv420vOutput = nil;
+static AVPlayerItemVideoOutput *yuv420fOutput = nil;
 
 @implementation GetFrame
 
@@ -516,25 +573,237 @@ static void setupVideoSpoofingResources() {
         return originalFrame; // Pass through when disabled
     }
     
-    // Get spoofed frame
-    CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
-    if (!spoofedFrame) {
-        return originalFrame; // Fallback to original
+    if (!frameExtractionPlayer || !frameExtractionPlayer.currentItem) {
+        NSLog(@"[GetFrame] No player available, using fallback");
+        return createSpoofedSampleBuffer(); // Use your existing fallback
     }
     
-    if (preserve) {
-        // Return spoofed frame with ORIGINAL orientation context
-        // This is key for photo capture where orientation must be preserved
-        return spoofedFrame;
-    } else {
-        // Return spoofed frame with orientation processing
-        // This might be for preview layers where transform is expected
-        return spoofedFrame;
+    CMTime currentTime = [frameExtractionPlayer.currentItem currentTime];
+    
+    // CRITICAL: CaptureJailed's format detection from originalFrame
+    CMFormatDescriptionRef formatDesc = CMSampleBufferGetFormatDescription(originalFrame);
+    OSType requestedFormat = CMFormatDescriptionGetMediaSubType(formatDesc);
+    
+    NSLog(@"[GetFrame] Processing format: %c%c%c%c", 
+          (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
+          (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF);
+    
+    // CRITICAL: CaptureJailed's exact format selection algorithm
+    AVPlayerItemVideoOutput *selectedOutput = bgraOutput; // Default
+    NSString *outputType = @"BGRA-default";
+    
+    switch (requestedFormat) {
+        case 875704422: // '420v' - exactly from CaptureJailed
+            if (yuv420vOutput && [yuv420vOutput hasNewPixelBufferForItemTime:currentTime]) {
+                selectedOutput = yuv420vOutput;
+                outputType = @"420v-direct";
+            } else if (bgraOutput && [bgraOutput hasNewPixelBufferForItemTime:currentTime]) {
+                selectedOutput = bgraOutput;
+                outputType = @"BGRA-fallback-from-420v";
+            }
+            break;
+            
+        case 875704438: // '420f' - exactly from CaptureJailed
+            if (yuv420fOutput && [yuv420fOutput hasNewPixelBufferForItemTime:currentTime]) {
+                selectedOutput = yuv420fOutput;
+                outputType = @"420f-direct";
+            } else if (yuv420vOutput && [yuv420vOutput hasNewPixelBufferForItemTime:currentTime]) {
+                selectedOutput = yuv420vOutput;
+                outputType = @"420v-fallback-from-420f";
+            } else if (bgraOutput && [bgraOutput hasNewPixelBufferForItemTime:currentTime]) {
+                selectedOutput = bgraOutput;
+                outputType = @"BGRA-fallback-from-420f";
+            }
+            break;
+            
+        default: // BGRA or unknown
+            if (bgraOutput && [bgraOutput hasNewPixelBufferForItemTime:currentTime]) {
+                selectedOutput = bgraOutput;
+                outputType = @"BGRA-direct";
+            } else if (yuv420vOutput && [yuv420vOutput hasNewPixelBufferForItemTime:currentTime]) {
+                selectedOutput = yuv420vOutput;
+                outputType = @"420v-fallback-from-unknown";
+            }
+            break;
     }
+    
+    if (selectedOutput && [selectedOutput hasNewPixelBufferForItemTime:currentTime]) {
+        CVPixelBufferRef pixelBuffer = [selectedOutput copyPixelBufferForItemTime:currentTime itemTimeForDisplay:NULL];
+        
+        if (pixelBuffer) {
+            // CRITICAL: Create sample buffer with SAME timing as original
+            CMSampleBufferRef newSampleBuffer = NULL;
+            CMVideoFormatDescriptionRef videoFormatDesc = NULL;
+            
+            OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(
+                kCFAllocatorDefault, pixelBuffer, &videoFormatDesc);
+            
+            if (status == noErr) {
+                // FIXED: Use correct type for timing count
+                CMSampleTimingInfo originalTiming;
+                CMItemCount timingCount = 0; // Changed from size_t to CMItemCount
+                CMSampleBufferGetSampleTimingInfoArray(originalFrame, 0, NULL, &timingCount);
+                
+                if (timingCount > 0) {
+                    CMSampleBufferGetSampleTimingInfoArray(originalFrame, 1, &originalTiming, &timingCount);
+                } else {
+                    // Fallback timing
+                    originalTiming = (CMSampleTimingInfo){
+                        .duration = CMTimeMake(1, 30),
+                        .presentationTimeStamp = currentTime,
+                        .decodeTimeStamp = kCMTimeInvalid
+                    };
+                }
+                
+                status = CMSampleBufferCreateReadyWithImageBuffer(
+                    kCFAllocatorDefault,
+                    pixelBuffer,
+                    videoFormatDesc,
+                    &originalTiming, // Use original timing!
+                    &newSampleBuffer
+                );
+                
+                if (videoFormatDesc) CFRelease(videoFormatDesc);
+            }
+            
+            OSType actualFormat = CVPixelBufferGetPixelFormatType(pixelBuffer);
+            NSLog(@"[GetFrame] ✅ Frame extracted via %@: req=%c%c%c%c → actual=%c%c%c%c", 
+                  outputType,
+                  (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
+                  (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF,
+                  (actualFormat >> 24) & 0xFF, (actualFormat >> 16) & 0xFF, 
+                  (actualFormat >> 8) & 0xFF, actualFormat & 0xFF);
+            
+            CVPixelBufferRelease(pixelBuffer);
+            return newSampleBuffer; // Return spoofed frame with original timing
+        }
+    }
+    
+    NSLog(@"[GetFrame] No spoofed frame available, using fallback");
+    return createSpoofedSampleBuffer(); // Use your existing fallback
+}
+
++ (CVPixelBufferRef)getCurrentFramePixelBuffer:(OSType)requestedFormat {
+    if (!spoofCameraEnabled) {
+        return NULL;
+    }
+    
+    if (!frameExtractionPlayer || !frameExtractionPlayer.currentItem) {
+        NSLog(@"[GetFrame] No player available for pixel buffer extraction");
+        return NULL;
+    }
+    
+    CMTime currentTime = [frameExtractionPlayer.currentItem currentTime];
+    
+    // Select output based on requested format
+    AVPlayerItemVideoOutput *selectedOutput = bgraOutput; // Default
+    
+    switch (requestedFormat) {
+        case 875704422: // '420v'
+            if (yuv420vOutput && [yuv420vOutput hasNewPixelBufferForItemTime:currentTime]) {
+                selectedOutput = yuv420vOutput;
+            }
+            break;
+        case 875704438: // '420f'
+            if (yuv420fOutput && [yuv420fOutput hasNewPixelBufferForItemTime:currentTime]) {
+                selectedOutput = yuv420fOutput;
+            }
+            break;
+        default: // BGRA
+            if (bgraOutput && [bgraOutput hasNewPixelBufferForItemTime:currentTime]) {
+                selectedOutput = bgraOutput;
+            }
+            break;
+    }
+    
+    if (selectedOutput && [selectedOutput hasNewPixelBufferForItemTime:currentTime]) {
+        CVPixelBufferRef pixelBuffer = [selectedOutput copyPixelBufferForItemTime:currentTime itemTimeForDisplay:NULL];
+        
+        if (pixelBuffer) {
+            OSType actualFormat = CVPixelBufferGetPixelFormatType(pixelBuffer);
+            NSLog(@"[GetFrame] Extracted pixel buffer: req=%c%c%c%c → actual=%c%c%c%c", 
+                  (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
+                  (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF,
+                  (actualFormat >> 24) & 0xFF, (actualFormat >> 16) & 0xFF, 
+                  (actualFormat >> 8) & 0xFF, actualFormat & 0xFF);
+        }
+        
+        return pixelBuffer; // Caller must release
+    }
+    
+    NSLog(@"[GetFrame] No pixel buffer available for format: %c%c%c%c", 
+          (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
+          (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF);
+    return NULL;
+}
+
++ (void)setCurrentVideoPath:(NSString *)path {
+    if ([path isEqualToString:currentVideoPath]) {
+        return; // Already set
+    }
+    
+    currentVideoPath = path;
+    [self setupPlayerWithPath:path];
+}
+
++ (void)setupPlayerWithPath:(NSString *)path {
+    // Clean up existing player like CaptureJailed
+    if (frameExtractionPlayer) {
+        [frameExtractionPlayer pause];
+        
+        // Remove old outputs like CaptureJailed does
+        if (frameExtractionPlayer.currentItem) {
+            if (bgraOutput) [frameExtractionPlayer.currentItem removeOutput:bgraOutput];
+            if (yuv420vOutput) [frameExtractionPlayer.currentItem removeOutput:yuv420vOutput];
+            if (yuv420fOutput) [frameExtractionPlayer.currentItem removeOutput:yuv420fOutput];
+        }
+        
+        frameExtractionPlayer = nil;
+        bgraOutput = nil;
+        yuv420vOutput = nil;
+        yuv420fOutput = nil;
+    }
+    
+    if (!path || path.length == 0) {
+        NSLog(@"[GetFrame] No video path provided");
+        return;
+    }
+    
+    NSURL *videoURL = [NSURL fileURLWithPath:path];
+    AVPlayerItem *item = [AVPlayerItem playerItemWithURL:videoURL];
+    frameExtractionPlayer = [AVPlayer playerWithPlayerItem:item];
+    
+    // CRITICAL: Create multiple format outputs exactly like CaptureJailed
+    NSDictionary *bgraAttributes = @{
+        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA),
+        (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
+    };
+    
+    NSDictionary *yuv420vAttributes = @{
+        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704422), // '420v'
+        (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
+    };
+    
+    NSDictionary *yuv420fAttributes = @{
+        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704438), // '420f'
+        (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
+    };
+    
+    bgraOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:bgraAttributes];
+    yuv420vOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420vAttributes];
+    yuv420fOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420fAttributes];
+    
+    [item addOutput:bgraOutput];
+    [item addOutput:yuv420vOutput];
+    [item addOutput:yuv420fOutput];
+    
+    [frameExtractionPlayer play];
+    
+    NSLog(@"[GetFrame] Video player setup complete with 3 outputs for: %@", path.lastPathComponent);
 }
 
 + (UIWindow *)getKeyWindow {
-    // Use modern UIWindowScene API for iOS 15+, fallback for older versions
+    // Use modern UIWindowScene API
     if (@available(iOS 15.0, *)) {
         NSSet<UIScene *> *connectedScenes = [UIApplication sharedApplication].connectedScenes;
         for (UIScene *scene in connectedScenes) {
@@ -547,31 +816,81 @@ static void setupVideoSpoofingResources() {
                 }
             }
         }
-        
-        // Fallback to first window if no key window found
-        for (UIScene *scene in connectedScenes) {
-            if ([scene isKindOfClass:[UIWindowScene class]]) {
-                UIWindowScene *windowScene = (UIWindowScene *)scene;
-                if (windowScene.windows.count > 0) {
-                    return windowScene.windows.firstObject;
-                }
-            }
-        }
         return nil;
     } else {
-        // iOS 14 and earlier
         #pragma clang diagnostic push
         #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-        NSArray *windows = [[UIApplication sharedApplication] windows];
-        for (UIWindow *window in windows) {
-            if (window.isKeyWindow) {
-                return window;
-            }
-        }
-        return windows.firstObject;
+        return [[UIApplication sharedApplication] keyWindow];
         #pragma clang diagnostic pop
     }
 }
+
+// old
+// + (UIWindow *)getKeyWindow {
+//     // Use modern UIWindowScene API for iOS 15+, fallback for older versions
+//     if (@available(iOS 15.0, *)) {
+//         NSSet<UIScene *> *connectedScenes = [UIApplication sharedApplication].connectedScenes;
+//         for (UIScene *scene in connectedScenes) {
+//             if ([scene isKindOfClass:[UIWindowScene class]]) {
+//                 UIWindowScene *windowScene = (UIWindowScene *)scene;
+//                 for (UIWindow *window in windowScene.windows) {
+//                     if (window.isKeyWindow) {
+//                         return window;
+//                     }
+//                 }
+//             }
+//         }
+        
+//         // Fallback to first window if no key window found
+//         for (UIScene *scene in connectedScenes) {
+//             if ([scene isKindOfClass:[UIWindowScene class]]) {
+//                 UIWindowScene *windowScene = (UIWindowScene *)scene;
+//                 if (windowScene.windows.count > 0) {
+//                     return windowScene.windows.firstObject;
+//                 }
+//             }
+//         }
+//         return nil;
+//     } else {
+//         // iOS 14 and earlier
+//         #pragma clang diagnostic push
+//         #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+//         NSArray *windows = [[UIApplication sharedApplication] windows];
+//         for (UIWindow *window in windows) {
+//             if (window.isKeyWindow) {
+//                 return window;
+//             }
+//         }
+//         return windows.firstObject;
+//         #pragma clang diagnostic pop
+//     }
+// }
+
+
+// old
+// + (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originalFrame preserveOrientation:(BOOL)preserve {
+//     if (!spoofCameraEnabled) {
+//         return originalFrame; // Pass through when disabled
+//     }
+    
+//     // Get spoofed frame
+//     CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
+//     if (!spoofedFrame) {
+//         return originalFrame; // Fallback to original
+//     }
+    
+//     if (preserve) {
+//         // Return spoofed frame with ORIGINAL orientation context
+//         // This is key for photo capture where orientation must be preserved
+//         return spoofedFrame;
+//     } else {
+//         // Return spoofed frame with orientation processing
+//         // This might be for preview layers where transform is expected
+//         return spoofedFrame;
+//     }
+// }
+
+
 
 @end
 
@@ -582,17 +901,33 @@ static void setupVideoSpoofingResources() {
 
 @implementation GetFrameDelegate
 
+// Update the SimpleSpoofDelegate to track formats from REAL frames too:
 - (void)captureOutput:(AVCaptureOutput *)output didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection {
-    if (spoofCameraEnabled) {
-        // Use GetFrame with preserve orientation = NO for video streams (preview)
-        CMSampleBufferRef processedFrame = [GetFrame getCurrentFrame:sampleBuffer preserveOrientation:NO];
-        if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-            [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:processedFrame fromConnection:connection];
+    // CRITICAL: Track format from REAL frames like CaptureJailed
+    if (sampleBuffer) {
+        CMFormatDescriptionRef formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer);
+        if (formatDesc) {
+            OSType mediaSubType = CMFormatDescriptionGetMediaSubType(formatDesc);
+            if (mediaSubType != lastRequestedFormat) {
+                lastRequestedFormat = mediaSubType;
+                NSLog(@"[LC] 📐 Format detected from real frame: %c%c%c%c", 
+                      (mediaSubType >> 24) & 0xFF, (mediaSubType >> 16) & 0xFF, 
+                      (mediaSubType >> 8) & 0xFF, mediaSubType & 0xFF);
+            }
         }
-        if (processedFrame != sampleBuffer) {
-            CFRelease(processedFrame);
+    }
+
+    if (spoofCameraEnabled) {
+        // CRITICAL: Use GetFrame like CaptureJailed does
+        CMSampleBufferRef spoofedFrame = [GetFrame getCurrentFrame:sampleBuffer preserveOrientation:NO];
+        if (spoofedFrame && self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
+            [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:spoofedFrame fromConnection:connection];
+        }
+        if (spoofedFrame && spoofedFrame != sampleBuffer) {
+            CFRelease(spoofedFrame);
         }
     } else {
+        // Pass through original
         if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
             [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:sampleBuffer fromConnection:connection];
         }
@@ -916,9 +1251,10 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 // pragma MARK: - LEVEL 5: Output Level Hooks
 
 @implementation AVCaptureVideoDataOutput(LiveContainerSpoof)
+
 - (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue {
     if (spoofCameraEnabled && sampleBufferDelegate) {
-        NSLog(@"[LC] 📹 L5: Hooking video data output delegate with format detection");
+        NSLog(@"[LC] 📹 Using GetFrame pattern for video output");
         
         // IMPROVEMENT: Detect preferred format from output settings
         NSDictionary *videoSettings = self.videoSettings;
@@ -932,7 +1268,11 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
             }
         }
         
-        SimpleSpoofDelegate *wrapper = [[SimpleSpoofDelegate alloc] initWithDelegate:sampleBufferDelegate output:self];
+        // CRITICAL: Use GetFrameDelegate instead of SimpleSpoofDelegate
+        GetFrameDelegate *wrapper = [[GetFrameDelegate alloc] init];
+        wrapper.originalDelegate = sampleBufferDelegate;
+        wrapper.originalOutput = self;
+        
         objc_setAssociatedObject(self, @selector(lc_setSampleBufferDelegate:queue:), wrapper, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [self lc_setSampleBufferDelegate:wrapper queue:sampleBufferCallbackQueue];
     } else {
@@ -940,7 +1280,32 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
         [self lc_setSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue];
     }
 }
-@end
+// old
+// - (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue {
+//     if (spoofCameraEnabled && sampleBufferDelegate) {
+//         NSLog(@"[LC] 📹 L5: Hooking video data output delegate with format detection");
+        
+//         // IMPROVEMENT: Detect preferred format from output settings
+//         NSDictionary *videoSettings = self.videoSettings;
+//         if (videoSettings) {
+//             NSNumber *formatNum = videoSettings[(NSString*)kCVPixelBufferPixelFormatTypeKey];
+//             if (formatNum) {
+//                 lastRequestedFormat = [formatNum unsignedIntValue];
+//                 NSLog(@"[LC] 📐 Output requests format: %c%c%c%c", 
+//                       (lastRequestedFormat >> 24) & 0xFF, (lastRequestedFormat >> 16) & 0xFF, 
+//                       (lastRequestedFormat >> 8) & 0xFF, lastRequestedFormat & 0xFF);
+//             }
+//         }
+        
+//         SimpleSpoofDelegate *wrapper = [[SimpleSpoofDelegate alloc] initWithDelegate:sampleBufferDelegate output:self];
+//         objc_setAssociatedObject(self, @selector(lc_setSampleBufferDelegate:queue:), wrapper, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+//         [self lc_setSampleBufferDelegate:wrapper queue:sampleBufferCallbackQueue];
+//     } else {
+//         objc_setAssociatedObject(self, @selector(lc_setSampleBufferDelegate:queue:), nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+//         [self lc_setSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue];
+//     }
+// }
+
 
 // @implementation AVCaptureVideoDataOutput(LiveContainerSpoof)
 // - (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue {
@@ -953,69 +1318,71 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 //         [self lc_setSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue];
 //     }
 // }
-// @end
+// 
 
-@implementation AVCapturePhotoOutput(LiveContainerSpoof)
-// Cache WITHOUT orientation interference
-- (void)lc_capturePhotoWithSettings:(AVCapturePhotoSettings *)settings delegate:(id<AVCapturePhotoCaptureDelegate>)delegate {
-    if (spoofCameraEnabled) {
-        NSLog(@"[LC] 📷 UNIVERSAL: Pre-caching spoofed photo data");
-        
-        // Create spoofed frame 
-        CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
-        if (spoofedFrame) {
-            // CRITICAL: Cache the RAW data without any orientation processing
-            CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(spoofedFrame);
-            if (imageBuffer) {
-                // Clean cache
-                if (g_cachedPhotoPixelBuffer) {
-                    CVPixelBufferRelease(g_cachedPhotoPixelBuffer);
-                    g_cachedPhotoPixelBuffer = NULL;
-                }
-                if (g_cachedPhotoCGImage) {
-                    CGImageRelease(g_cachedPhotoCGImage);
-                    g_cachedPhotoCGImage = NULL;
-                }
-                g_cachedPhotoJPEGData = nil;
-                
-                // Cache RAW pixel buffer (no processing!)
-                g_cachedPhotoPixelBuffer = CVPixelBufferRetain(imageBuffer);
-                
-                // Create CGImage directly from pixel buffer (no orientation transforms!)
-                CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
-                CIContext *context = [CIContext context];
-                g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
-                
-                // Create JPEG with MINIMAL processing
-                if (g_cachedPhotoCGImage) {
-                    NSMutableData *jpegData = [NSMutableData data];
-                    // Use modern UTType API instead of deprecated kUTTypeJPEG
-                    CFStringRef jpegType;
-                    jpegType = (__bridge CFStringRef)UTTypeJPEG.identifier;
-            
-                    CGImageDestinationRef destination = CGImageDestinationCreateWithData((__bridge CFMutableDataRef)jpegData, jpegType, 1, NULL);
-                    if (destination) {
-                        // NO orientation metadata - let apps handle naturally
-                        NSDictionary *properties = @{
-                            (__bridge NSString *)kCGImageDestinationLossyCompressionQuality: @0.9
-                        };
-                        CGImageDestinationAddImage(destination, g_cachedPhotoCGImage, (__bridge CFDictionaryRef)properties);
-                        CGImageDestinationFinalize(destination);
-                        CFRelease(destination);
-                        g_cachedPhotoJPEGData = [jpegData copy];
-                    }
-                }
-            }
-            CFRelease(spoofedFrame);
-        }
-    }
-    
-    // Always call original - let app handle the capture naturally
-    [self lc_capturePhotoWithSettings:settings delegate:delegate];
-}
 @end
 
-// @implementation AVCapturePhotoOutput(LiveContainerSpoof)
+@implementation AVCapturePhotoOutput(LiveContainerSpoof)
+
+// Cache WITHOUT orientation interference (old)
+// - (void)lc_capturePhotoWithSettings:(AVCapturePhotoSettings *)settings delegate:(id<AVCapturePhotoCaptureDelegate>)delegate {
+//     if (spoofCameraEnabled) {
+//         NSLog(@"[LC] 📷 UNIVERSAL: Pre-caching spoofed photo data");
+        
+//         // Create spoofed frame 
+//         CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
+//         if (spoofedFrame) {
+//             // CRITICAL: Cache the RAW data without any orientation processing
+//             CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(spoofedFrame);
+//             if (imageBuffer) {
+//                 // Clean cache
+//                 if (g_cachedPhotoPixelBuffer) {
+//                     CVPixelBufferRelease(g_cachedPhotoPixelBuffer);
+//                     g_cachedPhotoPixelBuffer = NULL;
+//                 }
+//                 if (g_cachedPhotoCGImage) {
+//                     CGImageRelease(g_cachedPhotoCGImage);
+//                     g_cachedPhotoCGImage = NULL;
+//                 }
+//                 g_cachedPhotoJPEGData = nil;
+                
+//                 // Cache RAW pixel buffer (no processing!)
+//                 g_cachedPhotoPixelBuffer = CVPixelBufferRetain(imageBuffer);
+                
+//                 // Create CGImage directly from pixel buffer (no orientation transforms!)
+//                 CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
+//                 CIContext *context = [CIContext context];
+//                 g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
+                
+//                 // Create JPEG with MINIMAL processing
+//                 if (g_cachedPhotoCGImage) {
+//                     NSMutableData *jpegData = [NSMutableData data];
+//                     // Use modern UTType API instead of deprecated kUTTypeJPEG
+//                     CFStringRef jpegType;
+//                     jpegType = (__bridge CFStringRef)UTTypeJPEG.identifier;
+            
+//                     CGImageDestinationRef destination = CGImageDestinationCreateWithData((__bridge CFMutableDataRef)jpegData, jpegType, 1, NULL);
+//                     if (destination) {
+//                         // NO orientation metadata - let apps handle naturally
+//                         NSDictionary *properties = @{
+//                             (__bridge NSString *)kCGImageDestinationLossyCompressionQuality: @0.9
+//                         };
+//                         CGImageDestinationAddImage(destination, g_cachedPhotoCGImage, (__bridge CFDictionaryRef)properties);
+//                         CGImageDestinationFinalize(destination);
+//                         CFRelease(destination);
+//                         g_cachedPhotoJPEGData = [jpegData copy];
+//                     }
+//                 }
+//             }
+//             CFRelease(spoofedFrame);
+//         }
+//     }
+    
+//     // Always call original - let app handle the capture naturally
+//     [self lc_capturePhotoWithSettings:settings delegate:delegate];
+// }
+
+
 // - (void)lc_capturePhotoWithSettings:(AVCapturePhotoSettings *)settings delegate:(id<AVCapturePhotoCaptureDelegate>)delegate {
 //     if (spoofCameraEnabled) {
 //         NSLog(@"[LC] 📷 L5: Using GetFrame pattern for photo capture");
@@ -1029,7 +1396,28 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 //     }
 //     [self lc_capturePhotoWithSettings:settings delegate:delegate];
 // }
-// @end
+// 
+
+- (void)lc_capturePhotoWithSettings:(AVCapturePhotoSettings *)settings delegate:(id<AVCapturePhotoCaptureDelegate>)delegate {
+    if (spoofCameraEnabled) {
+        NSLog(@"[LC] 📷 Using GetFrame pattern for photo capture");
+        
+        // CRITICAL: Create dummy sample buffer for GetFrame
+        CMSampleBufferRef dummyFrame = createSpoofedSampleBuffer(); // Your existing function
+        if (dummyFrame) {
+            // CRITICAL: Use GetFrame with preserve orientation = YES for photos
+            CMSampleBufferRef spoofedFrame = [GetFrame getCurrentFrame:dummyFrame preserveOrientation:YES];
+            if (spoofedFrame) {
+                cachePhotoDataFromSampleBuffer(spoofedFrame);
+                if (spoofedFrame != dummyFrame) CFRelease(spoofedFrame);
+            }
+            CFRelease(dummyFrame);
+        }
+    }
+    [self lc_capturePhotoWithSettings:settings delegate:delegate];
+}
+
+@end
 
 @implementation AVCaptureMovieFileOutput(LiveContainerSpoof)
 - (void)lc_startRecordingToOutputFileURL:(NSURL *)outputFileURL recordingDelegate:(id<AVCaptureFileOutputRecordingDelegate>)delegate {
@@ -1152,6 +1540,9 @@ static void loadSpoofingConfiguration(void) {
             if (!exists) {
                 NSLog(@"[LC] ❌ Video file not found - falling back to image mode");
                 spoofCameraVideoPath = @"";
+            } else {
+                // CRITICAL: Setup GetFrame with the video path
+                [GetFrame setCurrentVideoPath:spoofCameraVideoPath];
             }
         }
     }
@@ -1172,51 +1563,61 @@ void AVFoundationGuestHooksInit(void) {
 
         // Create emergency fallback if needed
         if (!lastGoodSpoofedPixelBuffer) {
-            NSLog(@"[LC] ⚠️ Creating emergency fallback buffer");
-            CVPixelBufferRef emergencyPixelBuffer = NULL;
-            CGSize emergencySize = targetResolution;
+        NSLog(@"[LC] ⚠️ Creating emergency fallback buffer");
+        
+        // IMPROVEMENT: Create emergency buffer in multiple formats
+        OSType emergencyFormat = kCVPixelFormatType_32BGRA; // Start with BGRA
+        CVPixelBufferRef emergencyPixelBuffer = NULL;
+        CGSize emergencySize = targetResolution;
 
-            NSDictionary *pixelAttributes = @{
-                (NSString*)kCVPixelBufferCGImageCompatibilityKey : @YES,
-                (NSString*)kCVPixelBufferCGBitmapContextCompatibilityKey : @YES,
-                (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
-            };
-            CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
-                                                  (size_t)emergencySize.width, (size_t)emergencySize.height,
-                                                  kCVPixelFormatType_32BGRA,
-                                                  (__bridge CFDictionaryRef)pixelAttributes,
-                                                  &emergencyPixelBuffer);
+        NSDictionary *pixelAttributes = @{
+            (NSString*)kCVPixelBufferCGImageCompatibilityKey : @YES,
+            (NSString*)kCVPixelBufferCGBitmapContextCompatibilityKey : @YES,
+            (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
+        };
+        
+        CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
+                                            (size_t)emergencySize.width, (size_t)emergencySize.height,
+                                            emergencyFormat,
+                                            (__bridge CFDictionaryRef)pixelAttributes,
+                                            &emergencyPixelBuffer);
 
-            if (status == kCVReturnSuccess && emergencyPixelBuffer) {
-                CVPixelBufferLockBaseAddress(emergencyPixelBuffer, 0);
-                void *baseAddress = CVPixelBufferGetBaseAddress(emergencyPixelBuffer);
-                CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-                CGContextRef cgContext = CGBitmapContextCreate(baseAddress,
-                                                               emergencySize.width, emergencySize.height,
-                                                               8, CVPixelBufferGetBytesPerRow(emergencyPixelBuffer), colorSpace,
-                                                               kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
-                if (cgContext) {
-                    CGContextSetRGBFillColor(cgContext, 1.0, 0.0, 1.0, 1.0); // Magenta
-                    CGContextFillRect(cgContext, CGRectMake(0, 0, emergencySize.width, emergencySize.height));
-                    CGContextRelease(cgContext);
-                }
-                CGColorSpaceRelease(colorSpace);
-                CVPixelBufferUnlockBaseAddress(emergencyPixelBuffer, 0);
-
-                CMVideoFormatDescriptionRef emergencyFormatDesc = NULL;
-                CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, emergencyPixelBuffer, &emergencyFormatDesc);
-                updateLastGoodSpoofedFrame(emergencyPixelBuffer, emergencyFormatDesc);
-                
-                if (emergencyFormatDesc) CFRelease(emergencyFormatDesc);
-                CVPixelBufferRelease(emergencyPixelBuffer);
-                NSLog(@"[LC] Emergency buffer created");
+        if (status == kCVReturnSuccess && emergencyPixelBuffer) {
+            CVPixelBufferLockBaseAddress(emergencyPixelBuffer, 0);
+            void *baseAddress = CVPixelBufferGetBaseAddress(emergencyPixelBuffer);
+            CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+            CGContextRef cgContext = CGBitmapContextCreate(baseAddress,
+                                                        emergencySize.width, emergencySize.height,
+                                                        8, CVPixelBufferGetBytesPerRow(emergencyPixelBuffer), colorSpace,
+                                                        kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
+            if (cgContext) {
+                // Create more subtle emergency pattern (blue gradient instead of magenta)
+                CGFloat colors[] = { 0.2, 0.4, 0.8, 1.0, 0.1, 0.2, 0.4, 1.0 };
+                CGFloat locations[] = {0.0, 1.0};
+                CGGradientRef gradient = CGGradientCreateWithColorComponents(colorSpace, colors, locations, 2);
+                CGContextDrawLinearGradient(cgContext, gradient, CGPointMake(0,0), CGPointMake(0,emergencySize.height), 0);
+                CGGradientRelease(gradient);
+                CGContextRelease(cgContext);
             }
+            CGColorSpaceRelease(colorSpace);
+            CVPixelBufferUnlockBaseAddress(emergencyPixelBuffer, 0);
+
+            CMVideoFormatDescriptionRef emergencyFormatDesc = NULL;
+            CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, emergencyPixelBuffer, &emergencyFormatDesc);
+            updateLastGoodSpoofedFrame(emergencyPixelBuffer, emergencyFormatDesc);
+            
+            if (emergencyFormatDesc) CFRelease(emergencyFormatDesc);
+            CVPixelBufferRelease(emergencyPixelBuffer);
+            NSLog(@"[LC] Emergency BGRA buffer created");
         }
+    }
 
         // Setup video resources if enabled
         if (spoofCameraEnabled && spoofCameraVideoPath && spoofCameraVideoPath.length > 0) {
             NSLog(@"[LC] Video mode: Setting up video resources");
-            setupVideoSpoofingResources(); 
+            // pragma MARK: TODO 
+            // setupVideoSpoofingResources(); 
+            [GetFrame setCurrentVideoPath:spoofCameraVideoPath];
         } else if (spoofCameraEnabled) {
             NSLog(@"[LC] Image mode: Using static image fallback");
         }
