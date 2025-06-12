@@ -1710,13 +1710,16 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 
 // pragma MARK: - LEVEL 6: Photo Accessor Hooks (Highest Level)
 
+// debug
 CVPixelBufferRef hook_AVCapturePhoto_pixelBuffer(id self, SEL _cmd) {
+    NSLog(@"[LC] 🔍 DEBUG L6: pixelBuffer hook called");
     @try {
         if (spoofCameraEnabled) {
             NSLog(@"[LC] 📷 L6: pixelBuffer requested - cache status: %s", 
                   g_cachedPhotoPixelBuffer ? "READY" : "MISSING");
             
             if (g_cachedPhotoPixelBuffer) {
+                NSLog(@"[LC] ✅ L6: Returning cached pixel buffer: %p", g_cachedPhotoPixelBuffer);
                 return g_cachedPhotoPixelBuffer;
             } else {
                 // Emergency: Try to create spoofed data on the spot
@@ -1727,48 +1730,73 @@ CVPixelBufferRef hook_AVCapturePhoto_pixelBuffer(id self, SEL _cmd) {
                     if (emergencyBuffer) {
                         g_cachedPhotoPixelBuffer = CVPixelBufferRetain(emergencyBuffer);
                         CFRelease(emergencyFrame);
+                        NSLog(@"[LC] ✅ L6: Emergency pixel buffer created: %p", g_cachedPhotoPixelBuffer);
                         return g_cachedPhotoPixelBuffer;
                     }
                     CFRelease(emergencyFrame);
                 }
+                NSLog(@"[LC] ❌ L6: Emergency generation failed");
             }
+        } else {
+            NSLog(@"[LC] 🔍 DEBUG L6: Spoofing disabled, calling original");
         }
     } @catch (NSException *exception) {
         NSLog(@"[LC] ❌ Exception in pixelBuffer hook: %@", exception);
     }
     
     // DEFENSIVE: Always try to call original
+    NSLog(@"[LC] 🔍 DEBUG L6: Calling original pixelBuffer method");
     if (original_AVCapturePhoto_pixelBuffer) {
-        return original_AVCapturePhoto_pixelBuffer(self, _cmd);
+        CVPixelBufferRef originalResult = original_AVCapturePhoto_pixelBuffer(self, _cmd);
+        NSLog(@"[LC] 🔍 DEBUG L6: Original returned: %p", originalResult);
+        return originalResult;
     }
+    NSLog(@"[LC] ❌ L6: No original method available");
     return NULL;
 }
 
+// debug logging
 CGImageRef hook_AVCapturePhoto_CGImageRepresentation(id self, SEL _cmd) {
+    NSLog(@"[LC] 🔍 DEBUG L6: CGImageRepresentation hook called");
     @try {
-        if (spoofCameraEnabled && g_cachedPhotoCGImage) {
-            NSLog(@"[LC] 📷 L6: Returning spoofed photo CGImage");
-            return g_cachedPhotoCGImage;
+        if (spoofCameraEnabled) {
+            NSLog(@"[LC] 📷 L6: CGImage requested - cache status: %s", 
+                  g_cachedPhotoCGImage ? "READY" : "MISSING");
+            
+            if (g_cachedPhotoCGImage) {
+                NSLog(@"[LC] ✅ L6: Returning cached CGImage: %p", g_cachedPhotoCGImage);
+                return g_cachedPhotoCGImage;
+            } else {
+                NSLog(@"[LC] ❌ L6: No cached CGImage available");
+            }
+        } else {
+            NSLog(@"[LC] 🔍 DEBUG L6: Spoofing disabled for CGImage");
         }
     } @catch (NSException *exception) {
         NSLog(@"[LC] ❌ Exception in CGImageRepresentation hook: %@", exception);
     }
     
     // DEFENSIVE: Always try to call original
+    NSLog(@"[LC] 🔍 DEBUG L6: Calling original CGImageRepresentation method");
     if (original_AVCapturePhoto_CGImageRepresentation) {
-        return original_AVCapturePhoto_CGImageRepresentation(self, _cmd);
+        CGImageRef originalResult = original_AVCapturePhoto_CGImageRepresentation(self, _cmd);
+        NSLog(@"[LC] 🔍 DEBUG L6: Original CGImage returned: %p", originalResult);
+        return originalResult;
     }
+    NSLog(@"[LC] ❌ L6: No original CGImage method available");
     return NULL;
 }
 
+// debug logging
 NSData *hook_AVCapturePhoto_fileDataRepresentation(id self, SEL _cmd) {
+    NSLog(@"[LC] 🔍 DEBUG L6: fileDataRepresentation hook called");
     @try {
         if (spoofCameraEnabled) {
             NSLog(@"[LC] 📷 L6: fileDataRepresentation requested - cache status: %s", 
                   g_cachedPhotoJPEGData ? "READY" : "MISSING");
             
             if (g_cachedPhotoJPEGData && g_cachedPhotoJPEGData.length > 0) {
-                NSLog(@"[LC] 📷 L6: Returning spoofed JPEG (%lu bytes)", (unsigned long)g_cachedPhotoJPEGData.length);
+                NSLog(@"[LC] ✅ L6: Returning spoofed JPEG (%lu bytes)", (unsigned long)g_cachedPhotoJPEGData.length);
                 return g_cachedPhotoJPEGData;
             } else {
                 // Emergency: Try to create JPEG data on the spot
@@ -1778,20 +1806,28 @@ NSData *hook_AVCapturePhoto_fileDataRepresentation(id self, SEL _cmd) {
                     if (image) {
                         g_cachedPhotoJPEGData = UIImageJPEGRepresentation(image, 0.9);
                         if (g_cachedPhotoJPEGData) {
+                            NSLog(@"[LC] ✅ L6: Emergency JPEG created: %lu bytes", (unsigned long)g_cachedPhotoJPEGData.length);
                             return g_cachedPhotoJPEGData;
                         }
                     }
                 }
+                NSLog(@"[LC] ❌ L6: Emergency JPEG generation failed");
             }
+        } else {
+            NSLog(@"[LC] 🔍 DEBUG L6: Spoofing disabled for fileData");
         }
     } @catch (NSException *exception) {
         NSLog(@"[LC] ❌ Exception in fileDataRepresentation hook: %@", exception);
     }
     
     // DEFENSIVE: Always try to call original
+    NSLog(@"[LC] 🔍 DEBUG L6: Calling original fileDataRepresentation method");
     if (original_AVCapturePhoto_fileDataRepresentation) {
-        return original_AVCapturePhoto_fileDataRepresentation(self, _cmd);
+        NSData *originalResult = original_AVCapturePhoto_fileDataRepresentation(self, _cmd);
+        NSLog(@"[LC] 🔍 DEBUG L6: Original fileData returned: %lu bytes", originalResult ? (unsigned long)originalResult.length : 0);
+        return originalResult;
     }
+    NSLog(@"[LC] ❌ L6: No original fileData method available");
     return nil;
 }
 
