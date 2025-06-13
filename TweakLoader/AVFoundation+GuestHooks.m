@@ -96,6 +96,13 @@ static void cleanupPhotoCache(void);
 static CVReturn (*original_CVPixelBufferCreate)(CFAllocatorRef, size_t, size_t, OSType, CFDictionaryRef, CVPixelBufferRef *);
 CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t height, OSType pixelFormatType, CFDictionaryRef pixelBufferAttributes, CVPixelBufferRef *pixelBufferOut);
 
+// ADD THESE FORWARD DECLARATIONS FOR GetFrame STATIC VARIABLES:
+static NSString *currentVideoPath;
+static AVPlayer *frameExtractionPlayer;
+static AVPlayerItemVideoOutput *bgraOutput;
+static AVPlayerItemVideoOutput *yuv420vOutput; 
+static AVPlayerItemVideoOutput *yuv420fOutput;
+
 // Level 2 hooks (Device Level)
 // Device enumeration hooks declared in @implementation
 
@@ -495,7 +502,7 @@ static void setupVideoSpoofingResources() {
         }
     }
     
-    // Create multiple format outputs for better compatibility (CaptureJailed pattern)
+    // Create multiple format outputs for better compatibility (cj pattern)
     NSDictionary *bgraAttributes = @{
         (NSString*)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA),
         (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
@@ -544,7 +551,7 @@ static void setupVideoSpoofingResources() {
         videoSpoofPlayer.actionAtItemEnd = AVPlayerActionAtItemEndNone;
         videoSpoofPlayer.muted = YES;
 
-        // CREATE ALL THREE OUTPUTS (like CaptureJailed)
+        // CREATE ALL THREE OUTPUTS (like cj)
         videoSpoofPlayerOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:bgraAttributes];
         yuvOutput1 = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420vAttributes];
         yuvOutput2 = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420fAttributes];
@@ -610,14 +617,59 @@ static void setupVideoSpoofingResources() {
 // + (UIWindow *)getKeyWindow;
 // @end
 
-// Static variables
-static NSString *currentVideoPath = nil;
-static AVPlayer *frameExtractionPlayer = nil;
-static AVPlayerItemVideoOutput *bgraOutput = nil;
-static AVPlayerItemVideoOutput *yuv420vOutput = nil;
-static AVPlayerItemVideoOutput *yuv420fOutput = nil;
+@interface GetFrameKVOObserver : NSObject
+@end
+
+@implementation GetFrameKVOObserver
+
+- (void)observeValueForKeyPath:(NSString *)keyPath 
+                      ofObject:(id)object 
+                        change:(NSDictionary *)change 
+                       context:(void *)context {
+    if ([keyPath isEqualToString:@"status"]) {
+        AVPlayerItem *item = (AVPlayerItem *)object;
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            switch (item.status) {
+                case AVPlayerItemStatusReadyToPlay:
+                    NSLog(@"[LC] [GetFrame] ✅ Player ready - starting playback");
+                    if (frameExtractionPlayer) {
+                        [frameExtractionPlayer play];
+                    }
+                    break;
+                    
+                case AVPlayerItemStatusFailed:
+                    NSLog(@"[LC] [GetFrame] ❌ Player failed: %@", item.error);
+                    break;
+                    
+                case AVPlayerItemStatusUnknown:
+                    NSLog(@"[LC] [GetFrame] ⏳ Player status unknown");
+                    break;
+            }
+        });
+        
+        // Clean up observer
+        @try {
+            [item removeObserver:self forKeyPath:@"status"];
+        } @catch (NSException *exception) {
+            NSLog(@"[LC] [GetFrame] Exception removing observer: %@", exception);
+        }
+    }
+}
+
+@end
 
 @implementation GetFrame
+
+// Static variables
+static NSString *currentVideoPath = nil;           // CHANGED: initialize instead of declare
+static AVPlayer *frameExtractionPlayer = nil;      // CHANGED: initialize instead of declare  
+static AVPlayerItemVideoOutput *bgraOutput = nil;  // CHANGED: initialize instead of declare
+static AVPlayerItemVideoOutput *yuv420vOutput = nil; // CHANGED: initialize instead of declare
+static AVPlayerItemVideoOutput *yuv420fOutput = nil; // CHANGED: initialize instead of declare
+
+// Add class variable for KVO handling
+static GetFrameKVOObserver *_kvoObserver = nil;
 
 // Fix the GetFrame getCurrentFrame method to better handle sample buffer creation:
 + (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originalFrame preserveOrientation:(BOOL)preserve {
@@ -626,7 +678,7 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
     }
     
     if (!frameExtractionPlayer || !frameExtractionPlayer.currentItem) {
-        NSLog(@"[GetFrame] No player available, returning NULL (let primary system handle)");
+        NSLog(@"[LC] [GetFrame] No player available, returning NULL (let primary system handle)");
         return NULL; // Return NULL instead of fallback - let primary system handle
     }
     
@@ -634,11 +686,11 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
     
     // CRITICAL: Check if player is actually ready
     if (frameExtractionPlayer.currentItem.status != AVPlayerItemStatusReadyToPlay) {
-        NSLog(@"[GetFrame] Player not ready, returning NULL");
+        NSLog(@"[LC] [GetFrame] Player not ready, returning NULL");
         return NULL;
     }
     
-    // CRITICAL: CaptureJailed's format detection from originalFrame
+    // CRITICAL: cj's format detection from originalFrame
     OSType requestedFormat = kCVPixelFormatType_32BGRA; // Default
     if (originalFrame) {
         CMFormatDescriptionRef formatDesc = CMSampleBufferGetFormatDescription(originalFrame);
@@ -647,11 +699,11 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
         }
     }
     
-    NSLog(@"[GetFrame] Processing format: %c%c%c%c", 
+    NSLog(@"[LC] [GetFrame] Processing format: %c%c%c%c", 
           (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
           (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF);
     
-    // CRITICAL: CaptureJailed's exact format selection algorithm
+    // CRITICAL: cj's exact format selection algorithm
     AVPlayerItemVideoOutput *selectedOutput = bgraOutput; // Default
     NSString *outputType = @"BGRA-default";
     
@@ -691,13 +743,13 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
     }
     
     if (!selectedOutput || ![selectedOutput hasNewPixelBufferForItemTime:currentTime]) {
-        NSLog(@"[GetFrame] No frames available from outputs");
+        NSLog(@"[LC] [GetFrame] No frames available from outputs");
         return NULL; // Let primary system handle
     }
     
     CVPixelBufferRef pixelBuffer = [selectedOutput copyPixelBufferForItemTime:currentTime itemTimeForDisplay:NULL];
     if (!pixelBuffer) {
-        NSLog(@"[GetFrame] Failed to get pixel buffer");
+        NSLog(@"[LC] [GetFrame] Failed to get pixel buffer");
         return NULL;
     }
     
@@ -706,7 +758,7 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
     CVPixelBufferRelease(pixelBuffer); // Release original
     
     if (!scaledBuffer) {
-        NSLog(@"[GetFrame] Failed to scale buffer");
+        NSLog(@"[LC] [GetFrame] Failed to scale buffer");
         return NULL;
     }
     
@@ -718,7 +770,7 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
         kCFAllocatorDefault, scaledBuffer, &videoFormatDesc);
     
     if (status != noErr || !videoFormatDesc) {
-        NSLog(@"[GetFrame] Failed to create format description: %d", status);
+        NSLog(@"[LC] [GetFrame] Failed to create format description: %d", status);
         CVPixelBufferRelease(scaledBuffer);
         return NULL;
     }
@@ -761,12 +813,12 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
     CVPixelBufferRelease(scaledBuffer);
     
     if (status != noErr || !newSampleBuffer) {
-        NSLog(@"[GetFrame] Failed to create sample buffer: %d", status);
+        NSLog(@"[LC] [GetFrame] Failed to create sample buffer: %d", status);
         return NULL;
     }
     
     OSType actualFormat = CVPixelBufferGetPixelFormatType(scaledBuffer);
-    NSLog(@"[GetFrame] ✅ Frame created via %@: req=%c%c%c%c → actual=%c%c%c%c", 
+    NSLog(@"[LC] [GetFrame] ✅ Frame created via %@: req=%c%c%c%c → actual=%c%c%c%c", 
           outputType,
           (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
           (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF,
@@ -782,7 +834,7 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
     }
     
     if (!frameExtractionPlayer || !frameExtractionPlayer.currentItem) {
-        NSLog(@"[GetFrame] No player available for pixel buffer extraction");
+        NSLog(@"[LC] [GetFrame] No player available for pixel buffer extraction");
         return NULL;
     }
     
@@ -814,7 +866,7 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
         
         if (pixelBuffer) {
             OSType actualFormat = CVPixelBufferGetPixelFormatType(pixelBuffer);
-            NSLog(@"[GetFrame] Extracted pixel buffer: req=%c%c%c%c → actual=%c%c%c%c", 
+            NSLog(@"[LC] [GetFrame] Extracted pixel buffer: req=%c%c%c%c → actual=%c%c%c%c", 
                   (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
                   (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF,
                   (actualFormat >> 24) & 0xFF, (actualFormat >> 16) & 0xFF, 
@@ -824,7 +876,7 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
         return pixelBuffer; // Caller must release
     }
     
-    NSLog(@"[GetFrame] No pixel buffer available for format: %c%c%c%c", 
+    NSLog(@"[LC] [GetFrame] No pixel buffer available for format: %c%c%c%c", 
           (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
           (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF);
     return NULL;
@@ -840,11 +892,11 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
 }
 
 + (void)setupPlayerWithPath:(NSString *)path {
-    // Clean up existing player like CaptureJailed
+    // Clean up existing player like cj
     if (frameExtractionPlayer) {
         [frameExtractionPlayer pause];
         
-        // Remove old outputs like CaptureJailed does
+        // Remove old outputs like cj does
         if (frameExtractionPlayer.currentItem) {
             if (bgraOutput) [frameExtractionPlayer.currentItem removeOutput:bgraOutput];
             if (yuv420vOutput) [frameExtractionPlayer.currentItem removeOutput:yuv420vOutput];
@@ -858,15 +910,34 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
     }
     
     if (!path || path.length == 0) {
-        NSLog(@"[GetFrame] No video path provided");
+        NSLog(@"[LC] [GetFrame] No video path provided");
         return;
     }
     
     NSURL *videoURL = [NSURL fileURLWithPath:path];
     AVPlayerItem *item = [AVPlayerItem playerItemWithURL:videoURL];
     frameExtractionPlayer = [AVPlayer playerWithPlayerItem:item];
+
+    // FIXED: Create proper observer instance
+    if (!_kvoObserver) {
+        _kvoObserver = [[GetFrameKVOObserver alloc] init];
+    }
     
-    // CRITICAL: Create multiple format outputs exactly like CaptureJailed
+    // Use proper observer instance
+    @try {
+        [item addObserver:_kvoObserver 
+               forKeyPath:@"status" 
+                  options:NSKeyValueObservingOptionNew 
+                  context:NULL];
+        NSLog(@"[LC] [GetFrame] KVO observer added successfully");
+    } @catch (NSException *exception) {
+        NSLog(@"[LC] [GetFrame] Failed to add KVO observer: %@", exception);
+    }
+    
+    // Don't add outputs immediately - wait for ready status
+    NSLog(@"[LC] [GetFrame] Player created, waiting for ready status...");
+    
+    // Create outputs
     NSDictionary *bgraAttributes = @{
         (NSString*)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA),
         (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
@@ -886,13 +957,19 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
     yuv420vOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420vAttributes];
     yuv420fOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420fAttributes];
     
-    [item addOutput:bgraOutput];
-    [item addOutput:yuv420vOutput];
-    [item addOutput:yuv420fOutput];
-    
+    @try {
+        [item addOutput:bgraOutput];
+        [item addOutput:yuv420vOutput];
+        [item addOutput:yuv420fOutput];
+        NSLog(@"[LC] [GetFrame] All outputs added successfully");
+    } @catch (NSException *exception) {
+        NSLog(@"[LC] [GetFrame] Failed to add outputs: %@", exception);
+        return;
+    }
+
     [frameExtractionPlayer play];
     
-    NSLog(@"[GetFrame] Video player setup complete with 3 outputs for: %@", path.lastPathComponent);
+    NSLog(@"[LC] [GetFrame] Video player setup complete with 3 outputs for: %@", path.lastPathComponent);
 }
 
 + (UIWindow *)getKeyWindow {
@@ -996,17 +1073,26 @@ static AVPlayerItemVideoOutput *yuv420fOutput = nil;
 
 // Update the SimpleSpoofDelegate to track formats from REAL frames too:
 - (void)captureOutput:(AVCaptureOutput *)output didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection {
+    static int frameCounter = 0;
+    frameCounter++;
+    
+    if (frameCounter % 30 == 0) { // Log every 30 frames to avoid spam
+        NSLog(@"[LC] 📹 SimpleSpoofDelegate: Frame %d - spoofing: %@, output: %@", 
+              frameCounter, spoofCameraEnabled ? @"ON" : @"OFF", NSStringFromClass([output class]));
+    }
+    
+    
     @try {
         // CRITICAL: Always track the format from real frames
         if (sampleBuffer) {
             CMFormatDescriptionRef formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer);
             if (formatDesc) {
-                OSType detectedFormat = CMFormatDescriptionGetMediaSubType(formatDesc);
+                OSType detectedFormat = CMFormatDescriptionGetMediaSubType(formatDesc); // FIXED: correct variable name
                 if (detectedFormat != lastRequestedFormat) {
                     lastRequestedFormat = detectedFormat;
-                    NSLog(@"[LC] 📐 Format detected: %c%c%c%c", 
+                    NSLog(@"[LC] 📐 SimpleSpoofDelegate: Format detected from real frame: %c%c%c%c", 
                           (detectedFormat >> 24) & 0xFF, (detectedFormat >> 16) & 0xFF, 
-                          (detectedFormat >> 8) & 0xFF, detectedFormat & 0xFF);
+                          (detectedFormat >> 8) & 0xFF, detectedFormat & 0xFF); // FIXED: use detectedFormat
                 }
             }
         }
@@ -1667,86 +1753,281 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 @end
 
 @implementation AVCaptureMovieFileOutput(LiveContainerSpoof)
+
+// Store original implementation pointer
+static IMP original_startRecordingToOutputFileURL_IMP = NULL;
+static IMP original_stopRecording_IMP = NULL;
+
++ (void)load {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        // Store original implementations before swizzling
+        Method startMethod = class_getInstanceMethod([AVCaptureMovieFileOutput class], @selector(startRecordingToOutputFileURL:recordingDelegate:));
+        original_startRecordingToOutputFileURL_IMP = method_getImplementation(startMethod);
+        
+        Method stopMethod = class_getInstanceMethod([AVCaptureMovieFileOutput class], @selector(stopRecording));
+        original_stopRecording_IMP = method_getImplementation(stopMethod);
+    });
+}
+
 - (void)lc_startRecordingToOutputFileURL:(NSURL *)outputFileURL recordingDelegate:(id<AVCaptureFileOutputRecordingDelegate>)delegate {
-    NSLog(@"[LC] 🎬 L5: CRITICAL - MovieFileOutput recording intercepted: %@", NSStringFromClass([self class]));
+    NSLog(@"[LC] 🎬 L5: Recording button pressed - URL: %@", outputFileURL.lastPathComponent);
     
     if (spoofCameraEnabled) {
-        NSLog(@"[LC] 🎬 L5: Creating spoofed video file for: %@", outputFileURL.lastPathComponent);
+        NSLog(@"[LC] 🎬 L5: Spoofing enabled - creating fake recording");
         
-        // Create a spoofed video file in the background
+        // CRITICAL: Don't call ANY version of startRecording to avoid real camera
+        // Instead, immediately start our spoofing process
+        
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
             @try {
-                // Copy our spoof video to the requested output location
+                BOOL success = NO;
                 NSError *error = nil;
+                
                 if (spoofCameraVideoPath && [[NSFileManager defaultManager] fileExistsAtPath:spoofCameraVideoPath]) {
-                    NSLog(@"[LC] 🎬 L5: Copying spoof video to output location");
+                    NSLog(@"[LC] 🎬 L5: Copying spoof video from: %@", spoofCameraVideoPath.lastPathComponent);
                     
-                    // Remove existing file if it exists
+                    // Ensure output directory exists
+                    NSString *outputDir = outputFileURL.path.stringByDeletingLastPathComponent;
+                    [[NSFileManager defaultManager] createDirectoryAtPath:outputDir 
+                                                withIntermediateDirectories:YES 
+                                                                 attributes:nil 
+                                                                      error:nil];
+                    
+                    // Remove existing file
                     if ([[NSFileManager defaultManager] fileExistsAtPath:outputFileURL.path]) {
                         [[NSFileManager defaultManager] removeItemAtURL:outputFileURL error:nil];
                     }
                     
-                    BOOL success = [[NSFileManager defaultManager] copyItemAtPath:spoofCameraVideoPath 
-                                                                           toPath:outputFileURL.path 
-                                                                            error:&error];
+                    // Copy spoof video
+                    success = [[NSFileManager defaultManager] copyItemAtPath:spoofCameraVideoPath 
+                                                                      toPath:outputFileURL.path 
+                                                                       error:&error];
+                    
                     if (success) {
-                        NSLog(@"[LC] ✅ L5: Spoofed video file created successfully");
+                        NSLog(@"[LC] ✅ L5: Spoof video copied successfully");
                         
-                        // Notify delegate of "successful" recording
-                        dispatch_async(dispatch_get_main_queue(), ^{
-                            if (delegate && [delegate respondsToSelector:@selector(captureOutput:didFinishRecordingToOutputFileAtURL:fromConnections:error:)]) {
-                                [delegate captureOutput:self 
-                                 didFinishRecordingToOutputFileAtURL:outputFileURL 
-                                                     fromConnections:@[] 
-                                                               error:nil];
-                                NSLog(@"[LC] ✅ L5: Delegate notified of spoofed recording completion");
-                            }
-                        });
-                        return;
+                        // Simulate recording delay (makes it feel more realistic)
+                        [NSThread sleepForTimeInterval:0.5];
+                        
                     } else {
                         NSLog(@"[LC] ❌ L5: Failed to copy spoof video: %@", error);
                     }
                 } else {
-                    NSLog(@"[LC] ❌ L5: No spoof video available at: %@", spoofCameraVideoPath);
+                    // Create a simple black video if no spoof video available
+                    NSLog(@"[LC] 🎬 L5: No spoof video - creating black video placeholder");
+                    success = [self createBlackVideoAtURL:outputFileURL];
                 }
-            } @catch (NSException *exception) {
-                NSLog(@"[LC] ❌ L5: Exception during video spoofing: %@", exception);
-            }
-            
-            // FIXED: Call the ORIGINAL method without recursion
-            NSLog(@"[LC] ⚠️ L5: Falling back to original recording");
-            dispatch_async(dispatch_get_main_queue(), ^{
-                // Get the original implementation
-                Method originalMethod = class_getInstanceMethod([AVCaptureMovieFileOutput class], @selector(startRecordingToOutputFileURL:recordingDelegate:));
-                IMP originalIMP = method_getImplementation(originalMethod);
                 
-                // Call original implementation directly
-                void (*originalFunc)(id, SEL, NSURL *, id) = (void (*)(id, SEL, NSURL *, id))originalIMP;
-                originalFunc(self, @selector(startRecordingToOutputFileURL:recordingDelegate:), outputFileURL, delegate);
-            });
+                // CRITICAL: Always notify delegate on main thread
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (delegate) {
+                        if ([delegate respondsToSelector:@selector(captureOutput:didStartRecordingToOutputFileAtURL:fromConnections:)]) {
+                            // Notify recording started
+                            [delegate captureOutput:self 
+                             didStartRecordingToOutputFileAtURL:outputFileURL 
+                                        fromConnections:@[]];
+                            NSLog(@"[LC] ✅ L5: Delegate notified - recording started");
+                        }
+                        
+                        if ([delegate respondsToSelector:@selector(captureOutput:didFinishRecordingToOutputFileAtURL:fromConnections:error:)]) {
+                            // Notify recording finished
+                            [delegate captureOutput:self 
+                             didFinishRecordingToOutputFileAtURL:outputFileURL 
+                                         fromConnections:@[] 
+                                                   error:success ? nil : error];
+                            NSLog(@"[LC] ✅ L5: Delegate notified - recording finished: %@", success ? @"SUCCESS" : @"FAILED");
+                        }
+                    } else {
+                        NSLog(@"[LC] ❌ L5: No delegate to notify!");
+                    }
+                });
+                
+            } @catch (NSException *exception) {
+                NSLog(@"[LC] ❌ L5: Exception during spoofed recording: %@", exception);
+                
+                // Notify delegate of error
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (delegate && [delegate respondsToSelector:@selector(captureOutput:didFinishRecordingToOutputFileAtURL:fromConnections:error:)]) {
+                        NSError *spoofError = [NSError errorWithDomain:@"LiveContainerSpoof" 
+                                                                 code:-1 
+                                                             userInfo:@{NSLocalizedDescriptionKey: exception.reason}];
+                        [delegate captureOutput:self 
+                         didFinishRecordingToOutputFileAtURL:outputFileURL 
+                                     fromConnections:@[] 
+                                               error:spoofError];
+                    }
+                });
+            }
         });
+        
     } else {
         NSLog(@"[LC] 🎬 L5: Spoofing disabled - using original recording");
         
-        // Get and call original implementation directly
-        Method originalMethod = class_getInstanceMethod([AVCaptureMovieFileOutput class], @selector(startRecordingToOutputFileURL:recordingDelegate:));
-        IMP originalIMP = method_getImplementation(originalMethod);
-        void (*originalFunc)(id, SEL, NSURL *, id) = (void (*)(id, SEL, NSURL *, id))originalIMP;
-        originalFunc(self, @selector(startRecordingToOutputFileURL:recordingDelegate:), outputFileURL, delegate);
+        // FIXED: Call original implementation correctly
+        if (original_startRecordingToOutputFileURL_IMP) {
+            void (*originalFunc)(id, SEL, NSURL *, id) = (void (*)(id, SEL, NSURL *, id))original_startRecordingToOutputFileURL_IMP;
+            originalFunc(self, @selector(startRecordingToOutputFileURL:recordingDelegate:), outputFileURL, delegate);
+        } else {
+            NSLog(@"[LC] ❌ L5: No original implementation found!");
+        }
     }
 }
 
 - (void)lc_stopRecording {
-    NSLog(@"[LC] 🎬 L5: MovieFileOutput stopRecording intercepted");
+    NSLog(@"[LC] 🎬 L5: Stop recording called");
     
     if (spoofCameraEnabled) {
-        NSLog(@"[LC] 🎬 L5: Spoofed recording stop - no action needed");
-        // For spoofed recordings, we already "finished" when we copied the file
+        NSLog(@"[LC] 🎬 L5: Spoofed recording - stop ignored (already finished)");
+        // For spoofed recordings, we already finished when we copied the file
+        // No action needed
         return;
     }
     
-    // Call original stop recording
-    [self lc_stopRecording];
+    // FIXED: Call original implementation correctly
+    if (original_stopRecording_IMP) {
+        void (*originalFunc)(id, SEL) = (void (*)(id, SEL))original_stopRecording_IMP;
+        originalFunc(self, @selector(stopRecording));
+    } else {
+        NSLog(@"[LC] ❌ L5: No original stopRecording implementation found!");
+    }
+}
+
+// Helper method to create a black video when no spoof video is available
+- (BOOL)createBlackVideoAtURL:(NSURL *)outputURL {
+    @try {
+        NSLog(@"[LC] 🎬 Creating black video placeholder");
+        
+        NSError *error = nil;
+        AVAssetWriter *writer = [[AVAssetWriter alloc] initWithURL:outputURL 
+                                                           fileType:AVFileTypeMPEG4 
+                                                              error:&error];
+        if (!writer) {
+            NSLog(@"[LC] ❌ Failed to create AVAssetWriter: %@", error);
+            return NO;
+        }
+        
+        // Video settings for a simple black video
+        NSDictionary *videoSettings = @{
+            AVVideoCodecKey: AVVideoCodecTypeH264,  // FIXED: Use non-deprecated constant
+            AVVideoWidthKey: @(targetResolution.width),
+            AVVideoHeightKey: @(targetResolution.height),
+            AVVideoCompressionPropertiesKey: @{
+                AVVideoAverageBitRateKey: @(1000000) // 1 Mbps
+            }
+        };
+        
+        AVAssetWriterInput *videoInput = [AVAssetWriterInput assetWriterInputWithMediaType:AVMediaTypeVideo 
+                                                                            outputSettings:videoSettings];
+        videoInput.expectsMediaDataInRealTime = YES;
+        
+        if ([writer canAddInput:videoInput]) {
+            [writer addInput:videoInput];
+        } else {
+            NSLog(@"[LC] ❌ Cannot add video input to writer");
+            return NO;
+        }
+        
+        // Start writing
+        if (![writer startWriting]) {
+            NSLog(@"[LC] ❌ Failed to start writing: %@", writer.error);
+            return NO;
+        }
+        
+        [writer startSessionAtSourceTime:kCMTimeZero];
+        
+        // Create a few seconds of black video
+        CMTime frameDuration = CMTimeMake(1, 30); // 30 fps
+        CMTime currentTime = kCMTimeZero;
+        
+        for (int i = 0; i < 90; i++) { // 3 seconds at 30fps
+            if (videoInput.isReadyForMoreMediaData) {
+                CVPixelBufferRef blackBuffer = [self createBlackPixelBuffer];
+                if (blackBuffer) {
+                    CMSampleBufferRef sampleBuffer = [self createSampleBufferFromPixelBuffer:blackBuffer 
+                                                                                        time:currentTime 
+                                                                                    duration:frameDuration];
+                    if (sampleBuffer) {
+                        [videoInput appendSampleBuffer:sampleBuffer];
+                        CFRelease(sampleBuffer);
+                    }
+                    CVPixelBufferRelease(blackBuffer);
+                }
+                currentTime = CMTimeAdd(currentTime, frameDuration);
+            }
+        }
+        
+        [videoInput markAsFinished];
+        [writer finishWritingWithCompletionHandler:^{
+            NSLog(@"[LC] ✅ Black video creation completed");
+        }];
+        
+        return YES;
+        
+    } @catch (NSException *exception) {
+        NSLog(@"[LC] ❌ Exception creating black video: %@", exception);
+        return NO;
+    }
+}
+
+- (CVPixelBufferRef)createBlackPixelBuffer {
+    CVPixelBufferRef pixelBuffer = NULL;
+    
+    NSDictionary *attributes = @{
+        (NSString*)kCVPixelBufferCGImageCompatibilityKey: @YES,
+        (NSString*)kCVPixelBufferCGBitmapContextCompatibilityKey: @YES
+    };
+    
+    CVReturn result = CVPixelBufferCreate(kCFAllocatorDefault,
+                                         (size_t)targetResolution.width,
+                                         (size_t)targetResolution.height,
+                                         kCVPixelFormatType_32BGRA,
+                                         (__bridge CFDictionaryRef)attributes,
+                                         &pixelBuffer);
+    
+    if (result == kCVReturnSuccess) {
+        CVPixelBufferLockBaseAddress(pixelBuffer, 0);
+        void *baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer);
+        size_t bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer);
+        size_t height = CVPixelBufferGetHeight(pixelBuffer);
+        
+        // Fill with black
+        memset(baseAddress, 0, bytesPerRow * height);
+        
+        CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+    }
+    
+    return pixelBuffer;
+}
+
+- (CMSampleBufferRef)createSampleBufferFromPixelBuffer:(CVPixelBufferRef)pixelBuffer 
+                                                   time:(CMTime)time 
+                                               duration:(CMTime)duration {
+    CMSampleBufferRef sampleBuffer = NULL;
+    CMVideoFormatDescriptionRef formatDescription = NULL;
+    
+    OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, 
+                                                                   pixelBuffer, 
+                                                                   &formatDescription);
+    if (status != noErr) {
+        return NULL;
+    }
+    
+    CMSampleTimingInfo timingInfo = {
+        .duration = duration,
+        .presentationTimeStamp = time,
+        .decodeTimeStamp = kCMTimeInvalid
+    };
+    
+    status = CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault,
+                                                      pixelBuffer,
+                                                      formatDescription,
+                                                      &timingInfo,
+                                                      &sampleBuffer);
+    
+    CFRelease(formatDescription);
+    
+    return sampleBuffer;
 }
 
 @end
@@ -2155,6 +2436,9 @@ void AVFoundationGuestHooksInit(void) {
             @try {
                 NSLog(@"[LC] Installing hierarchical hooks...");
                 
+                // CRITICAL: Initialize original method pointers first
+                [AVCaptureMovieFileOutput load];
+
                 // LEVEL 2: Device Level (with error handling)
                 @try {
                     swizzle([AVCaptureDevice class], @selector(devicesWithMediaType:), @selector(lc_devicesWithMediaType:));
@@ -2195,8 +2479,11 @@ void AVFoundationGuestHooksInit(void) {
                     swizzle([AVCaptureVideoPreviewLayer class], @selector(setSession:), @selector(lc_setSession:));
                     
                     // Legacy still image capture hook for older apps
-                    swizzle([AVCaptureStillImageOutput class], @selector(captureStillImageAsynchronouslyFromConnection:completionHandler:), @selector(lc_captureStillImageAsynchronouslyFromConnection:completionHandler:));
-
+                    // swizzle([AVCaptureStillImageOutput class], @selector(captureStillImageAsynchronouslyFromConnection:completionHandler:), @selector(lc_captureStillImageAsynchronouslyFromConnection:completionHandler:));
+                    if (NSClassFromString(@"AVCaptureStillImageOutput")) {
+                        swizzle([AVCaptureStillImageOutput class], @selector(captureStillImageAsynchronouslyFromConnection:completionHandler:), @selector(lc_captureStillImageAsynchronouslyFromConnection:completionHandler:));
+                        NSLog(@"[LC] ✅ Legacy still image capture hook installed");
+                    }
                     NSLog(@"[LC] ✅ Level 5 hooks installed");
                 } @catch (NSException *e) {
                     NSLog(@"[LC] ❌ Level 5 hook error: %@", e);
