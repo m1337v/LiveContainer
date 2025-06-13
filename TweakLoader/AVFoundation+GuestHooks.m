@@ -85,10 +85,16 @@ static CMSampleBufferRef createSpoofedSampleBuffer(void);
 static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer);
 static void cleanupPhotoCache(void);
 
+@class GetFrameKVOObserver;
+
+@interface GetFrameKVOObserver : NSObject
+@end
+
 @interface GetFrame : NSObject
 + (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originalFrame preserveOrientation:(BOOL)preserve;
 + (CVPixelBufferRef)getCurrentFramePixelBuffer:(OSType)requestedFormat;
 + (void)setCurrentVideoPath:(NSString *)path;
++ (void)setupPlayerWithPath:(NSString *)path;
 + (UIWindow *)getKeyWindow;
 @end
 
@@ -102,6 +108,8 @@ static AVPlayer *frameExtractionPlayer;
 static AVPlayerItemVideoOutput *bgraOutput;
 static AVPlayerItemVideoOutput *yuv420vOutput; 
 static AVPlayerItemVideoOutput *yuv420fOutput;
+static GetFrameKVOObserver *_kvoObserver = nil;
+static BOOL playerIsReady = NO;
 
 // Level 2 hooks (Device Level)
 // Device enumeration hooks declared in @implementation
@@ -608,6 +616,8 @@ static void setupVideoSpoofingResources() {
     }];
 }
 
+
+
 //pragma MARK: - Centralized Frame Manager (cj Pattern)
 
 // @interface GetFrame : NSObject
@@ -617,59 +627,16 @@ static void setupVideoSpoofingResources() {
 // + (UIWindow *)getKeyWindow;
 // @end
 
-@interface GetFrameKVOObserver : NSObject
-@end
-
-@implementation GetFrameKVOObserver
-
-- (void)observeValueForKeyPath:(NSString *)keyPath 
-                      ofObject:(id)object 
-                        change:(NSDictionary *)change 
-                       context:(void *)context {
-    if ([keyPath isEqualToString:@"status"]) {
-        AVPlayerItem *item = (AVPlayerItem *)object;
-        
-        dispatch_async(dispatch_get_main_queue(), ^{
-            switch (item.status) {
-                case AVPlayerItemStatusReadyToPlay:
-                    NSLog(@"[LC] [GetFrame] ✅ Player ready - starting playback");
-                    if (frameExtractionPlayer) {
-                        [frameExtractionPlayer play];
-                    }
-                    break;
-                    
-                case AVPlayerItemStatusFailed:
-                    NSLog(@"[LC] [GetFrame] ❌ Player failed: %@", item.error);
-                    break;
-                    
-                case AVPlayerItemStatusUnknown:
-                    NSLog(@"[LC] [GetFrame] ⏳ Player status unknown");
-                    break;
-            }
-        });
-        
-        // Clean up observer
-        @try {
-            [item removeObserver:self forKeyPath:@"status"];
-        } @catch (NSException *exception) {
-            NSLog(@"[LC] [GetFrame] Exception removing observer: %@", exception);
-        }
-    }
-}
-
-@end
-
 @implementation GetFrame
 
 // Static variables
-static NSString *currentVideoPath = nil;           // CHANGED: initialize instead of declare
-static AVPlayer *frameExtractionPlayer = nil;      // CHANGED: initialize instead of declare  
-static AVPlayerItemVideoOutput *bgraOutput = nil;  // CHANGED: initialize instead of declare
-static AVPlayerItemVideoOutput *yuv420vOutput = nil; // CHANGED: initialize instead of declare
-static AVPlayerItemVideoOutput *yuv420fOutput = nil; // CHANGED: initialize instead of declare
-
-// Add class variable for KVO handling
-static GetFrameKVOObserver *_kvoObserver = nil;
+// static NSString *currentVideoPath = nil;
+// static AVPlayer *frameExtractionPlayer = nil;
+// static AVPlayerItemVideoOutput *bgraOutput = nil;
+// static AVPlayerItemVideoOutput *yuv420vOutput = nil;
+// static AVPlayerItemVideoOutput *yuv420fOutput = nil;
+// static GetFrameKVOObserver *_kvoObserver = nil;
+// static BOOL playerIsReady = NO;
 
 // Fix the GetFrame getCurrentFrame method to better handle sample buffer creation:
 + (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originalFrame preserveOrientation:(BOOL)preserve {
@@ -833,53 +800,70 @@ static GetFrameKVOObserver *_kvoObserver = nil;
         return NULL;
     }
     
-    if (!frameExtractionPlayer || !frameExtractionPlayer.currentItem) {
-        NSLog(@"[LC] [GetFrame] No player available for pixel buffer extraction");
+    if (!frameExtractionPlayer || !frameExtractionPlayer.currentItem || !playerIsReady) {
+        NSLog(@"[LC] [GetFrame] ❌ Player not ready - enabled:%@ player:%@ item:%@ ready:%@", 
+              @(spoofCameraEnabled), frameExtractionPlayer ? @"YES" : @"NO", 
+              frameExtractionPlayer.currentItem ? @"YES" : @"NO", @(playerIsReady));
         return NULL;
     }
     
-    CMTime currentTime = [frameExtractionPlayer.currentItem currentTime];
+    // Log the requested format properly
+    NSLog(@"[LC] [GetFrame] 🎯 Requesting format: %c%c%c%c (%u)", 
+          (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
+          (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF, (unsigned int)requestedFormat);
     
-    // Select output based on requested format
+    CMTime currentTime = [frameExtractionPlayer.currentItem currentTime];
     AVPlayerItemVideoOutput *selectedOutput = bgraOutput; // Default
     
+    // Select output based on requested format
     switch (requestedFormat) {
         case 875704422: // '420v'
             if (yuv420vOutput && [yuv420vOutput hasNewPixelBufferForItemTime:currentTime]) {
                 selectedOutput = yuv420vOutput;
+                NSLog(@"[LC] [GetFrame] 📺 Using 420v output");
+            } else {
+                NSLog(@"[LC] [GetFrame] ⚠️ 420v output not available, falling back to BGRA");
             }
             break;
         case 875704438: // '420f'
             if (yuv420fOutput && [yuv420fOutput hasNewPixelBufferForItemTime:currentTime]) {
                 selectedOutput = yuv420fOutput;
+                NSLog(@"[LC] [GetFrame] 📺 Using 420f output");
+            } else {
+                NSLog(@"[LC] [GetFrame] ⚠️ 420f output not available, falling back to BGRA");
             }
             break;
         default: // BGRA
-            if (bgraOutput && [bgraOutput hasNewPixelBufferForItemTime:currentTime]) {
-                selectedOutput = bgraOutput;
-            }
+            NSLog(@"[LC] [GetFrame] 📺 Using BGRA output (default)");
             break;
     }
     
-    if (selectedOutput && [selectedOutput hasNewPixelBufferForItemTime:currentTime]) {
-        CVPixelBufferRef pixelBuffer = [selectedOutput copyPixelBufferForItemTime:currentTime itemTimeForDisplay:NULL];
+    if (!selectedOutput || ![selectedOutput hasNewPixelBufferForItemTime:currentTime]) {
+        NSLog(@"[LC] [GetFrame] ❌ No frames available from any output at time: %f", CMTimeGetSeconds(currentTime));
         
-        if (pixelBuffer) {
-            OSType actualFormat = CVPixelBufferGetPixelFormatType(pixelBuffer);
-            NSLog(@"[LC] [GetFrame] Extracted pixel buffer: req=%c%c%c%c → actual=%c%c%c%c", 
-                  (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
-                  (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF,
-                  (actualFormat >> 24) & 0xFF, (actualFormat >> 16) & 0xFF, 
-                  (actualFormat >> 8) & 0xFF, actualFormat & 0xFF);
-        }
+        // Debug: Check player state
+        NSLog(@"[LC] [GetFrame] 🔍 Player rate: %f, status: %ld, time: %f", 
+              frameExtractionPlayer.rate, 
+              (long)frameExtractionPlayer.currentItem.status,
+              CMTimeGetSeconds(currentTime));
         
-        return pixelBuffer; // Caller must release
+        return NULL;
     }
     
-    NSLog(@"[LC] [GetFrame] No pixel buffer available for format: %c%c%c%c", 
-          (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
-          (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF);
-    return NULL;
+    CVPixelBufferRef pixelBuffer = [selectedOutput copyPixelBufferForItemTime:currentTime itemTimeForDisplay:NULL];
+    
+    if (pixelBuffer) {
+        OSType actualFormat = CVPixelBufferGetPixelFormatType(pixelBuffer);
+        NSLog(@"[LC] [GetFrame] ✅ Pixel buffer extracted: req=%c%c%c%c → actual=%c%c%c%c", 
+              (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
+              (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF,
+              (actualFormat >> 24) & 0xFF, (actualFormat >> 16) & 0xFF, 
+              (actualFormat >> 8) & 0xFF, actualFormat & 0xFF);
+    } else {
+        NSLog(@"[LC] [GetFrame] ❌ Failed to copy pixel buffer from output");
+    }
+    
+    return pixelBuffer; // Caller must release
 }
 
 + (void)setCurrentVideoPath:(NSString *)path {
@@ -892,11 +876,16 @@ static GetFrameKVOObserver *_kvoObserver = nil;
 }
 
 + (void)setupPlayerWithPath:(NSString *)path {
-    // Clean up existing player like cj
+    NSLog(@"[LC] [GetFrame] 🎬 Setting up player with path: %@", path);
+    
+    // Reset ready flag
+    playerIsReady = NO;
+    
+    // Clean up existing player
     if (frameExtractionPlayer) {
         [frameExtractionPlayer pause];
         
-        // Remove old outputs like cj does
+        // Remove old outputs
         if (frameExtractionPlayer.currentItem) {
             if (bgraOutput) [frameExtractionPlayer.currentItem removeOutput:bgraOutput];
             if (yuv420vOutput) [frameExtractionPlayer.currentItem removeOutput:yuv420vOutput];
@@ -910,66 +899,84 @@ static GetFrameKVOObserver *_kvoObserver = nil;
     }
     
     if (!path || path.length == 0) {
-        NSLog(@"[LC] [GetFrame] No video path provided");
+        NSLog(@"[LC] [GetFrame] ❌ No video path provided");
+        return;
+    }
+    
+    // Verify file exists
+    if (![[NSFileManager defaultManager] fileExistsAtPath:path]) {
+        NSLog(@"[LC] [GetFrame] ❌ Video file does not exist at path: %@", path);
         return;
     }
     
     NSURL *videoURL = [NSURL fileURLWithPath:path];
-    AVPlayerItem *item = [AVPlayerItem playerItemWithURL:videoURL];
-    frameExtractionPlayer = [AVPlayer playerWithPlayerItem:item];
-
-    // FIXED: Create proper observer instance
-    if (!_kvoObserver) {
-        _kvoObserver = [[GetFrameKVOObserver alloc] init];
-    }
+    NSLog(@"[LC] [GetFrame] 📁 Video URL: %@", videoURL);
     
-    // Use proper observer instance
-    @try {
-        [item addObserver:_kvoObserver 
-               forKeyPath:@"status" 
-                  options:NSKeyValueObservingOptionNew 
-                  context:NULL];
-        NSLog(@"[LC] [GetFrame] KVO observer added successfully");
-    } @catch (NSException *exception) {
-        NSLog(@"[LC] [GetFrame] Failed to add KVO observer: %@", exception);
-    }
+    // Create asset and load tracks first
+    AVURLAsset *asset = [AVURLAsset assetWithURL:videoURL];
     
-    // Don't add outputs immediately - wait for ready status
-    NSLog(@"[LC] [GetFrame] Player created, waiting for ready status...");
-    
-    // Create outputs
-    NSDictionary *bgraAttributes = @{
-        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA),
-        (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
-    };
-    
-    NSDictionary *yuv420vAttributes = @{
-        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704422), // '420v'
-        (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
-    };
-    
-    NSDictionary *yuv420fAttributes = @{
-        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704438), // '420f'
-        (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
-    };
-    
-    bgraOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:bgraAttributes];
-    yuv420vOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420vAttributes];
-    yuv420fOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420fAttributes];
-    
-    @try {
-        [item addOutput:bgraOutput];
-        [item addOutput:yuv420vOutput];
-        [item addOutput:yuv420fOutput];
-        NSLog(@"[LC] [GetFrame] All outputs added successfully");
-    } @catch (NSException *exception) {
-        NSLog(@"[LC] [GetFrame] Failed to add outputs: %@", exception);
-        return;
-    }
-
-    [frameExtractionPlayer play];
-    
-    NSLog(@"[LC] [GetFrame] Video player setup complete with 3 outputs for: %@", path.lastPathComponent);
+    // Load tracks asynchronously
+    [asset loadValuesAsynchronouslyForKeys:@[@"tracks", @"duration", @"playable"] completionHandler:^{
+        NSError *error = nil;
+        AVKeyValueStatus tracksStatus = [asset statusOfValueForKey:@"tracks" error:&error];
+        
+        if (tracksStatus != AVKeyValueStatusLoaded) {
+            NSLog(@"[LC] [GetFrame] ❌ Failed to load tracks: %@", error);
+            return;
+        }
+        
+        NSArray *videoTracks = [asset tracksWithMediaType:AVMediaTypeVideo];
+        if (videoTracks.count == 0) {
+            NSLog(@"[LC] [GetFrame] ❌ No video tracks found in asset");
+            return;
+        }
+        
+        NSLog(@"[LC] [GetFrame] ✅ Video tracks loaded: %lu tracks", (unsigned long)videoTracks.count);
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            AVPlayerItem *item = [AVPlayerItem playerItemWithAsset:asset];
+            frameExtractionPlayer = [AVPlayer playerWithPlayerItem:item];
+            frameExtractionPlayer.actionAtItemEnd = AVPlayerActionAtItemEndNone;
+            frameExtractionPlayer.muted = YES;
+            
+            // Create outputs with proper attributes
+            NSDictionary *bgraAttributes = @{
+                (NSString*)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA),
+                (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
+            };
+            
+            NSDictionary *yuv420vAttributes = @{
+                (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704422), // '420v'
+                (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
+            };
+            
+            NSDictionary *yuv420fAttributes = @{
+                (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704438), // '420f'
+                (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
+            };
+            
+            bgraOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:bgraAttributes];
+            yuv420vOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420vAttributes];
+            yuv420fOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420fAttributes];
+            
+            // Add outputs
+            [item addOutput:bgraOutput];
+            [item addOutput:yuv420vOutput];
+            [item addOutput:yuv420fOutput];
+            
+            // Setup KVO observer
+            if (!_kvoObserver) {
+                _kvoObserver = [[GetFrameKVOObserver alloc] init];
+            }
+            
+            [item addObserver:_kvoObserver 
+                   forKeyPath:@"status" 
+                      options:NSKeyValueObservingOptionNew 
+                      context:NULL];
+            
+            NSLog(@"[LC] [GetFrame] 🎬 Player setup complete, waiting for ready status");
+        });
+    }];
 }
 
 + (UIWindow *)getKeyWindow {
@@ -1059,8 +1066,51 @@ static GetFrameKVOObserver *_kvoObserver = nil;
 //         return spoofedFrame;
 //     }
 // }
+@end
 
 
+// pragma MARK: - KVO Observer for Player Item Status
+
+@implementation GetFrameKVOObserver
+
+- (void)observeValueForKeyPath:(NSString *)keyPath 
+                      ofObject:(id)object 
+                        change:(NSDictionary *)change 
+                       context:(void *)context {
+    if ([keyPath isEqualToString:@"status"]) {
+        AVPlayerItem *item = (AVPlayerItem *)object;
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            switch (item.status) {
+                case AVPlayerItemStatusReadyToPlay:
+                    NSLog(@"[LC] [GetFrame] ✅ Player ready - starting playback");
+                    playerIsReady = YES;
+                    if (frameExtractionPlayer) {
+                        [frameExtractionPlayer play];
+                        NSLog(@"[LC] [GetFrame] 🎬 Playback started, rate: %f", frameExtractionPlayer.rate);
+                    }
+                    break;
+                    
+                case AVPlayerItemStatusFailed:
+                    NSLog(@"[LC] [GetFrame] ❌ Player failed: %@", item.error);
+                    playerIsReady = NO;
+                    break;
+                    
+                case AVPlayerItemStatusUnknown:
+                    NSLog(@"[LC] [GetFrame] ⏳ Player status unknown");
+                    playerIsReady = NO;
+                    break;
+            }
+        });
+        
+        // Clean up observer
+        @try {
+            [item removeObserver:self forKeyPath:@"status"];
+        } @catch (NSException *exception) {
+            NSLog(@"[LC] [GetFrame] Exception removing observer: %@", exception);
+        }
+    }
+}
 
 @end
 
@@ -2480,8 +2530,15 @@ void AVFoundationGuestHooksInit(void) {
                     
                     // Legacy still image capture hook for older apps
                     // swizzle([AVCaptureStillImageOutput class], @selector(captureStillImageAsynchronouslyFromConnection:completionHandler:), @selector(lc_captureStillImageAsynchronouslyFromConnection:completionHandler:));
+                    // if (NSClassFromString(@"AVCaptureStillImageOutput")) {
+                    //     swizzle([AVCaptureStillImageOutput class], @selector(captureStillImageAsynchronouslyFromConnection:completionHandler:), @selector(lc_captureStillImageAsynchronouslyFromConnection:completionHandler:));
+                    //     NSLog(@"[LC] ✅ Legacy still image capture hook installed");
+                    // }
                     if (NSClassFromString(@"AVCaptureStillImageOutput")) {
+                        #pragma clang diagnostic push
+                        #pragma clang diagnostic ignored "-Wdeprecated-declarations"
                         swizzle([AVCaptureStillImageOutput class], @selector(captureStillImageAsynchronouslyFromConnection:completionHandler:), @selector(lc_captureStillImageAsynchronouslyFromConnection:completionHandler:));
+                        #pragma clang diagnostic pop
                         NSLog(@"[LC] ✅ Legacy still image capture hook installed");
                     }
                     NSLog(@"[LC] ✅ Level 5 hooks installed");
