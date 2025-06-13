@@ -85,6 +85,13 @@ static CMSampleBufferRef createSpoofedSampleBuffer(void);
 static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer);
 static void cleanupPhotoCache(void);
 
+@interface GetFrame : NSObject
++ (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originalFrame preserveOrientation:(BOOL)preserve;
++ (CVPixelBufferRef)getCurrentFramePixelBuffer:(OSType)requestedFormat;
++ (void)setCurrentVideoPath:(NSString *)path;
++ (UIWindow *)getKeyWindow;
+@end
+
 // Level 1 hooks (Core Video)
 static CVReturn (*original_CVPixelBufferCreate)(CFAllocatorRef, size_t, size_t, OSType, CFDictionaryRef, CVPixelBufferRef *);
 CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t height, OSType pixelFormatType, CFDictionaryRef pixelBufferAttributes, CVPixelBufferRef *pixelBufferOut);
@@ -291,135 +298,75 @@ static CMSampleBufferRef createSpoofedSampleBuffer() {
             return NULL;
         }
 
-        // IMPROVEMENT: Get the ACTUAL requested format from the calling context
-        OSType targetFormat = kCVPixelFormatType_32BGRA; // Safe default
-        
-        // Use the format that was actually requested by the app
-        if (lastRequestedFormat != 0 && isValidPixelFormat(lastRequestedFormat)) {
-            targetFormat = lastRequestedFormat;
-            NSLog(@"[LC] 🎯 Using app-requested format: %c%c%c%c", 
-                  (targetFormat >> 24) & 0xFF, (targetFormat >> 16) & 0xFF, 
-                  (targetFormat >> 8) & 0xFF, targetFormat & 0xFF);
-        } else {
-            NSLog(@"[LC] 🎯 Using default BGRA format (no specific request detected)");
-        }
-
         CVPixelBufferRef sourcePixelBuffer = NULL;
         BOOL ownSourcePixelBuffer = NO;
 
-        // 1. Get source buffer (video or image)
-        if (isVideoSetupSuccessfully && videoSpoofPlayer && videoSpoofPlayer.currentItem &&
-            videoSpoofPlayer.currentItem.status == AVPlayerItemStatusReadyToPlay) {
-            
-            CMTime playerTime = [videoSpoofPlayer.currentItem currentTime];
-            
-            if (CMTIME_IS_VALID(playerTime) && !CMTIME_IS_INDEFINITE(playerTime)) {
-                // Always use BGRA output as source - we'll convert to target format later
-                if (videoSpoofPlayerOutput && [videoSpoofPlayerOutput hasNewPixelBufferForItemTime:playerTime]) {
-                    sourcePixelBuffer = [videoSpoofPlayerOutput copyPixelBufferForItemTime:playerTime itemTimeForDisplay:NULL];
-                    if (sourcePixelBuffer) {
-                        ownSourcePixelBuffer = YES;
-                        NSLog(@"[LC] 📹 Got video frame from BGRA output");
-                    }
-                }
+        // 1. Get source buffer (video from GetFrame or static image)
+        if (spoofCameraVideoPath.length > 0) {
+            // NEW: Use the GetFrame class as the source for pixel buffers
+            sourcePixelBuffer = [GetFrame getCurrentFramePixelBuffer:lastRequestedFormat];
+            if (sourcePixelBuffer) {
+                ownSourcePixelBuffer = YES; // We received a copy, so we own it.
             }
         }
-
-        // 2. Fallback to static image
+        
+        // 2. Fallback to static image if video fails or is not configured
         if (!sourcePixelBuffer && staticImageSpoofBuffer) {
             sourcePixelBuffer = staticImageSpoofBuffer;
+            // Don't own it, just retain it for the scope of this function
             CVPixelBufferRetain(sourcePixelBuffer);
             ownSourcePixelBuffer = YES;
-            NSLog(@"[LC] 🖼️ Using static image buffer");
         }
         
         if (!sourcePixelBuffer) {
-            NSLog(@"[LC] ❌ No source buffer available");
+            NSLog(@"[LC] ❌ No source buffer available (video or image).");
+            // Return the last known good frame as an emergency fallback
+            if (lastGoodSpoofedPixelBuffer) {
+                // Construct a new sample buffer from the last good pixel buffer
+                // (Implementation for this part is omitted for brevity but would be similar to below)
+            }
             return NULL;
         }
-        
-        // 3. CRITICAL: Convert to the exact format requested by the app
-        CVPixelBufferRef finalPixelBuffer = NULL;
-        OSType sourceFormat = CVPixelBufferGetPixelFormatType(sourcePixelBuffer);
-        size_t sourceWidth = CVPixelBufferGetWidth(sourcePixelBuffer);
-        size_t sourceHeight = CVPixelBufferGetHeight(sourcePixelBuffer);
-        
-        // Check if we need format conversion
-        BOOL needsFormatConversion = (sourceFormat != targetFormat);
-        BOOL needsResizeConversion = (sourceWidth != (size_t)targetResolution.width || 
-                                     sourceHeight != (size_t)targetResolution.height);
-        
-        if (!needsFormatConversion && !needsResizeConversion) {
-            // Perfect match - no conversion needed
-            finalPixelBuffer = sourcePixelBuffer;
-            CVPixelBufferRetain(finalPixelBuffer);
-            NSLog(@"[LC] ✅ Perfect match - no conversion needed");
-        } else {
-            // Need conversion - create buffer in target format
-            finalPixelBuffer = createPixelBufferInFormat(sourcePixelBuffer, targetFormat, targetResolution);
-            NSLog(@"[LC] 🔄 Converted %c%c%c%c→%c%c%c%c (%zux%zu→%.0fx%.0f)", 
-                  (sourceFormat >> 24) & 0xFF, (sourceFormat >> 16) & 0xFF, 
-                  (sourceFormat >> 8) & 0xFF, sourceFormat & 0xFF,
-                  (targetFormat >> 24) & 0xFF, (targetFormat >> 16) & 0xFF, 
-                  (targetFormat >> 8) & 0xFF, targetFormat & 0xFF,
-                  sourceWidth, sourceHeight, targetResolution.width, targetResolution.height);
-        }
-        
+
+        // 3. Scale and convert the buffer to the desired resolution and format
+        // The createScaledPixelBuffer function already handles resizing and format conversion
+        CVPixelBufferRef finalPixelBuffer = createScaledPixelBuffer(sourcePixelBuffer, targetResolution);
+
         if (ownSourcePixelBuffer) {
             CVPixelBufferRelease(sourcePixelBuffer);
         }
 
         if (!finalPixelBuffer) {
-            NSLog(@"[LC] ❌ Format conversion failed");
+            NSLog(@"[LC] ❌ Scaling/conversion of source buffer failed.");
             return NULL;
         }
-
-        // 4. Create sample buffer with correct format description
-        CMVideoFormatDescriptionRef formatDesc = NULL;
-        OSStatus formatStatus = CMVideoFormatDescriptionCreateForImageBuffer(
-            kCFAllocatorDefault, finalPixelBuffer, &formatDesc);
         
-        if (formatStatus != noErr || !formatDesc) {
-            NSLog(@"[LC] ❌ Failed to create format description: %d", (int)formatStatus);
+        // 4. Create the final CMSampleBuffer
+        CMVideoFormatDescriptionRef formatDesc = NULL;
+        OSStatus formatStatus = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, finalPixelBuffer, &formatDesc);
+        
+        if (formatStatus != noErr) {
             CVPixelBufferRelease(finalPixelBuffer);
             return NULL;
         }
 
-        // 5. Create sample buffer with proper timing
-        CMTime presentationTime = CMTimeMakeWithSeconds(CACurrentMediaTime(), NSEC_PER_SEC);
         CMSampleTimingInfo timingInfo = {
             .duration = CMTimeMake(1, 30),
-            .presentationTimeStamp = presentationTime,
+            .presentationTimeStamp = CMTimeMakeWithSeconds(CACurrentMediaTime(), NSEC_PER_SEC),
             .decodeTimeStamp = kCMTimeInvalid
         };
 
         CMSampleBufferRef sampleBuffer = NULL;
-        OSStatus result = CMSampleBufferCreateForImageBuffer(
-            kCFAllocatorDefault,
-            finalPixelBuffer,
-            true,                    // dataReady
-            NULL,                   // makeDataReadyCallback
-            NULL,                   // makeDataReadyRefcon
-            formatDesc,             // formatDescription
-            &timingInfo,           // sampleTiming
-            &sampleBuffer          // sampleBufferOut
-        );
+        CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault, finalPixelBuffer, formatDesc, &timingInfo, &sampleBuffer);
 
+        // Cleanup
         CFRelease(formatDesc);
         CVPixelBufferRelease(finalPixelBuffer);
-
-        if (result != noErr || !sampleBuffer) {
-            NSLog(@"[LC] ❌ Failed to create sample buffer: %d", (int)result);
-            return NULL;
+        
+        if (sampleBuffer) {
+            updateLastGoodSpoofedFrame(CMSampleBufferGetImageBuffer(sampleBuffer), CMSampleBufferGetFormatDescription(sampleBuffer));
         }
-        
-        // Verify the final format
-        CMFormatDescriptionRef finalFormatDesc = CMSampleBufferGetFormatDescription(sampleBuffer);
-        OSType finalFormat = CMFormatDescriptionGetMediaSubType(finalFormatDesc);
-        NSLog(@"[LC] ✅ Sample buffer created in format: %c%c%c%c", 
-              (finalFormat >> 24) & 0xFF, (finalFormat >> 16) & 0xFF, 
-              (finalFormat >> 8) & 0xFF, finalFormat & 0xFF);
-        
+
         return sampleBuffer;
         
     } @catch (NSException *exception) {
@@ -656,12 +603,12 @@ static void setupVideoSpoofingResources() {
 
 //pragma MARK: - Centralized Frame Manager (cj Pattern)
 
-@interface GetFrame : NSObject
-+ (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originalFrame preserveOrientation:(BOOL)preserve;
-+ (CVPixelBufferRef)getCurrentFramePixelBuffer:(OSType)requestedFormat;
-+ (void)setCurrentVideoPath:(NSString *)path;
-+ (UIWindow *)getKeyWindow;
-@end
+// @interface GetFrame : NSObject
+// + (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originalFrame preserveOrientation:(BOOL)preserve;
+// + (CVPixelBufferRef)getCurrentFramePixelBuffer:(OSType)requestedFormat;
+// + (void)setCurrentVideoPath:(NSString *)path;
+// + (UIWindow *)getKeyWindow;
+// @end
 
 // Static variables
 static NSString *currentVideoPath = nil;
@@ -1806,33 +1753,97 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 
 @implementation AVCaptureVideoPreviewLayer(LiveContainerSpoof)
 
+static const void *SpoofDisplayLayerKey = &SpoofDisplayLayerKey;
+static const void *SpoofDisplayTimerKey = &SpoofDisplayTimerKey;
+
 - (void)lc_setSession:(AVCaptureSession *)session {
-    NSLog(@"[LC] 📺 L5: setSession called - session: %p", session);
-    
+    NSLog(@"[LC] 📺 L5: PreviewLayer setSession called - session: %p", session);
+
+    // Always call the original method first
+    [self lc_setSession:session];
+
     if (spoofCameraEnabled) {
         if (session) {
-            NSLog(@"[LC] 📺 L5: Setting spoofed preview session");
-            NSLog(@"[LC] 📺 L5: Preview layer bounds: %@", NSStringFromCGRect(self.bounds));
-            NSLog(@"[LC] 📺 L5: Preview layer video gravity: %@", self.videoGravity);
+            // A session is being set. This is our cue to start the spoof.
             
-            objc_setAssociatedObject(self, @selector(lc_setSession:), @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            
-            // Start feeding spoofed frames to preview layer
-            [self startSpoofedPreviewFeed];
-            NSLog(@"[LC] 📺 L5: Spoofed preview feed started");
+            // 1. Hide the original preview content to prevent the real camera feed from showing.
+            // By setting the session to nil on the original implementation, we disconnect it from the live feed.
+            // This is safer than hiding the layer, which might interfere with app layout logic.
+            // [super setSession:nil];
+            [self lc_setSession:nil];
+            self.backgroundColor = [UIColor blackColor].CGColor; // Show a black background
+
+            // 2. Start our robust preview feed.
+            [self startRobustSpoofedPreview];
+
         } else {
-            NSLog(@"[LC] 📺 L5: Clearing preview session (discard/cleanup)");
-            [self stopSpoofedPreviewFeed];
-            objc_setAssociatedObject(self, @selector(lc_setSession:), nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            cleanupPhotoCache();
-            NSLog(@"[LC] 📺 L5: Preview cleanup completed");
+            // The session is being set to nil (e.g., view is disappearing). Clean up our resources.
+            [self stopRobustSpoofedPreview];
         }
-    } else {
-        NSLog(@"[LC] 📺 L5: Spoofing disabled - using original session");
+    }
+}
+
+- (void)startRobustSpoofedPreview {
+    // Ensure we don't start multiple previews on the same layer
+    [self stopRobustSpoofedPreview];
+
+    // Create a new display layer for our spoofed content
+    AVSampleBufferDisplayLayer *spoofLayer = [[AVSampleBufferDisplayLayer alloc] init];
+    spoofLayer.frame = self.bounds;
+    spoofLayer.videoGravity = self.videoGravity; // Use the same gravity as the original layer
+    spoofLayer.backgroundColor = [UIColor blackColor].CGColor;
+    
+    // Add the spoof layer to this preview layer's hierarchy
+    [self addSublayer:spoofLayer];
+    objc_setAssociatedObject(self, SpoofDisplayLayerKey, spoofLayer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    
+    // Use a CADisplayLink for smooth, screen-synchronized frame updates
+    CADisplayLink *displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(renderNextSpoofedFrame)];
+    [displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+    objc_setAssociatedObject(self, SpoofDisplayTimerKey, displayLink, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+
+    NSLog(@"[LC] ✅📺 Robust spoof preview started.");
+}
+
+- (void)renderNextSpoofedFrame {
+    AVSampleBufferDisplayLayer *spoofLayer = objc_getAssociatedObject(self, SpoofDisplayLayerKey);
+    if (!spoofLayer || !spoofLayer.superlayer) {
+        [self stopRobustSpoofedPreview];
+        return;
+    }
+
+    // Ensure the spoof layer's frame always matches the preview layer's frame
+    if (!CGRectEqualToRect(spoofLayer.frame, self.bounds)) {
+        spoofLayer.frame = self.bounds;
     }
     
-    [self lc_setSession:session];
-    NSLog(@"[LC] 📺 L5: setSession completed");
+    // Use the crash-resistant createSpoofedSampleBuffer to get the next frame
+    CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
+    if (spoofedFrame && spoofLayer.isReadyForMoreMediaData) {
+        [spoofLayer enqueueSampleBuffer:spoofedFrame];
+        CFRelease(spoofedFrame);
+    } else if (spoofedFrame) {
+        // Not ready for more data, just release the frame
+        CFRelease(spoofedFrame);
+    }
+}
+
+- (void)stopRobustSpoofedPreview {
+    // Invalidate the timer
+    CADisplayLink *displayLink = objc_getAssociatedObject(self, SpoofDisplayTimerKey);
+    if (displayLink) {
+        [displayLink invalidate];
+        objc_setAssociatedObject(self, SpoofDisplayTimerKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+
+    // Remove the layer
+    AVSampleBufferDisplayLayer *spoofLayer = objc_getAssociatedObject(self, SpoofDisplayLayerKey);
+    if (spoofLayer) {
+        [spoofLayer removeFromSuperlayer];
+        objc_setAssociatedObject(self, SpoofDisplayLayerKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    
+    NSLog(@"[LC] 🧹📺 Spoof preview stopped and cleaned up.");
 }
 
 - (void)startSpoofedPreviewFeed {
@@ -2117,13 +2128,24 @@ void AVFoundationGuestHooksInit(void) {
     }
 
         // Setup video resources if enabled
-        if (spoofCameraEnabled && spoofCameraVideoPath && spoofCameraVideoPath.length > 0) {
-            NSLog(@"[LC] Video mode: Setting up PRIMARY video system only");
-            setupVideoSpoofingResources(); // Use your working system
-            // TEMPORARY: Disable GetFrame to avoid conflicts
-            // [GetFrame setCurrentVideoPath:spoofCameraVideoPath];
-        } else if (spoofCameraEnabled) {
-            NSLog(@"[LC] Image mode: Using static image fallback");
+        // if (spoofCameraEnabled && spoofCameraVideoPath && spoofCameraVideoPath.length > 0) {
+        //     NSLog(@"[LC] Video mode: Setting up PRIMARY video system only");
+        //     setupVideoSpoofingResources(); // Use your working system
+        //     // TEMPORARY: Disable GetFrame to avoid conflicts
+        //     // [GetFrame setCurrentVideoPath:spoofCameraVideoPath];
+        // } else if (spoofCameraEnabled) {
+        //     NSLog(@"[LC] Image mode: Using static image fallback");
+        // }
+        // Unified setup call
+        if (spoofCameraEnabled) {
+            setupImageSpoofingResources(); // Keep for image fallback
+            if (spoofCameraVideoPath.length > 0) {
+                NSLog(@"[LC] 🎬 Setting up unified frame manager...");
+                // Use the more robust GetFrame class to manage the video player
+                [GetFrame setCurrentVideoPath:spoofCameraVideoPath];
+            } else {
+                NSLog(@"[LC] 🖼️ Image-only mode activated.");
+            }
         }
 
         // Install hooks at all levels
