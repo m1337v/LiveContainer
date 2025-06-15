@@ -2090,50 +2090,69 @@ static const void *SpoofDisplayTimerKey = &SpoofDisplayTimerKey;
 - (void)lc_setSession:(AVCaptureSession *)session {
     NSLog(@"[LC] 📺 L5: PreviewLayer setSession called - session: %p", session);
 
-    // Always call the original method first
+    // Always call the original method first to maintain proper layer setup
     [self lc_setSession:session];
 
-    if (spoofCameraEnabled) {
-        if (session) {
-            // A session is being set. This is our cue to start the spoof.
-            
-            // 1. Hide the original preview content to prevent the real camera feed from showing.
-            // By setting the session to nil on the original implementation, we disconnect it from the live feed.
-            // This is safer than hiding the layer, which might interfere with app layout logic.
-            // [super setSession:nil];
-            [self lc_setSession:nil];
-            self.backgroundColor = [UIColor blackColor].CGColor; // Show a black background
-
-            // 2. Start our robust preview feed.
-            [self startRobustSpoofedPreview];
-
-        } else {
-            // The session is being set to nil (e.g., view is disappearing). Clean up our resources.
-            [self stopRobustSpoofedPreview];
-        }
+    if (spoofCameraEnabled && session) {
+        // Start spoofing the preview layer with our video content
+        [self startRobustSpoofedPreview];
+    } else if (!session) {
+        // Session is being removed, clean up our spoof
+        [self stopRobustSpoofedPreview];
     }
 }
 
+// session to NIL (preview bluescreen)
+// - (void)lc_setSession:(AVCaptureSession *)session {
+//     NSLog(@"[LC] 📺 L5: PreviewLayer setSession called - session: %p", session);
+
+//     // Always call the original method first
+//     [self lc_setSession:session];
+
+//     if (spoofCameraEnabled) {
+//         if (session) {
+//             // A session is being set. This is our cue to start the spoof.
+            
+//             // 1. Hide the original preview content to prevent the real camera feed from showing.
+//             // By setting the session to nil on the original implementation, we disconnect it from the live feed.
+//             // This is safer than hiding the layer, which might interfere with app layout logic.
+//             // [super setSession:nil];
+//             [self lc_setSession:nil];
+//             self.backgroundColor = [UIColor blackColor].CGColor; // Show a black background
+
+//             // 2. Start our robust preview feed.
+//             [self startRobustSpoofedPreview];
+
+//         } else {
+//             // The session is being set to nil (e.g., view is disappearing). Clean up our resources.
+//             [self stopRobustSpoofedPreview];
+//         }
+//     }
+// }
+
 - (void)startRobustSpoofedPreview {
-    // Ensure we don't start multiple previews on the same layer
+    // Clean up any existing spoof first
     [self stopRobustSpoofedPreview];
 
-    // Create a new display layer for our spoofed content
+    // Create our spoof display layer
     AVSampleBufferDisplayLayer *spoofLayer = [[AVSampleBufferDisplayLayer alloc] init];
     spoofLayer.frame = self.bounds;
-    spoofLayer.videoGravity = self.videoGravity; // Use the same gravity as the original layer
-    spoofLayer.backgroundColor = [UIColor blackColor].CGColor;
+    spoofLayer.videoGravity = self.videoGravity;
+    spoofLayer.backgroundColor = [UIColor clearColor].CGColor;
     
-    // Add the spoof layer to this preview layer's hierarchy
+    // Add the spoof layer as a sublayer (don't replace the original session)
     [self addSublayer:spoofLayer];
+    
+    // Store reference to our spoof layer
     objc_setAssociatedObject(self, SpoofDisplayLayerKey, spoofLayer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     
-    // Use a CADisplayLink for smooth, screen-synchronized frame updates
+    // Use a CADisplayLink for smooth frame updates
     CADisplayLink *displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(renderNextSpoofedFrame)];
+    displayLink.preferredFramesPerSecond = 30; // Limit to 30fps for better performance
     [displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
     objc_setAssociatedObject(self, SpoofDisplayTimerKey, displayLink, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 
-    NSLog(@"[LC] ✅📺 Robust spoof preview started.");
+    NSLog(@"[LC] ✅📺 Spoof preview layer started with video content");
 }
 
 - (void)renderNextSpoofedFrame {
@@ -2143,38 +2162,39 @@ static const void *SpoofDisplayTimerKey = &SpoofDisplayTimerKey;
         return;
     }
 
-    // Ensure the spoof layer's frame always matches the preview layer's frame
+    // Update the spoof layer frame to match the preview layer
     if (!CGRectEqualToRect(spoofLayer.frame, self.bounds)) {
         spoofLayer.frame = self.bounds;
+        spoofLayer.videoGravity = self.videoGravity;
     }
-    
-    // Use the crash-resistant createSpoofedSampleBuffer to get the next frame
-    CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
-    if (spoofedFrame && spoofLayer.isReadyForMoreMediaData) {
-        [spoofLayer enqueueSampleBuffer:spoofedFrame];
-        CFRelease(spoofedFrame);
-    } else if (spoofedFrame) {
-        // Not ready for more data, just release the frame
-        CFRelease(spoofedFrame);
+
+    // Create and display a spoofed frame
+    CMSampleBufferRef spoofedBuffer = createSpoofedSampleBuffer();
+    if (spoofedBuffer) {
+        if (spoofLayer.isReadyForMoreMediaData) {
+            [spoofLayer enqueueSampleBuffer:spoofedBuffer];
+        }
+        CFRelease(spoofedBuffer);
     }
 }
 
 - (void)stopRobustSpoofedPreview {
-    // Invalidate the timer
+    // Stop the display link
     CADisplayLink *displayLink = objc_getAssociatedObject(self, SpoofDisplayTimerKey);
     if (displayLink) {
         [displayLink invalidate];
         objc_setAssociatedObject(self, SpoofDisplayTimerKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-
-    // Remove the layer
+    
+    // Remove the spoof layer
     AVSampleBufferDisplayLayer *spoofLayer = objc_getAssociatedObject(self, SpoofDisplayLayerKey);
     if (spoofLayer) {
         [spoofLayer removeFromSuperlayer];
+        [spoofLayer flush];
         objc_setAssociatedObject(self, SpoofDisplayLayerKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     
-    NSLog(@"[LC] 🧹📺 Spoof preview stopped and cleaned up.");
+    NSLog(@"[LC] 📺 Spoof preview stopped");
 }
 
 - (void)startSpoofedPreviewFeed {
