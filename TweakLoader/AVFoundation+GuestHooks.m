@@ -638,6 +638,9 @@ static void setupVideoSpoofingResources() {
 // static GetFrameKVOObserver *_kvoObserver = nil;
 // static BOOL playerIsReady = NO;
 
+// Add a simple frame cache at the top of GetFrame implementation
+static CVPixelBufferRef g_lastGoodFrame = NULL;
+
 // Fix the GetFrame getCurrentFrame method to better handle sample buffer creation:
 + (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originalFrame preserveOrientation:(BOOL)preserve {
     if (!spoofCameraEnabled) {
@@ -810,100 +813,84 @@ static NSString* fourCCToString(OSType fourCC) {
         return NULL;
     }
     
-    // CRITICAL FIX: Check if player time is near end and restart if needed
     CMTime currentTime = frameExtractionPlayer.currentItem.currentTime;
     CMTime duration = frameExtractionPlayer.currentItem.duration;
     
+    // CaptureJailed's approach: If very close to end, use cached frame
     if (CMTIME_IS_VALID(duration) && CMTIME_IS_VALID(currentTime)) {
         Float64 currentSeconds = CMTimeGetSeconds(currentTime);
         Float64 durationSeconds = CMTimeGetSeconds(duration);
         
-        // If we're within 0.5 seconds of the end, restart
-        if (durationSeconds > 0 && (currentSeconds >= durationSeconds - 0.5)) {
-            NSLog(@"[LC] [GetFrame] 🔄 Near end of video (%.2f/%.2f), restarting", currentSeconds, durationSeconds);
-            [frameExtractionPlayer seekToTime:kCMTimeZero toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
-            currentTime = kCMTimeZero;
+        // If within 0.1 seconds of video end, use last good frame
+        if (durationSeconds > 0 && currentSeconds >= durationSeconds - 0.1) {
+            if (g_lastGoodFrame) {
+                CVPixelBufferRetain(g_lastGoodFrame);
+                return g_lastGoodFrame;
+            }
         }
     }
     
-    // If current time is invalid, use a safe time
+    // Normal frame extraction (your existing code)
     if (!CMTIME_IS_VALID(currentTime) || CMTimeGetSeconds(currentTime) < 0.1) {
-        currentTime = CMTimeMake(1, 10); // 0.1 seconds
+        currentTime = CMTimeMake(3, 30);
     }
     
-    // Select appropriate output with better fallback logic
     AVPlayerItemVideoOutput *selectedOutput = NULL;
-    NSString *outputType = @"NONE";
     
     switch (requestedFormat) {
         case 875704422: // '420v'
-            if (yuv420vOutput) {
-                selectedOutput = yuv420vOutput;
-                outputType = @"420v";
-            }
+            if (yuv420vOutput) selectedOutput = yuv420vOutput;
             break;
         case 875704438: // '420f'  
-            if (yuv420fOutput) {
-                selectedOutput = yuv420fOutput;
-                outputType = @"420f";
-            }
+            if (yuv420fOutput) selectedOutput = yuv420fOutput;
+            else if (yuv420vOutput) selectedOutput = yuv420vOutput;
             break;
     }
     
-    // If specific format not available, try BGRA
     if (!selectedOutput && bgraOutput) {
         selectedOutput = bgraOutput;
-        outputType = @"BGRA";
-        NSLog(@"[LC] [GetFrame] ⚠️ %@ output not available, falling back to BGRA", 
-              (requestedFormat == 875704422) ? @"420v" : @"420f");
     }
     
     if (!selectedOutput) {
-        NSLog(@"[LC] [GetFrame] ❌ No outputs available");
-        return NULL;
-    }
-    
-    NSLog(@"[LC] [GetFrame] 📺 Using %@ output", outputType);
-    
-    // Try to get the frame with multiple fallback times
-    CVPixelBufferRef pixelBuffer = NULL;
-    NSArray *fallbackTimes = @[
-        [NSValue valueWithCMTime:currentTime],
-        [NSValue valueWithCMTime:CMTimeMake(1, 10)], // 0.1s
-        [NSValue valueWithCMTime:CMTimeMake(1, 4)],  // 0.25s
-        [NSValue valueWithCMTime:CMTimeMake(1, 2)],  // 0.5s
-        [NSValue valueWithCMTime:CMTimeMake(1, 1)]   // 1.0s
-    ];
-    
-    for (NSValue *timeValue in fallbackTimes) {
-        CMTime tryTime = [timeValue CMTimeValue];
-        pixelBuffer = [selectedOutput copyPixelBufferForItemTime:tryTime itemTimeForDisplay:NULL];
-        
-        if (pixelBuffer) {
-            NSLog(@"[LC] [GetFrame] ✅ Pixel buffer extracted: req=%@ → actual=%@", 
-                  fourCCToString(requestedFormat), outputType);
-            break;
+        // Return cached frame if available
+        if (g_lastGoodFrame) {
+            CVPixelBufferRetain(g_lastGoodFrame);
+            return g_lastGoodFrame;
         }
-    }
-    
-    if (!pixelBuffer) {
-        NSLog(@"[LC] [GetFrame] ❌ No frames available from any output at time: %f", CMTimeGetSeconds(currentTime));
-        NSLog(@"[LC] [GetFrame] 🔍 Player rate: %f, status: %ld, time: %f", 
-              frameExtractionPlayer.rate, (long)frameExtractionPlayer.status, CMTimeGetSeconds(currentTime));
         return NULL;
     }
     
-    // Scale if needed
-    size_t width = CVPixelBufferGetWidth(pixelBuffer);
-    size_t height = CVPixelBufferGetHeight(pixelBuffer);
+    CVPixelBufferRef pixelBuffer = [selectedOutput copyPixelBufferForItemTime:currentTime 
+                                                           itemTimeForDisplay:NULL];
     
-    if (width != (size_t)targetResolution.width || height != (size_t)targetResolution.height) {
-        CVPixelBufferRef scaledBuffer = createScaledPixelBuffer(pixelBuffer, targetResolution);
-        CVPixelBufferRelease(pixelBuffer);
-        return scaledBuffer;
+    if (pixelBuffer) {
+        // CRITICAL: Update cache with this good frame
+        if (g_lastGoodFrame) {
+            CVPixelBufferRelease(g_lastGoodFrame);
+        }
+        g_lastGoodFrame = pixelBuffer;
+        CVPixelBufferRetain(g_lastGoodFrame);
+        
+        // Scale if needed
+        size_t width = CVPixelBufferGetWidth(pixelBuffer);
+        size_t height = CVPixelBufferGetHeight(pixelBuffer);
+        
+        if (width != (size_t)targetResolution.width || height != (size_t)targetResolution.height) {
+            CVPixelBufferRef scaledBuffer = createScaledPixelBuffer(pixelBuffer, targetResolution);
+            CVPixelBufferRelease(pixelBuffer);
+            return scaledBuffer;
+        }
+        
+        return pixelBuffer;
     }
     
-    return pixelBuffer;
+    // If extraction failed, use cached frame
+    if (g_lastGoodFrame) {
+        CVPixelBufferRetain(g_lastGoodFrame);
+        return g_lastGoodFrame;
+    }
+    
+    return NULL;
 }
 
 + (void)setCurrentVideoPath:(NSString *)path {
@@ -934,6 +921,12 @@ static NSString* fourCCToString(OSType fourCC) {
         frameExtractionPlayer = nil;
     }
     
+    // Clean up frame cache
+    if (g_lastGoodFrame) {
+        CVPixelBufferRelease(g_lastGoodFrame);
+        g_lastGoodFrame = NULL;
+    }
+
     bgraOutput = nil;
     yuv420vOutput = nil;
     yuv420fOutput = nil;
