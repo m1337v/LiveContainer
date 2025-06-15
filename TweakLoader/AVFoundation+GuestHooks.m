@@ -795,75 +795,115 @@ static void setupVideoSpoofingResources() {
     return newSampleBuffer;
 }
 
+// Add helper function for debugging
+static NSString* fourCCToString(OSType fourCC) {
+    char bytes[5] = {0};
+    bytes[0] = (fourCC >> 24) & 0xFF;
+    bytes[1] = (fourCC >> 16) & 0xFF;
+    bytes[2] = (fourCC >> 8) & 0xFF;
+    bytes[3] = fourCC & 0xFF;
+    return [NSString stringWithCString:bytes encoding:NSASCIIStringEncoding] ?: [NSString stringWithFormat:@"%u", (unsigned int)fourCC];
+}
+
 + (CVPixelBufferRef)getCurrentFramePixelBuffer:(OSType)requestedFormat {
-    if (!spoofCameraEnabled) {
+    if (!spoofCameraEnabled || !frameExtractionPlayer || !playerIsReady) {
         return NULL;
     }
     
-    if (!frameExtractionPlayer || !frameExtractionPlayer.currentItem || !playerIsReady) {
-        NSLog(@"[LC] [GetFrame] ❌ Player not ready - enabled:%@ player:%@ item:%@ ready:%@", 
-              @(spoofCameraEnabled), frameExtractionPlayer ? @"YES" : @"NO", 
-              frameExtractionPlayer.currentItem ? @"YES" : @"NO", @(playerIsReady));
-        return NULL;
+    // CRITICAL FIX: Check if player time is near end and restart if needed
+    CMTime currentTime = frameExtractionPlayer.currentItem.currentTime;
+    CMTime duration = frameExtractionPlayer.currentItem.duration;
+    
+    if (CMTIME_IS_VALID(duration) && CMTIME_IS_VALID(currentTime)) {
+        Float64 currentSeconds = CMTimeGetSeconds(currentTime);
+        Float64 durationSeconds = CMTimeGetSeconds(duration);
+        
+        // If we're within 0.5 seconds of the end, restart
+        if (durationSeconds > 0 && (currentSeconds >= durationSeconds - 0.5)) {
+            NSLog(@"[LC] [GetFrame] 🔄 Near end of video (%.2f/%.2f), restarting", currentSeconds, durationSeconds);
+            [frameExtractionPlayer seekToTime:kCMTimeZero toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
+            currentTime = kCMTimeZero;
+        }
     }
     
-    // Log the requested format properly
-    NSLog(@"[LC] [GetFrame] 🎯 Requesting format: %c%c%c%c (%u)", 
-          (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
-          (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF, (unsigned int)requestedFormat);
+    // If current time is invalid, use a safe time
+    if (!CMTIME_IS_VALID(currentTime) || CMTimeGetSeconds(currentTime) < 0.1) {
+        currentTime = CMTimeMake(1, 10); // 0.1 seconds
+    }
     
-    CMTime currentTime = [frameExtractionPlayer.currentItem currentTime];
-    AVPlayerItemVideoOutput *selectedOutput = bgraOutput; // Default
+    // Select appropriate output with better fallback logic
+    AVPlayerItemVideoOutput *selectedOutput = NULL;
+    NSString *outputType = @"NONE";
     
-    // Select output based on requested format
     switch (requestedFormat) {
         case 875704422: // '420v'
-            if (yuv420vOutput && [yuv420vOutput hasNewPixelBufferForItemTime:currentTime]) {
+            if (yuv420vOutput) {
                 selectedOutput = yuv420vOutput;
-                NSLog(@"[LC] [GetFrame] 📺 Using 420v output");
-            } else {
-                NSLog(@"[LC] [GetFrame] ⚠️ 420v output not available, falling back to BGRA");
+                outputType = @"420v";
             }
             break;
-        case 875704438: // '420f'
-            if (yuv420fOutput && [yuv420fOutput hasNewPixelBufferForItemTime:currentTime]) {
+        case 875704438: // '420f'  
+            if (yuv420fOutput) {
                 selectedOutput = yuv420fOutput;
-                NSLog(@"[LC] [GetFrame] 📺 Using 420f output");
-            } else {
-                NSLog(@"[LC] [GetFrame] ⚠️ 420f output not available, falling back to BGRA");
+                outputType = @"420f";
             }
-            break;
-        default: // BGRA
-            NSLog(@"[LC] [GetFrame] 📺 Using BGRA output (default)");
             break;
     }
     
-    if (!selectedOutput || ![selectedOutput hasNewPixelBufferForItemTime:currentTime]) {
-        NSLog(@"[LC] [GetFrame] ❌ No frames available from any output at time: %f", CMTimeGetSeconds(currentTime));
-        
-        // Debug: Check player state
-        NSLog(@"[LC] [GetFrame] 🔍 Player rate: %f, status: %ld, time: %f", 
-              frameExtractionPlayer.rate, 
-              (long)frameExtractionPlayer.currentItem.status,
-              CMTimeGetSeconds(currentTime));
-        
+    // If specific format not available, try BGRA
+    if (!selectedOutput && bgraOutput) {
+        selectedOutput = bgraOutput;
+        outputType = @"BGRA";
+        NSLog(@"[LC] [GetFrame] ⚠️ %@ output not available, falling back to BGRA", 
+              (requestedFormat == 875704422) ? @"420v" : @"420f");
+    }
+    
+    if (!selectedOutput) {
+        NSLog(@"[LC] [GetFrame] ❌ No outputs available");
         return NULL;
     }
     
-    CVPixelBufferRef pixelBuffer = [selectedOutput copyPixelBufferForItemTime:currentTime itemTimeForDisplay:NULL];
+    NSLog(@"[LC] [GetFrame] 📺 Using %@ output", outputType);
     
-    if (pixelBuffer) {
-        OSType actualFormat = CVPixelBufferGetPixelFormatType(pixelBuffer);
-        NSLog(@"[LC] [GetFrame] ✅ Pixel buffer extracted: req=%c%c%c%c → actual=%c%c%c%c", 
-              (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
-              (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF,
-              (actualFormat >> 24) & 0xFF, (actualFormat >> 16) & 0xFF, 
-              (actualFormat >> 8) & 0xFF, actualFormat & 0xFF);
-    } else {
-        NSLog(@"[LC] [GetFrame] ❌ Failed to copy pixel buffer from output");
+    // Try to get the frame with multiple fallback times
+    CVPixelBufferRef pixelBuffer = NULL;
+    NSArray *fallbackTimes = @[
+        [NSValue valueWithCMTime:currentTime],
+        [NSValue valueWithCMTime:CMTimeMake(1, 10)], // 0.1s
+        [NSValue valueWithCMTime:CMTimeMake(1, 4)],  // 0.25s
+        [NSValue valueWithCMTime:CMTimeMake(1, 2)],  // 0.5s
+        [NSValue valueWithCMTime:CMTimeMake(1, 1)]   // 1.0s
+    ];
+    
+    for (NSValue *timeValue in fallbackTimes) {
+        CMTime tryTime = [timeValue CMTimeValue];
+        pixelBuffer = [selectedOutput copyPixelBufferForItemTime:tryTime itemTimeForDisplay:NULL];
+        
+        if (pixelBuffer) {
+            NSLog(@"[LC] [GetFrame] ✅ Pixel buffer extracted: req=%@ → actual=%@", 
+                  fourCCToString(requestedFormat), outputType);
+            break;
+        }
     }
     
-    return pixelBuffer; // Caller must release
+    if (!pixelBuffer) {
+        NSLog(@"[LC] [GetFrame] ❌ No frames available from any output at time: %f", CMTimeGetSeconds(currentTime));
+        NSLog(@"[LC] [GetFrame] 🔍 Player rate: %f, status: %ld, time: %f", 
+              frameExtractionPlayer.rate, (long)frameExtractionPlayer.status, CMTimeGetSeconds(currentTime));
+        return NULL;
+    }
+    
+    // Scale if needed
+    size_t width = CVPixelBufferGetWidth(pixelBuffer);
+    size_t height = CVPixelBufferGetHeight(pixelBuffer);
+    
+    if (width != (size_t)targetResolution.width || height != (size_t)targetResolution.height) {
+        CVPixelBufferRef scaledBuffer = createScaledPixelBuffer(pixelBuffer, targetResolution);
+        CVPixelBufferRelease(pixelBuffer);
+        return scaledBuffer;
+    }
+    
+    return pixelBuffer;
 }
 
 + (void)setCurrentVideoPath:(NSString *)path {
@@ -875,17 +915,16 @@ static void setupVideoSpoofingResources() {
     [self setupPlayerWithPath:path];
 }
 
-+ (void)setupPlayerWithPath:(NSString *)path {
-    NSLog(@"[LC] [GetFrame] 🎬 Setting up player with path: %@", path);
-    
-    // Reset ready flag
-    playerIsReady = NO;
-    
-    // Clean up existing player
++ (void)cleanupPlayer {
+    // Remove any existing observers
     if (frameExtractionPlayer) {
+        [[NSNotificationCenter defaultCenter] removeObserver:[GetFrame class] 
+                                                        name:AVPlayerItemDidPlayToEndTimeNotification 
+                                                      object:frameExtractionPlayer.currentItem];
+        
         [frameExtractionPlayer pause];
         
-        // Remove old outputs
+        // Remove old outputs safely
         if (frameExtractionPlayer.currentItem) {
             if (bgraOutput) [frameExtractionPlayer.currentItem removeOutput:bgraOutput];
             if (yuv420vOutput) [frameExtractionPlayer.currentItem removeOutput:yuv420vOutput];
@@ -893,10 +932,100 @@ static void setupVideoSpoofingResources() {
         }
         
         frameExtractionPlayer = nil;
-        bgraOutput = nil;
-        yuv420vOutput = nil;
-        yuv420fOutput = nil;
     }
+    
+    bgraOutput = nil;
+    yuv420vOutput = nil;
+    yuv420fOutput = nil;
+}
+
+// CRITICAL FIX: Add looping handler
++ (void)playerItemDidReachEnd:(NSNotification *)notification {
+    NSLog(@"[LC] [GetFrame] 🔄 Video reached end, restarting for loop");
+    
+    if (frameExtractionPlayer && frameExtractionPlayer.currentItem) {
+        // Seek back to beginning
+        [frameExtractionPlayer seekToTime:kCMTimeZero toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero completionHandler:^(BOOL finished) {
+            if (finished) {
+                NSLog(@"[LC] [GetFrame] ✅ Video looped successfully");
+                [frameExtractionPlayer play];
+            } else {
+                NSLog(@"[LC] [GetFrame] ❌ Video loop seek failed");
+            }
+        }];
+    }
+}
+
++ (void)completePlayerSetup:(AVURLAsset *)asset {
+    NSError *error = nil;
+    AVKeyValueStatus tracksStatus = [asset statusOfValueForKey:@"tracks" error:&error];
+    
+    if (tracksStatus != AVKeyValueStatusLoaded) {
+        NSLog(@"[LC] [GetFrame] ❌ Failed to load tracks: %@", error);
+        return;
+    }
+    
+    NSArray *videoTracks = [asset tracksWithMediaType:AVMediaTypeVideo];
+    if (videoTracks.count == 0) {
+        NSLog(@"[LC] [GetFrame] ❌ No video tracks found in asset");
+        return;
+    }
+    
+    NSLog(@"[LC] [GetFrame] ✅ Video tracks loaded: %lu tracks", (unsigned long)videoTracks.count);
+    
+    // Create player and item
+    AVPlayerItem *item = [AVPlayerItem playerItemWithAsset:asset];
+    frameExtractionPlayer = [AVPlayer playerWithPlayerItem:item];
+    frameExtractionPlayer.muted = YES;
+    
+    // CRITICAL FIX: Set up looping notification BEFORE outputs
+    [[NSNotificationCenter defaultCenter] addObserver:[GetFrame class]
+                                             selector:@selector(playerItemDidReachEnd:)
+                                                 name:AVPlayerItemDidPlayToEndTimeNotification
+                                               object:item];
+    
+    // Create outputs with simple settings
+    NSDictionary *bgraAttributes = @{
+        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA)
+    };
+    
+    NSDictionary *yuv420vAttributes = @{
+        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704422) // '420v'
+    };
+    
+    NSDictionary *yuv420fAttributes = @{
+        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704438) // '420f'
+    };
+    
+    bgraOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:bgraAttributes];
+    yuv420vOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420vAttributes];
+    yuv420fOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420fAttributes];
+    
+    // Add outputs
+    [item addOutput:bgraOutput];
+    [item addOutput:yuv420vOutput];
+    [item addOutput:yuv420fOutput];
+    
+    NSLog(@"[LC] [GetFrame] ✅ Outputs added to player item");
+    
+    // Set ready flag and start playing
+    playerIsReady = YES;
+    [frameExtractionPlayer play];
+    
+    // CRITICAL FIX: Seek to beginning to ensure frames are available
+    [frameExtractionPlayer seekToTime:kCMTimeZero toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
+    
+    NSLog(@"[LC] [GetFrame] 🎬 Player setup complete, waiting for ready status");
+}
+
++ (void)setupPlayerWithPath:(NSString *)path {
+    NSLog(@"[LC] [GetFrame] 🎬 Setting up player with path: %@", path);
+    
+    // Reset ready flag
+    playerIsReady = NO;
+    
+    // Clean up existing player and observers
+    [self cleanupPlayer];
     
     if (!path || path.length == 0) {
         NSLog(@"[LC] [GetFrame] ❌ No video path provided");
@@ -912,69 +1041,12 @@ static void setupVideoSpoofingResources() {
     NSURL *videoURL = [NSURL fileURLWithPath:path];
     NSLog(@"[LC] [GetFrame] 📁 Video URL: %@", videoURL);
     
-    // Create asset and load tracks first
+    // Create asset and load tracks asynchronously
     AVURLAsset *asset = [AVURLAsset assetWithURL:videoURL];
     
-    // Load tracks asynchronously
-    [asset loadValuesAsynchronouslyForKeys:@[@"tracks", @"duration", @"playable"] completionHandler:^{
-        NSError *error = nil;
-        AVKeyValueStatus tracksStatus = [asset statusOfValueForKey:@"tracks" error:&error];
-        
-        if (tracksStatus != AVKeyValueStatusLoaded) {
-            NSLog(@"[LC] [GetFrame] ❌ Failed to load tracks: %@", error);
-            return;
-        }
-        
-        NSArray *videoTracks = [asset tracksWithMediaType:AVMediaTypeVideo];
-        if (videoTracks.count == 0) {
-            NSLog(@"[LC] [GetFrame] ❌ No video tracks found in asset");
-            return;
-        }
-        
-        NSLog(@"[LC] [GetFrame] ✅ Video tracks loaded: %lu tracks", (unsigned long)videoTracks.count);
-        
+    [asset loadValuesAsynchronouslyForKeys:@[@"tracks", @"duration"] completionHandler:^{
         dispatch_async(dispatch_get_main_queue(), ^{
-            AVPlayerItem *item = [AVPlayerItem playerItemWithAsset:asset];
-            frameExtractionPlayer = [AVPlayer playerWithPlayerItem:item];
-            frameExtractionPlayer.actionAtItemEnd = AVPlayerActionAtItemEndNone;
-            frameExtractionPlayer.muted = YES;
-            
-            // Create outputs with proper attributes
-            NSDictionary *bgraAttributes = @{
-                (NSString*)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA),
-                (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
-            };
-            
-            NSDictionary *yuv420vAttributes = @{
-                (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704422), // '420v'
-                (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
-            };
-            
-            NSDictionary *yuv420fAttributes = @{
-                (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704438), // '420f'
-                (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
-            };
-            
-            bgraOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:bgraAttributes];
-            yuv420vOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420vAttributes];
-            yuv420fOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420fAttributes];
-            
-            // Add outputs
-            [item addOutput:bgraOutput];
-            [item addOutput:yuv420vOutput];
-            [item addOutput:yuv420fOutput];
-            
-            // Setup KVO observer
-            if (!_kvoObserver) {
-                _kvoObserver = [[GetFrameKVOObserver alloc] init];
-            }
-            
-            [item addObserver:_kvoObserver 
-                   forKeyPath:@"status" 
-                      options:NSKeyValueObservingOptionNew 
-                      context:NULL];
-            
-            NSLog(@"[LC] [GetFrame] 🎬 Player setup complete, waiting for ready status");
+            [self completePlayerSetup:asset];
         });
     }];
 }
