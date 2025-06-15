@@ -1244,6 +1244,7 @@ static void initializePhotoCacheQueue(void) {
 
 // Debug logging:
 
+// In our photo caching function, we need to NOT apply any rotation
 static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
     NSLog(@"[LC] 📷 Instagram photo caching with orientation fix");
     
@@ -1273,50 +1274,61 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
                     @try {
                         CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
                         if (ciImage) {
+                            // CRITICAL FIX: Don't apply any orientation transforms!
+                            // Just scale to target size while preserving orientation
+                            
+                            CGFloat sourceWidth = ciImage.extent.size.width;
+                            CGFloat sourceHeight = ciImage.extent.size.height;
+                            CGFloat targetWidth = 1080.0;
+                            CGFloat targetHeight = 1920.0;
+                            
+                            // Calculate scale to fit
+                            CGFloat scaleX = targetWidth / sourceWidth;
+                            CGFloat scaleY = targetHeight / sourceHeight;
+                            CGFloat scale = MIN(scaleX, scaleY);
+                            
+                            // ONLY apply scaling transform - NO rotation
+                            CGAffineTransform scaleTransform = CGAffineTransformMakeScale(scale, scale);
+                            CIImage *scaledImage = [ciImage imageByApplyingTransform:scaleTransform];
+                            
+                            // Center the image
+                            CGFloat offsetX = (targetWidth - (sourceWidth * scale)) / 2.0;
+                            CGFloat offsetY = (targetHeight - (sourceHeight * scale)) / 2.0;
+                            CGAffineTransform centerTransform = CGAffineTransformMakeTranslation(offsetX, offsetY);
+                            CIImage *finalImage = [scaledImage imageByApplyingTransform:centerTransform];
+                            
                             CIContext *context = [CIContext context];
-                            if (context) {
-                                g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
+                            
+                            // Create CGImage - NO orientation parameter
+                            g_cachedPhotoCGImage = [context createCGImage:finalImage 
+                                                                 fromRect:CGRectMake(0, 0, targetWidth, targetHeight)];
+                            
+                            if (g_cachedPhotoCGImage) {
+                                // Create JPEG data with ORIGINAL orientation (1 = no rotation)
+                                NSMutableData *jpegData = [NSMutableData data];
                                 
-                                if (g_cachedPhotoCGImage) {
-                                    // CRITICAL: Fix Instagram orientation
-                                    __block UIDeviceOrientation deviceOrientation = UIDeviceOrientationPortrait;
+                                // FIX: Use modern UTType instead of deprecated constant
+                                CGImageDestinationRef destination = CGImageDestinationCreateWithData(
+                                    (__bridge CFMutableDataRef)jpegData, 
+                                    (__bridge CFStringRef)UTTypeJPEG.identifier, 
+                                    1, NULL);
+                                
+                                if (destination) {
+                                    // CRITICAL: Set orientation to 1 (normal, no rotation)
+                                    NSDictionary *properties = @{
+                                        (__bridge NSString*)kCGImagePropertyOrientation: @1,
+                                        (__bridge NSString*)kCGImageDestinationLossyCompressionQuality: @0.85
+                                    };
                                     
-                                    dispatch_sync(dispatch_get_main_queue(), ^{
-                                        deviceOrientation = [[UIDevice currentDevice] orientation];
-                                    });
+                                    CGImageDestinationAddImage(destination, g_cachedPhotoCGImage, 
+                                                              (__bridge CFDictionaryRef)properties);
                                     
-                                    // IMPROVEMENT: Instagram-specific orientation mapping
-                                    UIImageOrientation imageOrientation = UIImageOrientationUp; // Default
-                                    
-                                    // For Instagram, handle front camera differently
-                                    // Front camera images often need different orientation handling
-                                    switch (deviceOrientation) {
-                                        case UIDeviceOrientationPortrait:
-                                            imageOrientation = UIImageOrientationUp; // Changed from Right
-                                            break;
-                                        case UIDeviceOrientationPortraitUpsideDown:
-                                            imageOrientation = UIImageOrientationDown; // Changed from Left
-                                            break;
-                                        case UIDeviceOrientationLandscapeLeft:
-                                            imageOrientation = UIImageOrientationLeft; // Changed from Up
-                                            break;
-                                        case UIDeviceOrientationLandscapeRight:
-                                            imageOrientation = UIImageOrientationRight; // Changed from Down
-                                            break;
-                                        default:
-                                            imageOrientation = UIImageOrientationUp;
-                                            break;
+                                    if (CGImageDestinationFinalize(destination)) {
+                                        g_cachedPhotoJPEGData = [jpegData copy];
+                                        NSLog(@"[LC] ✅ Instagram photo cached: %lu bytes, orientation: 1 (NO ROTATION)", 
+                                              (unsigned long)jpegData.length);
                                     }
-                                    
-                                    UIImage *image = [UIImage imageWithCGImage:g_cachedPhotoCGImage 
-                                                                         scale:1.0 
-                                                                   orientation:imageOrientation];
-                                    
-                                    if (image) {
-                                        g_cachedPhotoJPEGData = UIImageJPEGRepresentation(image, 0.95); // Higher quality
-                                        NSLog(@"[LC] ✅ Instagram photo cached: %lu bytes, orientation: %ld", 
-                                              (unsigned long)g_cachedPhotoJPEGData.length, (long)imageOrientation);
-                                    }
+                                    CFRelease(destination);
                                 }
                             }
                         }
@@ -2396,7 +2408,7 @@ CGImageRef hook_AVCapturePhoto_CGImageRepresentation(id self, SEL _cmd) {
     return NULL;
 }
 
-// debug logging
+// make sure our photo hooks don't apply any additional rotation
 NSData *hook_AVCapturePhoto_fileDataRepresentation(id self, SEL _cmd) {
     NSLog(@"[LC] 🔍 DEBUG L6: fileDataRepresentation hook called");
     @try {
@@ -2405,22 +2417,11 @@ NSData *hook_AVCapturePhoto_fileDataRepresentation(id self, SEL _cmd) {
                   g_cachedPhotoJPEGData ? "READY" : "MISSING");
             
             if (g_cachedPhotoJPEGData && g_cachedPhotoJPEGData.length > 0) {
-                NSLog(@"[LC] ✅ L6: Returning spoofed JPEG (%lu bytes)", (unsigned long)g_cachedPhotoJPEGData.length);
+                NSLog(@"[LC] ✅ L6: Returning spoofed JPEG (%lu bytes) with PRESERVED orientation", 
+                      (unsigned long)g_cachedPhotoJPEGData.length);
                 return g_cachedPhotoJPEGData;
             } else {
-                // Emergency: Try to create JPEG data on the spot
-                NSLog(@"[LC] 📷 L6: Emergency JPEG generation");
-                if (g_cachedPhotoCGImage) {
-                    UIImage *image = [UIImage imageWithCGImage:g_cachedPhotoCGImage];
-                    if (image) {
-                        g_cachedPhotoJPEGData = UIImageJPEGRepresentation(image, 0.9);
-                        if (g_cachedPhotoJPEGData) {
-                            NSLog(@"[LC] ✅ L6: Emergency JPEG created: %lu bytes", (unsigned long)g_cachedPhotoJPEGData.length);
-                            return g_cachedPhotoJPEGData;
-                        }
-                    }
-                }
-                NSLog(@"[LC] ❌ L6: Emergency JPEG generation failed");
+                NSLog(@"[LC] ❌ L6: No cached JPEG data available");
             }
         } else {
             NSLog(@"[LC] 🔍 DEBUG L6: Spoofing disabled for fileData");
@@ -2433,7 +2434,8 @@ NSData *hook_AVCapturePhoto_fileDataRepresentation(id self, SEL _cmd) {
     NSLog(@"[LC] 🔍 DEBUG L6: Calling original fileDataRepresentation method");
     if (original_AVCapturePhoto_fileDataRepresentation) {
         NSData *originalResult = original_AVCapturePhoto_fileDataRepresentation(self, _cmd);
-        NSLog(@"[LC] 🔍 DEBUG L6: Original fileData returned: %lu bytes", originalResult ? (unsigned long)originalResult.length : 0);
+        NSLog(@"[LC] 🔍 DEBUG L6: Original fileData returned: %lu bytes", 
+              originalResult ? (unsigned long)originalResult.length : 0);
         return originalResult;
     }
     NSLog(@"[LC] ❌ L6: No original fileData method available");
