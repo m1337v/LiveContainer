@@ -195,7 +195,9 @@ struct LCAppBanner : View {
         .padding()
         .frame(height: 88)
         .background(RoundedRectangle(cornerSize: CGSize(width:22, height: 22)).fill(dynamicColors ? mainColor.opacity(0.5) : Color("AppBannerBG")))
-        
+        .onTapGesture(count: 2) {
+            openSettings()
+        }
         .fileExporter(
             isPresented: $saveIconExporterShow,
             document: saveIconFile,
