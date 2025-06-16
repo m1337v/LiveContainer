@@ -69,6 +69,10 @@ static BOOL checkJITEnabled() {
     if (access("/var/mobile", R_OK) == 0) {
         return YES;
     }
+    
+    if(@available(iOS 26.0 ,*))  {
+        return false;
+    }
 
     // check csflags
     int flags;
@@ -320,13 +324,35 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     remove(newTmpPath.UTF8String);
     symlink(getenv("TMPDIR"), newTmpPath.UTF8String);
     
-    // We don't use the "asCopy" fix since we have filePickerFix v2. We keep these codes here in case some users upgrade from older version and the symlink is still there
-    NSString* inboxSymlinkPath = [NSString stringWithFormat:@"%s/%@-Inbox", getenv("TMPDIR"), [appBundle bundleIdentifier]];
-    NSDictionary* targetAttribute = [fm attributesOfItemAtPath:inboxSymlinkPath error:&error];
-    if(targetAttribute) {
-        if(targetAttribute[NSFileType] == NSFileTypeSymbolicLink) {
-            [fm removeItemAtPath:inboxSymlinkPath error:&error];
+    if([guestAppInfo[@"doSymlinkInbox"] boolValue]) {
+        NSString* inboxSymlinkPath = [NSString stringWithFormat:@"%s/%@-Inbox", getenv("TMPDIR"), [appBundle bundleIdentifier]];
+        NSString* inboxPath = [newHomePath stringByAppendingPathComponent:@"Inbox"];
+        
+        if (![fm fileExistsAtPath:inboxPath]) {
+            [fm createDirectoryAtPath:inboxPath withIntermediateDirectories:YES attributes:nil error:&error];
         }
+        if([fm fileExistsAtPath:inboxSymlinkPath]) {
+            NSString* fileType = [fm attributesOfItemAtPath:inboxSymlinkPath error:&error][NSFileType];
+            if(fileType == NSFileTypeDirectory) {
+                NSArray* contents = [fm contentsOfDirectoryAtPath:inboxSymlinkPath error:&error];
+                for(NSString* content in contents) {
+                    [fm moveItemAtPath:[inboxSymlinkPath stringByAppendingPathComponent:content] toPath:[inboxPath stringByAppendingPathComponent:content] error:&error];
+                }
+                [fm removeItemAtPath:inboxSymlinkPath error:&error];
+            }
+        }
+        
+
+        symlink(inboxPath.UTF8String, inboxSymlinkPath.UTF8String);
+    } else {
+        NSString* inboxSymlinkPath = [NSString stringWithFormat:@"%s/%@-Inbox", getenv("TMPDIR"), [appBundle bundleIdentifier]];
+        NSDictionary* targetAttribute = [fm attributesOfItemAtPath:inboxSymlinkPath error:&error];
+        if(targetAttribute) {
+            if(targetAttribute[NSFileType] == NSFileTypeSymbolicLink) {
+                [fm removeItemAtPath:inboxSymlinkPath error:&error];
+            }
+        }
+
     }
     
     setenv("CFFIXED_USER_HOME", newHomePath.UTF8String, 1);

@@ -23,6 +23,7 @@ API_AVAILABLE(ios(16.0))
 @property(nonatomic) NSString* dataUUID;
 @property(nonatomic) int pid;
 @property(nonatomic) id<AppSceneViewDelegate> delegate;
+@property(nonatomic) BOOL isAppRunning;
 
 - (instancetype)initWithExtension:(NSExtension *)extension  frame:(CGRect)frame identifier:(NSUUID *)identifier dataUUID:(NSString*)dataUUID delegate:(id<AppSceneViewDelegate>)delegate;
 

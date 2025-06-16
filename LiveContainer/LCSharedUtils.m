@@ -1,6 +1,7 @@
 #import "LCSharedUtils.h"
 #import "FoundationPrivate.h"
 #import "UIKitPrivate.h"
+#import "utils.h"
 
 extern NSUserDefaults *lcUserDefaults;
 extern NSString *lcAppUrlScheme;
@@ -117,18 +118,19 @@ extern NSBundle *lcMainBundle;
 }
 
 + (BOOL)launchToGuestApp {
-    NSString *urlScheme;
+    NSString *urlScheme = nil;
     NSString *tsPath = [NSString stringWithFormat:@"%@/../_TrollStore", NSBundle.mainBundle.bundlePath];
     UIApplication *application = [NSClassFromString(@"UIApplication") sharedApplication];
     
     int tries = 1;
-    if (!access(tsPath.UTF8String, F_OK)) {
-        urlScheme = @"apple-magnifier://enable-jit?bundle-id=%@";
-    } else if (self.certificatePassword) {
-        tries = 2;
-        urlScheme = [NSString stringWithFormat:@"%@://livecontainer-relaunch", lcAppUrlScheme];
-    } else if ([application canOpenURL:[NSURL URLWithString:@"sidestore://"]]) {
-        urlScheme = @"sidestore://sidejit-enable?bid=%@";
+    if (!self.certificatePassword) {
+        if (!access(tsPath.UTF8String, F_OK)) {
+            urlScheme = @"apple-magnifier://enable-jit?bundle-id=%@";
+        } else if ([application canOpenURL:[NSURL URLWithString:@"stikjit://"]]) {
+            urlScheme = @"stikjit://enable-jit?bundle-id=%@";
+        } else if ([application canOpenURL:[NSURL URLWithString:@"sidestore://"]]) {
+            urlScheme = @"sidestore://sidejit-enable?bid=%@";
+        }
     } else {
         tries = 2;
         urlScheme = [NSString stringWithFormat:@"%@://livecontainer-relaunch", lcAppUrlScheme];
@@ -138,9 +140,15 @@ extern NSBundle *lcMainBundle;
     if ([application canOpenURL:launchURL]) {
         //[UIApplication.sharedApplication suspend];
         for (int i = 0; i < tries; i++) {
-        [application openURL:launchURL options:@{} completionHandler:^(BOOL b) {
-            exit(0);
-        }];
+            [application openURL:launchURL options:@{} completionHandler:^(BOOL b) {
+                // syscall(SYS_ptrace, PT_DENY_ATTACH, 0, 0, 0);
+                __asm__ __volatile__ (
+                    "mov x0, #31\n"
+                    "mov x16, #26\n"
+                    "svc #0x80\n"
+                );
+                raise(SIGKILL);
+            }];
         }
         return YES;
     } else {

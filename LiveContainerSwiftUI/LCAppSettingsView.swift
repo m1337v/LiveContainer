@@ -810,7 +810,7 @@ struct LCAppSettingsView : View{
                     Text("lc.appSettings.fixFilePicker".loc)
                 }
             } footer: {
-//                Text("lc.appSettings.fixFilePickerDesc".loc)
+                Text("lc.appSettings.fixFilePickerDesc".loc)
             }
             
             Section {

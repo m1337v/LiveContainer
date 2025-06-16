@@ -1261,7 +1261,7 @@
 		17DCE9DB2C7067ED00731D42 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReferenceAnchor = 17B0F8452DE16FE4008110EA /* xcconfigs */;
-			baseConfigurationReferenceRelativePath = LiveContainer.debug.xcconfig;
+			baseConfigurationReferenceRelativePath = LiveContainer.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -1308,7 +1308,7 @@
 		17DCE9DC2C7067ED00731D42 /* Release */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReferenceAnchor = 17B0F8452DE16FE4008110EA /* xcconfigs */;
-			baseConfigurationReferenceRelativePath = LiveContainer.release.xcconfig;
+			baseConfigurationReferenceRelativePath = LiveContainer.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -1355,7 +1355,7 @@
 		E1292AF52DCA3A660065E12D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReferenceAnchor = 17B0F8452DE16FE4008110EA /* xcconfigs */;
-			baseConfigurationReferenceRelativePath = LiveProcess.debug.xcconfig;
+			baseConfigurationReferenceRelativePath = LiveProcess.xcconfig;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = LiveProcess/LiveProcess.entitlements;
 				CODE_SIGN_IDENTITY = "$(inherited)";
@@ -1422,7 +1422,7 @@
 		E1292AF62DCA3A660065E12D /* Release */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReferenceAnchor = 17B0F8452DE16FE4008110EA /* xcconfigs */;
-			baseConfigurationReferenceRelativePath = LiveProcess.release.xcconfig;
+			baseConfigurationReferenceRelativePath = LiveProcess.xcconfig;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = LiveProcess/LiveProcess.entitlements;
 				CODE_SIGN_IDENTITY = "$(inherited)";

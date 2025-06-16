@@ -15,28 +15,52 @@ struct LCTabView: View {
     @State var errorShow = false
     @State var errorInfo = ""
     
+    @EnvironmentObject var sharedModel : SharedModel
     @EnvironmentObject var sceneDelegate: SceneDelegate
     @State var shouldToggleMainWindowOpen = false
     @Environment(\.scenePhase) var scenePhase
     let pub = NotificationCenter.default.publisher(for: UIScene.didDisconnectNotification)
     
     var body: some View {
-        TabView {
-            LCAppListView(appDataFolderNames: $appDataFolderNames, tweakFolderNames: $tweakFolderNames)
-                .tabItem {
-                    Label("lc.tabView.apps".loc, systemImage: "square.stack.3d.up.fill")
-                }
-            if DataManager.shared.model.multiLCStatus != 2 {
-                LCTweaksView(tweakFolders: $tweakFolderNames)
-                    .tabItem{
-                        Label("lc.tabView.tweaks".loc, systemImage: "wrench.and.screwdriver")
+        Group {
+            let appListView = LCAppListView(appDataFolderNames: $appDataFolderNames, tweakFolderNames: $tweakFolderNames)
+            if #available(iOS 19.0, *), sharedModel.isLiquidGlassSearchEnabled {
+                TabView {
+                    Tab("lc.tabView.apps".loc, systemImage: "square.stack.3d.up.fill") {
+                        appListView
                     }
-            }
-
-            LCSettingsView(appDataFolderNames: $appDataFolderNames)
-                .tabItem {
-                    Label("lc.tabView.settings".loc, systemImage: "gearshape.fill")
+                    if DataManager.shared.model.multiLCStatus != 2 {
+                        Tab("lc.tabView.tweaks".loc, systemImage: "wrench.and.screwdriver") {
+                            LCTweaksView(tweakFolders: $tweakFolderNames)
+                        }
+                    }
+                    Tab("lc.tabView.settings".loc, systemImage: "gearshape.fill") {
+                        LCSettingsView(appDataFolderNames: $appDataFolderNames)
+                    }
+                    Tab("Search".loc, systemImage: "magnifyingglass", role: .search) {
+                        appListView
+                    }
                 }
+                .searchable(text: appListView.$searchContext.query)
+            } else {
+                TabView {
+                    appListView
+                        .tabItem {
+                            Label("lc.tabView.apps".loc, systemImage: "square.stack.3d.up.fill")
+                        }
+                    if DataManager.shared.model.multiLCStatus != 2 {
+                        LCTweaksView(tweakFolders: $tweakFolderNames)
+                            .tabItem{
+                                Label("lc.tabView.tweaks".loc, systemImage: "wrench.and.screwdriver")
+                            }
+                    }
+                    
+                    LCSettingsView(appDataFolderNames: $appDataFolderNames)
+                        .tabItem {
+                            Label("lc.tabView.settings".loc, systemImage: "gearshape.fill")
+                        }
+                }
+            }
         }
         .alert("lc.common.error".loc, isPresented: $errorShow){
             Button("lc.common.ok".loc, action: {
@@ -51,6 +75,7 @@ struct LCTabView: View {
             closeDuplicatedWindow()
             checkLastLaunchError()
             checkTeamId()
+            checkBundleId()
         }
         .onReceive(pub) { out in
             if let scene1 = sceneDelegate.window?.windowScene, let scene2 = out.object as? UIWindowScene, scene1 == scene2 {
@@ -59,7 +84,6 @@ struct LCTabView: View {
                 }
             }
         }
-        .environmentObject(DataManager.shared.model)
     }
     
     func closeDuplicatedWindow() {
@@ -128,5 +152,34 @@ struct LCTabView: View {
             }
         }
         UserDefaults.standard.set(currentTeamId, forKey: "LCCertificateTeamId")
+    }
+    
+    func checkBundleId() {
+        if UserDefaults.standard.bool(forKey: "LCBundleIdChecked") {
+            return
+        }
+        
+        let task = SecTaskCreateFromSelf(nil)
+        guard let value = SecTaskCopyValueForEntitlement(task, "application-identifier" as CFString, nil), let appIdentifier = value.takeRetainedValue() as? String else {
+            errorInfo = "Unable to determine application-identifier"
+            errorShow = true
+            return
+        }
+        
+        guard let bundleId = Bundle.main.bundleIdentifier else {
+            return
+        }
+        
+        var correctBundleId = ""
+        if appIdentifier.count > 11 {
+            let startIndex = appIdentifier.index(appIdentifier.startIndex, offsetBy: 11)
+            correctBundleId = String(appIdentifier[startIndex...])
+        }
+        
+        if(bundleId != correctBundleId) {
+            errorInfo = "lc.settings.bundleIdMismatch %@ %@".localizeWithFormat(bundleId, correctBundleId)
+            errorShow = true
+        }
+        UserDefaults.standard.set(true, forKey: "LCBundleIdChecked")
     }
 }

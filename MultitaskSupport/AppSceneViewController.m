@@ -10,10 +10,10 @@
 #import "PiPManager.h"
 
 @implementation AppSceneViewController {
-    bool isAppRunning;
     int resizeDebounceToken;
     CGRect currentFrame;
     bool isNativeWindow;
+    NSUUID* identifier;
 }
 
 - (instancetype)initWithExtension:(NSExtension *)extension frame:(CGRect)frame identifier:(NSUUID *)identifier dataUUID:(NSString*)dataUUID delegate:(id<AppSceneViewDelegate>)delegate {
@@ -24,7 +24,8 @@
     self.extension = extension;
     self.dataUUID = dataUUID;
     self.pid = pid;
-    isAppRunning = true;
+    self->identifier = identifier;
+    self.isAppRunning = true;
     isNativeWindow = [[[NSUserDefaults alloc] initWithSuiteName:[LCUtils appGroupID]] integerForKey:@"LCMultitaskMode" ] == 1;
     RBSProcessPredicate* predicate = [PrivClass(RBSProcessPredicate) predicateMatchingIdentifier:@(pid)];
     
@@ -88,16 +89,9 @@
     [self.presenter activate];
     [extension setRequestInterruptionBlock:^(NSUUID *uuid) {
         NSLog(@"Request %@ interrupted.", uuid);
-        [NSNotificationCenter.defaultCenter removeObserver:self];
         dispatch_async(dispatch_get_main_queue(), ^{
-            if(self.delegate) {
-                [self.delegate appDidExit];
-                [MultitaskManager unregisterMultitaskContainerWithContainer:self.dataUUID];
-                self->isAppRunning = false;
-                [self closeWindow];
-            }
+            [self displayAppTerminatedTextIfNeeded];
         });
-        
     }];
     
     self.view = self.presenter.presentationView;
@@ -129,6 +123,12 @@
 }
 
 - (void)closeWindow {
+    [self.extension setRequestInterruptionBlock:^(NSUUID *uuid) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.delegate appDidExit];
+            [self closeWindow];
+        });
+    }];
     [self.view.window.windowScene _unregisterSettingsDiffActionArrayForKey:self.sceneID];
     [[PrivClass(FBSceneManager) sharedInstance] destroyScene:self.sceneID withTransitionContext:nil];
     if(self.presenter){
@@ -136,21 +136,22 @@
         [self.presenter invalidate];
         self.presenter = nil;
     }
-    if(isAppRunning) {
+    if(self.isAppRunning && [self.extension pidForRequestIdentifier:self->identifier]) {
         [self.extension _kill:SIGTERM];
         NSLog(@"sent sigterm");
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [self.extension _kill:SIGKILL];
         });
+    } else {
+        [self.delegate appDidExit];
+        self.delegate = nil;
+        [MultitaskManager unregisterMultitaskContainerWithContainer:self.dataUUID];
+        self.isAppRunning = false;
     }
-
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    [self.view.window.windowScene _registerSettingsDiffActionArray:@[self] forKey:self.sceneID];
 }
 
 - (void)_performActionsForUIScene:(UIScene *)scene withUpdatedFBSScene:(id)fbsScene settingsDiff:(FBSSceneSettingsDiff *)diff fromSettings:(UIApplicationSceneSettings *)settings transitionContext:(id)context lifecycleActionType:(uint32_t)actionType {
+    [self displayAppTerminatedTextIfNeeded];
     if(!diff) return;
     UIMutableApplicationSceneSettings *baseSettings = [diff settingsByApplyingToMutableCopyOfSettings:settings];
     
@@ -177,8 +178,30 @@
     }
 }
 
+- (void)displayAppTerminatedTextIfNeeded {
+    if(self.isAppRunning && [self.extension pidForRequestIdentifier:self->identifier] == 0) {
+        [MultitaskManager unregisterMultitaskContainerWithContainer:self.dataUUID];
+        self.isAppRunning = false;
+        if(!isNativeWindow) {
+            UILabel *label = [[UILabel alloc] initWithFrame:self.view.bounds];
+            label.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+            label.lineBreakMode = NSLineBreakByWordWrapping;
+            label.numberOfLines = 0;
+            label.text = NSLocalizedString(@"lc.multitaskAppWindow.appTerminated", @"");
+            label.textAlignment = NSTextAlignmentCenter;
+            [self.view.superview addSubview:label];
+        }
+    }
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    [self.view.window.windowScene _registerSettingsDiffActionArray:@[self] forKey:self.sceneID];
+}
+
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
+    [self displayAppTerminatedTextIfNeeded];
     [self.view.window.windowScene _registerSettingsDiffActionArray:@[self] forKey:self.sceneID];
 }
 

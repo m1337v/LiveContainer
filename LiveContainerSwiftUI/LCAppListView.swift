@@ -5,8 +5,30 @@
 //  Created by s s on 2024/8/21.
 //
 
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
+
+class SearchContext: ObservableObject {
+    @Published var query: String = ""
+    @Published var debouncedQuery: String = ""
+    @Published var isTyping: Bool = false
+
+    private var cancellables = Set<AnyCancellable>()
+
+    init() {
+        $query
+            .debounce(for: .seconds(0.2), scheduler: DispatchQueue.main)
+            .sink { [weak self] value in
+                self?.isTyping = true
+                self?.debouncedQuery = value
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    self?.isTyping = false
+                }
+            }
+            .store(in: &cancellables)
+    }
+}
 
 struct AppReplaceOption : Hashable {
     var isReplace: Bool
@@ -26,8 +48,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     
     // ipa installing stuff
     @State var installprogressVisible = false
-    @State var installProgressPercentage = 0.0
-    @State var uiInstallProgressPercentage = 0.0
+    @State var installProgressPercentage : Float = 0.0
     @State var installObserver : NSKeyValueObservation?
     
     @State var installOptions: [AppReplaceOption]
@@ -56,12 +77,51 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     @EnvironmentObject private var sharedModel : SharedModel
     @AppStorage("LCMultitaskMode", store: LCUtils.appGroupUserDefault) var multitaskMode: MultitaskMode = .virtualWindow
     @AppStorage("LCLaunchInMultitaskMode") var launchInMultitaskMode = false
+    
+    @ObservedObject var searchContext = SearchContext()
+    private var sortedApps: [LCAppModel] {
+        let appsWithLaunchDate = sharedModel.apps.compactMap { app -> (LCAppModel, Date)? in
+            guard let launchDate = app.appInfo.lastLaunched else { return nil }
+            return (app, launchDate)
+        }
+        .sorted { $0.1 > $1.1 } // Sort by date, newest first
+        .map { $0.0 } // Extract just the app models
 
+        let appsWithoutLaunchDate = sharedModel.apps.filter { app in
+            return app.appInfo.lastLaunched == nil
+        }
+        .sorted { $0.appInfo.displayName().localizedCaseInsensitiveCompare($1.appInfo.displayName()) == .orderedAscending }
+
+        return appsWithLaunchDate + appsWithoutLaunchDate
+    }
+
+    var filteredApps: [LCAppModel] {
+        if searchContext.debouncedQuery.isEmpty {
+            // Not searching: show recently launched apps first, then alphabetical
+            return sortedApps
+        } else {
+            // Searching: filter normally without special sorting
+            return sharedModel.apps.filter { app in
+                app.appInfo.displayName().localizedCaseInsensitiveContains(searchContext.debouncedQuery) ||
+                app.appInfo.bundleIdentifier()!.localizedCaseInsensitiveContains(searchContext.debouncedQuery)
+            }
+        }
+    }
+    var filteredHiddenApps: [LCAppModel] {
+        if searchContext.debouncedQuery.isEmpty || !sharedModel.isHiddenAppUnlocked {
+            sharedModel.hiddenApps
+        } else {
+            sharedModel.hiddenApps.filter { app in
+                app.appInfo.displayName().localizedCaseInsensitiveContains(searchContext.debouncedQuery) ||
+                app.appInfo.bundleIdentifier()!.localizedCaseInsensitiveContains(searchContext.debouncedQuery)
+            }
+        }
+    }
+    
     init(appDataFolderNames: Binding<[String]>, tweakFolderNames: Binding<[String]>) {
         _installOptions = State(initialValue: [])
         _appDataFolderNames = appDataFolderNames
         _tweakFolderNames = tweakFolderNames
-        
     }
     
     var body: some View {
@@ -75,32 +135,15 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
                 })
                 .hidden()
                 
-                GeometryReader { g in
-                    ProgressView(value: uiInstallProgressPercentage)
-                        .labelsHidden()
-                        .opacity(installprogressVisible ? 1 : 0)
-                        .scaleEffect(y: 0.5)
-                        .onChange(of: installProgressPercentage) { newValue in
-                            if newValue > uiInstallProgressPercentage {
-                                withAnimation(.easeIn(duration: 0.3)) {
-                                    uiInstallProgressPercentage = newValue
-                                }
-                            } else {
-                                uiInstallProgressPercentage = newValue
-                            }
-                        }
-                        .offset(CGSize(width: 0, height: max(0,-g.frame(in: .named("scroll")).minY) - 1))
-                }
-                .zIndex(.infinity)
                 LazyVStack {
-                    ForEach(sortedApps, id: \.self) { app in
+                    // Use filteredApps instead of sharedModel.apps
+                    ForEach(filteredApps, id: \.self) { app in
                         LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames)
                     }
                     .transition(.scale)
-                    
                 }
                 .padding()
-                .animation(.easeInOut, value: sharedModel.apps)
+                .animation(searchContext.isTyping ? nil : .easeInOut, value: filteredApps)
 
                 VStack {
                     if LCUtils.appGroupUserDefault.bool(forKey: "LCStrictHiding") {
@@ -111,13 +154,13 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
                                         .font(.system(.title2).bold())
                                     Spacer()
                                 }
-                                ForEach(sharedModel.hiddenApps, id: \.self) { app in
+                                ForEach(filteredHiddenApps, id: \.self) { app in
                                     LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames)
                                 }
                             }
                             .padding()
                             .transition(.opacity)
-                            .animation(.easeInOut, value: sharedModel.apps)
+                            .animation(searchContext.isTyping ? nil : .easeInOut, value: filteredApps)
                             
                             if sharedModel.hiddenApps.count == 0 {
                                 Text("lc.appList.hideAppTip".loc)
@@ -131,7 +174,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
                                     .font(.system(.title2).bold())
                                 Spacer()
                             }
-                            ForEach(sharedModel.hiddenApps, id: \.self) { app in
+                            ForEach(filteredHiddenApps, id: \.self) { app in
                                 if sharedModel.isHiddenAppUnlocked {
                                     LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames)
                                 } else {
@@ -144,24 +187,25 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
                             }
                         }
                         .padding()
-                        .animation(.easeInOut, value: sharedModel.apps)
+                        .animation(searchContext.isTyping ? nil : .easeInOut, value: filteredApps)
                     }
 
-                    let appCount = sharedModel.isHiddenAppUnlocked ? sharedModel.apps.count + sharedModel.hiddenApps.count : sharedModel.apps.count
-                    Text(appCount > 0 ? "lc.appList.appCounter %lld".localizeWithFormat(appCount) : (sharedModel.multiLCStatus == 2 ? "lc.appList.convertToSharedToShowInLC2".loc : "lc.appList.installTip".loc))
+                    let appCount = sharedModel.isHiddenAppUnlocked ? filteredApps.count + filteredHiddenApps.count : filteredApps.count
+                    Text(appCount > 0 || searchContext.debouncedQuery != "" ? "lc.appList.appCounter %lld".localizeWithFormat(appCount) : (sharedModel.multiLCStatus == 2 ? "lc.appList.convertToSharedToShowInLC2".loc : "lc.appList.installTip".loc))
                         .padding(.horizontal)
                         .foregroundStyle(.gray)
-                        .animation(.easeInOut, value: appCount)
+                        .animation(searchContext.isTyping ? nil : .easeInOut, value: appCount)
                         .onTapGesture(count: 3) {
                             Task { await authenticateUser() }
                         }
-                }.animation(.easeInOut, value: LCUtils.appGroupUserDefault.bool(forKey: "LCStrictHiding"))
+                }.animation(searchContext.isTyping ? nil : .easeInOut, value: LCUtils.appGroupUserDefault.bool(forKey: "LCStrictHiding"))
 
                 if sharedModel.multiLCStatus == 2 {
                     Text("lc.appList.manageInPrimaryTip".loc).foregroundStyle(.gray).padding()
                 }
 
             }
+            .navigationBarProgressBar(show:$installprogressVisible, progress: $installProgressPercentage)
             .coordinateSpace(name: "scroll")
             .onAppear {
                 if !didAppear {
@@ -187,7 +231,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
                             }
                             
                         } else {
-                            ProgressView().progressViewStyle(.circular)
+                            ProgressView().progressViewStyle(.circular).padding(.horizontal, 8)
                         }
                     }
                 }
@@ -294,6 +338,13 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         }
         .onOpenURL { url in
             handleURL(url: url)
+        }
+        .apply {
+            if #available(iOS 19.0, *), sharedModel.isLiquidGlassSearchEnabled {
+                $0
+            } else {
+                $0.searchable(text: $searchContext.query)
+            }
         }
 
     }
@@ -449,7 +500,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         self.installProgressPercentage = 0.0
         self.installObserver = installProgress.observe(\.fractionCompleted) { p, v in
             DispatchQueue.main.async {
-                self.installProgressPercentage = p.fractionCompleted
+                self.installProgressPercentage = Float(p.fractionCompleted)
             }
         }
         let decompressProgress = Progress.discreteProgress(totalUnitCount: 100)
@@ -605,15 +656,18 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
                         return appNow == appToReplace
                     }
                     sharedModel.hiddenApps.append(LCAppModel(appInfo: finalNewApp, delegate: self))
+                    sharedModel.hiddenApps.sort { $0.appInfo.displayName() < $1.appInfo.displayName() }
                 } else {
                     sharedModel.apps.removeAll { appNow in
                         return appNow == appToReplace
                     }
                     sharedModel.apps.append(LCAppModel(appInfo: finalNewApp, delegate: self))
+                    sharedModel.apps.sort { $0.appInfo.displayName() < $1.appInfo.displayName() }
                 }
 
             } else {
                 sharedModel.apps.append(LCAppModel(appInfo: finalNewApp, delegate: self))
+                sharedModel.apps.sort { $0.appInfo.displayName() < $1.appInfo.displayName() }
             }
 
             self.installprogressVisible = false
@@ -733,11 +787,13 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
                     return app == now
                 }
                 sharedModel.hiddenApps.append(app)
+                sharedModel.hiddenApps.sort { $0.appInfo.displayName() < $1.appInfo.displayName() }
             } else {
                 sharedModel.hiddenApps.removeAll { now in
                     return app == now
                 }
                 sharedModel.apps.append(app)
+                sharedModel.apps.sort { $0.appInfo.displayName() < $1.appInfo.displayName() }
             }
         }
     }
@@ -926,27 +982,8 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
 
     }
     
-    // UI Addon Section
-    private var sortedApps: [LCAppModel] {
-        return sharedModel.apps.sorted { app1, app2 in
-            let date1 = app1.appInfo.lastLaunched
-            let date2 = app2.appInfo.lastLaunched
-            
-            // If both have launch dates, sort by most recent first
-            if let date1 = date1, let date2 = date2 {
-                return date1 > date2
-            }
-            
-            // If only one has a launch date, it comes first
-            if date1 != nil && date2 == nil {
-                return true
-            }
-            if date1 == nil && date2 != nil {
-                return false
-            }
-            
-            // If neither has been launched, sort alphabetically
-            return app1.appInfo.displayName().localizedCaseInsensitiveCompare(app2.appInfo.displayName()) == .orderedAscending
-        }
-    }
+}
+
+extension View {
+    func apply<V: View>(@ViewBuilder _ block: (Self) -> V) -> V { block(self) }
 }

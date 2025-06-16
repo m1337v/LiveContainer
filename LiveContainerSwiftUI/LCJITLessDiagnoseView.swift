@@ -113,8 +113,7 @@ struct LCEntitlementView : View {
         teamId = entitlementTeamId
         if let entitlementTeamId {
             if let appGroups = entitlementDict["com.apple.security.application-groups"] as? Array<String> {
-                NSLog("[LC] appGroups = \(appGroups)")
-                if appGroups.contains("group.com.rileytestut.AltStore.\(entitlementTeamId)") && appGroups.contains("group.com.SideStore.SideStore.\(entitlementTeamId)") {
+                if appGroups.count > 0 {
                     appGroup = true
                 }
             }
@@ -216,7 +215,7 @@ struct LCJITLessDiagnoseView : View {
                                 Text("lc.jitlessDiag.patchDetected".loc)
                                 Spacer()
                                 Text(isPatchDetected ? "lc.common.yes".loc : "lc.common.no".loc)
-                                    .foregroundStyle(isPatchDetected ? .green : .red)
+                                    .foregroundStyle(.gray)
                             }
                         }
                         HStack {

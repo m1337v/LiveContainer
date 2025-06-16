@@ -58,8 +58,13 @@ void UIKitFixesInit(void) {
     ];
     
     NSString *pidText = [NSString stringWithFormat:@"PID: %d", pid];
+    __weak typeof(self) weakSelf = self;
     [self.navigationItem setTitleMenuProvider:^UIMenu *(NSArray<UIMenuElement *> *suggestedActions){
-        return [UIMenu menuWithTitle:pidText children:menuItems];
+        if(!weakSelf.appSceneView.isAppRunning) {
+            return [UIMenu menuWithTitle:NSLocalizedString(@"lc.multitaskAppWindow.appTerminated", nil) children:@[]];
+        } else {
+            return [UIMenu menuWithTitle:pidText children:menuItems];
+        }
     }];
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemClose target:self action:@selector(closeWindow)];
     self.windowName = windowName;

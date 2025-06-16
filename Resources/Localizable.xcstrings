@@ -28,6 +28,12 @@
             "value" : "Ajouter à l'écran d'accueil"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungi alla Schermata Home"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -100,6 +106,12 @@
             "value" : "Certaines applications sont en mode multitâche. Exécuter cette application mettra fin à ces applications. Continuer ?"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alcune app sono in esecuzione in modalità multitask. L'esecuzione di questa app terminerà quelle applicazioni. Vuoi Continuare?"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -157,6 +169,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Voulez-vous vraiment désinstaller %@ ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sei sicuro di voler scaricare %@?"
           }
         },
         "ja" : {
@@ -230,6 +248,12 @@
             "value" : "Confirmer la désinstallation"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conferma disinstallazione"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -299,6 +323,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Copier l'URL de lancement"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copia l'URL d'avvio"
           }
         },
         "ja" : {
@@ -372,6 +402,12 @@
             "value" : "Créer un extrait d'app"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crea App Clip"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -441,6 +477,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Voulez-vous également supprimer le dossier de données de %@ ? Vous pouvez le conserver pour un usage ultérieur."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vuoi anche eliminare la cartella file %@? Puoi tenerla per uso futuro."
           }
         },
         "ja" : {
@@ -514,6 +556,12 @@
             "value" : "Supprimer le dossier de données"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elimina Cartella Dati"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -583,6 +631,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lancer sans JIT"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avvia senza JIT"
           }
         },
         "ja" : {
@@ -656,6 +710,12 @@
             "value" : "Multitâche"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Multitask"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -713,6 +773,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le dossier de données n'a pas encore été créé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cartella dati non ancora creata "
           }
         },
         "ja" : {
@@ -786,6 +852,12 @@
             "value" : "Ouvrir le dossier de données"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apri cartella dati"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -839,6 +911,36 @@
             "value" : "Retrieve Data From LiveProcess"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Récupérer les données depuis LiveProcess"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recupera I Dati Da LiveProcess"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveProcessからデータを取得する"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recuperar Dados Do 'LiveProcess'"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveProcess'ten veri al"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -872,6 +974,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lancer"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avvia"
           }
         },
         "ja" : {
@@ -945,6 +1053,12 @@
             "value" : "Sauvegarder l'icône de l'application"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salva icona App"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1014,6 +1128,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Désinstaller"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disinstalla"
           }
         },
         "ja" : {
@@ -1087,6 +1207,12 @@
             "value" : "Veuillez utiliser votre méthode préférée pour activer JIT pour le LiveContainer actuel."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puoi usare il tuo modo preferito di attivare JIT per l'attuale LiveContainer."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1158,6 +1284,12 @@
             "value" : "En attente du JIT"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In attesa del JIT"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1227,6 +1359,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Annuler l'installation"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancella installazione"
           }
         },
         "ja" : {
@@ -1372,6 +1510,24 @@
             }
           }
         },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld App in totale"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld App in totale "
+                }
+              }
+            }
+          }
+        },
         "ja" : {
           "variations" : {
             "plural" : {
@@ -1503,6 +1659,12 @@
             "value" : "Échec de l'initialisation AppInfo !"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Errore nell'analizzare AppInfo!"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1566,6 +1728,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "L'application n'a pas été trouvée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App non trovata."
           }
         },
         "ja" : {
@@ -1639,6 +1807,12 @@
             "value" : "Le paquet d'applications n'a pas été trouvé."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pacchetto app non trovato."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1708,6 +1882,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Convertir des applications en applications partagées pour les utiliser dans LiveContainer2"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Converti App in App Condivise per poterle usare in LiveContainer2"
           }
         },
         "ja" : {
@@ -1781,6 +1961,12 @@
             "value" : "Saisir une URL ou un schéma d'URL"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserisci l'URL  o lo schema URL."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1850,6 +2036,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Applications masquées"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App nascoste "
           }
         },
         "ja" : {
@@ -1923,6 +2115,12 @@
             "value" : "Masquer l'application dans les paramètres de l'application."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App nascoste nelle impostazioni app."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1992,6 +2190,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec de la lecture du fichier Info.plist de l'application."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Errore nella lettura di Info.plist dell'app"
           }
         },
         "ja" : {
@@ -2065,6 +2269,12 @@
             "value" : "Installer comme neuf"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installa come nuovo"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2136,6 +2346,12 @@
             "value" : "Installation"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installazione"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2199,6 +2415,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Installer un fichier IPA"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installa il File IPA"
           }
         },
         "ja" : {
@@ -2272,6 +2494,12 @@
             "value" : "Installer à partir d'une URL"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installa dall'URL"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2341,6 +2569,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Il existe une application existante avec le même identifiant de paquet. Remplacez-la ou installez-la en tant que nouvelle application."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "C'è già un'applicazione con lo stesso Bundle ID. Sostituiscilo o installa come nuova applicazione."
           }
         },
         "ja" : {
@@ -2414,6 +2648,12 @@
             "value" : "Appuyez sur le bouton Plus pour installer des applications."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Premi il pulsante Più per Installare le App."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2483,6 +2723,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Veuillez saisir l'URL d'installation"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserisci URL Installazione"
           }
         },
         "ja" : {
@@ -2556,6 +2802,12 @@
             "value" : "Échec de l'accès à l'IPA"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Errore nell'accedere il file IPA"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2625,6 +2877,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gérer les applications dans le LiveContainer principal"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gestisci l'app nell'app principale LiveContainer"
           }
         },
         "ja" : {
@@ -2698,6 +2956,12 @@
             "value" : "Mes applications"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le mie App"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2767,6 +3031,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ouvrir le lien"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apri link"
           }
         },
         "ja" : {
@@ -2840,6 +3110,12 @@
             "value" : "Le schéma \"%@\" ne peut être ouvert par aucune application installée dans LiveContainer."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "\"%@\" non può essere aperto da nessuna app installata in LiveContainer."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2909,6 +3185,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "L'application a été signée avec succès, mais LiveContainer n'a pas pu signer les fichiers suivants. Vous pouvez utiliser l'application, mais attendez-vous à un crash."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'app è stata registrata con successo, ma LiveContainer non è stata in grado di registrare i seguenti file. Potresti essere in grado di usare l'app, ma aspettati dei crash."
           }
         },
         "ja" : {
@@ -2982,6 +3264,12 @@
             "value" : "Veuillez fournir un fichier IPA à installer."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fornisci un file IPA da installare."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3051,6 +3339,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "L'URL d'entrée n'est pas valide. Veuillez vérifier et réessayer"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'URL è invalido. Ricontrollalo a riprova."
           }
         },
         "ja" : {
@@ -3124,6 +3418,12 @@
             "value" : "Verrouillage de l'orientation"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blocca rotazione."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3193,6 +3493,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Paysage"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paesaggio"
           }
         },
         "ja" : {
@@ -3266,6 +3572,12 @@
             "value" : "Portrait"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rotazione "
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3335,6 +3647,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Les données de cette application se trouvent actuellement dans %@. Ouvrez %@ et lancez-la dans l'écran \"Mes applications\", puis réessayez."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I dati di questa app sono attualmente in %@. Apri %@ , avvia la schermata 'Le mie App' e riprova."
           }
         },
         "ja" : {
@@ -3408,6 +3726,12 @@
             "value" : "Dossier du bundle"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pacchetto Cartelle"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3477,6 +3801,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ne pas injecter TweakLoader"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non iniettare TweakLoader"
           }
         },
         "ja" : {
@@ -3550,6 +3880,12 @@
             "value" : "Ne pas charger TweakLoader"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non caricare TweakLoader"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3619,6 +3955,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Corriger l'écran noir"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiusta schermata nera"
           }
         },
         "ja" : {
@@ -3692,6 +4034,12 @@
             "value" : "Si l'application affiche un écran noir au lancement et se bloque au bout d'une dizaine de secondes, activez cette option."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se l'app mostra una schermata nera durante l'avvio ed un crash dopo 10s, attiva quest'opzione."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3761,6 +4109,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Correctifs"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soluzioni"
           }
         },
         "ja" : {
@@ -3834,6 +4188,12 @@
             "value" : "(Ancien) Corriger le sélecteur de fichiers"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sistema Selettore File (Legacy)"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3903,6 +4263,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Corrigez le fait que le sélecteur de fichiers ne répond pas lorsque vous appuyez sur \"ouvrir\" en forçant cette application à copier les fichiers sélectionnés dans sa boîte de réception. Vous pouvez voir les fichiers importés dans le dossier \"Inbox\" du dossier de données de l'application."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sistema il selettore file che non risponde quando clicchi 'apri' forzando l'app a copiare i file selezionati. Potresti vedere i file importati nella cartella 'Inbox' nella cartella dell'app."
           }
         },
         "ja" : {
@@ -3976,6 +4342,12 @@
             "value" : "Forcer la signature"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Firma Forzata"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4045,6 +4417,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Essayez de signer à nouveau si l'application ne s'est pas lancée avec une erreur telle que \"Signature invalide\". Si cela ne fonctionne toujours pas, renouvelez le certificat sans JIT."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se l'app non si avvia e mostra l'errore \"Invalid Signature\" prova ad accedere nuovamente. Se continua a non funzionare, rinnova il certificato JIT-Less."
           }
         },
         "ja" : {
@@ -4118,6 +4496,12 @@
             "value" : "La version falsifiée du SDK force les bibliothèques système à fonctionner avec la version du SDK avec laquelle l'application a été construite."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spoofing versione SDK forza le librerie di sistema ad operare nella versione SDK con cui è costruita l'app."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4181,6 +4565,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Masquer l'application"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nascondi App"
           }
         },
         "ja" : {
@@ -4254,6 +4644,12 @@
             "value" : "Pour masquer complètement les applications, activez le mode de masquage strict dans les paramètres."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Per nascondere completamente le applicazioni, abilita la modalità Strict Hiding nelle impostazioni."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4323,6 +4719,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Masquer LiveContainer de l'API Dyld"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nascondi LiveContainer da Dyld Api"
           }
         },
         "ja" : {
@@ -4396,6 +4798,12 @@
             "value" : "Cela pourrait permettre de contourner la détection d'injection de certaines applications."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Potrebbe aiutare a bypassare il rilevamento d'iniezione dei tweak in alcune app."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4465,6 +4873,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lancer avec JIT"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lancia con JIT"
           }
         },
         "ja" : {
@@ -4538,6 +4952,12 @@
             "value" : "LiveContainer essaiera d'obtenir l'autorisation de JIT avant de lancer l'application."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer proverà ad acquisire i permessi JIT prima di lanciare l'app."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4609,6 +5029,12 @@
             "value" : "Verrouiller l'application"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blocca App"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4678,6 +5104,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nouveau dossier de données"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nuova Cartella Data"
           }
         },
         "ja" : {
@@ -4798,6 +5230,12 @@
             "value" : "Cette application n'est pas signée, voulez-vous quand même la signer ?"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa app non è firmata, vuoi firmarla comunque?"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4869,6 +5307,12 @@
             "value" : "Falsifier la version du SDK"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spoof Versione SDK"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4932,6 +5376,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Convertir en application privée"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Converti in App Privata"
           }
         },
         "ja" : {
@@ -5005,6 +5455,12 @@
             "value" : "En déplaçant cette application vers le dossier de documents privés, vous pouvez accéder à ses données et à ses tweaks dans l'application Fichiers, mais elle ne peut pas être lancée par d'autres LiveContainers."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spostando l'app nella Cartella Documenti Privati ti permette di accedere ai suoi dati e tweak nell'Applicazione File, ma non può essere eseguito da altri LiveContainer."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5074,6 +5530,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Convertir en application partagée"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Converti in App Condivisa"
           }
         },
         "ja" : {
@@ -5147,6 +5609,12 @@
             "value" : "Déplacer cette application vers un groupe d'apps permet à d'autres LiveContainers de lancer cette application en conservant toutes ses données et ses tweaks. Si vous voulez accéder à nouveau à ses données et à ses tweaks à partir de l'application Fichiers, déplacez-la à nouveau."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spostando quest'app nel Gruppo App permette ad altri LiveContainer di eseguire quest'app con tutti i i suoi dati e tweak preservati. Se vuoi accedere di nuovo ai suoi dati e tweak dai file dell'app, spostali indietro."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5216,6 +5684,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dossier de tweak"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cartella Tweak"
           }
         },
         "ja" : {
@@ -5289,6 +5763,12 @@
             "value" : "Corriger le sélecteur de fichiers et la notification locale"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Correggi Selettore File E Notifiche Locali"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5360,6 +5840,12 @@
             "value" : "Corrige ces problèmes en utilisant l'identifiant du bundle de LiveContainer lors de l'écrasement du bundle principal."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sistema questi problemi usando il Bundle ID di LiveContainer quando sovrascrivi il bundle principale."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5419,6 +5905,18 @@
             "value" : "Certificat ADP"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificato ADP"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ADP証明書"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5476,6 +5974,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Auto"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatico"
           }
         },
         "ja" : {
@@ -5549,6 +6053,12 @@
             "value" : "Annuler"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancella"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5614,6 +6124,18 @@
             "value" : "Fermer"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chiudi"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "閉じる"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5665,6 +6187,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Conteneurs"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contenitori"
           }
         },
         "ja" : {
@@ -5738,6 +6266,12 @@
             "value" : "Continuer"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continua"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5807,6 +6341,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Copier"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copia"
           }
         },
         "ja" : {
@@ -5880,6 +6420,12 @@
             "value" : "Corriger"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Correggi"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5949,6 +6495,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Données"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dati"
           }
         },
         "ja" : {
@@ -6022,6 +6574,12 @@
             "value" : "Supprimer"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elimina"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6091,6 +6649,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Désactivé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disabilitato"
           }
         },
         "ja" : {
@@ -6164,6 +6728,12 @@
             "value" : "Terminé"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fine"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6233,6 +6803,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Saisir le nom du nouveau dossier"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserisci il nome della nuova cartella"
           }
         },
         "ja" : {
@@ -6306,6 +6882,12 @@
             "value" : "Saisir un nouveau nom"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scrivi Nuovo Nome"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6375,6 +6957,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Erreur"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Errore"
           }
         },
         "ja" : {
@@ -6448,6 +7036,12 @@
             "value" : "Langue"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lingua"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6517,6 +7111,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Chargement..."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carico…"
           }
         },
         "ja" : {
@@ -6590,6 +7190,12 @@
             "value" : "Divers"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Varie"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6659,6 +7265,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Déplacer"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sposta"
           }
         },
         "ja" : {
@@ -6732,6 +7344,12 @@
             "value" : "Non"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6803,6 +7421,12 @@
             "value" : "Aucun"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessuno"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6869,6 +7493,12 @@
           }
         },
         "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "it" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "OK"
@@ -6945,6 +7575,12 @@
             "value" : "Renommer"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rinomina"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7014,6 +7650,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Succès"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completato"
           }
         },
         "ja" : {
@@ -7087,6 +7729,12 @@
             "value" : "Inconnu"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sconosciuto"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7156,6 +7804,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Oui"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sì"
           }
         },
         "ja" : {
@@ -7229,6 +7883,12 @@
             "value" : "Il s'agit du conteneur par défaut"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo è il contenitore di default"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7298,6 +7958,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nom du dossier du conteneur"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nome Cartella Contenitore"
           }
         },
         "ja" : {
@@ -7371,6 +8037,12 @@
             "value" : "Nom du conteneur"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nome contenitore"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7440,6 +8112,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "LiveContainer utilisera le conteneur par défaut si aucun n'est spécifié."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer userà il contenitore predefinito quando non ne viene specificato nessuno."
           }
         },
         "ja" : {
@@ -7513,6 +8191,12 @@
             "value" : "Supprimer les données"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancella Dati"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7582,6 +8266,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Voulez-vous supprimer toutes les données de ce conteneur ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vuoi rimuovere l'autenticazione di questo container?"
           }
         },
         "ja" : {
@@ -7655,6 +8345,12 @@
             "value" : "Ce conteneur est actuellement utilisé"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo contenitore è attualmente in uso"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7724,6 +8420,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le conteneur est actuellement utilisé par %@."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il contenitore è attualmente utilizzato da %@."
           }
         },
         "ja" : {
@@ -7797,6 +8499,12 @@
             "value" : "Isoler le groupe d'apps"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gruppo App Isolate"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7866,6 +8574,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Accès insuffisant au groupe du trousseau."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non ci sono abbastanza Gruppi Accesso Portachiavi."
           }
         },
         "ja" : {
@@ -7939,6 +8653,12 @@
             "value" : "Préférences des conteneurs"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preferenze Contenitore"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8008,6 +8728,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Retirer le conteneur"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimuovi Contenitore"
           }
         },
         "ja" : {
@@ -8081,6 +8807,12 @@
             "value" : "Voulez-vous retirer ce conteneur ?"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vuoi rimuovere questo contenitore?"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8150,6 +8882,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Voulez-vous retirer le trousseau de ce conteneur ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vuoi rimuovere l'autenticazione di questo container?"
           }
         },
         "ja" : {
@@ -8223,6 +8961,12 @@
             "value" : "Sélectionner les conteneurs inutilisés"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selezione Containers non utilizzati"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8292,6 +9036,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pas de dossiers de données inutilisés."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessuna cartella dati non utilizzata."
           }
         },
         "ja" : {
@@ -8365,6 +9115,12 @@
             "value" : "Application inconnue"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App sconosciuta"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8434,6 +9190,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Définir comme conteneur par défaut"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imposta Come Container Predefinito"
           }
         },
         "ja" : {
@@ -8507,6 +9269,12 @@
             "value" : "Impossible d'ajouter plus de 3 conteneurs."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile aggiungere più di 3 contenitori."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8578,6 +9346,12 @@
             "value" : "Impossible de récupérer le dossier de données depuis LiveProcess."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile recuperare la cartella dati da LiveProcess."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8635,6 +9409,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Détacher de l'application"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scollega Dall'App"
           }
         },
         "ja" : {
@@ -8708,6 +9488,12 @@
             "value" : "Téléchargement"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scarico"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8777,6 +9563,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Voulez-vous vraiment ouvrir %@ ? Cela entraînera la fermeture de cette application."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sei sicuro di voler passare ad %@? Così facendo terminerà questa app."
           }
         },
         "ja" : {
@@ -8850,6 +9642,12 @@
             "value" : "L'application %@ n'a pas été trouvée."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App %@ non trovata."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8919,6 +9717,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec de l'acquisition du JIT : %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acquisizione JIT non riuscita: %@"
           }
         },
         "ja" : {
@@ -8992,6 +9796,12 @@
             "value" : "Le JIT a été acquis avec succès."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT acquisito con successo."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9055,6 +9865,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Application actuelle"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Attuale"
           }
         },
         "ja" : {
@@ -9128,6 +9944,12 @@
             "value" : "Ouvrir dans LiveContainer2"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apri In LiveContainer2"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9197,6 +10019,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Êtes-vous sûr de vouloir ouvrir la page web et lancer une application ? Cela entraînera la fermeture de cette application. Vous pouvez essayer de l'ouvrir dans l'application actuelle si elle prend en charge les liens universels."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sei sicuro di voler aprire la pagina web e lanciare un'app? Così facendo terminerai questa app. Puoi provare ad aprirlo nell'app corrente se supporta i Link Universali."
           }
         },
         "ja" : {
@@ -9270,6 +10098,12 @@
             "value" : "Veuillez redémarrer LiveContainer pour installer les applications."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Riavvia LiveContainer per installare le applicazioni."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9320,31 +10154,37 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "إعداد وضع بدون-JIT (متجر التصحيحات) في الإعدادات لاستخدام LiveContainer بدون JIT.\nتحقق من صفحة تشخيص بدون-JIT في الإعدادات إذا واجهت مشكلة في تفعيل وضع بدون-JIT.\nاضغط على زر الإضافة لتثبيت التطبيقات.\nاضغط مطولاً على التطبيق للوصول إلى إعدادات المحددة للتطبيق، وإصلاحات، وإضافة التطبيقات إلى الشاشة الرئيسية."
+            "value" : "إعداد وضع بدون-JIT في الإعدادات لاستخدام LiveContainer بدون JIT.\nتحقق من صفحة تشخيص بدون-JIT في الإعدادات إذا واجهت مشكلة في تفعيل وضع بدون-JIT.\nاضغط على زر الإضافة لتثبيت التطبيقات.\nاضغط مطولاً على التطبيق للوصول إلى إعدادات المحددة للتطبيق، وإصلاحات، وإضافة التطبيقات إلى الشاشة الرئيسية."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Richten Sie den JIT-freien-Modus (Patch Store) in den Einstellungen ein, um LiveContainer ohne JIT zu verwenden.\n\n**Prüfen Sie die JITless-Diagnose-Seite in den Einstellungen, wenn Sie Probleme mit der Aktivierung des JIT-Less-Modus haben.**\n\nDrücken Sie die Plus-Taste, um Apps zu installieren.\n\nDrücken Sie lange auf die App, um app-spezifische Einstellungen, Fehlerbehebungen und das Hinzufügen von Apps zum Homescreen zu erhalten."
+            "value" : "Richten Sie den JIT-freien-Modus in den Einstellungen ein, um LiveContainer ohne JIT zu verwenden.\n\n**Prüfen Sie die JITless-Diagnose-Seite in den Einstellungen, wenn Sie Probleme mit der Aktivierung des JIT-Less-Modus haben.**\n\nDrücken Sie die Plus-Taste, um Apps zu installieren.\n\nDrücken Sie lange auf die App, um app-spezifische Einstellungen, Fehlerbehebungen und das Hinzufügen von Apps zum Homescreen zu erhalten."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Setup JITLess mode (Patch Store) in settings to use LiveContainer without JIT.\n\n**Check JITLess Diagnose page in settings if you have trouble enabling JITLess mode.**\n\nPress plus button to install apps.\n\nHolding app banner for app-specific settings, fixes and adding apps to home screen."
+            "value" : "Setup JITLess mode in settings to use LiveContainer without JIT.\n\n**Check JITLess Diagnose page in settings if you have trouble enabling JITLess mode.**\n\nPress plus button to install apps.\n\nHolding app banner for app-specific settings, fixes and adding apps to home screen."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Configurer le mode sans JIT (patch du store) dans les paramètres pour utiliser LiveContainer sans le JIT.\n\n**Consultez la page Diagnostic du mode sans JIT dans les paramètres si vous avez des difficultés à activer le mode sans JIT.\n\nAppuyez sur le bouton Plus pour installer des applications.\n\nAppuyez longuement sur une application pour accéder aux paramètres spécifiques à l'application, aux correctifs et pour ajouter l'application à l'écran d'accueil."
+            "value" : "Configurer le mode sans JIT dans les paramètres pour utiliser LiveContainer sans le JIT.\n\n**Consultez la page Diagnostic du mode sans JIT dans les paramètres si vous avez des difficultés à activer le mode sans JIT.\n\nAppuyez sur le bouton Plus pour installer des applications.\n\nAppuyez longuement sur une application pour accéder aux paramètres spécifiques à l'application, aux correctifs et pour ajouter l'application à l'écran d'accueil."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imposta la modalità JITLess nelle impostazioni per utilizzare LiveContainer senza JIT.\n\n**Controlla la pagina JITLess Diagnose nelle impostazioni se hai problemi ad abilitare la modalità JITLess. *\n\nPremi il pulsante plus per installare le applicazioni.\n\nPremi a lungo l'app per le impostazioni, le correzioni e l'aggiunta di app alla schermata iniziale."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "設定でJITレスモード (パッチストア) を設定して、JITなしでLiveContainerを使用します。\n\n**JITレスモードをオンにする際に問題がある場合は、設定内のJITレス診断ページを確認してください。**\n\nアプリをインストールするには、｢＋｣ボタンを押してください。\n\nアプリ固有の設定、修正、ホーム画面にアプリを追加するには、アプリを長押ししてください。"
+            "value" : "設定でJITレスモードを設定して、JITなしでLiveContainerを使用します。\n\n**JITレスモードをオンにする際に問題がある場合は、設定内のJITレス診断ページを確認してください。**\n\nアプリをインストールするには、｢＋｣ボタンを押してください。\n\nアプリ固有の設定、修正、ホーム画面にアプリを追加するには、アプリを長押ししてください。"
           }
         },
         "pt-BR" : {
@@ -9356,31 +10196,31 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Konfigurera JITLess (Patch Store) i inställningar för att använda LiveContainer utan JIT.\n\n**Kontrollera JITLess diagnostisera sidan i inställningar om du har problem med att aktivera JITLess läge. **\n\nTryck på plusknappen för att installera appar.\n\nTryck länge på appen för appspecifika inställningar, fixar och lägger till appar på startskärmen."
+            "value" : "Konfigurera JITLess i inställningar för att använda LiveContainer utan JIT.\n\n**Kontrollera JITLess diagnostisera sidan i inställningar om du har problem med att aktivera JITLess läge. **\n\nTryck på plusknappen för att installera appar.\n\nTryck länge på appen för appspecifika inställningar, fixar och lägger till appar på startskärmen."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "JIT olmadan LiveContainer'ı kullanmak için ayarlarda JITLess modunu (Yama Mağazası) etkinleştirin.\n\n**JITLess modunu etkinleştirirken sorun yaşıyorsanız, ayarlardaki JITLess Teşhis sayfasını kontrol edin.**\n\nUygulamaları yüklemek için artı düğmesine basın.\n\nUygulamaya özgü ayarlar, düzeltmeler ve uygulamaları ana ekrana eklemek için uygulamaya uzun basın."
+            "value" : "JIT olmadan LiveContainer'ı kullanmak için ayarlarda JITLess modunu etkinleştirin.\n\n**JITLess modunu etkinleştirirken sorun yaşıyorsanız, ayarlardaki JITLess Teşhis sayfasını kontrol edin.**\n\nUygulamaları yüklemek için artı düğmesine basın.\n\nUygulamaya özgü ayarlar, düzeltmeler ve uygulamaları ana ekrana eklemek için uygulamaya uzun basın."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Thiết lập chế độ JITLess (Vá Store) trong cài đặt để dùng LiveContainer không JIT.\n\n**Kiểm tra trang Chuẩn đoán JITLess trong cài đặt nếu bạn gặp vấn đề khi dùng chế độ này.**\n\nNhấn vào dấu cộng để cài thêm app.\n\nNhấn giữ app để mở cài đặt của app, các sửa lỗi và thêm app vào màn hình chính."
+            "value" : "Thiết lập chế độ JITLess trong cài đặt để dùng LiveContainer không JIT.\n\n**Kiểm tra trang Chuẩn đoán JITLess trong cài đặt nếu bạn gặp vấn đề khi dùng chế độ này.**\n\nNhấn vào dấu cộng để cài thêm app.\n\nNhấn giữ app để mở cài đặt của app, các sửa lỗi và thêm app vào màn hình chính."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在设置中配置免JIT模式(打补丁)来使得LiveContainer无需JIT权限即可使用。\n\n**如果配置免JIT模式时遇到问题，请查看免JIT模式诊断页面。**\n\n点击加号按钮来安装App。\n\n长按App可查看App设置，修复App问题，以及将App添加到主屏幕。"
+            "value" : "在设置中配置免JIT模式来使得LiveContainer无需JIT权限即可使用。\n\n**如果配置免JIT模式时遇到问题，请查看免JIT模式诊断页面。**\n\n点击加号按钮来安装App。\n\n长按App可查看App设置，修复App问题，以及将App添加到主屏幕。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在設定中設定免JIT模式(修補)來使得LiveContainer無需JIT即可使用。\n\n**如果在設定免JIT模式時遇到問題，請查看免JIT模式診斷頁面。 **\n\n點選加號按鈕來安裝App。\n\n長按App可以查看App設置、修復App問題、和將App添加至主畫面。"
+            "value" : "在設定中設定免JIT模式來使得LiveContainer無需JIT即可使用。\n\n**如果在設定免JIT模式時遇到問題，請查看免JIT模式診斷頁面。 **\n\n點選加號按鈕來安裝App。\n\n長按App可以查看App設置、修復App問題、和將App添加至主畫面。"
           }
         }
       }
@@ -9410,6 +10250,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "**Consultez la [FAQ de LiveContainer](https://github.com/khanhduytran0/LiveContainer/issues/265) (en anglais) pour voir les problèmes courants.\n                         \nSi vous rencontrez un bug ou un problème de compatibilité, veuillez le soumettre sur [GitHub](https://github.com/khanhduytran0/LiveContainer/issues)."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "**Controlla [LiveContainer FAQ](https://github.com/khanhduytran0/LiveContainer/issues/265) per problemi comuni.**\n                         \nSe riscontri un problema di bug o compatibilità, invia su [problemi GitHub](https://github.com/khanhduytran0/LiveContainer/issues)."
           }
         },
         "ja" : {
@@ -9483,6 +10329,12 @@
             "value" : "Aide LiveContainer"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guida LiveContainer"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9552,6 +10404,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fichier d'habilitations"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File Entitlement"
           }
         },
         "ja" : {
@@ -9625,6 +10483,12 @@
             "value" : "Groupe d'apps accessible"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gruppo App Accessibile"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9690,6 +10554,12 @@
             "value" : "ID du groupe d'apps"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Id Gruppo App"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9753,6 +10623,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Identifiant du bundle"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bundle ID"
           }
         },
         "ja" : {
@@ -9826,6 +10702,12 @@
             "value" : "Identifiant du bundle attendu"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serve il Bundle Identifier"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9889,6 +10771,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Données du certificat trouvées"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dati Del Certificato Trovati"
           }
         },
         "ja" : {
@@ -9956,6 +10844,12 @@
             "value" : "Révoqué"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revocato"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10021,6 +10915,12 @@
             "value" : "Statut du certificat"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stato Del Certificato"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10084,6 +10984,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Valide"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valido"
           }
         },
         "ja" : {
@@ -10152,6 +11058,12 @@
             "value" : "Certificat non valide après"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificato Non Valido Dopo"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10215,6 +11127,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Date de la dernière mise à jour du certificat"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data Ultimo Aggiornamento Del Certificato"
           }
         },
         "ja" : {
@@ -10282,6 +11200,12 @@
             "value" : "Mot de passe du certificat trouvé"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Password Del Certificato Trovata"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10347,6 +11271,12 @@
             "value" : "Vérification"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Controllo"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10410,6 +11340,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Obtenir de l'aide"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ottieni aiuto"
           }
         },
         "ja" : {
@@ -10483,6 +11419,12 @@
             "value" : "Patch détecté"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patch Rilevata"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10543,6 +11485,12 @@
           }
         },
         "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Store"
+          }
+        },
+        "it" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Store"
@@ -10611,6 +11559,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ID de l'équipe"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ID del Team"
           }
         },
         "ja" : {
@@ -10743,6 +11697,12 @@
             "value" : "Test du mode sans JIT réussi"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Test Modalità JIT-Less Passato"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10796,6 +11756,18 @@
             "value" : "Copier le PID"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copia PID"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PIDをコピー"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10825,6 +11797,12 @@
     "lc.multitask.enablePip" : {
       "extractionState" : "stale",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bild-in-Bild aktivieren"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10835,6 +11813,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Activer le PIP"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abilita PIP"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PiPを有効化"
           }
         },
         "pt-BR" : {
@@ -10867,6 +11857,12 @@
       "comment" : "It's in a slider that changes the scale (like DPI) for multitasking apps",
       "extractionState" : "stale",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scale"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10877,6 +11873,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échelle"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ridimensiona"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スケール"
           }
         },
         "pt-BR" : {
@@ -10924,6 +11932,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette application a été arrêtée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quest'app è stata terminata."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアプリは終了しました。"
           }
         },
         "pt-BR" : {
@@ -10977,6 +11997,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "À propos de moi"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chi sono"
           }
         },
         "ja" : {
@@ -11050,6 +12076,12 @@
             "value" : "Déplacement réussi."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spostamento riuscito."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11119,6 +12151,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Il y a des fichiers dans le dossier partagé du groupe d'apps. Déplacez-les d'abord et réessayez."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ci sono dei file nella cartella privata del gruppo di app. Spostali e riprova."
           }
         },
         "ja" : {
@@ -11192,6 +12230,12 @@
             "value" : "Il y a des fichiers dans le dossier du groupe d'apps privées. Déplacez-les d'abord et réessayez."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ci sono dei file nella cartella privata del gruppo di app. Spostali e riprova."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11261,6 +12305,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Déplacer le groupe d'apps privées vers le dossier de documents partagés"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sposta gruppo app private nella cartella Documenti condivisi"
           }
         },
         "ja" : {
@@ -11334,6 +12384,12 @@
             "value" : "Déplacer les fichiers du groupe d'apps partagées vers le dossier de documents privés"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sposta i file del gruppo di applicazioni condivise nella cartella Documenti privati"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11387,10 +12443,64 @@
             "value" : "Launch in Multitask Mode by Default"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lancer en mode multitâche par défaut"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avvia in modalità Multitask di default"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デフォルトでマルチタスクモードで起動する"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Executar Aplicativo no Modo Multitarefa por Padrão"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Varsayılan olarak çoklu görev modunda başlatma"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "默认以多任务模式启动"
+          }
+        }
+      }
+    },
+    "lc.settings.bundleIdMismatch %@ %@" : {
+      "comment" : "lc.settings.bundleIdMismatch",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer's bundle ID, \"%@\", does not match application-Identifier in entitlements, which expects the bundle ID to be \"%@\". Some functions may not be available."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'ID du bundle de LiveContainer, \"%@\", ne correspond pas à l'identificateur d'application dans les droits qui attendent que l'ID du bundle soit \"%@\". Certaines fonctions peuvent ne pas être disponibles."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer的包名，“%@”与权限中application-identifier期望的包名“%@”不符。一些功能可能无法正常使用使用。"
           }
         }
       }
@@ -11420,6 +12530,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nettoyer les dossiers de données inutilisés"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pulisci Cartelle Dati Non Usate"
           }
         },
         "ja" : {
@@ -11696,6 +12812,12 @@
             "value" : "Nettoyer le trousseau"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pulisci Portachiavi"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11767,6 +12889,12 @@
             "value" : "Si le compte d'une application ne peut pas être synchronisé entre les LiveContainers, c'est peut-être parce qu'il est encore stocké dans le trousseau privé du LiveContainer actuel. Le nettoyage du trousseau peut résoudre ce problème, mais il se peut que vous soyez déconnecté de certains de vos comptes. Continuer ?"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se l'account di un'app non può essere sincronizzato tra i LiveContainer, potrebbe essere perché è ancora memorizzato nel portachiavi privato del LiveContainer attuale. Pulire il portachiavi potrebbe risolvere il problema, ma potrebbe anche disconnetterti da alcuni dei tuoi account. Continuare?"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11836,6 +12964,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gestion des données"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gestione Dati"
           }
         },
         "ja" : {
@@ -11956,6 +13090,12 @@
             "value" : "Ne pas signer les nouvelles applications"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non Firmare le Nuove Applicazioni"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12025,6 +13165,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "LiveContainer ne signera pas de nouvelles applications tant que cette option est activée. Les applications installées pendant que cette option est activée resteront non signées."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer non firmerà le nuove app fino a quando questa opzione non è attiva. Le app installate durante questa opzione rimarranno non firmate."
           }
         },
         "ja" : {
@@ -12098,6 +13244,12 @@
             "value" : "Couleurs dynamiques"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Colori dinamici"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12169,6 +13321,12 @@
             "value" : "Activer les couleurs dynamiques pour les contours des applications"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abilita colori dinamici per le app box"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12228,6 +13386,18 @@
             "value" : "Vous devez importer le certificat ADP avant de tester le mode sans JIT."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Devi importare il certificato ADP prima di testare la modalità JIT-Less."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JITレスモードテストをする前に、ADP証明書をインポートしてください。"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12285,6 +13455,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vous devez patcher %@ avant de tester le mode sans JIT."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Devi patchare %@ prima di testare la modalità JIT-Less."
           }
         },
         "ja" : {
@@ -12358,6 +13534,12 @@
             "value" : "Encadrer les icônes de raccourci"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Icona Collegamento"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12427,6 +13609,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Encadrer les icônes de raccourci avec l'icône de LiveContainer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Icone collegamento con l'icona di LiveContainer."
           }
         },
         "ja" : {
@@ -12500,6 +13688,12 @@
             "value" : "Certificat d'importation"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importa certificato"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12571,6 +13765,12 @@
             "value" : "Pour utiliser le mode sans JIT sans AltStore/SideStore, vous devez importer le certificat utilisé pour signer LiveContainer. Poursuivre ?"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Per utilizzare la modalità JITLess senza AltStore/SideStore, devi importare il certificato utilizzato per firmare LiveContainer. Vuoi Continuare?"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12636,6 +13836,12 @@
             "value" : "Importer un certificat depuis %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importa Certificato Da %@"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12699,6 +13905,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Veuillez saisir le mot de passe du certificat"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserisci la password del certificato"
           }
         },
         "ja" : {
@@ -12884,6 +14096,12 @@
             "value" : "interface"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "interfaccia"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12947,6 +14165,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec de la validation du certificat. Veuillez vérifier le mot de passe et si le certificat sélectionné est utilisé pour signer LiveContainer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile convalidare il certificato. Controlla la password e se il certificato selezionato è utilizzato per firmare LiveContainer."
           }
         },
         "ja" : {
@@ -13020,6 +14244,12 @@
             "value" : "Adresse"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indirizzo"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13091,6 +14321,12 @@
             "value" : "Configurez votre activateur JIT. Une autorisation réseau locale peut être requise."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imposta il tuo abilitatore JIT. Potrebbe essere richiesto il permesso di rete locale."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13154,6 +14390,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Activateur du JIT"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT Enabler"
           }
         },
         "ja" : {
@@ -13227,6 +14469,12 @@
             "value" : "Sans JIT"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT-Less"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13296,6 +14544,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le mode sans JIT vous permet d'utiliser LiveContainer sans avoir à activer le JIT. Veuillez patcher AltStore ou SideStore pour l'activer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT-less ti permette di usare LiveContainer senza dover abilitare JIT. Patcha AltStore o SideStore per abilitare."
           }
         },
         "ja" : {
@@ -13369,6 +14623,12 @@
             "value" : "Diagnostic du mode sans JIT"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diagnosi Modalità JIT-Less"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13435,6 +14695,12 @@
           }
         },
         "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UDID"
+          }
+        },
+        "it" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "UDID"
@@ -13720,6 +14986,54 @@
                     "stringUnit" : {
                       "state" : "translated",
                       "value" : "%arg dossiers de tweak"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spostato %#@arg1@ e %#@arg2@."
+          },
+          "substitutions" : {
+            "arg1" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "new",
+                      "value" : ""
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "new",
+                      "value" : ""
+                    }
+                  }
+                }
+              }
+            },
+            "arg2" : {
+              "argNum" : 2,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg cartella tweak"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg cartelle tweak"
                     }
                   }
                 }
@@ -14044,6 +15358,12 @@
             "value" : "Déplacer les dossiers isolés hors du groupe d'apps"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sposta le cartelle di inclinazione fuori dal gruppo di app"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14053,7 +15373,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mova Pastas Penduradas para Fora do Grupo de Aplicativos"
+            "value" : "Mover Pastas Penduradas para Fora do Grupo de Aplicativos"
           }
         },
         "sv" : {
@@ -14113,6 +15433,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Plusieurs LiveContainers"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainers Multipli"
           }
         },
         "ja" : {
@@ -14186,6 +15512,12 @@
             "value" : "LiveContainer2 est signé avec un certificat différent de LiveContainer, donc il ne fonctionnera pas. Veuillez installer LiveContainer2 avec le même compte que celui utilisé pour installer LiveContainer."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer2 è firmato con un certificato diverso da LiveContainer, quindi non funzionerà. Si prega di installare LiveContainer2 con lo stesso account usato per installare LiveContainer."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14249,6 +15581,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "En installant plusieurs LiveContainers et en convertissant les applications en apps partagées, vous pouvez ouvrir une application entre tous les LiveContainers avec la plupart de ses données et paramètres."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installando più LiveContainer e convertendo app in applicazioni condivise, è possibile aprire un'app tra tutti i LiveContainers con la maggior parte dei suoi dati e impostazioni."
           }
         },
         "ja" : {
@@ -14322,6 +15660,12 @@
             "value" : "Installer un autre LiveContainer"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installa Un Altro LiveContainer"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14393,6 +15737,12 @@
             "value" : "LiveContainer va générer l'IPA pour un autre LiveContainer. Veuillez le partager à %@ pour l'installer. Continuer ?"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer genererà l'ipa per un altro LiveContainer. Condividilo su %@ per installarlo, Vuoi Continuare?"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14456,6 +15806,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Il s'agit du deuxième LiveContainer"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo è il secondo LiveContainer"
           }
         },
         "ja" : {
@@ -14529,6 +15885,12 @@
             "value" : "Réinstaller un autre LiveContainer"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reinstalla Un Altro LiveContainer"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14594,6 +15956,18 @@
             "value" : "Mode multitâche"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modalità Multitasking"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マルチタスクモード"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14641,6 +16015,18 @@
             "value" : "Fenêtre native"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finestra Nativa"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ネイティブウィンドウ"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14686,6 +16072,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fenêtre virtuelle"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finestra Virtuale"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バーチャルウィンドウ"
           }
         },
         "pt-BR" : {
@@ -14739,6 +16137,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucun dossier de données à supprimer. Tous les dossiers de données sont utilisés."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessuna cartella dati da rimuovere. Tutte le cartelle dati sono in uso."
           }
         },
         "ja" : {
@@ -14812,6 +16216,12 @@
             "value" : "Patcher %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patch %@"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14881,6 +16291,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Patcher %@ une nouvelle fois"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patch %@ di nuovo"
           }
         },
         "ja" : {
@@ -14954,6 +16370,12 @@
             "value" : "Uniquement en archive"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archivia Solo"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15025,6 +16447,12 @@
             "value" : "L'IPA patchée %@ a été sauvegardée dans le dossier de documents de LiveContainer. Veuillez l'installer avec le %@ avec lequel LiveContainer est installé."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ipa patchato è stato salvato nella cartella dei documenti di LiveContainer. Installalo con %@ con cui LiveContainer è installato."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15088,6 +16516,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pour utiliser le mode sans JIT avec %@, vous devez patcher %@ afin de récupérer le certificat. Les fonctions de %@ ne seront pas affectées. Veuillez confirmer que vous pouvez actualiser %@ avant d'appliquer le correctif. Continuer ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Per utilizzare la modalità JIT-Less con %@, è necessario patchare %@ per recuperare il certificato. Le funzioni di %@non saranno modificate. Conferma che puoi aggiornare %@ prima di applicare il cerotto. Vuoi Continuare?"
           }
         },
         "ja" : {
@@ -15161,6 +16595,12 @@
             "value" : "Si plusieurs SideStore sont installés, veuillez sélectionner \"Uniquement en archive\" et installer l'IPA modifiée manuellement."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se hai SideStore multipli installati, seleziona “Archivia solo” ed installa manualmente l'IPA modificato."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15226,6 +16666,12 @@
             "value" : "Rafraîchir le certificat depuis %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiorna il certificato da %@"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15289,6 +16735,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Supprimer le certificat"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimuovi Certificato"
           }
         },
         "ja" : {
@@ -15360,6 +16812,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vous ne pourrez pas installer d'applications après avoir supprimé le certificat. Poursuivre ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non sarai in grado di installare le app dopo aver rimosso il certificato. Continuare?"
           }
         },
         "ja" : {
@@ -15486,6 +16944,12 @@
             "value" : "Toujours ouvrir l'URL dans l'application en cours"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apri sempre l'URL nell'app corrente"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15555,6 +17019,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Par défaut, LiveContainer vous demande comment ouvrir une URL. Activez cette option pour ouvrir automatiquement l'URL dans l'application en cours."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Di default, LiveContainer ti chiede come vuoi aprire un URL. Abilita ciò per aprire automaticamente l'URL nell'app corrente."
           }
         },
         "ja" : {
@@ -15628,6 +17098,12 @@
             "value" : "Changer d'application sans demander"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambia App Senza Chiedere"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15697,6 +17173,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Par défaut, LiveContainer vous demande votre avis avant de changer d'application. Activez cette option pour changer d'application immédiatement. Toutes les données non sauvegardées seront perdues."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Di default, LiveContainer ti chiede prima di cambiare app. Abilita questa opzione per cambiare app immediatamente. Tutti i dati non salvati andranno persi."
           }
         },
         "ja" : {
@@ -15770,6 +17252,12 @@
             "value" : "Mode de masquage strict"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modalità Nascondi App"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15839,6 +17327,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "L'activation de ce mode ne permet de lancer les applications masquées que par un triple appui sur le compteur d'applications installées."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abilitando questa modalità, permetterà solo alle app nascoste di essere lanciate cliccando 3 volte nel contatore delle app installate."
           }
         },
         "ja" : {
@@ -15912,6 +17406,12 @@
             "value" : "Test du mode sans JIT"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Testa Modalità Jit-Less"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15981,6 +17481,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Méthode d'installation non prise en charge. Veuillez utiliser AltStore ou SideStore pour configurer cette fonctionnalité."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Metodo di installazione non supportato. Si prega di utilizzare AltStore o SideStore per configurare questa funzione."
           }
         },
         "ja" : {
@@ -16054,6 +17560,12 @@
             "value" : "N'utilisez pas LiveContainer pour le piratage."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Per favore, non usare LiveContainer per la pirateria."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16123,6 +17635,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "LiveContainer semble avoir planté lors de la dernière signature de l'application, et l'application pourrait être corrompue. Veuillez envisager de réinstaller l'application ou de changer de signataire."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer sembra essere crashato durante l'ultima firma dell'app, e l'app potrebbe essersi corrotta. Considera reinstallare l'app o cambiare signer."
           }
         },
         "ja" : {
@@ -16196,6 +17714,12 @@
             "value" : "L'application est signée avec le dernier certificat mais sa signature est invalide. Veuillez consulter la page du Diagnostic du mode sans JIT et voir s'il y a quelque chose avec votre configuration du mode sans JIT."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'applicazione è firmata con l'ultimo certificato, ma la firma del codice non è valida. Controlla la Diagnosi JIT-Less."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16265,6 +17789,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Impossible de trouver le certificat de signature. Veuillez vérifier la page du Diagnostic du mode sans JIT et vérifier s'il y a quelque chose avec votre configuration du mode sans JIT."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile trovare il certificato. Controlla la Diagnosi JIT-Less."
           }
         },
         "ja" : {
@@ -16338,6 +17868,12 @@
             "value" : "Applications"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16407,6 +17943,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Paramètres"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impostazioni"
           }
         },
         "ja" : {
@@ -16480,6 +18022,12 @@
             "value" : "Tweaks"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tweak"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16549,6 +18097,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Il s'agit du dossier spécifique à l'application. Définissez le dossier tweaks et l'application invitée les récupérera de manière récursive."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa è la cartella specifica per le applicazioni. Imposta la cartella tweak e l'app guest li raccoglierà ricorsivamente."
           }
         },
         "ja" : {
@@ -16622,6 +18176,12 @@
             "value" : "Il s'agit du dossier global. Tous les tweaks placés ici seront injectés dans toutes les applications invitées. Créez un nouveau dossier si vous utilisez des tweaks spécifiques à une application."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa è la cartella globale. Tutti i tweak messi qui saranno iniettati a tutte le app ospite. Crea una nuova cartella se usi tweak specifici per le app."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16691,6 +18251,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Importer un tweak"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importa Tweak"
           }
         },
         "ja" : {
@@ -16764,6 +18330,12 @@
             "value" : "Nouveau dossier"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nuova cartella"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16833,6 +18405,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ n'est pas un fichier."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ non è un file."
           }
         },
         "ja" : {
@@ -16906,6 +18484,12 @@
             "value" : "Échec de l'initialisation de la signature du bundle."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile avviare la firma del bundle."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16975,6 +18559,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Authentification requise."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autenticazione Richiesta."
           }
         },
         "ja" : {
@@ -17048,6 +18638,12 @@
             "value" : "Cette page web peut être ouverte dans \"%@\", continuer ?"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa pagina web può essere aperta in \"%@\", continuare?"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17119,6 +18715,12 @@
             "value" : "Cette page web tente de lancer \"%@\", continuer ?"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa pagina web sta cercando di lanciare \"%@\", continuare?"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17188,6 +18790,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lancer l'application"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esegui App"
           }
         },
         "ja" : {

@@ -22,14 +22,12 @@ struct MultitaskAppInfo {
     
     func closeApp() {
         ext.setRequestInterruptionBlock { uuid in
-            print("app closed!")
             MultitaskManager.unregisterMultitaskContainer(container: dataUUID)
         }
         ext._kill(SIGTERM)
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
             ext._kill(SIGKILL)
         }
-        
     }
 }
 

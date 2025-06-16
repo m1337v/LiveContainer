@@ -291,7 +291,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     NSString *execPath = [NSString stringWithFormat:@"%@/%@", appPath, _infoPlist[@"CFBundleExecutable"]];
     
     // Update patch
-    int currentPatchRev = 6;
+    int currentPatchRev = 7;
     bool needPatch = [info[@"LCPatchRevision"] intValue] < currentPatchRev;
     if (needPatch || forceSign) {
         // copy-delete-move to avoid EXC_BAD_ACCESS (SIGKILL - CODESIGNING)
@@ -310,9 +310,8 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
                 LCPatchExecSlice(path, header, ![self dontInjectTweakLoader]);
             }
         });
-        if(!has64bitSlice) {
-            self.is32bit = true;
-        }
+        self.is32bit = !has64bitSlice;
+        LCPatchAppBundleFixupARM64eSlice([NSURL fileURLWithPath:appPath]);
         
         if (error) {
             [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SigningInProgress"];

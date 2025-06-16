@@ -14,15 +14,15 @@
       "bundleIdentifier": "com.kdt.livecontainer",
       "developerName": "LiveContainer Team",
       "subtitle": "Run iOS apps without actually installing them!",
-      "version": "3.4.0",
-      "versionDate": "2025-04-20",
-      "versionDescription": "\u26a0\ufe0fThis version \u26a0\ufe0fREQUIRES\u26a0\ufe0f SideStore 0.6.0+ / AltStore 2.0+ to install.\r \nThis version improved app re-signing experience, add support for new JIT enablers, increased compatibility with relatively old apps and add translation for Arabic, French, German, Japanese, Portuguese and Swedish.\r \n>[!Note]\r\nLiveContainer has upgraded SDK version to 18.2, which breaks some apps that works on previous versions. Fortunately we have developed the \"Spoof SDK Version\" feature, forcing system libraries to operate in the SDK version the app is built with. You can enable \"Spoof SDK Version\".\r \n\r\nNew Features\r\n1. New Re-Sign Strategy\r\nInstead of keeping track of expiration date, LiveContainer now directly ask iOS to determine whether the code signature is valid, which significantly decreases app re-sign rate. For now your apps will be re-signed only if their code signature is invalid, which probably happens when your certificate is expired (usually takes a year), or is revoked (when you reinstall SideStore/AltStore).\r \n2. Support for StikJIT(StikDebug), SideStore JIT\r\n [StikJIT(StikDebug)](https://github.com/StephenDev0/StikJIT) is the newest on-device JIT enabler powered by [idevice](https://github.com/jkcoxson/idevice). You can now install it both as a standalone app or install it inside LiveContainer. See 265 item 5.8 for more information.\r \nSideStore has recently switched its backend to idevice and added on-device JIT support. For now its JIT URL Scheme has not been implemented so you have to manually enable JIT for LiveContainer.\r \n3. Spoof SDK version\r\nSpoofing SDK version forces system libraries to operate in the SDK version the app is built with. This fix works surprisingly well so we decided to enable it by default for newly installed apps. This fixes some old apps crashing because of the new SDK. We also removed the \"Bypass AssertBarrierOnQueue\" fix since the root cause is SDK version.\r \nFix 421 422\r \n4. Support Import Certificate From SideStore\r\nWith [this SideStore pr](https://github.com/SideStore/SideStore/pull/959), we can now directly retrieve certificate from SideStore (0.6.2-20250420.25+) without the patch, thus simplifying the process of enabling JIT-Less mode.\r \n5. Game Mode Support\r\nWith the SDK version upgrade, LiveContainer now supports game mode. If you don't need it, you can turn it off in the control center. \r \nBug Fixes\r\n1. Fix a regression caused by NSBundle path fix. Fix 409\r\n2. Keep app's plugin folder in case some apps need files inside. Fix hugeBlack/LiveContainer43\r\n3. Add TPRO rw in overwrite exec path in case the executable path is TPRO protected. Fix 327\r\n4. Replace all \"withCheckedContinuation\" with \"withUnsafeContinuation\" to solve crash on iOS 18.0 beta. Fix 435\r\n5. Add file permission to solve some sign issues. Fix 448\r \nRemoved Features\r\nThe following features are removed because it's not useful in current version or constantly causing issues.\r\n1. AltSign: We drop AltSign support because it's constantly causing issues and it's relatively old.\r\n2. Bypass AssertBarrierOnQueue: It is replaced by \"Spoof SDK version\"\r\n3. Sign Only on Signature Expires: It's now useless as we directly determine if an app's code signature is valid by asking the system.\r \nTranslation\r\nLiveContainer is now translated into Arabic, Simplified Chinese, French, German, Japanese, Portuguese and Swedish\r\n\u2022 Arabic: translated by dlshad2\r\n\u2022 French: translated by @p-sage\r\n\u2022 German: translated by @BeityBytes\r\n\u2022 Japanese: translated by @naolad\r\n\u2022 Portuguese: translated by damn_the_daniel\r\n\u2022 Swedish: translated by @se2crid\r \nCredit\r\nShout out to @khanhduytran0 for doing a lot of research under the hood!\r \nOther\r\nLiveContainer is now migrated from a Theos project to a Xcode project, which simplifies the development and significantly decreased Github Actions build time (2 minutes now and around 10 minutes previously)",
-      "downloadURL": "https://github.com/LiveContainer/LiveContainer/releases/download/3.4.0/LiveContainer.ipa",
+      "version": "3.5.1",
+      "versionDate": "2025-06-16",
+      "versionDescription": "\u26a0\ufe0fThis version \u26a0\ufe0fREQUIRES\u26a0\ufe0f SideStore 0.6.0+ / AltStore 2.0+ to install.\r\n>[!NOTE]\r\n> This a minor release that solves the following issues in version 3.5.0. For more information, please see [3.5.0 release note](https://github.com/LiveContainer/LiveContainer/releases/tag/3.5.0).\r \nImprovement\r\nFix 590: We adopted a new method for relaunching LiveContainer which makes apps launch faster compared to 3.5.0. by @khanhduytran0\r \nBug Fix\r\nFix Liquid Glass option need to be toggled off and on in order to work. It's off by default now and you can toggle it on in iOS Settings -> Apps -> LiveContainer -> Enable Liquid Glass\r \n",
+      "downloadURL": "https://github.com/LiveContainer/LiveContainer/releases/download/3.5.1/LiveContainer.ipa",
       "localizedDescription": "Run iOS apps without actually installing them!",
       "iconURL": "https://raw.githubusercontent.com/LiveContainer/LiveContainer/main/Resources/AppIcon76x76.png",
       "tintColor": "#0784FC",
       "category": "utilities",
-      "size": 2764540,
+      "size": 2928772,
       "screenshotURLs": [
         "https://raw.githubusercontent.com/LiveContainer/LiveContainer/main/screenshots/1.png"
       ],
@@ -76,6 +76,20 @@
         }
       },
       "versions": [
+        {
+          "version": "3.5.1",
+          "date": "2025-06-16",
+          "localizedDescription": "\u26a0\ufe0fThis version \u26a0\ufe0fREQUIRES\u26a0\ufe0f SideStore 0.6.0+ / AltStore 2.0+ to install.\r\n>[!NOTE]\r\n> This a minor release that solves the following issues in version 3.5.0. For more information, please see [3.5.0 release note](https://github.com/LiveContainer/LiveContainer/releases/tag/3.5.0).\r \nImprovement\r\nFix 590: We adopted a new method for relaunching LiveContainer which makes apps launch faster compared to 3.5.0. by @khanhduytran0\r \nBug Fix\r\nFix Liquid Glass option need to be toggled off and on in order to work. It's off by default now and you can toggle it on in iOS Settings -> Apps -> LiveContainer -> Enable Liquid Glass\r \n",
+          "downloadURL": "https://github.com/LiveContainer/LiveContainer/releases/download/3.5.1/LiveContainer.ipa",
+          "size": 2928772
+        },
+        {
+          "version": "3.5.0",
+          "date": "2025-06-15",
+          "localizedDescription": "\u26a0\ufe0fThis version \u26a0\ufe0fREQUIRES\u26a0\ufe0f SideStore 0.6.0+ / AltStore 2.0+ to install.\r\n>[!Note]\r\n> We recommend using SideStore 0.6.2-20250420.25+ or AltStore 2.2.1+ to import your certificate directly, without needing to apply a patch when setting up JIT-Less mode.\r \nAfter two months of development, we're proud to announce the release of LiveContainer 3.5.0! This update brings powerful new features like multitasking and better ADP certificate support, along with several bug fixes, improvements, and new language translations.\r \nMultitasking\r\nOne of LiveContainer\u2019s main limitations has been the inability to open more than one app at a time. Our new multitasking feature addresses that.\r \nYou can now launch multiple apps simultaneously in in-app virtual windows. These windows can be resized, scaled, and even displayed using the native Picture-in-Picture (PiP) feature. On iPads, apps can run in native window mode, displaying each app in a separate system window.\r \nAnd if you wish, you can choose to run apps in multitasking mode by default in settings.\r \nTo use multitasking:\r\n1. Convert the app you want to multitask into a shared app.\r\n2. Hold its banner and tap \"Multitask\".\r \n>[!Note]\r\n>1. To use multitasking, ensure you select \"Keep Extension\" when installing via SideStore/AltStore.  \r\n>2. Most common apps are compatible, but some may have issues.  \r\n>3. If you want to enable JIT for multitasked apps, you\u2019ll need a JIT enabler that supports attaching by PID \u2014 coming soon in StikDebug.\r \nADP Certificate Support\r\nLiveContainer now officially supports ADP development certificates. Thanks to PR 537 by @SoY0ung, LiveContainer uses the app group included in your \".mobileprovision\" file, rather than hard-coded SideStore/AltStore app groups. This unlocks multitasking and other features.\r \n>[!Note]\r\n>1. Only development certificates are supported.  \r\n>2. To use multitasking, your \".mobileprovision\" must contain at least one app group. \r\n>3. To enable keychain separation, LiveContainer must be signed with all 128 required keychain access groups.  \r\n>4. We recommend changing LiveContainer's bundle ID to match the \"application-identifier\" in your \".mobileprovision\".\r \niOS 26 Liquid Glass Support\r\nAlthough LiveContainer is currently built with iOS 18.2 SDK, we include an option to enable Liquid Glass for LiveContainer's UI if you have upgraded to iOS 26. You can find this option in iOS Settings-> Apps -> LiveContainer -> enable Liquid Glass.\r \nImprovements\r\n\u2022 Optimized app launching process for faster startup:\r\n  - No longer moves shared app data to a private folder.\r\n  - Uses a new method to override the main executable path, avoiding SIGSEGV signal handlers.\r\n  - Removed app lock and use container lock only.\r\n\u2022 Added \".tipa\" support (467). Note: this allows installing \".tipa\" files, but does not mean the app will run properly without correct entitlements.\r\n\u2022 You can now search for apps in the app list.\r\n\u2022 Renamed StikJIT (Standalone) to StikDebug.\r \nBug Fixes\r\n\u2022 Fixed 200 by directly setting \"dyld.config.process.mainExecutablePath\" to app's real main executable path, ensuring \"_NSGetExecutablePath\" returns the correct value.\r\n\u2022 Fixed 326 by correcting an error in \"Info.plist\". Note: HealthKit entitlements are still required to access health data.\r\n\u2022 Alleviate 423 by avoiding dyld library validation bypass on signed apps, which otherwise prevents apps that requires JIT from executing JIT pages on A15+\r\n\u2022 Fixed 478 by moving the JIT enabling window to \"LCAppListView\".\r\n\u2022 Fixed 476 by updating ZSign.\r\n\u2022 Fixed 497 by resolving an issue in dyld library validation bypass.\r\n\u2022 Fixed iOS 16.2 (495) and iOS 18.4+ on iPad 7 (531).\r\n\u2022 Fixed 518 by sending KVO notifications when UsedDefaults is changed.\r\n\u2022 Fixed 582 by invalidating duplicate library load commands.\r \nDeprecated Features\r\nSideStore/AltStore Patching\r\nWith SideStore 0.6.2-20250420.25 and AltStore 2.2.1 both supporting certificate export, patching these stores is no longer necessary. This feature is now deprecated and will be removed in the next major release.\r \nTranslations\r\nThanks to our community translators, LiveContainer now supports:\r \n\u2022 Traditional Chinese \u2014 Jack Black  \r\n\u2022 Italian \u2014 @Checkm8ra1n  \r\n\u2022 Turkish \u2014 @sekertr  \r\n\u2022 Vietnamese \u2014 @khanhduytran0  \r\n\u2022 Portuguese \u2014 @DaniTrox  \r \nSpecial thanks to the following contributors for continuing to update translations:\r\n\u2022 Arabic \u2014 dlshad2  \r\n\u2022 French \u2014 @p-sage  \r\n\u2022 German \u2014 @BeityBytes  \r\n\u2022 Japanese \u2014 @naolad  \r\n\u2022 Swedish \u2014 @se2crid\r \nCredits\r\nShout out to @khanhduytran0 for doing a lot of research under the hood which made the multitasking feature possible! \r\nGreat thanks to @neoarz for providing us certificates so we can test support for ADP certificate!",
+          "downloadURL": "https://github.com/LiveContainer/LiveContainer/releases/download/3.5.0/LiveContainer.ipa",
+          "size": 2928881
+        },
         {
           "version": "3.4.0",
           "date": "2025-04-20",
@@ -205,6 +219,28 @@
       "tintColor": "#0784FC",
       "title": "3.4.0 - LiveContainer  20/04/25",
       "url": "https://github.com/LiveContainer/LiveContainer/releases/tag/3.4.0"
+    },
+    {
+      "appID": "com.kdt.livecontainer",
+      "caption": "Update of LiveContainer just got released!",
+      "date": "2025-06-15T14:26:24Z",
+      "identifier": "release-3.5.0",
+      "imageURL": "https://raw.githubusercontent.com/LiveContainer/LiveContainer/main/screenshots/release.png",
+      "notify": true,
+      "tintColor": "#0784FC",
+      "title": "3.5.0 - LiveContainer  15/06/25",
+      "url": "https://github.com/LiveContainer/LiveContainer/releases/tag/3.5.0"
+    },
+    {
+      "appID": "com.kdt.livecontainer",
+      "caption": "Update of LiveContainer just got released!",
+      "date": "2025-06-16T06:26:06Z",
+      "identifier": "release-3.5.1",
+      "imageURL": "https://raw.githubusercontent.com/LiveContainer/LiveContainer/main/screenshots/release.png",
+      "notify": true,
+      "tintColor": "#0784FC",
+      "title": "3.5.1 - LiveContainer  16/06/25",
+      "url": "https://github.com/LiveContainer/LiveContainer/releases/tag/3.5.1"
     }
   ]
 }
