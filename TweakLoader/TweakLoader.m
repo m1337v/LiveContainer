@@ -5,6 +5,7 @@
 #include "utils.h"
 #import "CoreLocation+GuestHooks.h"
 #import "AVFoundation+GuestHooks.h"
+#import "Network+GuestHooks.h"
 
 void CoreLocationGuestHooksInit(void);
 void AVFoundationGuestHooksInit(void);

@@ -268,6 +268,15 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
         guestAppInfo[@"spoofCameraVideoPath"] = self.spoofCameraVideoPath ?: @"";
         guestAppInfo[@"spoofCameraLoop"] = @(self.spoofCameraLoop);
         
+        // save network variables to guestAppInfo
+        guestAppInfo[@"spoofNetwork"] = @(self.spoofNetwork);
+        guestAppInfo[@"proxyType"] = self.proxyType ?: @"HTTP";
+        guestAppInfo[@"proxyHost"] = self.proxyHost ?: @"";
+        guestAppInfo[@"proxyPort"] = @(self.proxyPort);
+        guestAppInfo[@"proxyUsername"] = self.proxyUsername ?: @"";
+        guestAppInfo[@"proxyPassword"] = self.proxyPassword ?: @"";
+        guestAppInfo[@"spoofNetworkMode"] = self.spoofNetworkMode ?: @"standard";
+
         [defaults setObject:guestAppInfo forKey:@"guestAppInfo"];
         [defaults synchronize];
         
@@ -831,14 +840,14 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     [self save];
 }
 
-- (int)proxyPort {
+- (int32_t)proxyPort {
     if(_info[@"proxyPort"] != nil) {
         return [_info[@"proxyPort"] intValue];
     } else {
         return 8080; // Default port
     }
 }
-- (void)setProxyPort:(int)proxyPort {
+- (void)setProxyPort:(int32_t)proxyPort {
     _info[@"proxyPort"] = [NSNumber numberWithInt:proxyPort];
     [self save];
 }

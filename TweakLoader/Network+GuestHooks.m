@@ -31,7 +31,7 @@ static void loadNetworkConfiguration(void) {
     spoofNetworkEnabled = [guestAppInfo[@"spoofNetwork"] boolValue];
     proxyType = guestAppInfo[@"proxyType"] ?: @"HTTP";
     proxyHost = guestAppInfo[@"proxyHost"] ?: @"";
-    proxyPort = [guestAppInfo[@"proxyPort"] intValue] ?: 8080;
+    proxyPort = [guestAppInfo[@"proxyPort"] intValue] ?: 8080;  // This should now work correctly
     proxyUsername = guestAppInfo[@"proxyUsername"] ?: @"";
     proxyPassword = guestAppInfo[@"proxyPassword"] ?: @"";
     networkMode = guestAppInfo[@"spoofNetworkMode"] ?: @"standard";

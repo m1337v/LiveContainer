@@ -168,7 +168,7 @@ class LCAppModel: ObservableObject, Hashable {
             appInfo.proxyHost = uiProxyHost
         }
     }
-    @Published var uiProxyPort : Int {
+    @Published var uiProxyPort : Int32 {
         didSet {
             appInfo.proxyPort = uiProxyPort
         }
