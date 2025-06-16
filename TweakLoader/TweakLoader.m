@@ -8,6 +8,7 @@
 
 void CoreLocationGuestHooksInit(void);
 void AVFoundationGuestHooksInit(void);
+void NetworkGuestHooksInit(void);
 
 static NSString *loadTweakAtURL(NSURL *url) {
     NSString *tweakPath = url.path;
@@ -124,9 +125,13 @@ static void TweakLoaderConstructor() {
     }
     
     // Camera Addon Section
-
     if (NSUserDefaults.guestAppInfo[@"spoofCamera"] && [NSUserDefaults.guestAppInfo[@"spoofCamera"] boolValue]) {
         AVFoundationGuestHooksInit();
+    }
+
+    // Network Addon Section
+    if (NSUserDefaults.guestAppInfo[@"spoofNetwork"] && [NSUserDefaults.guestAppInfo[@"spoofNetwork"] boolValue]) {
+        NetworkGuestHooksInit();
     }
 
     if (errors.count > 0) {

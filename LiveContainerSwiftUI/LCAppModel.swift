@@ -92,7 +92,7 @@ class LCAppModel: ObservableObject, Hashable {
     
     @Published var supportedLanguages : [String]?
 
-    // GPS Addon Section
+    // MARK: GPS Addon Section
     @Published var uiSpoofGPS : Bool {
         didSet {
             appInfo.spoofGPS = uiSpoofGPS
@@ -119,7 +119,7 @@ class LCAppModel: ObservableObject, Hashable {
         }
     }
     
-    // Camera Addon Section
+    // MARK: Camera Addon Section
     @Published var uiSpoofCamera : Bool {
         didSet {
             appInfo.spoofCamera = uiSpoofCamera
@@ -149,6 +149,43 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var uiSpoofCameraMode : String {
         didSet {
             appInfo.spoofCameraMode = uiSpoofCameraMode
+        }
+    }
+
+    // MARK: Proxy Addon
+    @Published var uiSpoofNetwork : Bool {
+        didSet {
+            appInfo.spoofNetwork = uiSpoofNetwork
+        }
+    }
+    @Published var uiProxyType : String {
+        didSet {
+            appInfo.proxyType = uiProxyType
+        }
+    }
+    @Published var uiProxyHost : String {
+        didSet {
+            appInfo.proxyHost = uiProxyHost
+        }
+    }
+    @Published var uiProxyPort : Int {
+        didSet {
+            appInfo.proxyPort = uiProxyPort
+        }
+    }
+    @Published var uiProxyUsername : String {
+        didSet {
+            appInfo.proxyUsername = uiProxyUsername
+        }
+    }
+    @Published var uiProxyPassword : String {
+        didSet {
+            appInfo.proxyPassword = uiProxyPassword
+        }
+    }
+    @Published var uiSpoofNetworkMode : String {
+        didSet {
+            appInfo.spoofNetworkMode = uiSpoofNetworkMode
         }
     }
 
@@ -182,14 +219,14 @@ class LCAppModel: ObservableObject, Hashable {
         
         self.uiIs32bit = appInfo.is32bit
         
-        // GPS Addon Section
+        // MARK: GPS Addon Section
         self.uiSpoofGPS = appInfo.spoofGPS
         self.uiSpoofLatitude = appInfo.spoofLatitude
         self.uiSpoofLongitude = appInfo.spoofLongitude
         self.uiSpoofAltitude = appInfo.spoofAltitude
         self.uiSpoofLocationName = appInfo.spoofLocationName ?? ""
         
-        // Camera Addon Section
+        // MARK: Camera Addon Section
         self.uiSpoofCamera = appInfo.spoofCamera
         self.uiSpoofCameraType = appInfo.spoofCameraType ?? "video"
         self.uiSpoofCameraImagePath = appInfo.spoofCameraImagePath ?? ""
@@ -197,6 +234,15 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiSpoofCameraLoop = appInfo.spoofCameraLoop
         self.uiSpoofCameraMode = appInfo.spoofCameraMode ?? "standard"
         
+        // MARK: Proxy Addon Section
+        self.uiSpoofNetwork = appInfo.spoofNetwork
+        self.uiProxyType = appInfo.proxyType ?? "HTTP"
+        self.uiProxyHost = appInfo.proxyHost ?? ""
+        self.uiProxyPort = appInfo.proxyPort
+        self.uiProxyUsername = appInfo.proxyUsername ?? ""
+        self.uiProxyPassword = appInfo.proxyPassword ?? ""
+        self.uiSpoofNetworkMode = appInfo.spoofNetworkMode ?? "standard"
+
         for container in uiContainers {
             if container.folderName == uiDefaultDataFolder {
                 self.uiSelectedContainer = container;

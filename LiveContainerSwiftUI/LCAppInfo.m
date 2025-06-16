@@ -634,7 +634,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     [self save];
 }
 
-// GPS Addon Section
+// MARK: GPS Addon Section
 - (bool)spoofGPS {
     if(_info[@"spoofGPS"] != nil) {
         return [_info[@"spoofGPS"] boolValue];
@@ -701,7 +701,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     [self save];
 }
 
-// Camera Addon Section
+// MARK: Camera Addon Section
 - (bool)spoofCamera {
     if(_info[@"spoofCamera"] != nil) {
         return [_info[@"spoofCamera"] boolValue];
@@ -792,7 +792,97 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     [self save];
 }
 
-// UI Addon Section
+// MARK: Network Addon Section
+- (bool)spoofNetwork {
+    if(_info[@"spoofNetwork"] != nil) {
+        return [_info[@"spoofNetwork"] boolValue];
+    } else {
+        return NO;
+    }
+}
+- (void)setSpoofNetwork:(bool)spoofNetwork {
+    _info[@"spoofNetwork"] = [NSNumber numberWithBool:spoofNetwork];
+    [self save];
+}
+
+- (NSString*)proxyType {
+    NSString* type = _info[@"proxyType"];
+    if (type && [type isKindOfClass:[NSString class]]) {
+        return type;
+    } else {
+        return @"HTTP"; // Default type
+    }
+}
+- (void)setProxyType:(NSString*)proxyType {
+    _info[@"proxyType"] = proxyType ?: @"HTTP";
+    [self save];
+}
+
+- (NSString*)proxyHost {
+    NSString* host = _info[@"proxyHost"];
+    if (host && [host isKindOfClass:[NSString class]]) {
+        return host;
+    } else {
+        return @"";
+    }
+}
+- (void)setProxyHost:(NSString*)proxyHost {
+    _info[@"proxyHost"] = proxyHost ?: @"";
+    [self save];
+}
+
+- (int)proxyPort {
+    if(_info[@"proxyPort"] != nil) {
+        return [_info[@"proxyPort"] intValue];
+    } else {
+        return 8080; // Default port
+    }
+}
+- (void)setProxyPort:(int)proxyPort {
+    _info[@"proxyPort"] = [NSNumber numberWithInt:proxyPort];
+    [self save];
+}
+
+- (NSString*)proxyUsername {
+    NSString* username = _info[@"proxyUsername"];
+    if (username && [username isKindOfClass:[NSString class]]) {
+        return username;
+    } else {
+        return @"";
+    }
+}
+- (void)setProxyUsername:(NSString*)proxyUsername {
+    _info[@"proxyUsername"] = proxyUsername ?: @"";
+    [self save];
+}
+
+- (NSString*)proxyPassword {
+    NSString* password = _info[@"proxyPassword"];
+    if (password && [password isKindOfClass:[NSString class]]) {
+        return password;
+    } else {
+        return @"";
+    }
+}
+- (void)setProxyPassword:(NSString*)proxyPassword {
+    _info[@"proxyPassword"] = proxyPassword ?: @"";
+    [self save];
+}
+
+- (NSString*)spoofNetworkMode {
+    NSString* mode = _info[@"spoofNetworkMode"];
+    if (mode && [mode isKindOfClass:[NSString class]]) {
+        return mode;
+    } else {
+        return @"standard"; // Default mode
+    }
+}
+- (void)setSpoofNetworkMode:(NSString*)spoofNetworkMode {
+    _info[@"spoofNetworkMode"] = spoofNetworkMode ?: @"standard";
+    [self save];
+}
+
+// MARK: UI Addon Section
 - (NSDate*)lastLaunched {
     return _info[@"lastLaunched"];
 }

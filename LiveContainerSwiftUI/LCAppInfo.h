@@ -37,7 +37,7 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 
 @property bool is32bit;
 
-// GPS Spoofing Section
+// GPS Addon Section
 @property BOOL spoofGPS;
 @property CLLocationDegrees spoofLatitude;
 @property CLLocationDegrees spoofLongitude;
@@ -52,6 +52,15 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property NSString* spoofCameraVideoPath;
 @property BOOL spoofCameraLoop;
 @property NSString* spoofCameraMode; // NEW: "standard", "aggressive", "compatibility"
+
+// Network Addon Section
+@property BOOL spoofNetwork;
+@property NSString* proxyType; // "HTTP", "SOCKS5", "DIRECT"
+@property NSString* proxyHost;
+@property int proxyPort;
+@property NSString* proxyUsername;
+@property NSString* proxyPassword;
+@property NSString* spoofNetworkMode; // "standard", "aggressive", "compatibility"
 
 - (void)setBundlePath:(NSString*)newBundlePath;
 - (NSMutableDictionary*)info;

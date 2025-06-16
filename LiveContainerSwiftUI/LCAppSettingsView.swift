@@ -595,7 +595,7 @@ struct LCAppSettingsView : View{
             }
             
             
-            // GPS Settings Section
+            // MARK: GPS Settings Section
             GPSSettingsSection(
                 spoofGPS: $model.uiSpoofGPS,
                 latitude: $model.uiSpoofLatitude,
@@ -604,7 +604,7 @@ struct LCAppSettingsView : View{
                 locationName: $model.uiSpoofLocationName
             )
             
-            // Camera Settings Section
+            // MARK: Camera Settings Section
             Section {
                 Toggle("Spoof Camera", isOn: $model.uiSpoofCamera)
                 
@@ -662,6 +662,111 @@ struct LCAppSettingsView : View{
                     }
                 } else {
                     Text("When enabled, this app will receive the specified camera input instead of the device's actual camera data.")
+                }
+            }
+
+            // MARK: Network Addon Section
+            Section {
+                Toggle(isOn: $model.uiSpoofNetwork) {
+                    HStack {
+                        Image(systemName: "network")
+                            .foregroundColor(.blue)
+                            .frame(width: 20)
+                        Text("Network Spoofing")
+                    }
+                }
+                
+                if model.uiSpoofNetwork {
+                    // Proxy Type Picker
+                    Picker("Proxy Type", selection: $model.uiProxyType) {
+                        Text("HTTP").tag("HTTP")
+                        Text("SOCKS5").tag("SOCKS5")
+                        Text("Direct").tag("DIRECT")
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
+                    
+                    if model.uiProxyType != "DIRECT" {
+                        // Proxy Host
+                        HStack {
+                            Image(systemName: "server.rack")
+                                .foregroundColor(.gray)
+                                .frame(width: 20)
+                            VStack(alignment: .leading) {
+                                Text("Proxy Host")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                TextField("e.g., proxy.example.com", text: $model.uiProxyHost)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                            }
+                        }
+                        
+                        // Proxy Port
+                        HStack {
+                            Image(systemName: "number")
+                                .foregroundColor(.gray)
+                                .frame(width: 20)
+                            VStack(alignment: .leading) {
+                                Text("Proxy Port")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                TextField("8080", value: $model.uiProxyPort, format: .number)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .keyboardType(.numberPad)
+                            }
+                        }
+                        
+                        // Authentication (optional)
+                        DisclosureGroup("Authentication") {
+                            HStack {
+                                Image(systemName: "person")
+                                    .foregroundColor(.gray)
+                                    .frame(width: 20)
+                                VStack(alignment: .leading) {
+                                    Text("Username")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    TextField("Optional", text: $model.uiProxyUsername)
+                                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                                }
+                            }
+                            
+                            HStack {
+                                Image(systemName: "key")
+                                    .foregroundColor(.gray)
+                                    .frame(width: 20)
+                                VStack(alignment: .leading) {
+                                    Text("Password")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    SecureField("Optional", text: $model.uiProxyPassword)
+                                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Network Mode
+                    Picker("Network Mode", selection: $model.uiSpoofNetworkMode) {
+                        Text("Standard").tag("standard")
+                        Text("Aggressive").tag("aggressive") 
+                        Text("Compatibility").tag("compatibility")
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
+                }
+            } header: {
+                Text("Network Configuration")
+            } footer: {
+                if model.uiSpoofNetwork {
+                    switch model.uiSpoofNetworkMode {
+                    case "aggressive":
+                        Text("Aggressive mode: Intercepts all network connections including low-level APIs.")
+                    case "compatibility":
+                        Text("Compatibility mode: Maximum compatibility with legacy networking code.")
+                    default:
+                        Text("When enabled, this app's network traffic will be routed through the specified proxy server.")
+                    }
+                } else {
+                    Text("Route network traffic through a proxy server.")
                 }
             }
 

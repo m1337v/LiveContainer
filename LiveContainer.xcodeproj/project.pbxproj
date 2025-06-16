@@ -175,6 +175,7 @@
 				TweakLoader.m,
 				"UIKit+GuestHooks.m",
 				"AVFoundation+GuestHooks.m",
+				"Network+GuestHooks.m",
 				utils.m,
 			);
 			target = 174140392D9C0D0000F3F928 /* TweakLoader */;
