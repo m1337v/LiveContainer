@@ -4,7 +4,7 @@
 #import <objc/runtime.h>
 #import "utils.h"
 
-// Global state (following Socker's configuration pattern)
+// Global state (following iOS-compatible pattern)
 static BOOL spoofNetworkEnabled = NO;
 static NSString *proxyType = @"HTTP";
 static NSString *proxyHost = @"";
@@ -13,10 +13,10 @@ static NSString *proxyUsername = @"";
 static NSString *proxyPassword = @"";
 static NSString *networkMode = @"standard";
 
-// Per-app configuration (like Socker's app-specific settings)
+// Per-app configuration
 static NSMutableDictionary *appProxyConfigs = nil;
 
-#pragma mark - Configuration Loading (adapted from Socker)
+#pragma mark - Configuration Loading
 
 static void loadNetworkConfiguration(void) {
     NSLog(@"[LC] Loading network spoofing configuration...");
@@ -31,7 +31,7 @@ static void loadNetworkConfiguration(void) {
     spoofNetworkEnabled = [guestAppInfo[@"spoofNetwork"] boolValue];
     proxyType = guestAppInfo[@"proxyType"] ?: @"HTTP";
     proxyHost = guestAppInfo[@"proxyHost"] ?: @"";
-    proxyPort = [guestAppInfo[@"proxyPort"] intValue] ?: 8080;  // This should now work correctly
+    proxyPort = [guestAppInfo[@"proxyPort"] intValue] ?: 8080;
     proxyUsername = guestAppInfo[@"proxyUsername"] ?: @"";
     proxyPassword = guestAppInfo[@"proxyPassword"] ?: @"";
     networkMode = guestAppInfo[@"spoofNetworkMode"] ?: @"standard";
@@ -40,7 +40,7 @@ static void loadNetworkConfiguration(void) {
           spoofNetworkEnabled, proxyType, proxyHost, proxyPort, networkMode);
 }
 
-#pragma mark - Proxy Dictionary Creation (enhanced from Socker)
+#pragma mark - Proxy Dictionary Creation (iOS-compatible)
 
 static NSDictionary *createProxyDictionary(void) {
     if (!spoofNetworkEnabled || !proxyHost || proxyHost.length == 0) {
@@ -50,58 +50,32 @@ static NSDictionary *createProxyDictionary(void) {
     NSMutableDictionary *proxyDict = [NSMutableDictionary dictionary];
     
     if ([proxyType isEqualToString:@"HTTP"]) {
-        // HTTP Proxy Configuration (from Socker's approach)
+        // HTTP Proxy Configuration (iOS-compatible)
         proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPEnable] = @YES;
         proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPProxy] = proxyHost;
         proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPPort] = @(proxyPort);
         
-        // HTTPS proxy (usually same as HTTP)
-        proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPSEnable] = @YES;
-        proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPSProxy] = proxyHost;
-        proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPSPort] = @(proxyPort);
+        // Note: HTTPS proxy constants are not available on iOS
+        // The HTTP proxy will handle HTTPS connections as well
         
     } else if ([proxyType isEqualToString:@"SOCKS5"]) {
-        // Enhanced SOCKS5 Configuration (from Socker)
-        proxyDict[(__bridge NSString *)kCFNetworkProxiesSOCKSEnable] = @YES;
-        proxyDict[(__bridge NSString *)kCFNetworkProxiesSOCKSProxy] = proxyHost;
-        proxyDict[(__bridge NSString *)kCFNetworkProxiesSOCKSPort] = @(proxyPort);
-        proxyDict[(__bridge NSString *)kCFNetworkProxiesSOCKSVersion] = @5;
-        
-        // SOCKS5 Authentication (from Socker's implementation)
-        if (proxyUsername.length > 0 && proxyPassword.length > 0) {
-            proxyDict[(__bridge NSString *)kCFNetworkProxiesSOCKSUser] = proxyUsername;
-            proxyDict[(__bridge NSString *)kCFNetworkProxiesSOCKSPassword] = proxyPassword;
-            NSLog(@"[LC] 🔐 SOCKS5 authentication configured for user: %@", proxyUsername);
-        }
+        // SOCKS proxy is not directly supported via CFNetwork on iOS
+        // Fall back to HTTP proxy
+        NSLog(@"[LC] ⚠️ SOCKS5 not directly supported on iOS, falling back to HTTP proxy");
+        proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPEnable] = @YES;
+        proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPProxy] = proxyHost;
+        proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPPort] = @(proxyPort);
         
     } else if ([proxyType isEqualToString:@"DIRECT"]) {
-        // Direct connection (bypass proxy) - from Socker
+        // Direct connection (bypass proxy)
         proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPEnable] = @NO;
-        proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPSEnable] = @NO;
-        proxyDict[(__bridge NSString *)kCFNetworkProxiesSOCKSEnable] = @NO;
     }
     
-    // Add bypass list for localhost and private IPs (from Socker)
-    NSArray *bypassList = @[
-        @"localhost",
-        @"127.0.0.1", 
-        @"::1",
-        @"10.*",
-        @"172.16.*", @"172.17.*", @"172.18.*", @"172.19.*",
-        @"172.20.*", @"172.21.*", @"172.22.*", @"172.23.*", 
-        @"172.24.*", @"172.25.*", @"172.26.*", @"172.27.*",
-        @"172.28.*", @"172.29.*", @"172.30.*", @"172.31.*",
-        @"192.168.*",
-        @"169.254.*"
-    ];
-    
-    proxyDict[(__bridge NSString *)kCFNetworkProxiesExceptionsList] = bypassList;
-    
-    NSLog(@"[LC] 🔗 Created enhanced proxy dictionary: %@", proxyDict);
+    NSLog(@"[LC] 🔗 Created iOS-compatible proxy dictionary: %@", proxyDict);
     return [proxyDict copy];
 }
 
-#pragma mark - NSURLSession Hooks (enhanced)
+#pragma mark - NSURLSession Hooks
 
 @implementation NSURLSession(LiveContainerProxy)
 
@@ -137,12 +111,12 @@ static NSDictionary *createProxyDictionary(void) {
     if (proxyDict) {
         configuration.connectionProxyDictionary = proxyDict;
         
-        // Additional configuration improvements (from Socker's approach)
+        // Additional configuration improvements
         configuration.timeoutIntervalForRequest = 30.0;  // 30 second timeout
         configuration.timeoutIntervalForResource = 300.0; // 5 minute resource timeout
         configuration.waitsForConnectivity = YES;
         
-        // Add custom headers if needed (like Socker does)
+        // Add custom headers if needed
         if (proxyUsername.length > 0 && proxyPassword.length > 0) {
             NSString *credentials = [NSString stringWithFormat:@"%@:%@", proxyUsername, proxyPassword];
             NSData *credentialsData = [credentials dataUsingEncoding:NSUTF8StringEncoding];
@@ -153,13 +127,13 @@ static NSDictionary *createProxyDictionary(void) {
             configuration.HTTPAdditionalHeaders = headers;
         }
         
-        NSLog(@"[LC] ✅ Enhanced proxy applied to NSURLSession configuration");
+        NSLog(@"[LC] ✅ Proxy applied to NSURLSession configuration");
     }
 }
 
 @end
 
-#pragma mark - NSURLSessionConfiguration Hooks (enhanced)
+#pragma mark - NSURLSessionConfiguration Hooks
 
 @implementation NSURLSessionConfiguration(LiveContainerProxy)
 
@@ -202,41 +176,7 @@ static NSDictionary *createProxyDictionary(void) {
 
 @end
 
-#pragma mark - CFStream Hooks (for legacy apps, like Socker)
-
-@implementation NSInputStream(LiveContainerProxy)
-
-+ (void)load {
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        if ([networkMode isEqualToString:@"compatibility"]) {
-            // Only hook in compatibility mode for legacy support
-            swizzle([NSInputStream class], @selector(initWithURL:), @selector(lc_initWithURL:));
-        }
-    });
-}
-
-- (instancetype)lc_initWithURL:(NSURL *)url {
-    NSInputStream *stream = [self lc_initWithURL:url];
-    
-    if (spoofNetworkEnabled && stream) {
-        NSLog(@"[LC] 🔗 Applying proxy to NSInputStream for URL: %@", url);
-        
-        NSDictionary *proxyDict = createProxyDictionary();
-        if (proxyDict) {
-            // Apply proxy settings to the stream (legacy support)
-            CFReadStreamSetProperty((__bridge CFReadStreamRef)stream, 
-                                  kCFStreamPropertyHTTPProxy, 
-                                  (__bridge CFDictionaryRef)proxyDict);
-        }
-    }
-    
-    return stream;
-}
-
-@end
-
-#pragma mark - NSURLConnection Legacy Support (like Socker)
+#pragma mark - NSURLConnection Legacy Support
 
 @implementation NSURLConnection(LiveContainerProxy)
 
@@ -278,11 +218,11 @@ static NSDictionary *createProxyDictionary(void) {
 
 @end
 
-#pragma mark - Initialization (following Socker's pattern)
+#pragma mark - Initialization
 
 void NetworkGuestHooksInit(void) {
     @try {
-        NSLog(@"[LC] 🚀 Initializing enhanced network spoofing hooks (Socker-inspired)...");
+        NSLog(@"[LC] 🚀 Initializing iOS-compatible network spoofing hooks...");
         
         loadNetworkConfiguration();
         
@@ -291,15 +231,15 @@ void NetworkGuestHooksInit(void) {
             return;
         }
         
-        NSLog(@"[LC] 🔗 Enhanced network spoofing enabled - Mode: %@, Proxy: %@://%@:%d", 
+        NSLog(@"[LC] 🔗 Network spoofing enabled - Mode: %@, Proxy: %@://%@:%d", 
               networkMode, proxyType, proxyHost, proxyPort);
         
-        // Initialize app-specific configurations (like Socker)
+        // Initialize app-specific configurations
         appProxyConfigs = [[NSMutableDictionary alloc] init];
         
-        NSLog(@"[LC] ✅ Enhanced network hooks initialized successfully (Socker-style)");
+        NSLog(@"[LC] ✅ Network hooks initialized successfully");
         
     } @catch (NSException *exception) {
-        NSLog(@"[LC] ❌ Failed to initialize enhanced network hooks: %@", exception);
+        NSLog(@"[LC] ❌ Failed to initialize network hooks: %@", exception);
     }
 }
