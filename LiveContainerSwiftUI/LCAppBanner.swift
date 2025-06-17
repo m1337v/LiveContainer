@@ -147,11 +147,11 @@ struct LCAppBanner : View {
                         if model.uiSpoofGPS {
                             HStack {
                                 Image(systemName: "location.fill")
-                                    .font(.system(size: 10))
+                                    .font(.system(size: 16))
                                     .foregroundColor(.red)
                                 
                                 Text(locationDisplayText)
-                                    .font(.system(size: 11))
+                                    .font(.system(size: 12))
                                     .foregroundColor(.red)
                                 
                                 Spacer()
