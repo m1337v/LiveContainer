@@ -27,7 +27,12 @@ struct GPSSettingsSection: View {
     var body: some View {
         Section {
             Toggle(isOn: $spoofGPS) {
-                Text("Spoof GPS Location")
+                HStack {
+                        Image(systemName: "location")
+                            .foregroundColor(.blue)
+                            .frame(width: 20)
+                        Text("Spoof GPS Location")
+                    }
             }
             
             if spoofGPS {
