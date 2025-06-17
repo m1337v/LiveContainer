@@ -101,20 +101,20 @@ struct LCAppBanner : View {
                         }
                         if model.uiSpoofCamera {
                             Image(systemName: "camera.fill")
-                                .font(.system(size: 8))
+                                .font(.system(size: 10, weight: .bold))
                                 .foregroundColor(.white)
                                 .frame(width: 16, height:16)
                                 .background(
-                                    Capsule().fill(Color.purple)
+                                    Capsule().fill(Color.red)
                                 )
                         }
                         if model.uiSpoofNetwork {
                             Image(systemName: "network.fill")
-                                .font(.system(size: 8))
+                                .font(.system(size: 10, weight: .bold))
                                 .foregroundColor(.white)
                                 .frame(width: 16, height:16)
                                 .background(
-                                    Capsule().fill(Color.blue)
+                                    Capsule().fill(Color.red)
                                 )
                         }
                     }
