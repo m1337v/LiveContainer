@@ -101,21 +101,27 @@ struct LCAppBanner : View {
                         }
                         if model.uiSpoofCamera {
                             Image(systemName: "camera.fill")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.white)
-                                .frame(width: 16, height:16)
-                                .background(
-                                    Capsule().fill(Color.red)
-                                )
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.red)
+                            // Image(systemName: "camera.fill")
+                            //     .font(.system(size: 10, weight: .bold))
+                            //     .foregroundColor(.red)
+                            //     .frame(width: 16, height:16)
+                            //     .background(
+                            //         Capsule().fill(Color.red)
+                            //     )
                         }
                         if model.uiSpoofNetwork {
                             Image(systemName: "network.fill")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.white)
-                                .frame(width: 16, height:16)
-                                .background(
-                                    Capsule().fill(Color.red)
-                                )
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.red)
+                            // Image(systemName: "network.fill")
+                            //     .font(.system(size: 10, weight: .bold))
+                            //     .foregroundColor(.red)
+                            //     .frame(width: 16, height:16)
+                            //     .background(
+                            //         Capsule().fill(Color.red)
+                            //     )
                         }
                     }
                     
