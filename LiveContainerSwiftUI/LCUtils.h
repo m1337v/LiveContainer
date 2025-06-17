@@ -14,7 +14,6 @@ NSString *LCParseMachO(const char *path, bool readOnly, LCParseMachOCallback cal
 void LCPatchAddRPath(const char *path, struct mach_header_64 *header);
 void LCPatchExecSlice(const char *path, struct mach_header_64 *header, bool doInject);
 void LCChangeExecUUID(struct mach_header_64 *header);
-void LCPatchAltStore(const char *path, struct mach_header_64 *header);
 NSString* getEntitlementXML(struct mach_header_64* header, void** entitlementXMLPtrOut);
 NSString* getLCEntitlementXML(void);
 bool checkCodeSignature(const char* path);
@@ -31,7 +30,6 @@ int dyld_get_program_sdk_version(void);
 
 + (void)validateJITLessSetupWithCompletionHandler:(void (^)(BOOL success, NSError *error))completionHandler;
 + (NSURL *)archiveIPAWithBundleName:(NSString*)newBundleName error:(NSError **)error;
-+ (NSURL *)archiveTweakedAltStoreWithError:(NSError **)error;
 + (NSData *)certificateData;
 + (NSString *)certificatePassword;
 

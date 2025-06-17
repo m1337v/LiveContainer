@@ -56,16 +56,6 @@ If something goes wrong, please check "JIT-Less Mode Diagnose" for more informat
 >[!Note] 
 If you reinstall AltStore/SideStore using AltServer, you will need to go through these steps again or risk needing to reinstall the app.
 
-#### Method 2 (Deprecated, Requires AltStore/SideStore)
-- Open Settings in LiveContainer, tap "Patch AltStore/SideStore", and the app will switch to AltStore/SideStore to reinstall it with the tweak applied. If you use AltWidget, select "Keep Extension."
-- Wait for the installation to finish, then **reopen AltStore/SideStore**.
-- Return to LiveContainer and press "Test JIT-Less Mode." If it says "Test Passed," JIT-less mode is ready.
-- Install your app via the "Apps" tab.
-- Tap the run icon, it will attempt to restart LiveContainer with guest app loaded.
-
->[!Note]
-If you update or reinstall AltStore/SideStore, you'll need to reapply the patch. Re-patch is not needed when you refresh your store.
-
 ### Installing Apps
 - Open LiveContainer, tap the plus icon in the upper right hand corner and select IPA files to install.
 - Choose the app you want to open in the next launch.
@@ -138,9 +128,6 @@ Open Xcode, edit `DEVELOPMENT_TEAM[config=Debug]` in `xcconfigs/Global.xcconfig`
 ### TweakLoader
 - A simple tweak injector, which loads CydiaSubstrate and load tweaks.
 - Injected to every app you install in LiveContainer.
-
-### AltStoreTweak (Deprecated)
-- The tweak that got injected into SideStore/AltStore to retrieve certificate from it everytime it launches.
 
 ### ZSign
 - The app signer shipped with LiveContainer.

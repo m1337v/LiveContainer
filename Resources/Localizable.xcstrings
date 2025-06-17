@@ -174,7 +174,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sei sicuro di voler scaricare %@?"
+            "value" : "Sei sicuro di voler disinstallare %@?"
           }
         },
         "ja" : {
@@ -905,6 +905,18 @@
     "lc.appBanner.retrieveDataFromLiveProcess" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "أسترجع البيانات من العملية-المباشرة"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daten aus dem LiveProcess abrufen"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3421,7 +3433,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Blocca rotazione."
+            "value" : "Blocca rotazione"
           }
         },
         "ja" : {
@@ -4499,7 +4511,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Spoofing versione SDK forza le librerie di sistema ad operare nella versione SDK con cui è costruita l'app."
+            "value" : "La falsificazione della versione SDK obbliga le librerie di sistema ad operare nella versione SDK dell'app."
           }
         },
         "ja" : {
@@ -4878,7 +4890,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lancia con JIT"
+            "value" : "Avvia con JIT"
           }
         },
         "ja" : {
@@ -5310,7 +5322,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Spoof Versione SDK"
+            "value" : "Falsifica Versione SDK"
           }
         },
         "ja" : {
@@ -5766,7 +5778,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Correggi Selettore File E Notifiche Locali"
+            "value" : "Correggi selettore file & Notifiche locali"
           }
         },
         "ja" : {
@@ -5893,6 +5905,18 @@
     "lc.common.ADP" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "شهادة ADP"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ADP Zertifikat"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6106,6 +6130,12 @@
     "lc.common.close" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إغلاق"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8194,7 +8224,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cancella Dati"
+            "value" : "Cancella dati"
           }
         },
         "ja" : {
@@ -8271,7 +8301,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vuoi rimuovere l'autenticazione di questo container?"
+            "value" : "Vuoi rimuovere tutti i dati di questo container?"
           }
         },
         "ja" : {
@@ -9325,7 +9355,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "فشل استرجاع ملف البيانات من LiveProcess."
+            "value" : "فشل استرجاع ملف البيانات من العملية-المباشرة."
           }
         },
         "de" : {
@@ -9688,154 +9718,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未找到App %@。"
-          }
-        }
-      }
-    },
-    "lc.guestTweak.jitError %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "خطأ، لم يتم الحصول على JIT:%@"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "JIT-Erfassung fehlgeschlagen: %@"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed to acquire JIT: %@"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Échec de l'acquisition du JIT : %@"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Acquisizione JIT non riuscita: %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "JITの取得に失敗しました: %@"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Falha ao adquirir JIT: %@"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Misslyckades att skaffa JIT: %@"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "JIT alınamadı: %@"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Không thể bật JIT: %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "获取JIT权限失败： %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "取得JIT權限失敗：%@"
-          }
-        }
-      }
-    },
-    "lc.guestTweak.jitSuccess" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تم الحصول على JIT بنجاح."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "JIT wurde erfolgreich erfasst."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "JIT is successfully acquired."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Le JIT a été acquis avec succès."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "JIT acquisito con successo."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "JITの取得に成功しました。"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "JIT foi adquirido com sucesso."
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "JIT förvärvas framgångsrikt."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "JIT başarıyla edinildi."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "成功地获取了JIT权限。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "成功取得JIT權限。"
           }
         }
       }
@@ -11392,77 +11274,6 @@
         }
       }
     },
-    "lc.jitlessDiag.patchDetected" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تم أكتشاف تصحيح"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Patch gefunden"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Patch Detected"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Patch détecté"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Patch Rilevata"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "パッチを検出"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Correção Detectada"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Patch upptäckt"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yama Algılandı"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "检测到补丁"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "檢測到修補"
-          }
-        }
-      }
-    },
     "lc.jitlessDiag.store" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11744,6 +11555,18 @@
     "lc.multitask.copyPid" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نسخ PID"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PID kopieren"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11797,6 +11620,12 @@
     "lc.multitask.enablePip" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تشغيل وضع صورة في صورة (PiP)"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11857,6 +11686,12 @@
       "comment" : "It's in a slider that changes the scale (like DPI) for multitasking apps",
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تغيير الحجم"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11916,6 +11751,12 @@
     "lc.multitaskAppWindow.appTerminated" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يجب إنهاء هذا التطبيق."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12437,6 +12278,18 @@
     "lc.settings.autoLaunchInMultitaskMode" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تشغيل في وضع متعدد المهام أفتراضياً"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standardmäßig im Multitasking-Modus starten"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12485,6 +12338,18 @@
       "comment" : "lc.settings.bundleIdMismatch",
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "معرف الحُزْمَة لـ LiveContainer \"%@\" لا يتوافق مع معرف التطبيق في مستحقاته، يرى تطبيق LiveContainer إن معرف الحُزْمَة هو \"%@\". بعض وظائف التطبيق قد تكون غير متاحه."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Bundle-ID vom LiveContainer, „%@“, stimmt nicht mit der AppID in den Berechtigungen überein, die eine Bundle-ID von „%@“ erwartet. Einige Funktionen sind möglicherweise nicht verfügbar."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12495,6 +12360,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "L'ID du bundle de LiveContainer, \"%@\", ne correspond pas à l'identificateur d'application dans les droits qui attendent que l'ID du bundle soit \"%@\". Certaines fonctions peuvent ne pas être disponibles."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'ID bundle di LiveContainer, \"%@\", non corrisponde all'application-identifier nei privilegi, che si aspetta l'ID bundle \"%@\". Alcune funzioni potrebbero non essere disponibili."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer'ın paket kimliği, “%@”, yetkilendirmelerde uygulama tanımlayıcısının beklediği “%@” ile eşleşmiyor. Bu nedenle bazı işlevler kullanılamayabilir."
           }
         },
         "zh-Hans" : {
@@ -13374,6 +13251,18 @@
     "lc.settings.error.certNotImported" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يجب عليك أن تَستَورِدَ شهادة ADP قبل اختبار وضع بدون-JIT."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sie müssen das ADP-Zertifikat importieren, bevor Sie den JIT-Less-Modus testen."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13426,83 +13315,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在測試免JIT模式前，你需要先匯入開發者證書。"
-          }
-        }
-      }
-    },
-    "lc.settings.error.storeNotPatched %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "يجب ان تصحح %@ قبل اختبار وضع بدون-JIT."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sie müssen %@ patchen, bevor Sie den JIT-freien-Modus testen."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You must patch %@ before testing JIT-Less mode."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vous devez patcher %@ avant de tester le mode sans JIT."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Devi patchare %@ prima di testare la modalità JIT-Less."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "JITレスモードテストをする前に、%@にパッチを当ててください。"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Você deve aplicar a correção de %@ antes de testar o modo JIT-Less."
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Du måste patcha %@ innan du testar JIT-Less läge."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "JIT-Less modunu test etmeden önce %@'yi yamalamanız gerekir."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bạn phải vá %@ trước khi thử chế độ JIT-less."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在设测试JIT模式前，你必须要先给%@打补丁。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在測試免JIT模式前，你需要先修補%@。"
           }
         }
       }
@@ -14525,73 +14337,73 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "يمنحك دون-JIT أن تستعمل LiveContainer دون الحاجة لتفعيل JIT. صحح AltStore او SideStore للتفعيل."
+            "value" : "يمنحك دون-JIT أن تستعمل LiveContainer دون الحاجة لتفعيل JIT."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mit JIT-less können Sie LiveContainer verwenden, ohne JIT aktivieren zu müssen. Patchen Sie AltStore oder SideStore zur Aktivierung."
+            "value" : "Mit JIT-less können Sie LiveContainer verwenden, ohne JIT aktivieren zu müssen."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "JIT-less allows you to use LiveContainer without having to enable JIT. Patch AltStore or SideStore to enable."
+            "value" : "JIT-less allows you to use LiveContainer without having to enable JIT."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Le mode sans JIT vous permet d'utiliser LiveContainer sans avoir à activer le JIT. Veuillez patcher AltStore ou SideStore pour l'activer."
+            "value" : "Le mode sans JIT vous permet d'utiliser LiveContainer sans avoir à activer le JIT."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "JIT-less ti permette di usare LiveContainer senza dover abilitare JIT. Patcha AltStore o SideStore per abilitare."
+            "value" : "JIT-less ti permette di usare LiveContainer senza dover abilitare JIT."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "JITレスは、JITを有効化せずにLiveContainerを使用することができます。AltStoreまたはSideStoreにパッチを当てて有効化してください。"
+            "value" : "JITレスは、JITを有効化せずにLiveContainerを使用することができます。"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "O modo JIT-Less permite que LiveContainer seja usado sem a necessidade do JIT. Faça a correção da SideStore ou da AltStore para habilitá-lo."
+            "value" : "O modo JIT-Less permite que LiveContainer seja usado sem a necessidade do JIT. "
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "JIT-less låter dig använda LiveContainer utan att behöva aktivera JIT. Patch AltStore eller SideStore för att aktivera."
+            "value" : "JIT-less låter dig använda LiveContainer utan att behöva aktivera JIT."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "JIT-less, JIT'yi etkinleştirmenize gerek kalmadan LiveContainer'ı kullanmanızı sağlar. Etkinleştirmek için AltStore veya SideStore'u yamalayın."
+            "value" : "JIT-less, JIT'yi etkinleştirmenize gerek kalmadan LiveContainer'ı kullanmanızı sağlar."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "JIT-less cho phép bạn dùng LiveContainer không cần JIT. Vá AltStore hay SideStore để bật."
+            "value" : "JIT-less cho phép bạn dùng LiveContainer không cần JIT."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "配置免JIT模式后，LiveContainer无需JIT即可使用。给SideStore或AltStore打补丁后即可使用。"
+            "value" : "配置免JIT模式后，LiveContainer无需JIT即可使用。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "免JIT模式能讓您在沒有JIT的情況下使用LiveContainer。啟動時需補訂AltStore或SideStore。"
+            "value" : "免JIT模式能讓您在沒有JIT的情況下使用LiveContainer。"
           }
         }
       }
@@ -15610,7 +15422,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Birden fazla LiveContainer yükleyerek ve uygulamaları Paylaşılan Uygulamalara dönüştürerek, tüm LiveContainer'lar arasında bir uygulamayı, verilerinin ve ayarlarının çoğuyla birlikte açabilirsiniz."
+            "value" : "Birden fazla LiveContainer kurup uygulamaları Paylaşılan Uygulamalar’a dönüştürerek; paylaştığınız uygulamaları tüm LiveContainer’larda, uygulama ayarları ve verileriyle birlikte kullanabilirsiniz."
           }
         },
         "vi" : {
@@ -15938,6 +15750,12 @@
     "lc.settings.multitaskMode" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "وضع متعدد المهام"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15997,6 +15815,12 @@
     "lc.settings.multitaskMode.nativeWindow" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نافذة مخصصة"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16056,6 +15880,12 @@
     "lc.settings.multitaskMode.virtualWindow" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نافذة افتراضية"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16189,452 +16019,13 @@
         }
       }
     },
-    "lc.settings.patchStore %@" : {
+    "lc.settings.notDevCert" : {
       "extractionState" : "manual",
       "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "صحح %@"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ patchen"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Patch %@"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Patcher %@"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Patch %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@をパッチする"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fazer A Correção de %@"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Patch %@"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yama %@"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vá %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "给%@打补丁"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "補丁%@"
-          }
-        }
-      }
-    },
-    "lc.settings.patchStoreAgain %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "صحح %@ مرى أخرى"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ nochmals patchen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Patch %@ Again"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Patcher %@ une nouvelle fois"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Patch %@ di nuovo"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "もう一度%@をパッチする"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fazer A Correção de %@ Novamente"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Patch %@ Igen"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@'ı tekrar yamala"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vá %@ lại"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新给%@打补丁"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "再次補丁%@"
-          }
-        }
-      }
-    },
-    "lc.settings.patchStoreArchiveOnly" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "أرشيف فقط"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nur im Archiv"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Archive Only"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uniquement en archive"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Archivia Solo"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アーカイブのみ"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apenas Arquivar"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Endast arkiv"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yalnızca Arşivle"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chỉ nén"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "仅打包"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "僅封存"
-          }
-        }
-      }
-    },
-    "lc.settings.patchStoreArchiveSuccess %@ %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تم تصحيح IPA %@ وتم حفظه لملف ارشيف LiveContainer. الرجاء تثبيتها مع %@ الذي ثبتها LiveContainer معها."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Die gepatchte %@ ipa wurde in LiveContainers Dokumentenordner gespeichert. Bitte installieren Sie es mit dem %@, mit dem LiveContainer installiert ist."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Patched %@ ipa has been saved to LiveContainer's document folder. Please install it with the %@ that LiveContainer is installed with."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "L'IPA patchée %@ a été sauvegardée dans le dossier de documents de LiveContainer. Veuillez l'installer avec le %@ avec lequel LiveContainer est installé."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ ipa patchato è stato salvato nella cartella dei documenti di LiveContainer. Installalo con %@ con cui LiveContainer è installato."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "パッチを当てた%@のIPAはLiveContainerのドキュメントフォルダに保存されました。LiveContainerがインストールされている%@を使ってインストールしてください。"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "O arquivo IPA corrigido de %@ foi salvo para a pasta de documentos do LiveContainer. Por favor, instale-o com o mesmo %@ que aquele contêiner estiver instalado."
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Patchad %@ ipa har sparats i LiveContainers dokumentmapp. Installera den med %@ som LiveContainer är installerad med."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yamalı %@ ipa, LiveContainer'ın belge klasörüne kaydedildi. Lütfen LiveContainer'ın kurulu olduğu %@ ile birlikte yükleyin."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "打包的%@ ipa已经保存到LiveContainer的“文件”文件夹，请将其手动安装到安装了LiveContainer的那个%@中。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修補的%@ ipa已儲存到LiveContainer的文件資料夾中。 請使用安裝LiveContainer的%@進行安裝。"
-          }
-        }
-      }
-    },
-    "lc.settings.patchStoreDesc %@ %@ %@ %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "لأستعمل وضع بدون-JIT مع %@، يجب أن تصحح %@ للحصول على الشهادة. لن تتأثر وظائف %@. يمكنك تأكيد أنه يمكنك تحديث %@ قبل تطبيق التصحيح. هل تستمر؟"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Um den JIT-freien-Modus mit %@ zu verwenden, müssen Sie %@ patchen, um das Zertifikat abrufen zu können. Die Funktionen von %@ sind davon nicht betroffen. Bitte bestätigen Sie, dass Sie %@ aktualisieren können, bevor Sie den Patch anwenden. Fortfahren?"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "To use JIT-Less mode with %@, you must patch %@ in order to retrieve certificate. %@’s functions will not be affected. Please confirm that you can refresh %@ before applying the patch. Continue?"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pour utiliser le mode sans JIT avec %@, vous devez patcher %@ afin de récupérer le certificat. Les fonctions de %@ ne seront pas affectées. Veuillez confirmer que vous pouvez actualiser %@ avant d'appliquer le correctif. Continuer ?"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Per utilizzare la modalità JIT-Less con %@, è necessario patchare %@ per recuperare il certificato. Le funzioni di %@non saranno modificate. Conferma che puoi aggiornare %@ prima di applicare il cerotto. Vuoi Continuare?"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@でJITレスモードを使用するには、証明書を取得するために%@をパッチする必要があります。%@の機能に影響はありません。パッチを適用する前に%@をリフレッシュできることを確認してください。続けますか？"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Para usar o modo JIT-Less com %@, você dever corrigir %@ de modo que o certificado seja recuperado. As funções de %@ não serão afetadas. Por favor, verifique se você consegue atualizar %@ antes de aplicar a correção. Deseja Continuar?"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "För att använda JIT-Less läge med %@ måste du patcha %@ för att kunna hämta certifikat. %@s funktioner kommer inte att påverkas. Vänligen bekräfta att du kan uppdatera %@ innan du applicerar patchen. Fortsätt?"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ ile JIT-Less modunu kullanmak için, sertifikayı almak üzere %@'yi yamalamanız gerekir. %@'nin işlevleri etkilenmeyecektir. Yamayı uygulamadan önce %@'yi yenileyebileceğinizi lütfen onaylayın. Devam etmek istiyor musunuz?"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Để dùng chế độ JIT-Less với %@, bạn phải vá %@ để lấy chứng chỉ. Chức năng của %@ sẽ không bị ảnh hưởng. Hãy chắc bạn có thể làm mới %@ trước khi vá. Tiếp tục?"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "为了通过%@获取证书以配置免JIT模式，你必须要给%@打补丁。%@的功能不会受到任何影响。请确保在打补丁前%@可以正常刷新。要继续吗？"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "要使用%@的無JIT模式，請補丁%@。%@的功能將不受影響。請確認%@可以刷新。"
-          }
-        }
-      }
-    },
-    "lc.settings.patchStoreMultipleHint" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "اذا مثبتة لديك عده SideStore، الرجاء اختيار \"ارشيف فقط\" وثبت الـIPA المعدل يدويًا."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wenn Sie mehrere SideStore installiert haben, wählen Sie bitte „Nur Archiv“ und installieren Sie die optimierte IPA manuell."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "If you have multiple SideStore installed, please select “Archive Only” and install the tweaked IPA manually."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Si plusieurs SideStore sont installés, veuillez sélectionner \"Uniquement en archive\" et installer l'IPA modifiée manuellement."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Se hai SideStore multipli installati, seleziona “Archivia solo” ed installa manualmente l'IPA modificato."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SideStoreを複数インストールしている場合は｢アーカイブのみ｣を選択し、手動でIPAをインストールしてください。"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Se você possui a SideStore múltiplas vezes, por favor selecione \"Apenas Arquivar\" e instale manualmente o arquivo IPA que você ajustou."
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Om du har flera SideStore installerat, välj ”Archive Only” och installera den tweakade IPA manuellt."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Birden fazla SideStore yüklü ise, lütfen “Yalnızca Arşivle” seçeneğini seçin ve değiştirilmiş IPA'yı manuel olarak yükleyin."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "如果你安装了多个SideStore，请选择“仅打包”并手动安装打过补丁的IPA。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "如果你有多個Sidestore，安裝修改過的IPA時請選擇「只封存」。"
+            "value" : "LiveContainer cannot work with this certificate. You must use Development Certificate to sign LiveContainer."
           }
         }
       }

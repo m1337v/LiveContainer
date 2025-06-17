@@ -76,6 +76,7 @@ struct LCTabView: View {
             checkLastLaunchError()
             checkTeamId()
             checkBundleId()
+            checkGetTaskAllow()
         }
         .onReceive(pub) { out in
             if let scene1 = sceneDelegate.window?.windowScene, let scene2 = out.object as? UIWindowScene, scene1 == scene2 {
@@ -181,5 +182,14 @@ struct LCTabView: View {
             errorShow = true
         }
         UserDefaults.standard.set(true, forKey: "LCBundleIdChecked")
+    }
+    
+    func checkGetTaskAllow() {
+        let task = SecTaskCreateFromSelf(nil)
+        guard let value = SecTaskCopyValueForEntitlement(task, "get-task-allow" as CFString, nil), (value.takeRetainedValue() as? NSNumber)?.boolValue ?? false else {
+            errorInfo = "lc.settings.notDevCert".loc
+            errorShow = true
+            return
+        }
     }
 }

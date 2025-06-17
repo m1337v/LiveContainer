@@ -8,12 +8,6 @@
 import Foundation
 import SwiftUI
 
-enum PatchChoice {
-    case cancel
-    case autoPath
-    case archiveOnly
-}
-
 enum JITEnablerType : Int {
     case SideJITServer = 0
     case StkiJIT = 1
@@ -35,9 +29,7 @@ struct LCSettingsView: View {
     
     @Binding var appDataFolderNames: [String]
 
-    @StateObject private var patchAltStoreAlert = AlertHelper<PatchChoice>()
-    @StateObject private var installLC2Alert = AlertHelper<PatchChoice>()
-    @State private var isAltStorePatched = false
+    @StateObject private var installLC2Alert = YesNoHelper()
     @State private var certificateDataFound = false
     
     @StateObject private var certificateImportAlert = YesNoHelper()
@@ -47,7 +39,6 @@ struct LCSettingsView: View {
     @State private var showShareSheet = false
     @State private var shareURL : URL? = nil
     
-    @State var isJitLessEnabled = false
     @AppStorage("LCFrameShortcutIcons") var frameShortIcon = false
     @AppStorage("LCSwitchAppWithoutAsking") var silentSwitchApp = false
     @AppStorage("LCOpenWebPageWithoutAsking") var silentOpenWebPage = false
@@ -58,6 +49,7 @@ struct LCSettingsView: View {
     @AppStorage("LCSideJITServerAddress", store: LCUtils.appGroupUserDefault) var sideJITServerAddress : String = ""
     @AppStorage("LCDeviceUDID", store: LCUtils.appGroupUserDefault) var deviceUDID: String = ""
     @AppStorage("LCJITEnablerType", store: LCUtils.appGroupUserDefault) var JITEnabler: JITEnablerType = .SideJITServer
+    
     @AppStorage("LCMultitaskMode", store: LCUtils.appGroupUserDefault) var multitaskMode: MultitaskMode = .virtualWindow
     @AppStorage("LCLaunchInMultitaskMode") var launchInMultitaskMode = false
     
@@ -74,7 +66,7 @@ struct LCSettingsView: View {
     let storeName = LCUtils.getStoreName()
     
     init(appDataFolderNames: Binding<[String]>) {
-        _isJitLessEnabled = State(initialValue: LCUtils.certificatePassword() != nil)
+        _certificateDataFound = State(initialValue: LCUtils.certificatePassword() != nil)
         _store = State(initialValue: LCUtils.store())
         
         _appDataFolderNames = appDataFolderNames
@@ -126,17 +118,7 @@ struct LCSettingsView: View {
                                 }
                                 .foregroundColor(.red)
                             }
-                            
-                            // Patch store button
-                            Button {
-                                Task { await patchAltStore() }
-                            } label: {
-                                if isAltStorePatched {
-                                    Text("lc.settings.patchStoreAgain %@".localizeWithFormat(storeName))
-                                } else {
-                                    Text("lc.settings.patchStore %@".localizeWithFormat(storeName))
-                                }
-                            }
+                        
                         }
                         
                         NavigationLink {
@@ -373,10 +355,9 @@ struct LCSettingsView: View {
             }
             .navigationBarTitle("lc.tabView.settings".loc)
             .onAppear {
-                updateSideStorePatchStatus()
+                sharedModel.updateMultiLCStatus()
             }
             .onForeground {
-                updateSideStorePatchStatus()
                 sharedModel.updateMultiLCStatus()
             }
             .alert("lc.common.error".loc, isPresented: $errorShow){
@@ -387,42 +368,15 @@ struct LCSettingsView: View {
             } message: {
                 Text(successInfo)
             }
-
-            .alert("lc.settings.patchStore %@".localizeWithFormat(LCUtils.getStoreName()), isPresented: $patchAltStoreAlert.show) {
-                Button(role: .destructive) {
-                    patchAltStoreAlert.close(result: .autoPath)
-                } label: {
-                    Text("lc.common.continue".loc)
-                }
-                if(store == .SideStore) {
-                    Button {
-                        patchAltStoreAlert.close(result: .archiveOnly)
-                    } label: {
-                        Text("lc.settings.patchStoreArchiveOnly".loc)
-                    }
-                }
-
-
-                Button("lc.common.cancel".loc, role: .cancel) {
-                    patchAltStoreAlert.close(result: .cancel)
-                }
-            } message: {
-                if(store == .SideStore) {
-                    Text("lc.settings.patchStoreDesc %@ %@ %@ %@".localizeWithFormat(storeName, storeName, storeName, storeName) + "\n\n" + "lc.settings.patchStoreMultipleHint".loc)
-                } else {
-                    Text("lc.settings.patchStoreDesc %@ %@ %@ %@".localizeWithFormat(storeName, storeName, storeName, storeName))
-                }
-
-            }
             .alert("lc.settings.multiLCInstall".loc, isPresented: $installLC2Alert.show) {
                 Button {
-                    installLC2Alert.close(result: .autoPath)
+                    installLC2Alert.close(result: true)
                 } label: {
                     Text("lc.common.continue".loc)
                 }
 
                 Button("lc.common.cancel".loc, role: .cancel) {
-                    patchAltStoreAlert.close(result: .cancel)
+                    installLC2Alert.close(result: false)
                 }
             } message: {
                 Text("lc.settings.multiLCInstallAlertDesc %@".localizeWithFormat(storeName))
@@ -490,7 +444,7 @@ struct LCSettingsView: View {
             return;
         }
         
-        guard let result = await installLC2Alert.open(), result != .cancel else {
+        guard let result = await installLC2Alert.open(), result else {
             return
         }
         
@@ -516,54 +470,6 @@ struct LCSettingsView: View {
     
     func openTwitter() {
         UIApplication.shared.open(URL(string: "https://twitter.com/khanhduytran0")!)
-    }
-    
-    func updateSideStorePatchStatus() {
-        let fm = FileManager()
-        
-        certificateDataFound = LCUtils.certificateData() != nil
-        
-        guard let appGroupPath = LCUtils.appGroupPath() else {
-            isAltStorePatched = false
-            return
-        }
-        var patchDylibPath : String;
-        if (LCUtils.store() == .AltStore) {
-            patchDylibPath = appGroupPath.appendingPathComponent("Apps/com.rileytestut.AltStore/App.app/Frameworks/AltStoreTweak.dylib").path
-        } else {
-            patchDylibPath = appGroupPath.appendingPathComponent("Apps/com.SideStore.SideStore/App.app/Frameworks/AltStoreTweak.dylib").path
-        }
-        
-        if(fm.fileExists(atPath: patchDylibPath)) {
-            isAltStorePatched = true
-        } else {
-            isAltStorePatched = false
-        }
-    }
-    
-    func patchAltStore() async {
-        guard let result = await patchAltStoreAlert.open(), result != .cancel else {
-            return
-        }
-        
-        do {
-            let altStoreIpa = try LCUtils.archiveTweakedAltStore()
-            let storeInstallUrl = String(format: LCUtils.storeInstallURLScheme(), altStoreIpa.absoluteString)
-            if(result == .archiveOnly) {
-                let movedAltStoreIpaUrl = LCPath.docPath.appendingPathComponent("Patched\(store == .SideStore ? "SideStore" : "AltStore").ipa")
-                try FileManager.default.moveItem(at: altStoreIpa, to: movedAltStoreIpaUrl)
-                successInfo = "lc.settings.patchStoreArchiveSuccess %@ %@".localizeWithFormat(storeName, storeName)
-                successShow = true
-            } else {
-                await UIApplication.shared.open(URL(string: storeInstallUrl)!)
-            }
-            
-
-        } catch {
-            errorInfo = error.localizedDescription
-            errorShow = true
-        }
-        
     }
     
     func export() {
@@ -675,7 +581,7 @@ struct LCSettingsView: View {
         LCUtils.appGroupUserDefault.set(certificateData, forKey: "LCCertificateData")
         LCUtils.appGroupUserDefault.set(password, forKey: "LCCertificatePassword")
         LCUtils.appGroupUserDefault.set(NSDate.now, forKey: "LCCertificateUpdateDate")
-        certificateDataFound = false
+        certificateDataFound = true
     }
     
     func removeCertificate() async {

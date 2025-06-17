@@ -131,7 +131,8 @@ extern NSBundle *lcMainBundle;
         } else if ([application canOpenURL:[NSURL URLWithString:@"sidestore://"]]) {
             urlScheme = @"sidestore://sidejit-enable?bid=%@";
         }
-    } else {
+    }
+    if (!urlScheme) {
         tries = 2;
         urlScheme = [NSString stringWithFormat:@"%@://livecontainer-relaunch", lcAppUrlScheme];
     }

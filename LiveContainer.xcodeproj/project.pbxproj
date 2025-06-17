@@ -12,7 +12,6 @@
 		174140942D9C0E8200F3F928 /* ZSign.dylib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 174140542D9C0D6D00F3F928 /* ZSign.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		174140BA2D9C0F9100F3F928 /* TestJITLess.dylib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 174140AD2D9C0F4100F3F928 /* TestJITLess.dylib */; };
 		174140D62D9C176F00F3F928 /* libarchive.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 174140D52D9C176700F3F928 /* libarchive.tbd */; };
-		1741410D2D9C35F100F3F928 /* AltStoreTweak.dylib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 1741409B2D9C0EDD00F3F928 /* AltStoreTweak.dylib */; };
 		17554B732DA16988004C6D90 /* OpenSSL.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 17554B712DA16988004C6D90 /* OpenSSL.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		17554B742DA169AA004C6D90 /* OpenSSL.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 17554B712DA16988004C6D90 /* OpenSSL.xcframework */; };
 		E1292AF32DCA3A660065E12D /* LiveProcess.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E1292AE52DCA3A660065E12D /* LiveProcess.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -49,13 +48,6 @@
 			remoteGlobalIDString = 174140532D9C0D6D00F3F928;
 			remoteInfo = ZSign;
 		};
-		1741410E2D9C35F200F3F928 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 17DCE9952C7067EC00731D42 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 1741409A2D9C0EDD00F3F928;
-			remoteInfo = AltStoreTweak;
-		};
 		E1292AF12DCA3A660065E12D /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 17DCE9952C7067EC00731D42 /* Project object */;
@@ -84,7 +76,6 @@
 				17554B732DA16988004C6D90 /* OpenSSL.xcframework in Embed Frameworks */,
 				E1292BEC2DCA3B670065E12D /* LiveContainerShared.framework in Embed Frameworks */,
 				17413FBC2D9C0BAE00F3F928 /* LiveContainerSwiftUI.framework in Embed Frameworks */,
-				1741410D2D9C35F100F3F928 /* AltStoreTweak.dylib in Embed Frameworks */,
 				174140942D9C0E8200F3F928 /* ZSign.dylib in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
@@ -129,7 +120,6 @@
 		17413FB52D9C0BAE00F3F928 /* LiveContainerSwiftUI.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = LiveContainerSwiftUI.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		1741403A2D9C0D0000F3F928 /* TweakLoader.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = TweakLoader.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		174140542D9C0D6D00F3F928 /* ZSign.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = ZSign.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
-		1741409B2D9C0EDD00F3F928 /* AltStoreTweak.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = AltStoreTweak.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		174140AD2D9C0F4100F3F928 /* TestJITLess.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = TestJITLess.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		174140D52D9C176700F3F928 /* libarchive.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libarchive.tbd; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/usr/lib/libarchive.tbd; sourceTree = DEVELOPER_DIR; };
 		17554B712DA16988004C6D90 /* OpenSSL.xcframework */ = {isa = PBXFileReference; expectedSignature = "AppleDeveloperProgram:67RAULRX93:Marcin Krzyzanowski"; lastKnownFileType = wrapper.xcframework; name = OpenSSL.xcframework; path = OpenSSL/Frameworks/OpenSSL.xcframework; sourceTree = "<group>"; };
@@ -249,7 +239,6 @@
 		17413FB62D9C0BAE00F3F928 /* LiveContainerSwiftUI */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = LiveContainerSwiftUI; sourceTree = "<group>"; };
 		174140162D9C0C1B00F3F928 /* TweakLoader */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (174140F52D9C1C9B00F3F928 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, 174140F62D9C1C9B00F3F928 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = TweakLoader; sourceTree = "<group>"; };
 		174140552D9C0D6D00F3F928 /* ZSign */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = ZSign; sourceTree = "<group>"; };
-		1741409C2D9C0EDD00F3F928 /* AltStoreTweak */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = AltStoreTweak; sourceTree = "<group>"; };
 		174140AE2D9C0F4100F3F928 /* TestJITLess */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = TestJITLess; sourceTree = "<group>"; };
 		17B0F8452DE16FE4008110EA /* xcconfigs */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = xcconfigs; sourceTree = "<group>"; };
 		E1292AE72DCA3A660065E12D /* LiveProcess */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (E1292AF72DCA3A660065E12D /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = LiveProcess; sourceTree = "<group>"; };
@@ -278,13 +267,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				17554B742DA169AA004C6D90 /* OpenSSL.xcframework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		174140992D9C0EDD00F3F928 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -363,7 +345,6 @@
 				17413FB62D9C0BAE00F3F928 /* LiveContainerSwiftUI */,
 				174140162D9C0C1B00F3F928 /* TweakLoader */,
 				174140552D9C0D6D00F3F928 /* ZSign */,
-				1741409C2D9C0EDD00F3F928 /* AltStoreTweak */,
 				174140AE2D9C0F4100F3F928 /* TestJITLess */,
 				E1292AE72DCA3A660065E12D /* LiveProcess */,
 				174140B82D9C0F9100F3F928 /* Frameworks */,
@@ -378,7 +359,6 @@
 				17413FB52D9C0BAE00F3F928 /* LiveContainerSwiftUI.framework */,
 				1741403A2D9C0D0000F3F928 /* TweakLoader.dylib */,
 				174140542D9C0D6D00F3F928 /* ZSign.dylib */,
-				1741409B2D9C0EDD00F3F928 /* AltStoreTweak.dylib */,
 				174140AD2D9C0F4100F3F928 /* TestJITLess.dylib */,
 				E1292AE52DCA3A660065E12D /* LiveProcess.appex */,
 				E1292BD62DCA3B660065E12D /* LiveContainerShared.framework */,
@@ -404,13 +384,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		174140502D9C0D6D00F3F928 /* Headers */ = {
-			isa = PBXHeadersBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		174140972D9C0EDD00F3F928 /* Headers */ = {
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -499,28 +472,6 @@
 			productReference = 174140542D9C0D6D00F3F928 /* ZSign.dylib */;
 			productType = "com.apple.product-type.library.dynamic";
 		};
-		1741409A2D9C0EDD00F3F928 /* AltStoreTweak */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 174140A12D9C0EDE00F3F928 /* Build configuration list for PBXNativeTarget "AltStoreTweak" */;
-			buildPhases = (
-				174140972D9C0EDD00F3F928 /* Headers */,
-				174140982D9C0EDD00F3F928 /* Sources */,
-				174140992D9C0EDD00F3F928 /* Frameworks */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				1741409C2D9C0EDD00F3F928 /* AltStoreTweak */,
-			);
-			name = AltStoreTweak;
-			packageProductDependencies = (
-			);
-			productName = AltStoreTweak;
-			productReference = 1741409B2D9C0EDD00F3F928 /* AltStoreTweak.dylib */;
-			productType = "com.apple.product-type.library.dynamic";
-		};
 		174140AC2D9C0F4100F3F928 /* TestJITLess */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 174140B32D9C0F4100F3F928 /* Build configuration list for PBXNativeTarget "TestJITLess" */;
@@ -560,7 +511,6 @@
 				174140FA2D9C1EDA00F3F928 /* PBXTargetDependency */,
 				174140FE2D9C1EDA00F3F928 /* PBXTargetDependency */,
 				174141002D9C1EDA00F3F928 /* PBXTargetDependency */,
-				1741410F2D9C35F200F3F928 /* PBXTargetDependency */,
 				E1292AF22DCA3A660065E12D /* PBXTargetDependency */,
 				E1292BEA2DCA3B670065E12D /* PBXTargetDependency */,
 			);
@@ -636,9 +586,6 @@
 					174140532D9C0D6D00F3F928 = {
 						CreatedOnToolsVersion = 16.2;
 					};
-					1741409A2D9C0EDD00F3F928 = {
-						CreatedOnToolsVersion = 16.2;
-					};
 					174140AC2D9C0F4100F3F928 = {
 						CreatedOnToolsVersion = 16.2;
 					};
@@ -711,7 +658,6 @@
 				17413FB42D9C0BAE00F3F928 /* LiveContainerSwiftUI */,
 				174140392D9C0D0000F3F928 /* TweakLoader */,
 				174140532D9C0D6D00F3F928 /* ZSign */,
-				1741409A2D9C0EDD00F3F928 /* AltStoreTweak */,
 				174140AC2D9C0F4100F3F928 /* TestJITLess */,
 				E1292AE42DCA3A660065E12D /* LiveProcess */,
 				E1292BD52DCA3B660065E12D /* LiveContainerShared */,
@@ -793,13 +739,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		174140982D9C0EDD00F3F928 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		174140AA2D9C0F4100F3F928 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -851,11 +790,6 @@
 			isa = PBXTargetDependency;
 			target = 174140532D9C0D6D00F3F928 /* ZSign */;
 			targetProxy = 174140FF2D9C1EDA00F3F928 /* PBXContainerItemProxy */;
-		};
-		1741410F2D9C35F200F3F928 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 1741409A2D9C0EDD00F3F928 /* AltStoreTweak */;
-			targetProxy = 1741410E2D9C35F200F3F928 /* PBXContainerItemProxy */;
 		};
 		E1292AF22DCA3A660065E12D /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -1044,44 +978,6 @@
 				);
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LOCALIZED_STRING_SWIFTUI_SUPPORT = NO;
-				MACOSX_DEPLOYMENT_TARGET = 15.2;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
-		174140A22D9C0EDE00F3F928 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
-				DYLIB_COMPATIBILITY_VERSION = 1;
-				DYLIB_CURRENT_VERSION = 1;
-				EXECUTABLE_PREFIX = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				MACOSX_DEPLOYMENT_TARGET = 15.2;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		174140A32D9C0EDE00F3F928 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
-				DYLIB_COMPATIBILITY_VERSION = 1;
-				DYLIB_CURRENT_VERSION = 1;
-				EXECUTABLE_PREFIX = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1593,15 +1489,6 @@
 			buildConfigurations = (
 				1741405B2D9C0D6D00F3F928 /* Debug */,
 				1741405C2D9C0D6D00F3F928 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		174140A12D9C0EDE00F3F928 /* Build configuration list for PBXNativeTarget "AltStoreTweak" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				174140A22D9C0EDE00F3F928 /* Debug */,
-				174140A32D9C0EDE00F3F928 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

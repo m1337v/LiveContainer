@@ -149,7 +149,6 @@ struct LCJITLessDiagnoseView : View {
     @State var loaded = false
     @State var appGroupId = "Unknown"
     @State var store : Store = .SideStore
-    @State var isPatchDetected = false
     @State var certificateDataFound = false
     @State var certificatePasswordFound = false
     @State var appGroupAccessible = false
@@ -209,14 +208,6 @@ struct LCJITLessDiagnoseView : View {
                                     .foregroundStyle(.gray)
                             }
                             
-                        }
-                        if store != .ADP && store != .Unknown {
-                            HStack {
-                                Text("lc.jitlessDiag.patchDetected".loc)
-                                Spacer()
-                                Text(isPatchDetected ? "lc.common.yes".loc : "lc.common.no".loc)
-                                    .foregroundStyle(.gray)
-                            }
                         }
                         HStack {
                             Text("lc.jitlessDiag.certDataFound".loc)
@@ -319,7 +310,6 @@ struct LCJITLessDiagnoseView : View {
     func onAppear() {
         appGroupId = LCUtils.appGroupID() ?? "lc.common.unknown".loc
         store = LCUtils.store()
-        isPatchDetected = checkIsPatched()
         appGroupAccessible = LCUtils.appGroupPath() != nil
         certificateDataFound = LCUtils.certificateData() != nil
         certificatePasswordFound = LCUtils.certificatePassword() != nil
@@ -333,20 +323,6 @@ struct LCJITLessDiagnoseView : View {
             validateCertificate()
         }
         loaded = true
-    }
-    
-    func checkIsPatched() -> Bool {
-        let fm = FileManager.default
-        guard let appGroupURL = LCUtils.appGroupPath() else {
-            return false
-        }
-        let patchPath : URL
-        if LCUtils.store() == .AltStore {
-            patchPath = appGroupURL.appendingPathComponent("Apps/com.rileytestut.AltStore/App.app/Frameworks/AltStoreTweak.dylib")
-        } else {
-            patchPath = appGroupURL.appendingPathComponent("Apps/com.SideStore.SideStore/App.app/Frameworks/AltStoreTweak.dylib")
-        }
-        return fm.fileExists(atPath: patchPath.path)
     }
     
     func testJITLessMode() {

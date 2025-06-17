@@ -87,10 +87,11 @@
         context.appearanceStyle = 2;
     }];
     [self.presenter activate];
+    __weak typeof(self) weakSelf = self;
     [extension setRequestInterruptionBlock:^(NSUUID *uuid) {
         NSLog(@"Request %@ interrupted.", uuid);
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self displayAppTerminatedTextIfNeeded];
+            [weakSelf displayAppTerminatedTextIfNeeded];
         });
     }];
     
@@ -123,10 +124,10 @@
 }
 
 - (void)closeWindow {
+    __weak typeof(self) weakSelf = self;
     [self.extension setRequestInterruptionBlock:^(NSUUID *uuid) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self.delegate appDidExit];
-            [self closeWindow];
+            [weakSelf closeWindow];
         });
     }];
     [self.view.window.windowScene _unregisterSettingsDiffActionArrayForKey:self.sceneID];

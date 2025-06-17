@@ -14,6 +14,7 @@ static void UIKitGuestHooksInit() {
     swizzle(UIApplication.class, @selector(_connectUISceneFromFBSScene:transitionContext:), @selector(hook__connectUISceneFromFBSScene:transitionContext:));
     swizzle(UIApplication.class, @selector(openURL:options:completionHandler:), @selector(hook_openURL:options:completionHandler:));
     swizzle(UIApplication.class, @selector(canOpenURL:), @selector(hook_canOpenURL:));
+    swizzle(UIApplication.class, @selector(setDelegate:), @selector(hook_setDelegate:));
     swizzle(UIScene.class, @selector(scene:didReceiveActions:fromTransitionContext:), @selector(hook_scene:didReceiveActions:fromTransitionContext:));
     swizzle(UIScene.class, @selector(openURL:options:completionHandler:), @selector(hook_openURL:options:completionHandler:));
     NSInteger LCOrientationLockDirection = [NSUserDefaults.guestAppInfo[@"LCOrientationLock"] integerValue];
@@ -397,6 +398,16 @@ BOOL canAppOpenItself(NSURL* url) {
     }
 }
 
+- (void)hook_setDelegate:(id<UIApplicationDelegate>)delegate {
+    if(![delegate respondsToSelector:@selector(application:configurationForConnectingSceneSession:options:)]) {
+        // Fix old apps black screen when UIApplicationSupportsMultipleScenes is YES
+        swizzle(UIWindow.class, @selector(makeKeyAndVisible), @selector(hook_makeKeyAndVisible));
+        swizzle(UIWindow.class, @selector(makeKeyWindow), @selector(hook_makeKeyWindow));
+        swizzle(UIWindow.class, @selector(setHidden:), @selector(hook_setHidden:));
+    }
+    [self hook_setDelegate:delegate];
+}
+
 + (BOOL)_wantsApplicationBehaviorAsExtension {
     // Fix LiveProcess: Make _UIApplicationWantsExtensionBehavior return NO so delegate code runs in the run loop
     return YES;
@@ -523,5 +534,30 @@ BOOL canAppOpenItself(NSURL* url) {
 @implementation UIWindow(hook)
 - (void)hook_setAutorotates:(BOOL)autorotates forceUpdateInterfaceOrientation:(BOOL)force {
     [self hook_setAutorotates:YES forceUpdateInterfaceOrientation:YES];
+}
+
+- (void)hook_makeKeyAndVisible {
+    [self updateWindowScene];
+    [self hook_makeKeyAndVisible];
+}
+- (void)hook_makeKeyWindow {
+    [self updateWindowScene];
+    [self hook_makeKeyWindow];
+}
+- (void)hook_resignKeyWindow {
+    [self updateWindowScene];
+    [self hook_resignKeyWindow];
+}
+- (void)hook_setHidden:(BOOL)hidden {
+    [self updateWindowScene];
+    [self hook_setHidden:hidden];
+}
+- (void)updateWindowScene {
+    for(UIWindowScene *windowScene in UIApplication.sharedApplication.connectedScenes) {
+        if(!self.windowScene && self.screen == windowScene.screen) {
+            self.windowScene = windowScene;
+            break;
+        }
+    }
 }
 @end
