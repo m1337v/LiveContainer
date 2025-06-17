@@ -101,8 +101,9 @@ struct LCAppBanner : View {
                         }
                         if model.uiSpoofCamera {
                             Image(systemName: "camera.fill")
-                                    .font(.system(size: 10))
+                                    .font(.system(size: 16))
                                     .foregroundColor(.red)
+                                    // .frame(width: 16, height: 16)
                             // Image(systemName: "camera.fill")
                             //     .font(.system(size: 10, weight: .bold))
                             //     .foregroundColor(.red)
@@ -113,8 +114,9 @@ struct LCAppBanner : View {
                         }
                         if model.uiSpoofNetwork {
                             Image(systemName: "network")
+                                    .font(.system(size: 16))
                                     .foregroundColor(.red)
-                                    .frame(width: 20)
+                                    // .frame(width: 16, height: 16)
                             // Image(systemName: "network.fill")
                             //     .font(.system(size: 10, weight: .bold))
                             //     .foregroundColor(.red)
