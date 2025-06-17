@@ -112,9 +112,9 @@ struct LCAppBanner : View {
                             //     )
                         }
                         if model.uiSpoofNetwork {
-                            Image(systemName: "network.fill")
-                                    .font(.system(size: 10))
+                            Image(systemName: "network")
                                     .foregroundColor(.red)
+                                    .frame(width: 20)
                             // Image(systemName: "network.fill")
                             //     .font(.system(size: 10, weight: .bold))
                             //     .foregroundColor(.red)
@@ -150,7 +150,7 @@ struct LCAppBanner : View {
                                 
                                 Text(locationDisplayText)
                                     .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(.red)
                                 
                                 Spacer()
                             }
