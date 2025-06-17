@@ -108,6 +108,15 @@ struct LCAppBanner : View {
                                     Capsule().fill(Color.purple)
                                 )
                         }
+                        if model.uiSpoofNetwork {
+                            Image(systemName: "network.fill")
+                                .font(.system(size: 8))
+                                .foregroundColor(.white)
+                                .frame(width: 16, height:16)
+                                .background(
+                                    Capsule().fill(Color.blue)
+                                )
+                        }
                     }
                     
                     HStack {

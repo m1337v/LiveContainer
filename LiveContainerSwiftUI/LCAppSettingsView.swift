@@ -606,7 +606,14 @@ struct LCAppSettingsView : View{
             
             // MARK: Camera Settings Section
             Section {
-                Toggle("Spoof Camera", isOn: $model.uiSpoofCamera)
+                Toggle(isOn: $model.uiSpoofCamera) {
+                    HStack {
+                        Image(systemName: "camera")
+                            .foregroundColor(.blue)
+                            .frame(width: 20)
+                        Text("Spoof Camera")
+                    }
+                }
                 
                 if model.uiSpoofCamera {
                     // Camera Mode Picker - ALWAYS VISIBLE
