@@ -97,6 +97,18 @@ void* hook_dlsym(void * __handle, const char * __symbol) {
             return (void*)orig_dyld_get_image_header(appMainImageIndex);
         }
         __handle = appExecutableHandle;
+    } else if (__handle != (void*)RTLD_SELF && __handle != (void*)RTLD_NEXT) {
+        void* ans = orig_dlsym(__handle, __symbol);
+        for(struct rebindings_entry* cur = _rebindings_head; cur; cur = cur->next) {
+            for(int i = 0; i < cur->rebindings_nel; ++i) {
+                if(ans == *(cur->rebindings[i].replaced)) {
+                    ans = cur->rebindings[i].replacement;
+                    break;
+                }
+            }
+
+        }
+        return ans;
     }
     
     __attribute__((musttail)) return orig_dlsym(__handle, __symbol);

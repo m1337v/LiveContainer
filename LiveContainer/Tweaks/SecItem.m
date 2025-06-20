@@ -73,7 +73,7 @@ OSStatus new_SecItemDelete(CFDictionaryRef query){
     return status;
 }
 
-void SecItemGuestHooksInit()  {
+void SecItemGuestHooksInit(void)  {
 
     containerId = [NSString stringWithUTF8String:getenv("HOME")].lastPathComponent;
     NSString* containerInfoPath = [[NSString stringWithUTF8String:getenv("HOME")] stringByAppendingPathComponent:@"LCContainerInfo.plist"];
@@ -102,10 +102,10 @@ void SecItemGuestHooksInit()  {
     }
     
     struct rebinding rebindings[] = (struct rebinding[]){
-         {"SecItemAdd", (void *)new_SecItemAdd, (void **)&orig_SecItemAdd},
-         {"SecItemCopyMatching", (void *)new_SecItemCopyMatching, (void **)&orig_SecItemCopyMatching},
-         {"SecItemUpdate", (void *)new_SecItemUpdate, (void **)&orig_SecItemUpdate},
-         {"SecItemDelete", (void *)new_SecItemDelete, (void **)&orig_SecItemDelete}
-     };
-     rebind_symbols(rebindings, sizeof(rebindings)/sizeof(struct rebinding));
+        {"SecItemAdd", (void *)new_SecItemAdd, (void **)&orig_SecItemAdd},
+        {"SecItemCopyMatching", (void *)new_SecItemCopyMatching, (void **)&orig_SecItemCopyMatching},
+        {"SecItemUpdate", (void *)new_SecItemUpdate, (void **)&orig_SecItemUpdate},
+        {"SecItemDelete", (void *)new_SecItemDelete, (void **)&orig_SecItemDelete}
+    };
+    rebind_symbols(rebindings, sizeof(rebindings)/sizeof(struct rebinding));
 }
