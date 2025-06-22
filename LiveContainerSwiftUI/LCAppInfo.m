@@ -316,7 +316,11 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
         NSString *error = LCParseMachO(execPath.UTF8String, false, ^(const char *path, struct mach_header_64 *header, int fd, void* filePtr) {
             if(header->cputype == CPU_TYPE_ARM64) {
                 has64bitSlice |= YES;
-                LCPatchExecSlice(path, header, ![self dontInjectTweakLoader]);
+                int patchResult = LCPatchExecSlice(path, header, ![self dontInjectTweakLoader]);
+                if(patchResult & PATCH_EXEC_RESULT_NO_SPACE_FOR_TWEAKLOADER) {
+                    info[@"LCTweakLoaderCantInject"] = @YES;
+                    info[@"dontInjectTweakLoader"] = @YES;
+                }
             }
         });
         self.is32bit = !has64bitSlice;

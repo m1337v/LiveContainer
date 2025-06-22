@@ -459,7 +459,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     
     if([guestAppInfo[@"dontInjectTweakLoader"] boolValue] && ![guestAppInfo[@"dontLoadTweakLoader"] boolValue]) {
         tweakLoaderLoaded = true;
-        dlopen("@loader_path/../../Tweaks/TweakLoader.dylib", RTLD_LAZY|RTLD_GLOBAL);
+        dlopen("@loader_path/../TweakLoader.dylib", RTLD_LAZY|RTLD_GLOBAL);
     }
     
     // Fix dynamic properties of some apps

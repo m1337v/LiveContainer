@@ -46,9 +46,9 @@ void LCPatchAddRPath(const char *path, struct mach_header_64 *header) {
     insertRPathCommand("@loader_path", header);
 }
 
-void LCPatchExecSlice(const char *path, struct mach_header_64 *header, bool doInject) {
+int LCPatchExecSlice(const char *path, struct mach_header_64 *header, bool doInject) {
     uint8_t *imageHeaderPtr = (uint8_t*)header + sizeof(struct mach_header_64);
-
+    int ans = 0;
     // Literally convert an executable to a dylib
     if (header->magic == MH_MAGIC_64) {
         //assert(header->flags & MH_PIE);
@@ -68,7 +68,9 @@ void LCPatchExecSlice(const char *path, struct mach_header_64 *header, bool doIn
     BOOL hasDylibCommand = NO;
     struct dylib_command * dylibLoaderCommand = 0;
     const char *tweakLoaderPath = "@loader_path/../../Tweaks/TweakLoader.dylib";
+    int tweakLoaderLoadDylibCmdSize = 0x48;
     const char *libCppPath = "/usr/lib/libc++.1.dylib";
+    int textSectionOffest = 0;
     struct load_command *command = (struct load_command *)imageHeaderPtr;
     for(int i = 0; i < header->ncmds; i++) {
         if(command->cmd == LC_ID_DYLIB) {
@@ -81,7 +83,18 @@ void LCPatchExecSlice(const char *path, struct mach_header_64 *header, bool doIn
             }
         } else if(command->cmd == 0x114514) {
             dylibLoaderCommand = (struct dylib_command *)command;
+        } else if(command->cmd == LC_SEGMENT_64) {
+            struct segment_command_64* seglc = (struct segment_command_64*)command;
+            if (strcmp("__TEXT", seglc->segname) == 0) {
+                for (uint32_t j = 0; j < seglc->nsects; j++) {
+                    struct section_64* sect = (struct section_64*)(((void*)command + sizeof(struct segment_command_64) + sizeof(struct section_64) * j));
+                    if (0 == strcmp("__text", sect->sectname)) {
+                        textSectionOffest = sect->offset;
+                    }
+                }
+            }
         }
+        
         command = (struct load_command *)((void *)command + command->cmdsize);
     }
 
@@ -90,7 +103,12 @@ void LCPatchExecSlice(const char *path, struct mach_header_64 *header, bool doIn
         dylibLoaderCommand->cmd = doInject ? LC_LOAD_DYLIB : 0x114514;
         strcpy((void *)dylibLoaderCommand + dylibLoaderCommand->dylib.name.offset, doInject ? tweakLoaderPath : libCppPath);
     } else {
-        insertDylibCommand(doInject ? LC_LOAD_DYLIB : 0x114514, doInject ? tweakLoaderPath : libCppPath, header);
+        if((void*)header + textSectionOffest > (void*)command + tweakLoaderLoadDylibCmdSize) {
+            insertDylibCommand(doInject ? LC_LOAD_DYLIB : 0x114514, doInject ? tweakLoaderPath : libCppPath, header);
+        } else {
+            // Not enough free space of injection tweak loader!
+            ans |= PATCH_EXEC_RESULT_NO_SPACE_FOR_TWEAKLOADER;
+        }
     }
     if (!hasDylibCommand) {
         insertDylibCommand(LC_ID_DYLIB, path, header);
@@ -123,6 +141,8 @@ void LCPatchExecSlice(const char *path, struct mach_header_64 *header, bool doIn
         }
         command2 = (struct load_command *)((void *)command2 + command2->cmdsize);
     }
+    
+    return ans;
 }
 
 NSString *LCParseMachO(const char *path, bool readOnly, LCParseMachOCallback callback) {

@@ -57,6 +57,7 @@ class LCAppModel: ObservableObject, Hashable {
             appInfo.fixBlackScreen = uiFixBlackScreen
         }
     }
+    @Published var uiTweakLoaderInjectFailed : Bool
     @Published var uiDontInjectTweakLoader : Bool {
         didSet {
             appInfo.dontInjectTweakLoader = uiDontInjectTweakLoader
@@ -213,6 +214,7 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiHideLiveContainer = appInfo.hideLiveContainer
         self.uiFixBlackScreen = appInfo.fixBlackScreen
         self.uiDontInjectTweakLoader = appInfo.dontInjectTweakLoader
+        self.uiTweakLoaderInjectFailed = appInfo.info()["LCTweakLoaderCantInject"] as? Bool ?? false
         self.uiDontLoadTweakLoader = appInfo.dontLoadTweakLoader
         self.uiDontSign = appInfo.dontSign
         self.uiSpoofSDKVersion = appInfo.spoofSDKVersion
