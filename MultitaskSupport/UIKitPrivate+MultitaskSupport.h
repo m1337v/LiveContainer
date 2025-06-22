@@ -203,6 +203,9 @@
 - (void)orderFront:(id)arg1;
 @end
 
+@interface _UIRootWindow : UIWindow
+@end
+
 @interface UIScreen (Private)
 - (CGRect)_referenceBounds;
 - (id)displayConfiguration;
