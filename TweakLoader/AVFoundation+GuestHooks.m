@@ -839,6 +839,7 @@ static NSString* fourCCToString(OSType fourCC) {
           (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
           (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF,
           spoofCameraEnabled ? @"YES" : @"NO", frameExtractionPlayer, playerIsReady ? @"YES" : @"NO");
+    
     if (!spoofCameraEnabled || !frameExtractionPlayer || !playerIsReady) {
         return NULL;
     }
@@ -846,25 +847,40 @@ static NSString* fourCCToString(OSType fourCC) {
     CMTime currentTime = frameExtractionPlayer.currentItem.currentTime;
     CMTime duration = frameExtractionPlayer.currentItem.duration;
     
-    // CaptureJailed's approach: If very close to end, use cached frame
-    if (CMTIME_IS_VALID(duration) && CMTIME_IS_VALID(currentTime)) {
-        Float64 currentSeconds = CMTimeGetSeconds(currentTime);
-        Float64 durationSeconds = CMTimeGetSeconds(duration);
-        
-        // If within 0.1 seconds of video end, use last good frame
-        if (durationSeconds > 0 && currentSeconds >= durationSeconds - 0.1) {
-            if (g_lastGoodFrame) {
-                CVPixelBufferRetain(g_lastGoodFrame);
-                return g_lastGoodFrame;
-            }
+    // CRITICAL: Check for high bitrate video stalls
+    Float64 estimatedDataRate = 0;
+    NSArray *videoTracks = [frameExtractionPlayer.currentItem.asset tracksWithMediaType:AVMediaTypeVideo];
+    if (videoTracks.count > 0) {
+        estimatedDataRate = ((AVAssetTrack *)videoTracks.firstObject).estimatedDataRate;
+    }
+    
+    BOOL isHighBitrate = estimatedDataRate > 2000000; // 2+ Mbps
+    
+    if (isHighBitrate) {
+        // For high bitrate videos, use more conservative timing
+        if (!CMTIME_IS_VALID(currentTime) || CMTimeGetSeconds(currentTime) < 0.2) {
+            NSLog(@"[LC] [GetFrame] 🎯 High bitrate: seeking to safe position");
+            currentTime = CMTimeMakeWithSeconds(0.5, 600); // Start further into video
+            [frameExtractionPlayer seekToTime:currentTime 
+                               toleranceBefore:kCMTimeZero 
+                                toleranceAfter:kCMTimeZero 
+                             completionHandler:^(BOOL finished) {
+                if (!finished) {
+                    NSLog(@"[LC] [GetFrame] ❌ High bitrate seek failed");
+                }
+            }];
+            
+            // Wait longer for high bitrate seeks
+            usleep(50000); // 50ms for high bitrate
+        }
+    } else {
+        // Standard timing logic for lower bitrate videos
+        if (!CMTIME_IS_VALID(currentTime) || CMTimeGetSeconds(currentTime) < 0.1) {
+            currentTime = CMTimeMake(3, 30);
         }
     }
     
-    // Normal frame extraction (your existing code)
-    if (!CMTIME_IS_VALID(currentTime) || CMTimeGetSeconds(currentTime) < 0.1) {
-        currentTime = CMTimeMake(3, 30);
-    }
-    
+    // Rest of your frame extraction logic...
     AVPlayerItemVideoOutput *selectedOutput = NULL;
     
     switch (requestedFormat) {
@@ -882,7 +898,6 @@ static NSString* fourCCToString(OSType fourCC) {
     }
     
     if (!selectedOutput) {
-        // Return cached frame if available
         if (g_lastGoodFrame) {
             CVPixelBufferRetain(g_lastGoodFrame);
             return g_lastGoodFrame;
@@ -890,11 +905,25 @@ static NSString* fourCCToString(OSType fourCC) {
         return NULL;
     }
     
+    // CRITICAL: For high bitrate videos, check output readiness more thoroughly
+    if (isHighBitrate && ![selectedOutput hasNewPixelBufferForItemTime:currentTime]) {
+        NSLog(@"[LC] [GetFrame] 🎯 High bitrate: output not ready, waiting...");
+        usleep(20000); // 20ms additional wait
+        
+        // Try a slightly different time
+        CMTime adjustedTime = CMTimeAdd(currentTime, CMTimeMake(1, 30));
+        if ([selectedOutput hasNewPixelBufferForItemTime:adjustedTime]) {
+            currentTime = adjustedTime;
+        }
+    }
+    
     CVPixelBufferRef pixelBuffer = [selectedOutput copyPixelBufferForItemTime:currentTime 
                                                            itemTimeForDisplay:NULL];
     
     if (pixelBuffer) {
-        // CRITICAL: Update cache with this good frame
+        NSLog(@"[LC] [GetFrame] ✅ Frame extracted (high bitrate: %@)", isHighBitrate ? @"YES" : @"NO");
+        
+        // Update cache
         if (g_lastGoodFrame) {
             CVPixelBufferRelease(g_lastGoodFrame);
         }
@@ -914,7 +943,39 @@ static NSString* fourCCToString(OSType fourCC) {
         return pixelBuffer;
     }
     
-    // If extraction failed, use cached frame
+    // Enhanced fallback for high bitrate videos
+    if (isHighBitrate) {
+        NSLog(@"[LC] [GetFrame] 🎯 High bitrate extraction failed, trying alternative positions");
+        
+        // Try multiple positions for high bitrate videos
+        for (int i = 1; i <= 5; i++) {
+            CMTime fallbackTime = CMTimeAdd(currentTime, CMTimeMake(i * 3, 30)); // Try +3 frames each time
+            CVPixelBufferRef fallbackBuffer = [selectedOutput copyPixelBufferForItemTime:fallbackTime 
+                                                                      itemTimeForDisplay:NULL];
+            if (fallbackBuffer) {
+                NSLog(@"[LC] [GetFrame] 🆘 High bitrate fallback #%d success", i);
+                
+                if (g_lastGoodFrame) {
+                    CVPixelBufferRelease(g_lastGoodFrame);
+                }
+                g_lastGoodFrame = fallbackBuffer;
+                CVPixelBufferRetain(g_lastGoodFrame);
+                
+                size_t width = CVPixelBufferGetWidth(fallbackBuffer);
+                size_t height = CVPixelBufferGetHeight(fallbackBuffer);
+                
+                if (width != (size_t)targetResolution.width || height != (size_t)targetResolution.height) {
+                    CVPixelBufferRef scaledBuffer = createScaledPixelBuffer(fallbackBuffer, targetResolution);
+                    CVPixelBufferRelease(fallbackBuffer);
+                    return scaledBuffer;
+                }
+                
+                return fallbackBuffer;
+            }
+        }
+    }
+    
+    // Final fallback to cached frame
     if (g_lastGoodFrame) {
         CVPixelBufferRetain(g_lastGoodFrame);
         return g_lastGoodFrame;
@@ -1006,81 +1067,142 @@ static NSString* fourCCToString(OSType fourCC) {
         return;
     }
     
-    // CRITICAL: Check video track properties
+    // CRITICAL: Analyze video properties for performance optimization
     AVAssetTrack *videoTrack = videoTracks.firstObject;
     CGSize naturalSize = videoTrack.naturalSize;
     CGAffineTransform transform = videoTrack.preferredTransform;
+    float nominalFrameRate = videoTrack.nominalFrameRate;
+    CMTimeRange timeRange = videoTrack.timeRange;
+    Float64 duration = CMTimeGetSeconds(timeRange.duration);
     
-    NSLog(@"[LC] [GetFrame] Video properties: size=%.0fx%.0f, transform=[%.1f,%.1f,%.1f,%.1f,%.1f,%.1f]", 
-          naturalSize.width, naturalSize.height,
-          transform.a, transform.b, transform.c, transform.d, transform.tx, transform.ty);
+    // CRITICAL: Get bitrate information
+    Float64 estimatedDataRate = videoTrack.estimatedDataRate;
+    NSLog(@"[LC] [GetFrame] 🎬 VIDEO ANALYSIS:");
+    NSLog(@"[LC] [GetFrame] Size: %.0fx%.0f", naturalSize.width, naturalSize.height);
+    NSLog(@"[LC] [GetFrame] Duration: %.3fs", duration);
+    NSLog(@"[LC] [GetFrame] Bitrate: %.0f bps (%.2f Mbps)", estimatedDataRate, estimatedDataRate / 1000000.0);
+    NSLog(@"[LC] [GetFrame] Frame rate: %.2f fps", nominalFrameRate);
     
-    // CRITICAL: Handle portrait videos (720x1280) properly
+    // DETECT HIGH BITRATE VIDEO (like your 2.73 Mbps 720x1280)
+    BOOL isHighBitrateVideo = estimatedDataRate > 2000000; // 2+ Mbps
+    if (isHighBitrateVideo) {
+        NSLog(@"[LC] [GetFrame] 🚨 HIGH BITRATE video detected - enabling optimizations");
+    }
+    
+    // Handle portrait videos
     if (naturalSize.height > naturalSize.width) {
         NSLog(@"[LC] [GetFrame] ✅ Portrait video detected: %.0fx%.0f", naturalSize.width, naturalSize.height);
-        // Update target resolution to match video aspect ratio if needed
         if (targetResolution.width > targetResolution.height) {
-            // Swap to portrait if currently landscape
             targetResolution = CGSizeMake(targetResolution.height, targetResolution.width);
             NSLog(@"[LC] [GetFrame] 🔄 Adjusted target to portrait: %.0fx%.0f", 
                   targetResolution.width, targetResolution.height);
         }
     }
     
-    NSLog(@"[LC] [GetFrame] ✅ Video tracks loaded: %lu tracks", (unsigned long)videoTracks.count);
-    
     // Create player and item
     AVPlayerItem *item = [AVPlayerItem playerItemWithAsset:asset];
     frameExtractionPlayer = [AVPlayer playerWithPlayerItem:item];
     frameExtractionPlayer.muted = YES;
     
-    // CRITICAL FIX: Set up looping notification BEFORE outputs
+    // CRITICAL: Configure for high bitrate videos
+    if (isHighBitrateVideo) {
+        NSLog(@"[LC] [GetFrame] 🎯 Configuring for high bitrate video");
+        
+        // Enable better buffering for high bitrate content
+        if ([item respondsToSelector:@selector(setPreferredForwardBufferDuration:)]) {
+            item.preferredForwardBufferDuration = 2.0; // 2 second buffer for high bitrate
+        }
+        
+        // More aggressive seeking settings
+        frameExtractionPlayer.actionAtItemEnd = AVPlayerActionAtItemEndPause; // Prevent auto-loop issues
+        
+        // Configure automatic rate management
+        if ([frameExtractionPlayer respondsToSelector:@selector(setAutomaticallyWaitsToMinimizeStalling:)]) {
+            frameExtractionPlayer.automaticallyWaitsToMinimizeStalling = YES;
+        }
+    } else {
+        // Standard configuration for lower bitrate videos
+        frameExtractionPlayer.actionAtItemEnd = AVPlayerActionAtItemEndNone;
+        if ([item respondsToSelector:@selector(setPreferredForwardBufferDuration:)]) {
+            item.preferredForwardBufferDuration = 1.0; // Standard buffer
+        }
+    }
+    
+    // Set up looping notification
     [[NSNotificationCenter defaultCenter] addObserver:[GetFrame class]
                                              selector:@selector(playerItemDidReachEnd:)
                                                  name:AVPlayerItemDidPlayToEndTimeNotification
                                                object:item];
     
-    // Create outputs with format-specific settings for better compatibility
+    // CRITICAL: Create outputs optimized for bitrate
+    CGSize outputSize = isHighBitrateVideo ? CGSizeMake(naturalSize.width / 2, naturalSize.height / 2) : naturalSize;
+    NSLog(@"[LC] [GetFrame] Using output size: %.0fx%.0f (downscaled: %@)", 
+          outputSize.width, outputSize.height, isHighBitrateVideo ? @"YES" : @"NO");
+    
     NSDictionary *bgraAttributes = @{
         (NSString*)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA),
-        (NSString*)kCVPixelBufferWidthKey : @((int)naturalSize.width),
-        (NSString*)kCVPixelBufferHeightKey : @((int)naturalSize.height)
+        (NSString*)kCVPixelBufferWidthKey : @((int)outputSize.width),
+        (NSString*)kCVPixelBufferHeightKey : @((int)outputSize.height),
+        (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
     };
     
     NSDictionary *yuv420vAttributes = @{
         (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704422), // '420v'
-        (NSString*)kCVPixelBufferWidthKey : @((int)naturalSize.width),
-        (NSString*)kCVPixelBufferHeightKey : @((int)naturalSize.height)
+        (NSString*)kCVPixelBufferWidthKey : @((int)outputSize.width),
+        (NSString*)kCVPixelBufferHeightKey : @((int)outputSize.height),
+        (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
     };
     
     NSDictionary *yuv420fAttributes = @{
         (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704438), // '420f'
-        (NSString*)kCVPixelBufferWidthKey : @((int)naturalSize.width),
-        (NSString*)kCVPixelBufferHeightKey : @((int)naturalSize.height)
+        (NSString*)kCVPixelBufferWidthKey : @((int)outputSize.width),
+        (NSString*)kCVPixelBufferHeightKey : @((int)outputSize.height),
+        (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
     };
     
     bgraOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:bgraAttributes];
     yuv420vOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420vAttributes];
     yuv420fOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420fAttributes];
     
+    // CRITICAL: Configure outputs for high bitrate videos
+    if (isHighBitrateVideo) {
+        // More conservative settings for high bitrate
+        bgraOutput.suppressesPlayerRendering = YES;
+        yuv420vOutput.suppressesPlayerRendering = YES;
+        yuv420fOutput.suppressesPlayerRendering = YES;
+    }
+    
     // Add outputs
     [item addOutput:bgraOutput];
     [item addOutput:yuv420vOutput];
     [item addOutput:yuv420fOutput];
     
-    NSLog(@"[LC] [GetFrame] ✅ Outputs added to player item");
+    NSLog(@"[LC] [GetFrame] ✅ Outputs added (high bitrate optimized: %@)", isHighBitrateVideo ? @"YES" : @"NO");
     
-    // CRITICAL: Wait for player to be ready before setting flag
-    // FIX: Create a proper observer instance instead of using class
+    // Wait for player to be ready
     if (!_kvoObserver) {
         _kvoObserver = [[GetFrameKVOObserver alloc] init];
     }
     [item addObserver:_kvoObserver forKeyPath:@"status" options:NSKeyValueObservingOptionNew context:NULL];
     
-    // Start playing immediately
-    [frameExtractionPlayer play];
+    // CRITICAL: For high bitrate videos, wait longer before starting playback
+    if (isHighBitrateVideo) {
+        NSLog(@"[LC] [GetFrame] 🎯 High bitrate: delaying playback for buffer preparation");
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (frameExtractionPlayer.status == AVPlayerStatusReadyToPlay) {
+                [frameExtractionPlayer play];
+                NSLog(@"[LC] [GetFrame] ✅ High bitrate playback started");
+            } else {
+                NSLog(@"[LC] [GetFrame] ⚠️ Player not ready yet, starting anyway");
+                [frameExtractionPlayer play];
+            }
+        });
+    } else {
+        [frameExtractionPlayer play];
+    }
     
-    NSLog(@"[LC] [GetFrame] 🎬 Player setup complete, waiting for ready status");
+    NSLog(@"[LC] [GetFrame] 🎬 Player setup complete for %.0fx%.0f video (bitrate: %.2f Mbps)", 
+          naturalSize.width, naturalSize.height, estimatedDataRate / 1000000.0);
 }
 
 + (void)setupPlayerWithPath:(NSString *)path {
