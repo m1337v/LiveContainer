@@ -110,6 +110,7 @@ static AVPlayerItemVideoOutput *yuv420vOutput;
 static AVPlayerItemVideoOutput *yuv420fOutput;
 static GetFrameKVOObserver *_kvoObserver = nil;
 static BOOL playerIsReady = NO;
+static BOOL isValidPixelFormat(OSType format);
 
 // Level 2 hooks (Device Level)
 // Device enumeration hooks declared in @implementation
@@ -144,11 +145,11 @@ static CVPixelBufferRef createScaledPixelBuffer(CVPixelBufferRef sourceBuffer, C
     size_t sourceHeight = CVPixelBufferGetHeight(sourceBuffer);
     OSType sourceFormat = CVPixelBufferGetPixelFormatType(sourceBuffer);
 
-    // CRITICAL: Match the target format to what was requested
+    // CRITICAL FIX: Complete the target format assignment
     OSType targetFormat = kCVPixelFormatType_32BGRA; // Default
-    if (lastRequestedFormat != 0) {
+    if (lastRequestedFormat != 0 && isValidPixelFormat(lastRequestedFormat)) {
         targetFormat = lastRequestedFormat;
-        NSLog(@"[LC] 🎯 Creating buffer in requested format: %c%c%c%c", 
+        NSLog(@"[LC] Using requested format: %c%c%c%c", 
               (targetFormat >> 24) & 0xFF, (targetFormat >> 16) & 0xFF, 
               (targetFormat >> 8) & 0xFF, targetFormat & 0xFF);
     }
@@ -644,24 +645,34 @@ static CVPixelBufferRef g_lastGoodFrame = NULL;
 // Fix the GetFrame getCurrentFrame method to better handle sample buffer creation:
 + (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originalFrame preserveOrientation:(BOOL)preserve {
     if (!spoofCameraEnabled) {
-        return originalFrame; // Pass through when disabled
+        return originalFrame;
     }
     
     if (!frameExtractionPlayer || !frameExtractionPlayer.currentItem) {
-        NSLog(@"[LC] [GetFrame] No player available, returning NULL (let primary system handle)");
-        return NULL; // Return NULL instead of fallback - let primary system handle
-    }
-    
-    CMTime currentTime = [frameExtractionPlayer.currentItem currentTime];
-    
-    // CRITICAL: Check if player is actually ready
-    if (frameExtractionPlayer.currentItem.status != AVPlayerItemStatusReadyToPlay) {
-        NSLog(@"[LC] [GetFrame] Player not ready, returning NULL");
+        NSLog(@"[LC] [GetFrame] No player available, returning NULL");
         return NULL;
     }
     
-    // CRITICAL: cj's format detection from originalFrame
-    OSType requestedFormat = kCVPixelFormatType_32BGRA; // Default
+    // CRITICAL: Check if player is actually ready
+    if (frameExtractionPlayer.currentItem.status != AVPlayerItemStatusReadyToPlay || !playerIsReady) {
+        NSLog(@"[LC] [GetFrame] Player not ready (status: %ld, flag: %d), returning NULL", 
+              (long)frameExtractionPlayer.currentItem.status, playerIsReady);
+        return NULL;
+    }
+    
+    CMTime currentTime = [frameExtractionPlayer.currentItem currentTime];
+    CMTime duration = [frameExtractionPlayer.currentItem duration];
+    
+    // CRITICAL: Better time validation for 720x1280 videos
+    if (!CMTIME_IS_VALID(currentTime) || CMTimeGetSeconds(currentTime) < 0.01) {
+        NSLog(@"[LC] [GetFrame] Invalid time, seeking to start");
+        currentTime = CMTimeMake(1, 30); // Start at frame 1
+        [frameExtractionPlayer seekToTime:currentTime toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
+        [NSThread sleepForTimeInterval:0.1]; // Give time to seek
+    }
+    
+    // Detect format from original frame
+    OSType requestedFormat = kCVPixelFormatType_32BGRA;
     if (originalFrame) {
         CMFormatDescriptionRef formatDesc = CMSampleBufferGetFormatDescription(originalFrame);
         if (formatDesc) {
@@ -669,11 +680,12 @@ static CVPixelBufferRef g_lastGoodFrame = NULL;
         }
     }
     
-    NSLog(@"[LC] [GetFrame] Processing format: %c%c%c%c", 
+    NSLog(@"[LC] [GetFrame] Processing format: %c%c%c%c at time %.3f/%.3f", 
           (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
-          (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF);
+          (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF,
+          CMTimeGetSeconds(currentTime), CMTimeGetSeconds(duration));
     
-    // CRITICAL: cj's exact format selection algorithm
+    // Select appropriate output based on format
     AVPlayerItemVideoOutput *selectedOutput = bgraOutput; // Default
     NSString *outputType = @"BGRA-default";
     
@@ -682,9 +694,6 @@ static CVPixelBufferRef g_lastGoodFrame = NULL;
             if (yuv420vOutput && [yuv420vOutput hasNewPixelBufferForItemTime:currentTime]) {
                 selectedOutput = yuv420vOutput;
                 outputType = @"420v-direct";
-            } else if (bgraOutput && [bgraOutput hasNewPixelBufferForItemTime:currentTime]) {
-                selectedOutput = bgraOutput;
-                outputType = @"BGRA-fallback-from-420v";
             }
             break;
             
@@ -694,68 +703,75 @@ static CVPixelBufferRef g_lastGoodFrame = NULL;
                 outputType = @"420f-direct";
             } else if (yuv420vOutput && [yuv420vOutput hasNewPixelBufferForItemTime:currentTime]) {
                 selectedOutput = yuv420vOutput;
-                outputType = @"420v-fallback-from-420f";
-            } else if (bgraOutput && [bgraOutput hasNewPixelBufferForItemTime:currentTime]) {
-                selectedOutput = bgraOutput;
-                outputType = @"BGRA-fallback-from-420f";
-            }
-            break;
-            
-        default: // BGRA or unknown
-            if (bgraOutput && [bgraOutput hasNewPixelBufferForItemTime:currentTime]) {
-                selectedOutput = bgraOutput;
-                outputType = @"BGRA-direct";
-            } else if (yuv420vOutput && [yuv420vOutput hasNewPixelBufferForItemTime:currentTime]) {
-                selectedOutput = yuv420vOutput;
-                outputType = @"420v-fallback-from-unknown";
+                outputType = @"420v-fallback";
             }
             break;
     }
     
+    // CRITICAL: Verify output has frames available
     if (!selectedOutput || ![selectedOutput hasNewPixelBufferForItemTime:currentTime]) {
-        NSLog(@"[LC] [GetFrame] No frames available from outputs");
-        return NULL; // Let primary system handle
+        NSLog(@"[LC] [GetFrame] No frames available from %@ output at time %.3f", outputType, CMTimeGetSeconds(currentTime));
+        
+        // Try all outputs as fallback
+        if (bgraOutput && [bgraOutput hasNewPixelBufferForItemTime:currentTime]) {
+            selectedOutput = bgraOutput;
+            outputType = @"BGRA-fallback";
+        } else if (yuv420vOutput && [yuv420vOutput hasNewPixelBufferForItemTime:currentTime]) {
+            selectedOutput = yuv420vOutput;
+            outputType = @"420v-emergency";
+        } else if (yuv420fOutput && [yuv420fOutput hasNewPixelBufferForItemTime:currentTime]) {
+            selectedOutput = yuv420fOutput;
+            outputType = @"420f-emergency";
+        } else {
+            NSLog(@"[LC] [GetFrame] ❌ No outputs have frames available");
+            return NULL;
+        }
     }
     
     CVPixelBufferRef pixelBuffer = [selectedOutput copyPixelBufferForItemTime:currentTime itemTimeForDisplay:NULL];
     if (!pixelBuffer) {
-        NSLog(@"[LC] [GetFrame] Failed to get pixel buffer");
+        NSLog(@"[LC] [GetFrame] Failed to get pixel buffer from %@", outputType);
         return NULL;
     }
     
-    // CRITICAL: Scale the pixel buffer to target resolution using existing system
+    // Log actual extracted frame info
+    size_t actualWidth = CVPixelBufferGetWidth(pixelBuffer);
+    size_t actualHeight = CVPixelBufferGetHeight(pixelBuffer);
+    OSType actualFormat = CVPixelBufferGetPixelFormatType(pixelBuffer);
+    
+    NSLog(@"[LC] [GetFrame] ✅ Frame extracted: %zux%zu format=%c%c%c%c via %@", 
+          actualWidth, actualHeight,
+          (actualFormat >> 24) & 0xFF, (actualFormat >> 16) & 0xFF, 
+          (actualFormat >> 8) & 0xFF, actualFormat & 0xFF, outputType);
+    
+    // Scale if needed (this should work better now)
     CVPixelBufferRef scaledBuffer = createScaledPixelBuffer(pixelBuffer, targetResolution);
-    CVPixelBufferRelease(pixelBuffer); // Release original
+    CVPixelBufferRelease(pixelBuffer);
     
     if (!scaledBuffer) {
-        NSLog(@"[LC] [GetFrame] Failed to scale buffer");
+        NSLog(@"[LC] [GetFrame] Failed to scale %zux%zu to %.0fx%.0f", 
+              actualWidth, actualHeight, targetResolution.width, targetResolution.height);
         return NULL;
     }
     
-    // CRITICAL: Create sample buffer with proper timing
+    // Create sample buffer with proper timing
     CMSampleBufferRef newSampleBuffer = NULL;
     CMVideoFormatDescriptionRef videoFormatDesc = NULL;
     
-    OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(
-        kCFAllocatorDefault, scaledBuffer, &videoFormatDesc);
-    
+    OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, scaledBuffer, &videoFormatDesc);
     if (status != noErr || !videoFormatDesc) {
         NSLog(@"[LC] [GetFrame] Failed to create format description: %d", status);
         CVPixelBufferRelease(scaledBuffer);
         return NULL;
     }
     
-    // CRITICAL: Use proper timing - either from original or current time
     CMSampleTimingInfo timingInfo;
     if (originalFrame) {
-        // Try to get timing from original frame
         CMItemCount timingCount = 0;
         CMSampleBufferGetSampleTimingInfoArray(originalFrame, 0, NULL, &timingCount);
-        
         if (timingCount > 0) {
             CMSampleBufferGetSampleTimingInfoArray(originalFrame, 1, &timingInfo, &timingCount);
         } else {
-            // Fallback timing
             timingInfo = (CMSampleTimingInfo){
                 .duration = CMTimeMake(1, 30),
                 .presentationTimeStamp = currentTime,
@@ -763,7 +779,6 @@ static CVPixelBufferRef g_lastGoodFrame = NULL;
             };
         }
     } else {
-        // Create new timing
         timingInfo = (CMSampleTimingInfo){
             .duration = CMTimeMake(1, 30),
             .presentationTimeStamp = CMTimeMakeWithSeconds(CACurrentMediaTime(), NSEC_PER_SEC),
@@ -771,13 +786,7 @@ static CVPixelBufferRef g_lastGoodFrame = NULL;
         };
     }
     
-    status = CMSampleBufferCreateReadyWithImageBuffer(
-        kCFAllocatorDefault,
-        scaledBuffer,
-        videoFormatDesc,
-        &timingInfo,
-        &newSampleBuffer
-    );
+    status = CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault, scaledBuffer, videoFormatDesc, &timingInfo, &newSampleBuffer);
     
     CFRelease(videoFormatDesc);
     CVPixelBufferRelease(scaledBuffer);
@@ -787,14 +796,7 @@ static CVPixelBufferRef g_lastGoodFrame = NULL;
         return NULL;
     }
     
-    OSType actualFormat = CVPixelBufferGetPixelFormatType(scaledBuffer);
-    NSLog(@"[LC] [GetFrame] ✅ Frame created via %@: req=%c%c%c%c → actual=%c%c%c%c", 
-          outputType,
-          (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
-          (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF,
-          (actualFormat >> 24) & 0xFF, (actualFormat >> 16) & 0xFF, 
-          (actualFormat >> 8) & 0xFF, actualFormat & 0xFF);
-    
+    NSLog(@"[LC] [GetFrame] ✅ Sample buffer created successfully");
     return newSampleBuffer;
 }
 
@@ -904,6 +906,17 @@ static NSString* fourCCToString(OSType fourCC) {
 
 + (void)cleanupPlayer {
     // Remove any existing observers
+    if (frameExtractionPlayer && _kvoObserver) {
+        @try {
+            [frameExtractionPlayer.currentItem removeObserver:_kvoObserver forKeyPath:@"status"];
+        } @catch (NSException *exception) {
+            NSLog(@"[LC] [GetFrame] Exception removing observer during cleanup: %@", exception);
+        }
+    }
+    
+    // Clear observer reference
+    _kvoObserver = nil;
+    
     if (frameExtractionPlayer) {
         [[NSNotificationCenter defaultCenter] removeObserver:[GetFrame class] 
                                                         name:AVPlayerItemDidPlayToEndTimeNotification 
@@ -930,6 +943,7 @@ static NSString* fourCCToString(OSType fourCC) {
     bgraOutput = nil;
     yuv420vOutput = nil;
     yuv420fOutput = nil;
+    playerIsReady = NO;
 }
 
 // CRITICAL FIX: Add looping handler
@@ -964,6 +978,27 @@ static NSString* fourCCToString(OSType fourCC) {
         return;
     }
     
+    // CRITICAL: Check video track properties
+    AVAssetTrack *videoTrack = videoTracks.firstObject;
+    CGSize naturalSize = videoTrack.naturalSize;
+    CGAffineTransform transform = videoTrack.preferredTransform;
+    
+    NSLog(@"[LC] [GetFrame] Video properties: size=%.0fx%.0f, transform=[%.1f,%.1f,%.1f,%.1f,%.1f,%.1f]", 
+          naturalSize.width, naturalSize.height,
+          transform.a, transform.b, transform.c, transform.d, transform.tx, transform.ty);
+    
+    // CRITICAL: Handle portrait videos (720x1280) properly
+    if (naturalSize.height > naturalSize.width) {
+        NSLog(@"[LC] [GetFrame] ✅ Portrait video detected: %.0fx%.0f", naturalSize.width, naturalSize.height);
+        // Update target resolution to match video aspect ratio if needed
+        if (targetResolution.width > targetResolution.height) {
+            // Swap to portrait if currently landscape
+            targetResolution = CGSizeMake(targetResolution.height, targetResolution.width);
+            NSLog(@"[LC] [GetFrame] 🔄 Adjusted target to portrait: %.0fx%.0f", 
+                  targetResolution.width, targetResolution.height);
+        }
+    }
+    
     NSLog(@"[LC] [GetFrame] ✅ Video tracks loaded: %lu tracks", (unsigned long)videoTracks.count);
     
     // Create player and item
@@ -977,17 +1012,23 @@ static NSString* fourCCToString(OSType fourCC) {
                                                  name:AVPlayerItemDidPlayToEndTimeNotification
                                                object:item];
     
-    // Create outputs with simple settings
+    // Create outputs with format-specific settings for better compatibility
     NSDictionary *bgraAttributes = @{
-        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA)
+        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA),
+        (NSString*)kCVPixelBufferWidthKey : @((int)naturalSize.width),
+        (NSString*)kCVPixelBufferHeightKey : @((int)naturalSize.height)
     };
     
     NSDictionary *yuv420vAttributes = @{
-        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704422) // '420v'
+        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704422), // '420v'
+        (NSString*)kCVPixelBufferWidthKey : @((int)naturalSize.width),
+        (NSString*)kCVPixelBufferHeightKey : @((int)naturalSize.height)
     };
     
     NSDictionary *yuv420fAttributes = @{
-        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704438) // '420f'
+        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704438), // '420f'
+        (NSString*)kCVPixelBufferWidthKey : @((int)naturalSize.width),
+        (NSString*)kCVPixelBufferHeightKey : @((int)naturalSize.height)
     };
     
     bgraOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:bgraAttributes];
@@ -1001,12 +1042,15 @@ static NSString* fourCCToString(OSType fourCC) {
     
     NSLog(@"[LC] [GetFrame] ✅ Outputs added to player item");
     
-    // Set ready flag and start playing
-    playerIsReady = YES;
-    [frameExtractionPlayer play];
+    // CRITICAL: Wait for player to be ready before setting flag
+    // FIX: Create a proper observer instance instead of using class
+    if (!_kvoObserver) {
+        _kvoObserver = [[GetFrameKVOObserver alloc] init];
+    }
+    [item addObserver:_kvoObserver forKeyPath:@"status" options:NSKeyValueObservingOptionNew context:NULL];
     
-    // CRITICAL FIX: Seek to beginning to ensure frames are available
-    [frameExtractionPlayer seekToTime:kCMTimeZero toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
+    // Start playing immediately
+    [frameExtractionPlayer play];
     
     NSLog(@"[LC] [GetFrame] 🎬 Player setup complete, waiting for ready status");
 }
@@ -1142,35 +1186,32 @@ static NSString* fourCCToString(OSType fourCC) {
                       ofObject:(id)object 
                         change:(NSDictionary *)change 
                        context:(void *)context {
-    if ([keyPath isEqualToString:@"status"]) {
+    if ([keyPath isEqualToString:@"status"] && [object isKindOfClass:[AVPlayerItem class]]) {
         AVPlayerItem *item = (AVPlayerItem *)object;
         
-        dispatch_async(dispatch_get_main_queue(), ^{
-            switch (item.status) {
-                case AVPlayerItemStatusReadyToPlay:
-                    NSLog(@"[LC] [GetFrame] ✅ Player ready - starting playback");
-                    playerIsReady = YES;
-                    if (frameExtractionPlayer) {
-                        [frameExtractionPlayer play];
-                        NSLog(@"[LC] [GetFrame] 🎬 Playback started, rate: %f", frameExtractionPlayer.rate);
-                    }
-                    break;
-                    
-                case AVPlayerItemStatusFailed:
-                    NSLog(@"[LC] [GetFrame] ❌ Player failed: %@", item.error);
-                    playerIsReady = NO;
-                    break;
-                    
-                case AVPlayerItemStatusUnknown:
-                    NSLog(@"[LC] [GetFrame] ⏳ Player status unknown");
-                    playerIsReady = NO;
-                    break;
-            }
-        });
+        switch (item.status) {
+            case AVPlayerItemStatusReadyToPlay:
+                NSLog(@"[LC] [GetFrame] ✅ Player ready - enabling frame extraction");
+                playerIsReady = YES;
+                // Seek to beginning to ensure frames are available
+                [frameExtractionPlayer seekToTime:kCMTimeZero toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
+                break;
+                
+            case AVPlayerItemStatusFailed:
+                NSLog(@"[LC] [GetFrame] ❌ Player failed: %@", item.error);
+                playerIsReady = NO;
+                break;
+                
+            case AVPlayerItemStatusUnknown:
+                NSLog(@"[LC] [GetFrame] ⏳ Player status unknown");
+                playerIsReady = NO;
+                break;
+        }
         
-        // Clean up observer
+        // Remove observer after first status change
         @try {
-            [item removeObserver:self forKeyPath:@"status"];
+            [item removeObserver:_kvoObserver forKeyPath:@"status"];
+            _kvoObserver = nil; // Clear the reference
         } @catch (NSException *exception) {
             NSLog(@"[LC] [GetFrame] Exception removing observer: %@", exception);
         }
