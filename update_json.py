@@ -113,7 +113,7 @@ def update_json_file_release(json_file, latest_release):
         "notify": True,
         "tintColor": "#0784FC",
         "title": f"{full_version} - LiveContainer  {date_string}",
-        "url": f"https://github.com/LiveContainer/LiveContainer/releases/tag/{tag}"
+        "url": f"https://github.com/m1337v/LiveContainer/releases/tag/{tag}"
     }
 
     news_entry_exists = any(item["identifier"] == news_identifier for item in data["news"])
@@ -201,7 +201,7 @@ def update_json_file_nightly(json_file, nightly_release):
         raise
 
 def main():
-    repo_url = "LiveContainer/LiveContainer"
+    repo_url = "m1337v/LiveContainer"
     is_nightly = "NIGHTLY_LINK" in os.environ
 
     try:
