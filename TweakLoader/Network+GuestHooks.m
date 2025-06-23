@@ -600,8 +600,50 @@ void NetworkGuestHooksInit(void) {
             NSLog(@"[LC] 📱 Legacy NSURLConnection support");
             NSLog(@"[LC] ⚠️ Limitations: Raw sockets, WebRTC require jailbreak");
             
+            // MOVE THE TEST HERE - INSIDE THE dispatch_once BLOCK
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                if (proxyEnabled) {
+                    NSLog(@"[LC] 🧪 Starting immediate proxy test...");
+                    
+                    // Create a simple test request
+                    NSURLSessionConfiguration *config = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+                    config.connectionProxyDictionary = createSockerStyleProxyDictionary();
+                    config.timeoutIntervalForRequest = 10.0;
+                    
+                    NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
+                    
+                    // Test with a simple API that returns your IP
+                    NSURL *testURL = [NSURL URLWithString:@"https://httpbin.org/ip"];
+                    NSURLSessionDataTask *task = [session dataTaskWithURL:testURL completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+                        if (data && !error) {
+                            NSString *responseString = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+                            NSLog(@"[LC] ✅ PROXY TEST SUCCESS - Response: %@", responseString);
+                            
+                            // Parse JSON to get IP
+                            @try {
+                                NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+                                NSString *detectedIP = json[@"origin"];
+                                NSLog(@"[LC] 🌍 Your external IP through proxy: %@", detectedIP);
+                                NSLog(@"[LC] 🔗 Proxy server: %@:%ld", proxyHost, (long)proxyPort);
+                                
+                                if ([detectedIP isEqualToString:proxyHost]) {
+                                    NSLog(@"[LC] ✅ PROXY IS WORKING CORRECTLY!");
+                                } else {
+                                    NSLog(@"[LC] ⚠️ Proxy might not be working - IP doesn't match proxy server");
+                                }
+                            } @catch (NSException *exception) {
+                                NSLog(@"[LC] ⚠️ Could not parse test response");
+                            }
+                        } else {
+                            NSLog(@"[LC] ❌ PROXY TEST FAILED - Error: %@", error.localizedDescription);
+                        }
+                    }];
+                    [task resume];
+                }
+            });
+            
         } @catch (NSException *exception) {
             NSLog(@"[LC] ❌ Failed to initialize hybrid proxy: %@", exception);
         }
-    });
+    }); 
 }
