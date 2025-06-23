@@ -926,7 +926,7 @@ static NSString* fourCCToString(OSType fourCC) {
         return NULL;
     }
     
-    // CRITICAL: Get video bitrate (like CaptureJailed)
+    // CRITICAL: Get video bitrate (like cj)
     if (g_videoDataRate == 0) {
         NSArray *videoTracks = [frameExtractionPlayer.currentItem.asset tracksWithMediaType:AVMediaTypeVideo];
         if (videoTracks.count > 0) {
@@ -1630,77 +1630,40 @@ static NSString* fourCCToString(OSType fourCC) {
         CGContextSetRGBFillColor(context, 0, 0, 0, 1);
         CGContextFillRect(context, CGRectMake(0, 0, size.width, size.height));
         
-        // CRITICAL FIX: Handle image orientation properly like Fokodak does
+        // CRITICAL: Instead of trying to handle orientation, CREATE the buffer in device orientation
+        // Get the raw CGImage - ignore ALL UIImage orientation metadata
         CGImageRef cgImage = image.CGImage;
         
-        // Get image orientation and apply proper transform
-        UIImageOrientation imageOrientation = image.imageOrientation;
-        CGAffineTransform transform = CGAffineTransformIdentity;
+        // ALWAYS create the buffer to match camera coordinate system
+        // Camera buffers are typically in landscape-left orientation (home button on right)
+        // So we need to rotate our content to match this expectation
         
-        // CRITICAL: Apply the INVERSE of what CaptureJailed/Fokodak do for camera feeds
-        // Since we're creating content for camera spoofing, we need portrait-first orientation
-        switch (imageOrientation) {
-            case UIImageOrientationUp:
-                // No transform needed - this is what we want
-                break;
-            case UIImageOrientationDown:
-                transform = CGAffineTransformMakeRotation(M_PI);
-                break;
-            case UIImageOrientationLeft:
-                transform = CGAffineTransformMakeRotation(M_PI_2);
-                break;
-            case UIImageOrientationRight:
-                transform = CGAffineTransformMakeRotation(-M_PI_2);
-                break;
-            case UIImageOrientationUpMirrored:
-                transform = CGAffineTransformMakeScale(-1.0, 1.0);
-                break;
-            case UIImageOrientationDownMirrored:
-                transform = CGAffineTransformConcat(CGAffineTransformMakeRotation(M_PI), 
-                                                   CGAffineTransformMakeScale(-1.0, 1.0));
-                break;
-            case UIImageOrientationLeftMirrored:
-                transform = CGAffineTransformConcat(CGAffineTransformMakeRotation(M_PI_2), 
-                                                   CGAffineTransformMakeScale(-1.0, 1.0));
-                break;
-            case UIImageOrientationRightMirrored:
-                transform = CGAffineTransformConcat(CGAffineTransformMakeRotation(-M_PI_2), 
-                                                   CGAffineTransformMakeScale(-1.0, 1.0));
-                break;
-        }
+        CGAffineTransform cameraTransform = CGAffineTransformIdentity;
         
-        // Apply transform if needed
-        if (!CGAffineTransformIsIdentity(transform)) {
-            CGContextConcatCTM(context, transform);
-            
-            // Adjust drawing rect based on transform
-            CGRect drawRect;
-            if (imageOrientation == UIImageOrientationLeft || imageOrientation == UIImageOrientationRight ||
-                imageOrientation == UIImageOrientationLeftMirrored || imageOrientation == UIImageOrientationRightMirrored) {
-                // Rotated 90 degrees - swap dimensions
-                drawRect = CGRectMake(-size.height/2, -size.width/2, size.height, size.width);
-            } else {
-                drawRect = CGRectMake(-size.width/2, -size.height/2, size.width, size.height);
-            }
-            CGContextDrawImage(context, drawRect, cgImage);
+        // CRITICAL: Rotate content to match camera sensor orientation (not device orientation)
+        // Camera sensors typically capture in landscape-left, so rotate our portrait content
+        cameraTransform = CGAffineTransformMakeRotation(-M_PI_2); // Rotate -90 degrees
+        
+        // Apply the camera coordinate transform
+        CGContextConcatCTM(context, cameraTransform);
+        
+        // Calculate aspect fill rect in the ROTATED coordinate space
+        CGFloat imageAspect = CGImageGetWidth(cgImage) / (CGFloat)CGImageGetHeight(cgImage);
+        CGFloat bufferAspect = size.height / size.width; // Note: swapped because we rotated
+        
+        CGRect imageRect;
+        if (imageAspect > bufferAspect) {
+            // Image is wider - fit height and crop sides
+            CGFloat scaledWidth = size.height * imageAspect;
+            imageRect = CGRectMake(-(scaledWidth - size.height) / 2, -size.width, scaledWidth, size.width);
         } else {
-            // Calculate aspect fill rect for normal orientation
-            CGFloat imageAspect = CGImageGetWidth(cgImage) / (CGFloat)CGImageGetHeight(cgImage);
-            CGFloat targetAspect = size.width / size.height;
-            
-            CGRect imageRect;
-            if (imageAspect > targetAspect) {
-                // Image is wider - fit height and crop sides
-                CGFloat scaledWidth = size.height * imageAspect;
-                imageRect = CGRectMake(-(scaledWidth - size.width) / 2, 0, scaledWidth, size.height);
-            } else {
-                // Image is taller - fit width and crop top/bottom
-                CGFloat scaledHeight = size.width / imageAspect;
-                imageRect = CGRectMake(0, -(scaledHeight - size.height) / 2, size.width, scaledHeight);
-            }
-            
-            CGContextDrawImage(context, imageRect, cgImage);
+            // Image is taller - fit width and crop top/bottom
+            CGFloat scaledHeight = size.height / imageAspect;
+            imageRect = CGRectMake(0, -(size.width + (scaledHeight - size.width) / 2), size.height, scaledHeight);
         }
+        
+        // Draw in the rotated coordinate space
+        CGContextDrawImage(context, imageRect, cgImage);
         
         CGContextRelease(context);
     }
@@ -1891,7 +1854,7 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
         g_cachedPhotoPixelBuffer = spoofedPixelBuffer;
         CVPixelBufferRetain(g_cachedPhotoPixelBuffer);
         
-        // CRITICAL FIX: Create properly oriented CGImage like CaptureJailed/Fokodak
+        // CRITICAL FIX: Create properly oriented CGImage like cj/fd
         size_t width = CVPixelBufferGetWidth(spoofedPixelBuffer);
         size_t height = CVPixelBufferGetHeight(spoofedPixelBuffer);
         
@@ -1910,7 +1873,7 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
         CGColorSpaceRelease(colorSpace);
         CVPixelBufferUnlockBaseAddress(spoofedPixelBuffer, kCVPixelBufferLock_ReadOnly);
         
-        // CRITICAL: Create JPEG with NO additional orientation transforms (like CaptureJailed does)
+        // CRITICAL: Create JPEG with NO additional orientation transforms (like cj does)
         if (g_cachedPhotoCGImage) {
             UIImage *uiImage = [UIImage imageWithCGImage:g_cachedPhotoCGImage 
                                                    scale:1.0 
