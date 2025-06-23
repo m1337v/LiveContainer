@@ -69,6 +69,8 @@ static id playerDidPlayToEndTimeObserver = nil;
 static CVPixelBufferRef g_cachedPhotoPixelBuffer = NULL;
 static CGImageRef g_cachedPhotoCGImage = NULL;
 static NSData *g_cachedPhotoJPEGData = nil;
+static AVCaptureVideoOrientation g_currentPhotoOrientation = AVCaptureVideoOrientationPortrait;
+static CGAffineTransform g_currentVideoTransform;
 
 // pragma MARK: - Helper Interface
 
@@ -535,7 +537,7 @@ static void createStaticImageFromUIImage(UIImage *sourceImage) {
         CGContextSetRGBFillColor(context, 0, 0, 0, 1);
         CGContextFillRect(context, CGRectMake(0, 0, targetResolution.width, targetResolution.height));
         
-        // CHANGED: Use aspect fill instead of aspect fit
+        // CRITICAL: Use aspect fill with PORTRAIT orientation (no rotation)
         CGFloat imageWidth = CGImageGetWidth(cgImage);
         CGFloat imageHeight = CGImageGetHeight(cgImage);
         CGFloat imageAspect = imageWidth / imageHeight;
@@ -552,6 +554,7 @@ static void createStaticImageFromUIImage(UIImage *sourceImage) {
             drawRect = CGRectMake(0, -(scaledHeight - targetResolution.height) / 2, targetResolution.width, scaledHeight);
         }
         
+        // CRITICAL: Always draw in portrait orientation - no rotation transforms
         CGContextDrawImage(context, drawRect, cgImage);
         CGContextRelease(context);
     }
@@ -559,7 +562,7 @@ static void createStaticImageFromUIImage(UIImage *sourceImage) {
     CVPixelBufferUnlockBaseAddress(staticImageSpoofBuffer, 0);
 
     if (staticImageSpoofBuffer) {
-        NSLog(@"[LC] ✅ Static image buffer created successfully (aspect fill)");
+        NSLog(@"[LC] ✅ Static image buffer created successfully (portrait aspect fill)");
         CMVideoFormatDescriptionRef tempFormatDesc = NULL;
         CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, staticImageSpoofBuffer, &tempFormatDesc);
         updateLastGoodSpoofedFrame(staticImageSpoofBuffer, tempFormatDesc);
@@ -1614,8 +1617,12 @@ static NSString* fourCCToString(OSType fourCC) {
         CGContextSetRGBFillColor(context, 0, 0, 0, 1);
         CGContextFillRect(context, CGRectMake(0, 0, size.width, size.height));
         
-        // CHANGED: Calculate rect for ASPECT FILL instead of aspect fit
-        CGFloat imageAspect = image.size.width / image.size.height;
+        // CRITICAL: Force portrait orientation for consistent output
+        // Always draw the image as if it's portrait, regardless of source orientation
+        CGImageRef cgImage = image.CGImage;
+        
+        // Calculate aspect fill rect (your existing logic)
+        CGFloat imageAspect = CGImageGetWidth(cgImage) / (CGFloat)CGImageGetHeight(cgImage);
         CGFloat targetAspect = size.width / size.height;
         
         CGRect imageRect;
@@ -1629,7 +1636,8 @@ static NSString* fourCCToString(OSType fourCC) {
             imageRect = CGRectMake(0, -(scaledHeight - size.height) / 2, size.width, scaledHeight);
         }
         
-        CGContextDrawImage(context, imageRect, image.CGImage);
+        // CRITICAL: Draw without any rotation transforms to maintain portrait orientation
+        CGContextDrawImage(context, imageRect, cgImage);
         CGContextRelease(context);
     }
     
@@ -1802,110 +1810,65 @@ static void initializePhotoCacheQueue(void) {
 
 // In our photo caching function, we need to NOT apply any rotation
 static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
-    NSLog(@"[LC] 📷 Instagram photo caching with orientation fix");
-    
-    initializePhotoCacheQueue();
-    
-    dispatch_async(photoCacheQueue, ^{
-        @autoreleasepool {
-            // Clean up old cached data
-            if (g_cachedPhotoPixelBuffer) {
-                CVPixelBufferRelease(g_cachedPhotoPixelBuffer);
-                g_cachedPhotoPixelBuffer = NULL;
-            }
-            if (g_cachedPhotoCGImage) {
-                CGImageRelease(g_cachedPhotoCGImage);
-                g_cachedPhotoCGImage = NULL;
-            }
-            g_cachedPhotoJPEGData = nil;
-            
-            // Create fresh sample buffer
-            CMSampleBufferRef freshSampleBuffer = createSpoofedSampleBuffer();
-            if (freshSampleBuffer) {
-                CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(freshSampleBuffer);
-                
-                if (imageBuffer) {
-                    g_cachedPhotoPixelBuffer = CVPixelBufferRetain(imageBuffer);
-                    
-                    @try {
-                        CIImage *ciImage = [CIImage imageWithCVPixelBuffer:imageBuffer];
-                        if (ciImage) {
-                            // CRITICAL FIX: Don't apply any orientation transforms!
-                            // Just scale to target size while preserving orientation
-                            
-                            CGFloat sourceWidth = ciImage.extent.size.width;
-                            CGFloat sourceHeight = ciImage.extent.size.height;
-                            CGFloat targetWidth = 1080.0;
-                            CGFloat targetHeight = 1920.0;
-                            
-                            // Calculate scale to fit
-                            CGFloat scaleX = targetWidth / sourceWidth;
-                            CGFloat scaleY = targetHeight / sourceHeight;
-                            CGFloat scale = MIN(scaleX, scaleY);
-                            
-                            // ONLY apply scaling transform - NO rotation
-                            CGAffineTransform scaleTransform = CGAffineTransformMakeScale(scale, scale);
-                            CIImage *scaledImage = [ciImage imageByApplyingTransform:scaleTransform];
-                            
-                            // Center the image
-                            CGFloat offsetX = (targetWidth - (sourceWidth * scale)) / 2.0;
-                            CGFloat offsetY = (targetHeight - (sourceHeight * scale)) / 2.0;
-                            CGAffineTransform centerTransform = CGAffineTransformMakeTranslation(offsetX, offsetY);
-                            CIImage *finalImage = [scaledImage imageByApplyingTransform:centerTransform];
-                            
-                            CIContext *context = [CIContext context];
-                            
-                            // Create CGImage - NO orientation parameter
-                            g_cachedPhotoCGImage = [context createCGImage:finalImage 
-                                                                 fromRect:CGRectMake(0, 0, targetWidth, targetHeight)];
-                            
-                            if (g_cachedPhotoCGImage) {
-                                // Create JPEG data with ORIGINAL orientation (1 = no rotation)
-                                NSMutableData *jpegData = [NSMutableData data];
-                                
-                                // FIX: Use modern UTType instead of deprecated constant
-                                CGImageDestinationRef destination = CGImageDestinationCreateWithData(
-                                    (__bridge CFMutableDataRef)jpegData, 
-                                    (__bridge CFStringRef)UTTypeJPEG.identifier, 
-                                    1, NULL);
-                                
-                                if (destination) {
-                                    // CRITICAL: Set orientation to 1 (normal, no rotation)
-                                    NSDictionary *properties = @{
-                                        (__bridge NSString*)kCGImagePropertyOrientation: @1,
-                                        (__bridge NSString*)kCGImageDestinationLossyCompressionQuality: @0.85
-                                    };
-                                    
-                                    CGImageDestinationAddImage(destination, g_cachedPhotoCGImage, 
-                                                              (__bridge CFDictionaryRef)properties);
-                                    
-                                    if (CGImageDestinationFinalize(destination)) {
-                                        g_cachedPhotoJPEGData = [jpegData copy];
-                                        NSLog(@"[LC] ✅ Instagram photo cached: %lu bytes, orientation: 1 (NO ROTATION)", 
-                                              (unsigned long)jpegData.length);
-                                    }
-                                    CFRelease(destination);
-                                }
-                            }
-                        }
-                    } @catch (NSException *exception) {
-                        NSLog(@"[LC] ❌ Exception in Instagram photo caching: %@", exception);
-                        // Clean up on error
-                        if (g_cachedPhotoPixelBuffer) {
-                            CVPixelBufferRelease(g_cachedPhotoPixelBuffer);
-                            g_cachedPhotoPixelBuffer = NULL;
-                        }
-                        if (g_cachedPhotoCGImage) {
-                            CGImageRelease(g_cachedPhotoCGImage);
-                            g_cachedPhotoCGImage = NULL;
-                        }
-                        g_cachedPhotoJPEGData = nil;
-                    }
-                }
-                CFRelease(freshSampleBuffer);
-            }
+    @try {
+        NSLog(@"[LC] 📷 Caching photo data from sample buffer");
+        
+        // Get spoofed frame - this should already be properly oriented from GetFrame
+        CVPixelBufferRef spoofedPixelBuffer = [GetFrame getCurrentFramePixelBuffer:kCVPixelFormatType_32BGRA];
+        if (!spoofedPixelBuffer) {
+            NSLog(@"[LC] 📷 ❌ No spoofed pixel buffer available");
+            return;
         }
-    });
+        
+        // Clean up existing cache
+        cleanupPhotoCache();
+        
+        // Store pixel buffer (retain for cache)
+        g_cachedPhotoPixelBuffer = spoofedPixelBuffer;
+        CVPixelBufferRetain(g_cachedPhotoPixelBuffer);
+        
+        // Convert to CGImage with PROPER orientation handling like VCAM
+        CIImage *ciImage = [CIImage imageWithCVPixelBuffer:spoofedPixelBuffer];
+        
+        // CRITICAL: Apply orientation correction based on current photo orientation
+        switch (g_currentPhotoOrientation) {
+            case AVCaptureVideoOrientationPortrait:
+                // No rotation needed for portrait
+                break;
+            case AVCaptureVideoOrientationPortraitUpsideDown:
+                ciImage = [ciImage imageByApplyingCGOrientation:kCGImagePropertyOrientationDown];
+                break;
+            case AVCaptureVideoOrientationLandscapeRight:
+                ciImage = [ciImage imageByApplyingCGOrientation:kCGImagePropertyOrientationRight];
+                break;
+            case AVCaptureVideoOrientationLandscapeLeft:
+                ciImage = [ciImage imageByApplyingCGOrientation:kCGImagePropertyOrientationLeft];
+                break;
+        }
+        
+        // Create CGImage with proper orientation
+        CIContext *context = [CIContext context];
+        g_cachedPhotoCGImage = [context createCGImage:ciImage fromRect:ciImage.extent];
+        
+        // Create JPEG data with proper EXIF orientation like VCAM does
+        UIImage *uiImage = [UIImage imageWithCGImage:g_cachedPhotoCGImage];
+        
+        // CRITICAL: Force portrait orientation for the final image
+        UIImage *orientedImage = [UIImage imageWithCGImage:g_cachedPhotoCGImage 
+                                                    scale:1.0 
+                                              orientation:UIImageOrientationUp];
+        
+        g_cachedPhotoJPEGData = UIImageJPEGRepresentation(orientedImage, 1.0);
+        
+        NSLog(@"[LC] 📷 ✅ Photo cache updated - CGIMG:%p, JPEG:%zuB", 
+              g_cachedPhotoCGImage, g_cachedPhotoJPEGData.length);
+        
+        // Release the temp buffer since we're caching our own copies
+        CVPixelBufferRelease(spoofedPixelBuffer);
+        
+    } @catch (NSException *exception) {
+        NSLog(@"[LC] 📷 ❌ Photo caching exception: %@", exception);
+    }
 }
 
 static void cleanupPhotoCache(void) {
@@ -3047,6 +3010,9 @@ void AVFoundationGuestHooksInit(void) {
     @try {
         NSLog(@"[LC] 🚀 Initializing comprehensive AVFoundation hooks...");
         
+        // Initialize the transform at runtime
+        g_currentVideoTransform = CGAffineTransformIdentity;
+
         loadSpoofingConfiguration();
         
         videoProcessingQueue = dispatch_queue_create("com.livecontainer.videoprocessingqueue", DISPATCH_QUEUE_SERIAL);
