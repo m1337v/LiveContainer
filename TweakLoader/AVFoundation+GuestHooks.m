@@ -2097,7 +2097,7 @@ static void initializePhotoCacheQueue(void) {
 
 static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
     @try {
-        NSLog(@"[LC] 📷 TEST: Caching photo data WITHOUT rotation");
+        NSLog(@"[LC] 📷 FIXED: Caching photo data WITHOUT rotation");
         
         // Get spoofed frame 
         CVPixelBufferRef spoofedPixelBuffer = [GetFrame getCurrentFramePixelBuffer:kCVPixelFormatType_32BGRA];
@@ -2109,27 +2109,22 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
         // Clean up existing cache
         cleanupPhotoCache();
         
-        // CRITICAL TEST: Skip rotation completely
-        // CVPixelBufferRef portraitBuffer = rotatePixelBufferToPortrait(spoofedPixelBuffer);
-        CVPixelBufferRef portraitBuffer = spoofedPixelBuffer;
-        CVPixelBufferRetain(portraitBuffer); // Keep reference
+        // CRITICAL FIX: Don't alias the same buffer - just use it directly
+        g_cachedPhotoPixelBuffer = spoofedPixelBuffer;
+        CVPixelBufferRetain(g_cachedPhotoPixelBuffer); // Retain for cache
         
-        // Store the NON-ROTATED pixel buffer
-        g_cachedPhotoPixelBuffer = portraitBuffer;
-        CVPixelBufferRetain(g_cachedPhotoPixelBuffer);
+        // Create CGImage from the pixel buffer
+        size_t width = CVPixelBufferGetWidth(g_cachedPhotoPixelBuffer);
+        size_t height = CVPixelBufferGetHeight(g_cachedPhotoPixelBuffer);
         
-        // Create CGImage from the ORIGINAL pixel buffer
-        size_t width = CVPixelBufferGetWidth(portraitBuffer);
-        size_t height = CVPixelBufferGetHeight(portraitBuffer);
+        NSLog(@"[LC] 📷 FIXED: Creating CGImage from %zux%zu buffer (no rotation)", width, height);
         
-        NSLog(@"[LC] 📷 TEST: Creating CGImage from %zux%zu buffer (no rotation)", width, height);
-        
-        CVPixelBufferLockBaseAddress(portraitBuffer, kCVPixelBufferLock_ReadOnly);
-        void *baseAddress = CVPixelBufferGetBaseAddress(portraitBuffer);
-        size_t bytesPerRow = CVPixelBufferGetBytesPerRow(portraitBuffer);
+        CVPixelBufferLockBaseAddress(g_cachedPhotoPixelBuffer, kCVPixelBufferLock_ReadOnly);
+        void *baseAddress = CVPixelBufferGetBaseAddress(g_cachedPhotoPixelBuffer);
+        size_t bytesPerRow = CVPixelBufferGetBytesPerRow(g_cachedPhotoPixelBuffer);
         
         NSData *pixelData = [NSData dataWithBytes:baseAddress length:bytesPerRow * height];
-        CVPixelBufferUnlockBaseAddress(portraitBuffer, kCVPixelBufferLock_ReadOnly);
+        CVPixelBufferUnlockBaseAddress(g_cachedPhotoPixelBuffer, kCVPixelBufferLock_ReadOnly);
         
         CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
         CGBitmapInfo bitmapInfo = kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little;
@@ -2140,7 +2135,7 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
         CGDataProviderRelease(dataProvider);
         CGColorSpaceRelease(colorSpace);
         
-        // CRITICAL: Create JPEG with the orientation that matches the pixel data
+        // Create JPEG with the orientation that matches the pixel data
         if (g_cachedPhotoCGImage) {
             // Create UIImage with Up orientation
             UIImage *uiImage = [UIImage imageWithCGImage:g_cachedPhotoCGImage 
@@ -2192,7 +2187,7 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
                         
                         if (CGImageDestinationFinalize(destination)) {
                             g_cachedPhotoJPEGData = [newJpegData copy];
-                            NSLog(@"[LC] 📷 ✅ TEST: Photo cache created WITHOUT rotation (%zuB)", g_cachedPhotoJPEGData.length);
+                            NSLog(@"[LC] 📷 ✅ FIXED: Photo cache created WITHOUT rotation (%zuB)", g_cachedPhotoJPEGData.length);
                         } else {
                             g_cachedPhotoJPEGData = jpegData;
                             NSLog(@"[LC] 📷 ⚠️ Using fallback JPEG");
@@ -2209,14 +2204,17 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
                 }
             }
             
-            NSLog(@"[LC] 📷 ✅ TEST: Photo cache updated WITHOUT rotation - size: %zux%zu", width, height);
+            NSLog(@"[LC] 📷 ✅ FIXED: Photo cache updated WITHOUT rotation - size: %zux%zu", width, height);
+            NSLog(@"[LC] 📷 ✅ FIXED: Cache status - PixelBuffer:%p, CGImage:%p, JPEG:%zuB", 
+                  g_cachedPhotoPixelBuffer, g_cachedPhotoCGImage, g_cachedPhotoJPEGData.length);
         }
         
-        // Release the buffer
-        CVPixelBufferRelease(portraitBuffer);
+        // CRITICAL FIX: Don't release the original buffer since we got it from GetFrame
+        // GetFrame manages its own memory, we just retain what we need
+        CVPixelBufferRelease(spoofedPixelBuffer); // Release our reference to the GetFrame buffer
         
     } @catch (NSException *exception) {
-        NSLog(@"[LC] 📷 ❌ TEST photo caching exception: %@", exception);
+        NSLog(@"[LC] 📷 ❌ FIXED photo caching exception: %@", exception);
     }
 }
 
