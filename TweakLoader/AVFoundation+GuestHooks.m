@@ -84,6 +84,7 @@ static void setupVideoSpoofingResources(void);
 static CMSampleBufferRef createSpoofedSampleBuffer(void);
 static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer);
 static void cleanupPhotoCache(void);
+static void createStaticImageFromUIImage(UIImage *sourceImage);
 
 @class GetFrameKVOObserver;
 
@@ -441,9 +442,15 @@ static void setupImageSpoofingResources() {
         if (sourceImage) {
             NSLog(@"[LC] ✅ User image loaded: %.0fx%.0f", sourceImage.size.width, sourceImage.size.height);
             
-            // CRITICAL: Create a video from this image instead of just using it as static
+            // CRITICAL FIX: Create BOTH static image AND video
+            // First create the static image as immediate fallback
+            createStaticImageFromUIImage(sourceImage); // FIXED: Remove [self ...]
+            
+            // THEN create video asynchronously
+            NSLog(@"[LC] 🎬 Starting video creation from image...");
             [GetFrame createVideoFromImage:sourceImage];
-            return; // Exit early - we'll use video system instead
+            
+            // DON'T return early - continue to ensure we have static fallback
         } else {
             NSLog(@"[LC] ⚠️ Failed to load user image, falling back to default");
         }
@@ -451,44 +458,53 @@ static void setupImageSpoofingResources() {
         NSLog(@"[LC] 🖼️ No user image specified, using default gradient");
     }
 
-    // Fallback: Create default gradient image (existing code)
-    UIGraphicsBeginImageContextWithOptions(targetResolution, YES, 1.0);
-    CGContextRef uigraphicsContext = UIGraphicsGetCurrentContext();
-    if (uigraphicsContext) {
-        // Blue gradient background
-        CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-        CGFloat colors[] = { 0.2, 0.4, 0.8, 1.0, 0.1, 0.2, 0.4, 1.0 };
-        CGFloat locations[] = {0.0, 1.0};
-        CGGradientRef gradient = CGGradientCreateWithColorComponents(colorSpace, colors, locations, 2);
-        CGContextDrawLinearGradient(uigraphicsContext, gradient, CGPointMake(0,0), CGPointMake(0,targetResolution.height), 0);
-        CGGradientRelease(gradient);
-        CGColorSpaceRelease(colorSpace);
-
-        // Add text
-        NSString *text = @"LiveContainer\nCamera Spoof\nSelect Image in Settings";
-        NSMutableParagraphStyle *paragraphStyle = [[NSMutableParagraphStyle alloc] init];
-        paragraphStyle.alignment = NSTextAlignmentCenter;
-        NSDictionary *attrs = @{ 
-            NSFontAttributeName: [UIFont boldSystemFontOfSize:targetResolution.width * 0.04], 
-            NSForegroundColorAttributeName: [UIColor whiteColor],
-            NSParagraphStyleAttributeName: paragraphStyle
-        };
-        CGSize textSize = [text sizeWithAttributes:attrs];
-        CGRect textRect = CGRectMake((targetResolution.width - textSize.width) / 2, (targetResolution.height - textSize.height) / 2, textSize.width, textSize.height);
-        [text drawInRect:textRect withAttributes:attrs];
-        sourceImage = UIGraphicsGetImageFromCurrentImageContext();
-    }
-    UIGraphicsEndImageContext();
-    
+    // Create static image fallback (either from user image or default)
     if (!sourceImage) {
-        NSLog(@"[LC] CRITICAL: Failed to create default spoof image");
+        // Create default gradient image
+        UIGraphicsBeginImageContextWithOptions(targetResolution, YES, 1.0);
+        CGContextRef uigraphicsContext = UIGraphicsGetCurrentContext();
+        if (uigraphicsContext) {
+            // Blue gradient background
+            CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+            CGFloat colors[] = { 0.2, 0.4, 0.8, 1.0, 0.1, 0.2, 0.4, 1.0 };
+            CGFloat locations[] = {0.0, 1.0};
+            CGGradientRef gradient = CGGradientCreateWithColorComponents(colorSpace, colors, locations, 2);
+            CGContextDrawLinearGradient(uigraphicsContext, gradient, CGPointMake(0,0), CGPointMake(0,targetResolution.height), 0);
+            CGGradientRelease(gradient);
+            CGColorSpaceRelease(colorSpace);
+
+            // Add text
+            NSString *text = @"LiveContainer\nCamera Spoof\nSelect Image in Settings";
+            NSMutableParagraphStyle *paragraphStyle = [[NSMutableParagraphStyle alloc] init];
+            paragraphStyle.alignment = NSTextAlignmentCenter;
+            NSDictionary *attrs = @{ 
+                NSFontAttributeName: [UIFont boldSystemFontOfSize:targetResolution.width * 0.04], 
+                NSForegroundColorAttributeName: [UIColor whiteColor],
+                NSParagraphStyleAttributeName: paragraphStyle
+            };
+            CGSize textSize = [text sizeWithAttributes:attrs];
+            CGRect textRect = CGRectMake((targetResolution.width - textSize.width) / 2, (targetResolution.height - textSize.height) / 2, textSize.width, textSize.height);
+            [text drawInRect:textRect withAttributes:attrs];
+            sourceImage = UIGraphicsGetImageFromCurrentImageContext();
+        }
+        UIGraphicsEndImageContext();
+        
+        if (sourceImage) {
+            createStaticImageFromUIImage(sourceImage); 
+        }
+    }
+}
+
+static void createStaticImageFromUIImage(UIImage *sourceImage) {
+    if (!sourceImage) {
+        NSLog(@"[LC] ❌ No source image for static buffer creation");
         return; 
     }
     
-    // Convert to CVPixelBuffer (existing code)
+    // Convert to CVPixelBuffer
     CGImageRef cgImage = sourceImage.CGImage;
     if (!cgImage) {
-        NSLog(@"[LC] CRITICAL: CGImage is NULL");
+        NSLog(@"[LC] ❌ CGImage is NULL");
         return;
     }
 
@@ -503,7 +519,7 @@ static void setupImageSpoofingResources() {
                                      kCVPixelFormatType_32BGRA,
                                      (__bridge CFDictionaryRef)pixelBufferAttributes, &staticImageSpoofBuffer);
     if (cvRet != kCVReturnSuccess || !staticImageSpoofBuffer) {
-        NSLog(@"[LC] Failed to create CVPixelBuffer for static image: %d", cvRet);
+        NSLog(@"[LC] ❌ Failed to create CVPixelBuffer for static image: %d", cvRet);
         return;
     }
 
@@ -1514,7 +1530,7 @@ static NSString* fourCCToString(OSType fourCC) {
                 if (writer.status == AVAssetWriterStatusCompleted) {
                     NSLog(@"[LC] ✅ Video created successfully at: %@", tempVideoPath);
                     
-                    // CRITICAL: Set this as the current video path for GetFrame system
+                    // CRITICAL: Update the global video path variables
                     spoofCameraVideoPath = tempVideoPath;
                     currentVideoPath = tempVideoPath;
                     
@@ -1525,8 +1541,17 @@ static NSString* fourCCToString(OSType fourCC) {
                     setupVideoSpoofingResources();
                     
                     NSLog(@"[LC] 🎬 Image-to-video conversion complete - video system activated");
+                    
+                    // IMPORTANT: Clear the static image buffer to force video usage
+                    if (staticImageSpoofBuffer) {
+                        NSLog(@"[LC] 🔄 Switching from static image to video mode");
+                        CVPixelBufferRelease(staticImageSpoofBuffer);
+                        staticImageSpoofBuffer = NULL;
+                    }
+                    
                 } else {
                     NSLog(@"[LC] ❌ Video creation failed: %@", writer.error);
+                    NSLog(@"[LC] 🔄 Keeping static image mode as fallback");
                 }
             });
         }];
