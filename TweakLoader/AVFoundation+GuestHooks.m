@@ -531,14 +531,35 @@ static void createStaticImageFromUIImage(UIImage *sourceImage) {
                                                  8, CVPixelBufferGetBytesPerRow(staticImageSpoofBuffer),
                                                  rgbColorSpace, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
     if (context) {
-        CGContextDrawImage(context, CGRectMake(0, 0, targetResolution.width, targetResolution.height), cgImage);
+        // Fill with black background
+        CGContextSetRGBFillColor(context, 0, 0, 0, 1);
+        CGContextFillRect(context, CGRectMake(0, 0, targetResolution.width, targetResolution.height));
+        
+        // CHANGED: Use aspect fill instead of aspect fit
+        CGFloat imageWidth = CGImageGetWidth(cgImage);
+        CGFloat imageHeight = CGImageGetHeight(cgImage);
+        CGFloat imageAspect = imageWidth / imageHeight;
+        CGFloat targetAspect = targetResolution.width / targetResolution.height;
+        
+        CGRect drawRect;
+        if (imageAspect > targetAspect) {
+            // Image is wider - fit height and crop sides
+            CGFloat scaledWidth = targetResolution.height * imageAspect;
+            drawRect = CGRectMake(-(scaledWidth - targetResolution.width) / 2, 0, scaledWidth, targetResolution.height);
+        } else {
+            // Image is taller - fit width and crop top/bottom  
+            CGFloat scaledHeight = targetResolution.width / imageAspect;
+            drawRect = CGRectMake(0, -(scaledHeight - targetResolution.height) / 2, targetResolution.width, scaledHeight);
+        }
+        
+        CGContextDrawImage(context, drawRect, cgImage);
         CGContextRelease(context);
     }
     CGColorSpaceRelease(rgbColorSpace);
     CVPixelBufferUnlockBaseAddress(staticImageSpoofBuffer, 0);
 
     if (staticImageSpoofBuffer) {
-        NSLog(@"[LC] ✅ Static image buffer created successfully");
+        NSLog(@"[LC] ✅ Static image buffer created successfully (aspect fill)");
         CMVideoFormatDescriptionRef tempFormatDesc = NULL;
         CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, staticImageSpoofBuffer, &tempFormatDesc);
         updateLastGoodSpoofedFrame(staticImageSpoofBuffer, tempFormatDesc);
@@ -1593,19 +1614,19 @@ static NSString* fourCCToString(OSType fourCC) {
         CGContextSetRGBFillColor(context, 0, 0, 0, 1);
         CGContextFillRect(context, CGRectMake(0, 0, size.width, size.height));
         
-        // Calculate centered rect for image
+        // CHANGED: Calculate rect for ASPECT FILL instead of aspect fit
         CGFloat imageAspect = image.size.width / image.size.height;
         CGFloat targetAspect = size.width / size.height;
         
         CGRect imageRect;
         if (imageAspect > targetAspect) {
-            // Image is wider - fit width
-            CGFloat scaledHeight = size.width / imageAspect;
-            imageRect = CGRectMake(0, (size.height - scaledHeight) / 2, size.width, scaledHeight);
-        } else {
-            // Image is taller - fit height  
+            // Image is wider - fit height and crop sides
             CGFloat scaledWidth = size.height * imageAspect;
-            imageRect = CGRectMake((size.width - scaledWidth) / 2, 0, scaledWidth, size.height);
+            imageRect = CGRectMake(-(scaledWidth - size.width) / 2, 0, scaledWidth, size.height);
+        } else {
+            // Image is taller - fit width and crop top/bottom
+            CGFloat scaledHeight = size.width / imageAspect;
+            imageRect = CGRectMake(0, -(scaledHeight - size.height) / 2, size.width, scaledHeight);
         }
         
         CGContextDrawImage(context, imageRect, image.CGImage);
