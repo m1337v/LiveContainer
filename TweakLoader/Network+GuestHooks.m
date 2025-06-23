@@ -390,12 +390,12 @@ void NetworkGuestHooksInit(void) {
         NSLog(@"[LC] 🔗 Network spoofing enabled - Mode: %@, Proxy: %@://%@:%d", 
               networkMode, proxyType, proxyHost, proxyPort);
         
-        // Install socket-level hooks for aggressive mode (using fishhook pattern from Dyld.m)
+        // Install socket-level hooks for aggressive mode using the same pattern as Dyld.m
         if ([networkMode isEqualToString:@"aggressive"]) {
             NSLog(@"[LC] ⚡ Installing aggressive mode socket hooks...");
             
-            // Use the same pattern as in Dyld.m
-            rebind_symbols((struct rebinding[7]){
+            // Use the exact same pattern as in LiveContainer/Tweaks/Dyld.m line 342
+            struct rebinding rebindings[] = {
                 {"connect", (void *)lc_connect, (void **)&original_connect},
                 {"gethostbyname", (void *)lc_gethostbyname, (void **)&original_gethostbyname},
                 {"getaddrinfo", (void *)lc_getaddrinfo, (void **)&original_getaddrinfo},
@@ -403,9 +403,14 @@ void NetworkGuestHooksInit(void) {
                 {"sendto", (void *)lc_sendto, (void **)&original_sendto},
                 {"recv", (void *)original_recv, (void **)&original_recv},
                 {"recvfrom", (void *)original_recvfrom, (void **)&original_recvfrom},
-            }, 7);
+            };
             
-            NSLog(@"[LC] ✅ Socket-level hooks installed successfully");
+            int result = rebind_symbols(rebindings, 7);
+            if (result == 0) {
+                NSLog(@"[LC] ✅ Socket-level hooks installed successfully");
+            } else {
+                NSLog(@"[LC] ❌ Failed to install socket-level hooks: %d", result);
+            }
         }
         
         // Test the configuration
