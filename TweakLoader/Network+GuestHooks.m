@@ -391,27 +391,27 @@ void NetworkGuestHooksInit(void) {
               networkMode, proxyType, proxyHost, proxyPort);
         
         // Install socket-level hooks for aggressive mode using the same pattern as Dyld.m
-        if ([networkMode isEqualToString:@"aggressive"]) {
-            NSLog(@"[LC] ⚡ Installing aggressive mode socket hooks...");
+        // if ([networkMode isEqualToString:@"aggressive"]) {
+        //     NSLog(@"[LC] ⚡ Installing aggressive mode socket hooks...");
             
-            // Use the exact same pattern as in LiveContainer/Tweaks/Dyld.m line 342
-            struct rebinding rebindings[] = {
-                {"connect", (void *)lc_connect, (void **)&original_connect},
-                {"gethostbyname", (void *)lc_gethostbyname, (void **)&original_gethostbyname},
-                {"getaddrinfo", (void *)lc_getaddrinfo, (void **)&original_getaddrinfo},
-                {"send", (void *)lc_send, (void **)&original_send},
-                {"sendto", (void *)lc_sendto, (void **)&original_sendto},
-                {"recv", (void *)original_recv, (void **)&original_recv},
-                {"recvfrom", (void *)original_recvfrom, (void **)&original_recvfrom},
-            };
+        //     // Use the exact same pattern as in LiveContainer/Tweaks/Dyld.m line 342
+        //     struct rebinding rebindings[] = {
+        //         {"connect", (void *)lc_connect, (void **)&original_connect},
+        //         {"gethostbyname", (void *)lc_gethostbyname, (void **)&original_gethostbyname},
+        //         {"getaddrinfo", (void *)lc_getaddrinfo, (void **)&original_getaddrinfo},
+        //         {"send", (void *)lc_send, (void **)&original_send},
+        //         {"sendto", (void *)lc_sendto, (void **)&original_sendto},
+        //         {"recv", (void *)original_recv, (void **)&original_recv},
+        //         {"recvfrom", (void *)original_recvfrom, (void **)&original_recvfrom},
+        //     };
             
-            int result = rebind_symbols(rebindings, 7);
-            if (result == 0) {
-                NSLog(@"[LC] ✅ Socket-level hooks installed successfully");
-            } else {
-                NSLog(@"[LC] ❌ Failed to install socket-level hooks: %d", result);
-            }
-        }
+        //     int result = rebind_symbols(rebindings, 7);
+        //     if (result == 0) {
+        //         NSLog(@"[LC] ✅ Socket-level hooks installed successfully");
+        //     } else {
+        //         NSLog(@"[LC] ❌ Failed to install socket-level hooks: %d", result);
+        //     }
+        // }
         
         // Test the configuration
         NSDictionary *testProxy = createEnhancedProxyDictionary();
