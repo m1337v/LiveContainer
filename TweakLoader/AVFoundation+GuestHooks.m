@@ -1630,39 +1630,25 @@ static NSString* fourCCToString(OSType fourCC) {
         CGContextSetRGBFillColor(context, 0, 0, 0, 1);
         CGContextFillRect(context, CGRectMake(0, 0, size.width, size.height));
         
-        // CRITICAL: Instead of trying to handle orientation, CREATE the buffer in device orientation
-        // Get the raw CGImage - ignore ALL UIImage orientation metadata
+        // CRITICAL FIX: NO ROTATION - just draw the image directly with aspect fill
         CGImageRef cgImage = image.CGImage;
         
-        // ALWAYS create the buffer to match camera coordinate system
-        // Camera buffers are typically in landscape-left orientation (home button on right)
-        // So we need to rotate our content to match this expectation
-        
-        CGAffineTransform cameraTransform = CGAffineTransformIdentity;
-        
-        // CRITICAL: Rotate content to match camera sensor orientation (not device orientation)
-        // Camera sensors typically capture in landscape-left, so rotate our portrait content
-        cameraTransform = CGAffineTransformMakeRotation(-M_PI_2); // Rotate -90 degrees
-        
-        // Apply the camera coordinate transform
-        CGContextConcatCTM(context, cameraTransform);
-        
-        // Calculate aspect fill rect in the ROTATED coordinate space
+        // Calculate aspect fill rect (NO coordinate space changes)
         CGFloat imageAspect = CGImageGetWidth(cgImage) / (CGFloat)CGImageGetHeight(cgImage);
-        CGFloat bufferAspect = size.height / size.width; // Note: swapped because we rotated
+        CGFloat targetAspect = size.width / size.height;
         
         CGRect imageRect;
-        if (imageAspect > bufferAspect) {
+        if (imageAspect > targetAspect) {
             // Image is wider - fit height and crop sides
             CGFloat scaledWidth = size.height * imageAspect;
-            imageRect = CGRectMake(-(scaledWidth - size.height) / 2, -size.width, scaledWidth, size.width);
+            imageRect = CGRectMake(-(scaledWidth - size.width) / 2, 0, scaledWidth, size.height);
         } else {
             // Image is taller - fit width and crop top/bottom
-            CGFloat scaledHeight = size.height / imageAspect;
-            imageRect = CGRectMake(0, -(size.width + (scaledHeight - size.width) / 2), size.height, scaledHeight);
+            CGFloat scaledHeight = size.width / imageAspect;
+            imageRect = CGRectMake(0, -(scaledHeight - size.height) / 2, size.width, scaledHeight);
         }
         
-        // Draw in the rotated coordinate space
+        // CRITICAL: Draw with NO transforms whatsoever
         CGContextDrawImage(context, imageRect, cgImage);
         
         CGContextRelease(context);
@@ -1840,7 +1826,7 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
     @try {
         NSLog(@"[LC] 📷 Caching photo data from sample buffer");
         
-        // Get spoofed frame - this should already be properly oriented from GetFrame
+        // Get spoofed frame 
         CVPixelBufferRef spoofedPixelBuffer = [GetFrame getCurrentFramePixelBuffer:kCVPixelFormatType_32BGRA];
         if (!spoofedPixelBuffer) {
             NSLog(@"[LC] 📷 ❌ No spoofed pixel buffer available");
@@ -1854,7 +1840,7 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
         g_cachedPhotoPixelBuffer = spoofedPixelBuffer;
         CVPixelBufferRetain(g_cachedPhotoPixelBuffer);
         
-        // CRITICAL FIX: Create properly oriented CGImage like cj/fd
+        // Create CGImage from pixel buffer
         size_t width = CVPixelBufferGetWidth(spoofedPixelBuffer);
         size_t height = CVPixelBufferGetHeight(spoofedPixelBuffer);
         
@@ -1862,32 +1848,145 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
         void *baseAddress = CVPixelBufferGetBaseAddress(spoofedPixelBuffer);
         size_t bytesPerRow = CVPixelBufferGetBytesPerRow(spoofedPixelBuffer);
         
-        // Create CGImage directly from pixel buffer data (avoids CIImage orientation issues)
+        NSData *pixelData = [NSData dataWithBytes:baseAddress length:bytesPerRow * height];
+        CVPixelBufferUnlockBaseAddress(spoofedPixelBuffer, kCVPixelBufferLock_ReadOnly);
+        
         CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
         CGBitmapInfo bitmapInfo = kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little;
         
-        CGDataProviderRef dataProvider = CGDataProviderCreateWithData(NULL, baseAddress, bytesPerRow * height, NULL);
+        CGDataProviderRef dataProvider = CGDataProviderCreateWithCFData((__bridge CFDataRef)pixelData);
         g_cachedPhotoCGImage = CGImageCreate(width, height, 8, 32, bytesPerRow, colorSpace, bitmapInfo, dataProvider, NULL, false, kCGRenderingIntentDefault);
         
         CGDataProviderRelease(dataProvider);
         CGColorSpaceRelease(colorSpace);
-        CVPixelBufferUnlockBaseAddress(spoofedPixelBuffer, kCVPixelBufferLock_ReadOnly);
         
-        // CRITICAL: Create JPEG with NO additional orientation transforms (like cj does)
+        // CRITICAL: Create JPEG with REALISTIC iPhone camera metadata
         if (g_cachedPhotoCGImage) {
+            // Create UIImage with Up orientation
             UIImage *uiImage = [UIImage imageWithCGImage:g_cachedPhotoCGImage 
                                                    scale:1.0 
-                                             orientation:UIImageOrientationUp]; // FORCE Up orientation
+                                             orientation:UIImageOrientationUp];
             
-            g_cachedPhotoJPEGData = UIImageJPEGRepresentation(uiImage, 1.0);
+            // Create base JPEG data 
+            NSData *jpegData = UIImageJPEGRepresentation(uiImage, 1.0);
             
-            NSLog(@"[LC] 📷 ✅ Photo cache updated - CGIMG:%p, JPEG:%zuB", 
+            if (jpegData) {
+                // Create REALISTIC iPhone camera metadata
+                CGImageSourceRef imageSource = CGImageSourceCreateWithData((__bridge CFDataRef)jpegData, NULL);
+                if (imageSource) {
+                    NSMutableData *newJpegData = [NSMutableData data];
+                    // FIXED: Use modern UTType API instead of deprecated kUTTypeJPEG
+                    CFStringRef jpegType;
+                    if (@available(iOS 14.0, *)) {
+                        jpegType = (__bridge CFStringRef)UTTypeJPEG.identifier;
+                    } else {
+                        #pragma clang diagnostic push
+                        #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+                        jpegType = kUTTypeJPEG;
+                        #pragma clang diagnostic pop
+                    }
+                    
+                    CGImageDestinationRef destination = CGImageDestinationCreateWithData((__bridge CFMutableDataRef)newJpegData, jpegType, 1, NULL);
+                    
+                    if (destination) {
+                        // Get current date for realistic timestamps
+                        NSDateFormatter *exifDateFormatter = [[NSDateFormatter alloc] init];
+                        [exifDateFormatter setDateFormat:@"yyyy:MM:dd HH:mm:ss"];
+                        [exifDateFormatter setTimeZone:[NSTimeZone systemTimeZone]];
+                        NSString *currentDateTime = [exifDateFormatter stringFromDate:[NSDate date]];
+                        
+                        // Get device model for realistic camera info
+                        NSString *deviceModel = [[UIDevice currentDevice] model]; // "iPhone" or "iPad"
+                        NSString *systemVersion = [[UIDevice currentDevice] systemVersion];
+                        
+                        // Create comprehensive camera metadata like real iPhone photos
+                        NSMutableDictionary *metadata = [NSMutableDictionary dictionary];
+                        NSMutableDictionary *tiffDict = [NSMutableDictionary dictionary];
+                        NSMutableDictionary *exifDict = [NSMutableDictionary dictionary];
+                        
+                        // TIFF metadata (basic image info)
+                        tiffDict[(NSString*)kCGImagePropertyTIFFOrientation] = @1; // Portrait/normal
+                        tiffDict[(NSString*)kCGImagePropertyTIFFMake] = @"Apple";
+                        tiffDict[(NSString*)kCGImagePropertyTIFFModel] = deviceModel;
+                        tiffDict[(NSString*)kCGImagePropertyTIFFSoftware] = [NSString stringWithFormat:@"iOS %@", systemVersion];
+                        tiffDict[(NSString*)kCGImagePropertyTIFFDateTime] = currentDateTime;
+                        tiffDict[(NSString*)kCGImagePropertyTIFFXResolution] = @72;
+                        tiffDict[(NSString*)kCGImagePropertyTIFFYResolution] = @72;
+                        tiffDict[(NSString*)kCGImagePropertyTIFFResolutionUnit] = @2; // Inches
+                        
+                        // EXIF metadata (camera-specific info)
+                        exifDict[(NSString*)kCGImagePropertyExifPixelXDimension] = @(width);
+                        exifDict[(NSString*)kCGImagePropertyExifPixelYDimension] = @(height);
+                        exifDict[(NSString*)kCGImagePropertyExifColorSpace] = @1; // sRGB
+                        exifDict[(NSString*)kCGImagePropertyExifDateTimeOriginal] = currentDateTime;
+                        exifDict[(NSString*)kCGImagePropertyExifDateTimeDigitized] = currentDateTime;
+                        
+                        // Realistic camera settings (typical iPhone values)
+                        exifDict[(NSString*)kCGImagePropertyExifFNumber] = @1.8; // f/1.8 (common iPhone aperture)
+                        exifDict[(NSString*)kCGImagePropertyExifExposureTime] = @(1.0/60.0); // 1/60 sec
+                        exifDict[(NSString*)kCGImagePropertyExifISOSpeedRatings] = @[@100]; // ISO 100
+                        exifDict[(NSString*)kCGImagePropertyExifFocalLength] = @4.25; // 26mm equivalent (iPhone main camera)
+                        exifDict[(NSString*)kCGImagePropertyExifExposureMode] = @0; // Auto exposure
+                        exifDict[(NSString*)kCGImagePropertyExifWhiteBalance] = @0; // Auto white balance
+                        exifDict[(NSString*)kCGImagePropertyExifFlash] = @16; // Flash did not fire
+                        exifDict[(NSString*)kCGImagePropertyExifMeteringMode] = @5; // Pattern metering
+                        exifDict[(NSString*)kCGImagePropertyExifSensingMethod] = @2; // One-chip color area sensor
+                        exifDict[(NSString*)kCGImagePropertyExifSceneCaptureType] = @0; // Standard
+                        
+                        // iPhone-specific EXIF data
+                        if ([deviceModel containsString:@"iPhone"]) {
+                            exifDict[(NSString*)kCGImagePropertyExifLensMake] = @"Apple";
+                            exifDict[(NSString*)kCGImagePropertyExifLensModel] = [NSString stringWithFormat:@"%@ back camera 4.25mm f/1.8", deviceModel];
+                            exifDict[(NSString*)kCGImagePropertyExifSubsecTimeOriginal] = @"000";
+                            exifDict[(NSString*)kCGImagePropertyExifSubsecTimeDigitized] = @"000";
+                        }
+                        
+                        // GPS metadata (optional - can be omitted for privacy)
+                        // Only add if you want to simulate location data
+                        /*
+                        NSMutableDictionary *gpsDict = [NSMutableDictionary dictionary];
+                        gpsDict[(NSString*)kCGImagePropertyGPSLatitude] = @37.7749; // San Francisco example
+                        gpsDict[(NSString*)kCGImagePropertyGPSLongitude] = @122.4194;
+                        gpsDict[(NSString*)kCGImagePropertyGPSLatitudeRef] = @"N";
+                        gpsDict[(NSString*)kCGImagePropertyGPSLongitudeRef] = @"W";
+                        gpsDict[(NSString*)kCGImagePropertyGPSTimeStamp] = currentDateTime;
+                        metadata[(NSString*)kCGImagePropertyGPSDictionary] = gpsDict;
+                        */
+                        
+                        metadata[(NSString*)kCGImagePropertyTIFFDictionary] = tiffDict;
+                        metadata[(NSString*)kCGImagePropertyExifDictionary] = exifDict;
+                        
+                        // Add the image with realistic iPhone camera metadata
+                        CGImageDestinationAddImage(destination, g_cachedPhotoCGImage, (__bridge CFDictionaryRef)metadata);
+                        
+                        if (CGImageDestinationFinalize(destination)) {
+                            g_cachedPhotoJPEGData = [newJpegData copy];
+                            NSLog(@"[LC] 📷 ✅ Photo cache with realistic iPhone metadata created (%zuB)", g_cachedPhotoJPEGData.length);
+                        } else {
+                            g_cachedPhotoJPEGData = jpegData; // Fallback
+                            NSLog(@"[LC] 📷 ⚠️ Using fallback JPEG");
+                        }
+                        
+                        CFRelease(destination);
+                    } else {
+                        g_cachedPhotoJPEGData = jpegData; // Fallback
+                    }
+                    
+                    CFRelease(imageSource);
+                } else {
+                    g_cachedPhotoJPEGData = jpegData; // Fallback
+                }
+            } else {
+                NSLog(@"[LC] 📷 ❌ Failed to create JPEG data");
+            }
+            
+            NSLog(@"[LC] 📷 ✅ Photo cache updated - CGIMG:%p, JPEG:%zuB (REALISTIC iPhone metadata)", 
                   g_cachedPhotoCGImage, g_cachedPhotoJPEGData.length);
         } else {
             NSLog(@"[LC] 📷 ❌ Failed to create CGImage from pixel buffer");
         }
         
-        // Release the temp buffer since we're caching our own copies
+        // Release the temp buffer
         CVPixelBufferRelease(spoofedPixelBuffer);
         
     } @catch (NSException *exception) {
