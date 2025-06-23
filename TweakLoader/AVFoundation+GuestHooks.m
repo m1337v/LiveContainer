@@ -317,35 +317,52 @@ static CMSampleBufferRef createSpoofedSampleBuffer() {
         CVPixelBufferRef sourcePixelBuffer = NULL;
         BOOL ownSourcePixelBuffer = NO;
 
-        // 1. Get source buffer (video from GetFrame or static image)
-        if (spoofCameraVideoPath.length > 0) {
-            // NEW: Use the GetFrame class as the source for pixel buffers
+        // CRITICAL FIX: Always try GetFrame first for video content
+        if (currentVideoPath && currentVideoPath.length > 0) {
+            NSLog(@"[LC] 🎬 createSpoofedSampleBuffer: Trying GetFrame for video frames");
             sourcePixelBuffer = [GetFrame getCurrentFramePixelBuffer:lastRequestedFormat];
             if (sourcePixelBuffer) {
-                ownSourcePixelBuffer = YES; // We received a copy, so we own it.
+                ownSourcePixelBuffer = YES;
+                NSLog(@"[LC] ✅ createSpoofedSampleBuffer: Got video frame from GetFrame");
+            } else {
+                NSLog(@"[LC] ❌ createSpoofedSampleBuffer: GetFrame returned NULL");
             }
         }
         
-        // 2. Fallback to static image if video fails or is not configured
+        // Fallback to static image if video fails or is not configured
         if (!sourcePixelBuffer && staticImageSpoofBuffer) {
+            NSLog(@"[LC] 📷 createSpoofedSampleBuffer: Using static image fallback");
             sourcePixelBuffer = staticImageSpoofBuffer;
-            // Don't own it, just retain it for the scope of this function
             CVPixelBufferRetain(sourcePixelBuffer);
             ownSourcePixelBuffer = YES;
         }
         
         if (!sourcePixelBuffer) {
-            NSLog(@"[LC] ❌ No source buffer available (video or image).");
+            NSLog(@"[LC] ❌ createSpoofedSampleBuffer: No source buffer available");
             // Return the last known good frame as an emergency fallback
             if (lastGoodSpoofedPixelBuffer) {
-                // Construct a new sample buffer from the last good pixel buffer
-                // (Implementation for this part is omitted for brevity but would be similar to below)
+                NSLog(@"[LC] 🆘 createSpoofedSampleBuffer: Using emergency fallback");
+                // Create sample buffer from emergency buffer
+                CMVideoFormatDescriptionRef formatDesc = NULL;
+                OSStatus formatStatus = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, lastGoodSpoofedPixelBuffer, &formatDesc);
+                
+                if (formatStatus == noErr && formatDesc) {
+                    CMSampleTimingInfo timingInfo = {
+                        .duration = CMTimeMake(1, 30),
+                        .presentationTimeStamp = CMTimeMakeWithSeconds(CACurrentMediaTime(), NSEC_PER_SEC),
+                        .decodeTimeStamp = kCMTimeInvalid
+                    };
+                    
+                    CMSampleBufferRef emergencySampleBuffer = NULL;
+                    CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault, lastGoodSpoofedPixelBuffer, formatDesc, &timingInfo, &emergencySampleBuffer);
+                    CFRelease(formatDesc);
+                    return emergencySampleBuffer;
+                }
             }
             return NULL;
         }
 
-        // 3. Scale and convert the buffer to the desired resolution and format
-        // The createScaledPixelBuffer function already handles resizing and format conversion
+        // Scale and convert the buffer to the desired resolution and format
         CVPixelBufferRef finalPixelBuffer = createScaledPixelBuffer(sourcePixelBuffer, targetResolution);
 
         if (ownSourcePixelBuffer) {
@@ -353,15 +370,16 @@ static CMSampleBufferRef createSpoofedSampleBuffer() {
         }
 
         if (!finalPixelBuffer) {
-            NSLog(@"[LC] ❌ Scaling/conversion of source buffer failed.");
+            NSLog(@"[LC] ❌ createSpoofedSampleBuffer: Scaling/conversion failed");
             return NULL;
         }
         
-        // 4. Create the final CMSampleBuffer
+        // Create the final CMSampleBuffer
         CMVideoFormatDescriptionRef formatDesc = NULL;
         OSStatus formatStatus = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, finalPixelBuffer, &formatDesc);
         
         if (formatStatus != noErr) {
+            NSLog(@"[LC] ❌ createSpoofedSampleBuffer: Format description creation failed: %d", formatStatus);
             CVPixelBufferRelease(finalPixelBuffer);
             return NULL;
         }
@@ -373,14 +391,20 @@ static CMSampleBufferRef createSpoofedSampleBuffer() {
         };
 
         CMSampleBufferRef sampleBuffer = NULL;
-        CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault, finalPixelBuffer, formatDesc, &timingInfo, &sampleBuffer);
+        OSStatus bufferStatus = CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault, finalPixelBuffer, formatDesc, &timingInfo, &sampleBuffer);
 
         // Cleanup
         CFRelease(formatDesc);
         CVPixelBufferRelease(finalPixelBuffer);
         
+        if (bufferStatus != noErr || !sampleBuffer) {
+            NSLog(@"[LC] ❌ createSpoofedSampleBuffer: Sample buffer creation failed: %d", bufferStatus);
+            return NULL;
+        }
+        
         if (sampleBuffer) {
             updateLastGoodSpoofedFrame(CMSampleBufferGetImageBuffer(sampleBuffer), CMSampleBufferGetFormatDescription(sampleBuffer));
+            NSLog(@"[LC] ✅ createSpoofedSampleBuffer: Sample buffer created successfully");
         }
 
         return sampleBuffer;
@@ -811,6 +835,10 @@ static NSString* fourCCToString(OSType fourCC) {
 }
 
 + (CVPixelBufferRef)getCurrentFramePixelBuffer:(OSType)requestedFormat {
+    NSLog(@"[LC] [GetFrame] getCurrentFramePixelBuffer called - format: %c%c%c%c, enabled: %@, player: %p, ready: %@", 
+          (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
+          (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF,
+          spoofCameraEnabled ? @"YES" : @"NO", frameExtractionPlayer, playerIsReady ? @"YES" : @"NO");
     if (!spoofCameraEnabled || !frameExtractionPlayer || !playerIsReady) {
         return NULL;
     }
