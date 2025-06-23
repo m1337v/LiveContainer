@@ -872,38 +872,57 @@ static NSString* fourCCToString(OSType fourCC) {
         }
     }
     
-    // CRITICAL: Use VCAM's approach for frame advancement
+    // FIXED: Much smoother frame progression
     static int frameAdvanceCounter = 0;
+    static Float64 lastTargetSeconds = 0.0;
     frameAdvanceCounter++;
     
     CMTime playerCurrentTime = frameExtractionPlayer.currentItem.currentTime;
     CMTime duration = frameExtractionPlayer.currentItem.duration;
     Float64 durationSeconds = CMTimeGetSeconds(duration);
     
-    // VCAM-style frame progression
+    // CRITICAL FIX: Use real-time progression instead of fixed intervals
     Float64 targetSeconds;
     if (isHighBitrate) {
-        // For high bitrate: advance every 3 frames instead of every frame
-        targetSeconds = fmod((frameAdvanceCounter / 3) * 0.1, durationSeconds - 0.5);
+        // For high bitrate: advance at 15fps (66ms = 0.066s intervals)
+        targetSeconds = fmod(frameAdvanceCounter * 0.066, durationSeconds - 0.5);
     } else {
-        // Normal videos: advance every frame
-        targetSeconds = fmod(frameAdvanceCounter * 0.033, durationSeconds - 0.5); // 30fps
+        // Normal videos: advance at 30fps (33ms = 0.033s intervals) 
+        targetSeconds = fmod(frameAdvanceCounter * 0.033, durationSeconds - 0.5);
+    }
+    
+    // EVEN BETTER: Use actual time-based progression for smooth playback
+    static NSTimeInterval startTime = 0;
+    if (startTime == 0) {
+        startTime = currentTime;
+    }
+    
+    NSTimeInterval elapsed = currentTime - startTime;
+    if (isHighBitrate) {
+        // High bitrate: play at 15fps effective rate
+        targetSeconds = fmod(elapsed * 0.5, durationSeconds - 0.5); // 0.5x speed for stability
+    } else {
+        // Normal bitrate: play at normal speed
+        targetSeconds = fmod(elapsed, durationSeconds - 0.5);
     }
     
     if (targetSeconds < 0.2) targetSeconds = 0.2; // Stay away from start
     
-    CMTime seekTime = CMTimeMakeWithSeconds(targetSeconds, 600);
-    
-    // CRITICAL: Only seek if we actually need a new frame
-    if (CMTIME_COMPARE_INLINE(seekTime, !=, playerCurrentTime)) {
-        [frameExtractionPlayer seekToTime:seekTime toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
+    // Only seek if we've moved significantly (reduces seeking overhead)
+    if (fabs(targetSeconds - lastTargetSeconds) > 0.020) { // 20ms threshold
+        CMTime seekTime = CMTimeMakeWithSeconds(targetSeconds, 600);
         
-        // High bitrate videos need more time to seek
+        [frameExtractionPlayer seekToTime:seekTime toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
+        lastTargetSeconds = targetSeconds;
+        
+        // Shorter waits for smoother playback
         if (isHighBitrate) {
-            usleep(50000); // 50ms for high bitrate
+            usleep(25000); // 25ms for high bitrate
         } else {
-            usleep(16000); // 16ms for normal bitrate
+            usleep(10000); // 10ms for normal bitrate
         }
+        
+        NSLog(@"[LC] [GetFrame] 🎯 Smooth seek to %.3fs (elapsed: %.3fs)", targetSeconds, elapsed);
     }
     
     // Select output (your existing logic)
@@ -933,15 +952,15 @@ static NSString* fourCCToString(OSType fourCC) {
     if (![selectedOutput hasNewPixelBufferForItemTime:currentVideoTime]) {
         if (isHighBitrate) {
             NSLog(@"[LC] [GetFrame] 🎯 High bitrate: waiting for buffer...");
-            // Wait longer for high bitrate videos
-            usleep(100000); // 100ms wait
+            // Reduced wait time for smoother playback
+            usleep(50000); // 50ms wait (was 100ms)
             
             // Try a few frames ahead
-            for (int i = 1; i <= 5; i++) {
-                CMTime futureTime = CMTimeAdd(currentVideoTime, CMTimeMake(i * 2, 30));
+            for (int i = 1; i <= 3; i++) { // Reduced from 5 attempts
+                CMTime futureTime = CMTimeAdd(currentVideoTime, CMTimeMake(i, 30)); // Smaller jumps
                 if ([selectedOutput hasNewPixelBufferForItemTime:futureTime]) {
                     currentVideoTime = futureTime;
-                    NSLog(@"[LC] [GetFrame] 🎯 High bitrate: found buffer at +%d frames", i * 2);
+                    NSLog(@"[LC] [GetFrame] 🎯 High bitrate: found buffer at +%d frames", i);
                     break;
                 }
             }
