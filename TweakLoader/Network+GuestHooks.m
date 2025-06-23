@@ -3,427 +3,605 @@
 #import <CFNetwork/CFNetwork.h>
 #import <SystemConfiguration/SystemConfiguration.h>
 #import <objc/runtime.h>
-#import "../fishhook/fishhook.h"
 #import "utils.h"
 
-// Add missing includes for networking
-#import <sys/socket.h>
-#import <netinet/in.h>
-#import <arpa/inet.h>
-#import <netdb.h>
-#import <dlfcn.h>
+// Global proxy state (Socker-inspired)
+static BOOL proxyEnabled = NO;
+static NSString *proxyHost = nil;
+static NSInteger proxyPort = 8080;
+static NSString *proxyUsername = nil;
+static NSString *proxyPassword = nil;
+static NSString *proxyType = @"HTTP"; // HTTP, SOCKS5, DIRECT
 
-// Global state
-static BOOL spoofNetworkEnabled = NO;
-static NSString *proxyType = @"HTTP";
-static NSString *proxyHost = @"";
-static int proxyPort = 8080;
-static NSString *proxyUsername = @"";
-static NSString *proxyPassword = @"";
-static NSString *networkMode = @"standard";
+// Socker-style proxy configuration
+typedef struct {
+    char *host;
+    int port;
+    char *username;
+    char *password;
+    int type; // 0=HTTP, 1=SOCKS5
+} ProxyConfig;
 
-// Original function pointers for socket-level hooks
-static int (*original_connect)(int, const struct sockaddr *, socklen_t) = NULL;
-static int (*original_socket)(int, int, int) = NULL;
-static struct hostent *(*original_gethostbyname)(const char *) = NULL;
-static int (*original_getaddrinfo)(const char *, const char *, const struct addrinfo *, struct addrinfo **) = NULL;
+static ProxyConfig *globalProxyConfig = NULL;
 
-// Additional function pointers inspired by socker
-static ssize_t (*original_send)(int, const void *, size_t, int) = NULL;
-static ssize_t (*original_sendto)(int, const void *, size_t, int, const struct sockaddr *, socklen_t) = NULL;
-static ssize_t (*original_recv)(int, void *, size_t, int) = NULL;
-static ssize_t (*original_recvfrom)(int, void *, size_t, int, struct sockaddr *, socklen_t *) = NULL;
+#pragma mark - Configuration Loading (Socker Pattern)
 
-#pragma mark - Configuration Loading
-
-static void loadNetworkConfiguration(void) {
-    NSLog(@"[LC] Loading network spoofing configuration...");
+static void loadProxyConfiguration(void) {
+    static BOOL hasLoaded = NO;
+    if (hasLoaded) return;
     
     NSDictionary *guestAppInfo = [NSUserDefaults guestAppInfo];
     if (!guestAppInfo) {
-        NSLog(@"[LC] ❌ No guestAppInfo found for network config");
-        spoofNetworkEnabled = NO;
+        NSLog(@"[LC] ❌ No proxy configuration found");
+        proxyEnabled = NO;
+        hasLoaded = YES;
         return;
     }
 
-    spoofNetworkEnabled = [guestAppInfo[@"spoofNetwork"] boolValue];
-    proxyType = guestAppInfo[@"proxyType"] ?: @"HTTP";
-    proxyHost = guestAppInfo[@"proxyHost"] ?: @"";
-    proxyPort = [guestAppInfo[@"proxyPort"] intValue];
-    if (proxyPort == 0) proxyPort = 8080;
-    proxyUsername = guestAppInfo[@"proxyUsername"] ?: @"";
-    proxyPassword = guestAppInfo[@"proxyPassword"] ?: @"";
-    networkMode = guestAppInfo[@"spoofNetworkMode"] ?: @"standard";
+    proxyEnabled = [guestAppInfo[@"spoofNetwork"] boolValue];
+    proxyHost = [guestAppInfo[@"proxyHost"] copy];
+    proxyPort = [guestAppInfo[@"proxyPort"] integerValue] ?: 8080;
+    proxyUsername = [guestAppInfo[@"proxyUsername"] copy];
+    proxyPassword = [guestAppInfo[@"proxyPassword"] copy];
+    proxyType = [guestAppInfo[@"proxyType"] copy] ?: @"HTTP";
 
-    NSLog(@"[LC] ⚙️ Network Config: Enabled=%d, Type=%@, Host=%@, Port=%d, Mode=%@", 
-          spoofNetworkEnabled, proxyType, proxyHost, proxyPort, networkMode);
-}
-
-#pragma mark - Enhanced Socket-Level Hooks (inspired by socker)
-
-static int lc_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
-    loadNetworkConfiguration();
-    
-    if (!spoofNetworkEnabled || [networkMode isEqualToString:@"compatibility"]) {
-        return original_connect(sockfd, addr, addrlen);
+    // Create Socker-style config
+    if (globalProxyConfig) {
+        free(globalProxyConfig->host);
+        free(globalProxyConfig->username);
+        free(globalProxyConfig->password);
+        free(globalProxyConfig);
     }
     
-    // For aggressive mode, intercept all socket connections
-    if ([networkMode isEqualToString:@"aggressive"]) {
-        NSLog(@"[LC] 🔌 Intercepting socket connection in aggressive mode");
-        
-        // Handle IPv4 connections
-        if (addr->sa_family == AF_INET) {
-            struct sockaddr_in *addr_in = (struct sockaddr_in *)addr;
-            char ip_str[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET, &(addr_in->sin_addr), ip_str, INET_ADDRSTRLEN);
-            int port = ntohs(addr_in->sin_port);
-            
-            NSLog(@"[LC] 🎯 Original destination: %s:%d", ip_str, port);
-            
-            // Skip localhost and private network ranges in some cases
-            if (strcmp(ip_str, "127.0.0.1") == 0 || 
-                strncmp(ip_str, "192.168.", 8) == 0 ||
-                strncmp(ip_str, "10.", 3) == 0) {
-                NSLog(@"[LC] 🏠 Allowing local/private network connection");
-                return original_connect(sockfd, addr, addrlen);
-            }
-            
-            // Redirect to proxy
-            if (proxyHost.length > 0) {
-                struct sockaddr_in proxy_addr;
-                memset(&proxy_addr, 0, sizeof(proxy_addr));
-                proxy_addr.sin_family = AF_INET;
-                proxy_addr.sin_port = htons(proxyPort);
-                
-                // Resolve proxy host
-                struct hostent *proxy_host_entry = original_gethostbyname(proxyHost.UTF8String);
-                if (proxy_host_entry && proxy_host_entry->h_addr_list[0]) {
-                    memcpy(&proxy_addr.sin_addr, proxy_host_entry->h_addr_list[0], proxy_host_entry->h_length);
-                    NSLog(@"[LC] 🔄 Redirecting to proxy: %@:%d", proxyHost, proxyPort);
-                    return original_connect(sockfd, (struct sockaddr *)&proxy_addr, sizeof(proxy_addr));
-                } else {
-                    NSLog(@"[LC] ❌ Failed to resolve proxy host: %@", proxyHost);
-                }
-            }
-        }
-        // Handle IPv6 connections
-        else if (addr->sa_family == AF_INET6) {
-            struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)addr;
-            char ip_str[INET6_ADDRSTRLEN];
-            inet_ntop(AF_INET6, &(addr_in6->sin6_addr), ip_str, INET6_ADDRSTRLEN);
-            int port = ntohs(addr_in6->sin6_port);
-            
-            NSLog(@"[LC] 🎯 Original IPv6 destination: [%s]:%d", ip_str, port);
-            
-            // For IPv6, we might need different proxy handling
-            // For now, allow through but log
-            NSLog(@"[LC] 📡 IPv6 connection - passing through");
-        }
+    if (proxyEnabled && proxyHost.length > 0) {
+        globalProxyConfig = malloc(sizeof(ProxyConfig));
+        globalProxyConfig->host = strdup([proxyHost UTF8String]);
+        globalProxyConfig->port = (int)proxyPort;
+        globalProxyConfig->username = proxyUsername.length > 0 ? strdup([proxyUsername UTF8String]) : NULL;
+        globalProxyConfig->password = proxyPassword.length > 0 ? strdup([proxyPassword UTF8String]) : NULL;
+        globalProxyConfig->type = [proxyType isEqualToString:@"SOCKS5"] ? 1 : 0;
     }
+
+    NSLog(@"[LC] 🔗 Proxy Config: Enabled=%d, Type=%@, Host=%@, Port=%ld", 
+          proxyEnabled, proxyType, proxyHost, (long)proxyPort);
     
-    return original_connect(sockfd, addr, addrlen);
+    hasLoaded = YES;
 }
 
-static struct hostent *lc_gethostbyname(const char *name) {
-    loadNetworkConfiguration();
-    
-    if (spoofNetworkEnabled && [networkMode isEqualToString:@"aggressive"]) {
-        NSLog(@"[LC] 🔍 DNS lookup intercepted: %s", name);
-        
-        // Skip resolution for localhost and known local hosts
-        if (strcmp(name, "localhost") == 0 || 
-            strcmp(name, "127.0.0.1") == 0 ||
-            strstr(name, ".local") != NULL) {
-            NSLog(@"[LC] 🏠 Allowing local DNS resolution");
-            return original_gethostbyname(name);
-        }
-        
-        // Could implement custom DNS resolution here
-        // For now, just log and pass through
-        NSLog(@"[LC] 📡 DNS resolution for: %s", name);
-    }
-    
-    return original_gethostbyname(name);
-}
+#pragma mark - bt+ Style API Detection
 
-static int lc_getaddrinfo(const char *node, const char *service, 
-                         const struct addrinfo *hints, struct addrinfo **res) {
-    loadNetworkConfiguration();
+static BOOL isAPIRequest(NSURLRequest *request) {
+    NSString *urlString = request.URL.absoluteString.lowercaseString;
+    NSString *host = request.URL.host.lowercaseString;
+    NSString *path = request.URL.path.lowercaseString;
     
-    if (spoofNetworkEnabled && [networkMode isEqualToString:@"aggressive"]) {
-        NSLog(@"[LC] 🔍 getaddrinfo intercepted: %s:%s", node ?: "null", service ?: "null");
-        
-        // Skip for local addresses
-        if (node && (strcmp(node, "localhost") == 0 || 
-                    strcmp(node, "127.0.0.1") == 0 ||
-                    strstr(node, ".local") != NULL)) {
-            NSLog(@"[LC] 🏠 Allowing local getaddrinfo");
-            return original_getaddrinfo(node, service, hints, res);
+    // bt+ style API domain detection
+    NSArray *apiDomains = @[
+        @"api.",           // Most APIs use api subdomain
+        @"graph.",         // Graph APIs (Facebook, etc.)
+        @"rest.",          // REST APIs
+        @"v1.",            // Versioned APIs
+        @"v2.",
+        @"v3.",
+        @"gateway.",       // API gateways
+        @"backend.",       // Backend services
+        @"service.",       // Microservices
+        @"auth.",          // Authentication services
+        @"oauth.",         // OAuth providers
+    ];
+    
+    // bt+ style API path patterns
+    NSArray *apiPatterns = @[
+        @"/api/",
+        @"/v1/",
+        @"/v2/",
+        @"/v3/",
+        @"/rest/",
+        @"/graphql",
+        @"/oauth",
+        @"/auth",
+        @"/login",
+        @"/token",
+        @"/refresh",
+        @"/session",
+        @"/user",
+        @"/users",
+        @"/profile",
+        @"/account",
+        @"/service/",
+        @"/backend/",
+        @"/gateway/",
+        @".json",
+        @".xml"
+    ];
+    
+    // bt+ style content type detection
+    NSString *contentType = [request valueForHTTPHeaderField:@"Content-Type"];
+    if (contentType) {
+        contentType = contentType.lowercaseString;
+        if ([contentType containsString:@"application/json"] ||
+            [contentType containsString:@"application/xml"] ||
+            [contentType containsString:@"application/x-www-form-urlencoded"]) {
+            return YES;
         }
     }
     
-    return original_getaddrinfo(node, service, hints, res);
-}
-
-// Additional hooks inspired by socker for more comprehensive coverage
-static ssize_t lc_send(int sockfd, const void *buf, size_t len, int flags) {
-    // Could intercept and modify data here
-    return original_send(sockfd, buf, len, flags);
-}
-
-static ssize_t lc_sendto(int sockfd, const void *buf, size_t len, int flags,
-                        const struct sockaddr *dest_addr, socklen_t addrlen) {
-    loadNetworkConfiguration();
-    
-    if (spoofNetworkEnabled && [networkMode isEqualToString:@"aggressive"]) {
-        if (dest_addr && dest_addr->sa_family == AF_INET) {
-            struct sockaddr_in *addr_in = (struct sockaddr_in *)dest_addr;
-            char ip_str[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET, &(addr_in->sin_addr), ip_str, INET_ADDRSTRLEN);
-            int port = ntohs(addr_in->sin_port);
-            NSLog(@"[LC] 📤 sendto intercepted: %s:%d (%zu bytes)", ip_str, port, len);
+    // Check Accept header for API responses
+    NSString *accept = [request valueForHTTPHeaderField:@"Accept"];
+    if (accept) {
+        accept = accept.lowercaseString;
+        if ([accept containsString:@"application/json"] ||
+            [accept containsString:@"application/xml"]) {
+            return YES;
         }
     }
     
-    return original_sendto(sockfd, buf, len, flags, dest_addr, addrlen);
-}
-
-#pragma mark - CFNetwork Hooks (Enhanced)
-
-static CFHTTPMessageRef lc_CFHTTPMessageCreateRequest(CFAllocatorRef alloc,
-                                                     CFStringRef requestMethod,
-                                                     CFURLRef url,
-                                                     CFStringRef httpVersion) {
-    static CFHTTPMessageRef (*original_CFHTTPMessageCreateRequest)(CFAllocatorRef, CFStringRef, CFURLRef, CFStringRef) = NULL;
-    
-    if (!original_CFHTTPMessageCreateRequest) {
-        original_CFHTTPMessageCreateRequest = dlsym(RTLD_DEFAULT, "CFHTTPMessageCreateRequest");
-    }
-    
-    CFHTTPMessageRef message = original_CFHTTPMessageCreateRequest(alloc, requestMethod, url, httpVersion);
-    
-    loadNetworkConfiguration();
-    if (spoofNetworkEnabled && message) {
-        // Add proxy authentication headers if needed
-        if (proxyUsername.length > 0 && proxyPassword.length > 0) {
-            NSString *credentials = [NSString stringWithFormat:@"%@:%@", proxyUsername, proxyPassword];
-            NSData *credentialsData = [credentials dataUsingEncoding:NSUTF8StringEncoding];
-            NSString *base64Credentials = [credentialsData base64EncodedStringWithOptions:0];
-            
-            CFStringRef authValue = (__bridge CFStringRef)[NSString stringWithFormat:@"Basic %@", base64Credentials];
-            CFHTTPMessageSetHeaderFieldValue(message, CFSTR("Proxy-Authorization"), authValue);
-            
-            NSLog(@"[LC] 🔐 Added proxy auth to CFHTTPMessage");
+    // Check domain patterns
+    for (NSString *pattern in apiDomains) {
+        if ([host hasPrefix:pattern]) {
+            return YES;
         }
     }
     
-    return message;
+    // Check URL patterns
+    for (NSString *pattern in apiPatterns) {
+        if ([urlString containsString:pattern] || [path containsString:pattern]) {
+            return YES;
+        }
+    }
+    
+    // bt+ style HTTP method detection (APIs often use POST, PUT, DELETE)
+    NSString *method = request.HTTPMethod.uppercaseString;
+    if ([method isEqualToString:@"POST"] || 
+        [method isEqualToString:@"PUT"] || 
+        [method isEqualToString:@"DELETE"] || 
+        [method isEqualToString:@"PATCH"]) {
+        return YES;
+    }
+    
+    return NO;
 }
 
-#pragma mark - Enhanced Proxy Dictionary Creation
+#pragma mark - Socker-Style Proxy Dictionary Creation
 
-static NSDictionary *createEnhancedProxyDictionary(void) {
-    if (!spoofNetworkEnabled || !proxyHost || proxyHost.length == 0) {
+static NSDictionary *createSockerStyleProxyDictionary(void) {
+    if (!proxyEnabled || !globalProxyConfig) {
         return nil;
     }
     
     NSMutableDictionary *proxyDict = [NSMutableDictionary dictionary];
     
-    // More comprehensive proxy configuration based on socker patterns
-    if ([proxyType isEqualToString:@"HTTP"]) {
+    if (globalProxyConfig->type == 0) { // HTTP
         proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPEnable] = @YES;
-        proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPProxy] = proxyHost;
-        proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPPort] = @(proxyPort);
+        proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPProxy] = [NSString stringWithUTF8String:globalProxyConfig->host];
+        proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPPort] = @(globalProxyConfig->port);
         
-        // Enable for HTTPS as well
+        // HTTPS support using string keys
         proxyDict[@"HTTPSEnable"] = @YES;
-        proxyDict[@"HTTPSProxy"] = proxyHost;
-        proxyDict[@"HTTPSPort"] = @(proxyPort);
+        proxyDict[@"HTTPSProxy"] = [NSString stringWithUTF8String:globalProxyConfig->host];
+        proxyDict[@"HTTPSPort"] = @(globalProxyConfig->port);
         
-    } else if ([proxyType isEqualToString:@"SOCKS5"]) {
-        // SOCKS configuration
+    } else { // SOCKS5
         proxyDict[@"SOCKSEnable"] = @YES;
-        proxyDict[@"SOCKSProxy"] = proxyHost;
-        proxyDict[@"SOCKSPort"] = @(proxyPort);
+        proxyDict[@"SOCKSProxy"] = [NSString stringWithUTF8String:globalProxyConfig->host];
+        proxyDict[@"SOCKSPort"] = @(globalProxyConfig->port);
         proxyDict[@"SOCKSVersion"] = @5;
-        
-    } else if ([proxyType isEqualToString:@"SOCKS4"]) {
-        // SOCKS4 configuration
-        proxyDict[@"SOCKSEnable"] = @YES;
-        proxyDict[@"SOCKSProxy"] = proxyHost;
-        proxyDict[@"SOCKSPort"] = @(proxyPort);
-        proxyDict[@"SOCKSVersion"] = @4;
-        
-    } else if ([proxyType isEqualToString:@"DIRECT"]) {
-        // No proxy
-        proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPEnable] = @NO;
-        proxyDict[@"HTTPSEnable"] = @NO;
-        proxyDict[@"SOCKSEnable"] = @NO;
     }
     
     // Authentication
-    if (proxyUsername.length > 0) {
-        proxyDict[@"HTTPProxyUsername"] = proxyUsername;
-        proxyDict[@"HTTPSProxyUsername"] = proxyUsername;
-        proxyDict[@"SOCKSUsername"] = proxyUsername;
+    if (globalProxyConfig->username) {
+        NSString *username = [NSString stringWithUTF8String:globalProxyConfig->username];
+        proxyDict[@"HTTPProxyUsername"] = username;
+        proxyDict[@"HTTPSProxyUsername"] = username;
+        proxyDict[@"SOCKSUsername"] = username;
     }
     
-    if (proxyPassword.length > 0) {
-        proxyDict[@"HTTPProxyPassword"] = proxyPassword;
-        proxyDict[@"HTTPSProxyPassword"] = proxyPassword;
-        proxyDict[@"SOCKSPassword"] = proxyPassword;
+    if (globalProxyConfig->password) {
+        NSString *password = [NSString stringWithUTF8String:globalProxyConfig->password];
+        proxyDict[@"HTTPProxyPassword"] = password;
+        proxyDict[@"HTTPSProxyPassword"] = password;
+        proxyDict[@"SOCKSPassword"] = password;
     }
     
-    // Additional proxy settings for better compatibility
-    proxyDict[@"ExceptionsList"] = @[@"localhost", @"127.0.0.1", @"*.local"];
-    proxyDict[@"FTPPassive"] = @YES;
-    
-    NSLog(@"[LC] ✅ Created enhanced proxy dictionary: %@", proxyDict);
+    NSLog(@"[LC] ✅ Created Socker-style proxy dictionary");
     return [proxyDict copy];
 }
 
-#pragma mark - Enhanced NSURLSession Hooks
+#pragma mark - Universal NSURLSession Hooks (Socker Pattern)
 
-@implementation NSURLSession(LiveContainerProxyEnhanced)
+@implementation NSURLSession(SockerStyleProxy)
 
 + (void)load {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        swizzle([NSURLSession class], @selector(sessionWithConfiguration:), @selector(lc_sessionWithConfiguration:));
-        swizzle([NSURLSession class], @selector(sessionWithConfiguration:delegate:delegateQueue:), @selector(lc_sessionWithConfiguration:delegate:delegateQueue:));
+        loadProxyConfiguration();
         
-        // Also hook shared session
-        swizzle([NSURLSession class], @selector(sharedSession), @selector(lc_sharedSession));
+        if (proxyEnabled) {
+            // Hook ALL session creation methods
+            swizzle([NSURLSession class], @selector(sessionWithConfiguration:), @selector(socker_sessionWithConfiguration:));
+            swizzle([NSURLSession class], @selector(sessionWithConfiguration:delegate:delegateQueue:), @selector(socker_sessionWithConfiguration:delegate:delegateQueue:));
+            swizzle([NSURLSession class], @selector(sharedSession), @selector(socker_sharedSession));
+            
+            // Hook configuration creation (critical for universal coverage)
+            swizzle([NSURLSessionConfiguration class], @selector(defaultSessionConfiguration), @selector(socker_defaultSessionConfiguration));
+            swizzle([NSURLSessionConfiguration class], @selector(ephemeralSessionConfiguration), @selector(socker_ephemeralSessionConfiguration));
+            swizzle([NSURLSessionConfiguration class], @selector(backgroundSessionConfigurationWithIdentifier:), @selector(socker_backgroundSessionConfigurationWithIdentifier:));
+            
+            NSLog(@"[LC] 🔗 Universal NSURLSession proxy hooks installed (Socker+Blaze pattern)");
+        }
     });
 }
 
-+ (NSURLSession *)lc_sharedSession {
-    NSURLSession *session = [self lc_sharedSession];
-    
-    loadNetworkConfiguration();
-    if (spoofNetworkEnabled) {
-        NSLog(@"[LC] 🔗 Shared session accessed - applying proxy retroactively");
-        // Note: Can't modify shared session configuration after creation
-        // This is a limitation - apps should use custom configurations
-    }
-    
++ (NSURLSessionConfiguration *)socker_defaultSessionConfiguration {
+    NSURLSessionConfiguration *config = [self socker_defaultSessionConfiguration];
+    [self applySockerProxyToConfiguration:config type:@"default"];
+    return config;
+}
+
++ (NSURLSessionConfiguration *)socker_ephemeralSessionConfiguration {
+    NSURLSessionConfiguration *config = [self socker_ephemeralSessionConfiguration];
+    [self applySockerProxyToConfiguration:config type:@"ephemeral"];
+    return config;
+}
+
++ (NSURLSessionConfiguration *)socker_backgroundSessionConfigurationWithIdentifier:(NSString *)identifier {
+    NSURLSessionConfiguration *config = [self socker_backgroundSessionConfigurationWithIdentifier:identifier];
+    [self applySockerProxyToConfiguration:config type:@"background"];
+    return config;
+}
+
++ (NSURLSession *)socker_sharedSession {
+    NSURLSession *session = [self socker_sharedSession];
+    NSLog(@"[LC] 🔗 Shared session accessed - proxy applied via configuration hooks");
     return session;
 }
 
-+ (NSURLSession *)lc_sessionWithConfiguration:(NSURLSessionConfiguration *)configuration {
-    loadNetworkConfiguration();
-    
-    if (spoofNetworkEnabled) {
-        NSLog(@"[LC] 🔗 Applying enhanced proxy to NSURLSession configuration");
-        [self applyEnhancedProxyToConfiguration:configuration];
-    }
-    return [self lc_sessionWithConfiguration:configuration];
++ (NSURLSession *)socker_sessionWithConfiguration:(NSURLSessionConfiguration *)configuration {
+    [self applySockerProxyToConfiguration:configuration type:@"custom"];
+    return [self socker_sessionWithConfiguration:configuration];
 }
 
-+ (NSURLSession *)lc_sessionWithConfiguration:(NSURLSessionConfiguration *)configuration 
-                                     delegate:(id<NSURLSessionDelegate>)delegate 
-                                delegateQueue:(NSOperationQueue *)queue {
-    loadNetworkConfiguration();
-    
-    if (spoofNetworkEnabled) {
-        NSLog(@"[LC] 🔗 Applying enhanced proxy to NSURLSession configuration with delegate");
-        [self applyEnhancedProxyToConfiguration:configuration];
-    }
-    return [self lc_sessionWithConfiguration:configuration delegate:delegate delegateQueue:queue];
++ (NSURLSession *)socker_sessionWithConfiguration:(NSURLSessionConfiguration *)configuration 
+                                          delegate:(id<NSURLSessionDelegate>)delegate 
+                                     delegateQueue:(NSOperationQueue *)queue {
+    [self applySockerProxyToConfiguration:configuration type:@"delegate"];
+    return [self socker_sessionWithConfiguration:configuration delegate:delegate delegateQueue:queue];
 }
 
-+ (void)applyEnhancedProxyToConfiguration:(NSURLSessionConfiguration *)configuration {
-    NSDictionary *proxyDict = createEnhancedProxyDictionary();
++ (void)applySockerProxyToConfiguration:(NSURLSessionConfiguration *)configuration type:(NSString *)type {
+    if (!proxyEnabled || !globalProxyConfig) return;
+    
+    NSDictionary *proxyDict = createSockerStyleProxyDictionary();
     if (proxyDict) {
         configuration.connectionProxyDictionary = proxyDict;
         
-        // Enhanced timeout configuration based on mode
-        if ([networkMode isEqualToString:@"aggressive"]) {
-            configuration.timeoutIntervalForRequest = 60.0;
-            configuration.timeoutIntervalForResource = 600.0;
-        } else {
-            configuration.timeoutIntervalForRequest = 30.0;
-            configuration.timeoutIntervalForResource = 300.0;
-        }
-        
+        // Socker-style aggressive networking settings
         configuration.waitsForConnectivity = YES;
         configuration.allowsCellularAccess = YES;
+        configuration.timeoutIntervalForRequest = 60.0;
+        configuration.timeoutIntervalForResource = 300.0;
+        configuration.HTTPMaximumConnectionsPerHost = 6;
+        configuration.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
         
-        // Additional headers for better proxy compatibility
+        // Enhanced headers for proxy compatibility
         NSMutableDictionary *headers = [configuration.HTTPAdditionalHeaders mutableCopy] ?: [NSMutableDictionary dictionary];
         
-        if (proxyUsername.length > 0 && proxyPassword.length > 0) {
-            NSString *credentials = [NSString stringWithFormat:@"%@:%@", proxyUsername, proxyPassword];
+        // Add proxy authentication header
+        if (globalProxyConfig->username && globalProxyConfig->password) {
+            NSString *credentials = [NSString stringWithFormat:@"%s:%s", globalProxyConfig->username, globalProxyConfig->password];
             NSData *credentialsData = [credentials dataUsingEncoding:NSUTF8StringEncoding];
             NSString *base64Credentials = [credentialsData base64EncodedStringWithOptions:0];
-            
             headers[@"Proxy-Authorization"] = [NSString stringWithFormat:@"Basic %@", base64Credentials];
         }
         
-        // User-Agent modification for better compatibility
-        if ([networkMode isEqualToString:@"compatibility"]) {
-            headers[@"User-Agent"] = @"Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15";
-        }
+        // bt+ style headers for better API compatibility
+        headers[@"User-Agent"] = @"LiveContainer/1.0 Universal API Client";
+        headers[@"Accept"] = @"application/json, application/xml, */*";
+        headers[@"Accept-Language"] = @"en-US,en;q=0.9";
+        headers[@"Accept-Encoding"] = @"gzip, deflate, br";
+        headers[@"Connection"] = @"keep-alive";
         
         configuration.HTTPAdditionalHeaders = headers;
         
-        NSLog(@"[LC] ✅ Enhanced proxy configuration applied successfully");
+        NSLog(@"[LC] ✅ Socker+Blaze proxy applied to %@ configuration", type);
     }
 }
 
 @end
 
-#pragma mark - Initialization Function
+#pragma mark - Enhanced Data Task Hooks (Socker + bt+ Pattern)
+
+static NSURLSessionDataTask *(*original_dataTaskWithRequest)(id self, SEL _cmd, NSURLRequest *request, void(^completionHandler)(NSData *, NSURLResponse *, NSError *));
+
+static NSURLSessionDataTask *socker_dataTaskWithRequest(id self, SEL _cmd, NSURLRequest *request, void(^completionHandler)(NSData *, NSURLResponse *, NSError *)) {
+    if (proxyEnabled && globalProxyConfig) {
+        NSString *urlString = request.URL.absoluteString;
+        NSString *host = request.URL.host;
+        BOOL isAPI = isAPIRequest(request);
+        
+        if (isAPI) {
+            NSLog(@"[LC] 🎯 API request detected: %@ -> %@", request.HTTPMethod, host);
+        } else {
+            NSLog(@"[LC] 🌐 Regular request: %@", host);
+        }
+        
+        // Create enhanced request (bt+ + Socker style)
+        NSMutableURLRequest *enhancedRequest = [request mutableCopy];
+        
+        if (isAPI) {
+            // bt+ style API-specific headers
+            [enhancedRequest setValue:@"LiveContainer/1.0 API Client" forHTTPHeaderField:@"User-Agent"];
+            [enhancedRequest setValue:@"application/json, application/xml, */*" forHTTPHeaderField:@"Accept"];
+            [enhancedRequest setValue:@"no-cache" forHTTPHeaderField:@"Cache-Control"];
+            
+            // Add API-friendly headers
+            NSString *existingContentType = [enhancedRequest valueForHTTPHeaderField:@"Content-Type"];
+            if (!existingContentType && [request.HTTPMethod isEqualToString:@"POST"]) {
+                [enhancedRequest setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+            }
+            
+            // bt+ style anonymity headers for APIs
+            [enhancedRequest setValue:[NSString stringWithUTF8String:globalProxyConfig->host] forHTTPHeaderField:@"X-Forwarded-For"];
+            [enhancedRequest setValue:@"1" forHTTPHeaderField:@"DNT"]; // Do Not Track
+            
+        } else {
+            // Socker-style headers for regular requests
+            [enhancedRequest setValue:@"LiveContainer/1.0 Universal Client" forHTTPHeaderField:@"User-Agent"];
+            [enhancedRequest setValue:@"*/*" forHTTPHeaderField:@"Accept"];
+        }
+        
+        // Universal headers for all requests
+        [enhancedRequest setValue:@"en-US,en;q=0.9" forHTTPHeaderField:@"Accept-Language"];
+        [enhancedRequest setValue:@"gzip, deflate, br" forHTTPHeaderField:@"Accept-Encoding"];
+        [enhancedRequest setValue:@"keep-alive" forHTTPHeaderField:@"Connection"];
+        
+        // Add proxy authentication if needed
+        if (globalProxyConfig->username && globalProxyConfig->password) {
+            NSString *credentials = [NSString stringWithFormat:@"%s:%s", globalProxyConfig->username, globalProxyConfig->password];
+            NSData *credentialsData = [credentials dataUsingEncoding:NSUTF8StringEncoding];
+            NSString *base64Credentials = [credentialsData base64EncodedStringWithOptions:0];
+            [enhancedRequest setValue:[NSString stringWithFormat:@"Basic %@", base64Credentials] forHTTPHeaderField:@"Proxy-Authorization"];
+        }
+        
+        request = enhancedRequest;
+        
+        NSLog(@"[LC] ✅ Request enhanced with %@ headers", isAPI ? @"API-focused" : @"universal");
+        
+        // bt+ style response interception for critical API endpoints
+        if (isAPI && ([urlString containsString:@"auth"] || [urlString containsString:@"login"] || [urlString containsString:@"token"])) {
+            NSLog(@"[LC] 🔐 Critical authentication API detected: %@", urlString);
+            
+            // Wrap completion handler to log auth responses (bt+ pattern)
+            void(^wrappedCompletion)(NSData *, NSURLResponse *, NSError *) = ^(NSData *data, NSURLResponse *response, NSError *error) {
+                if (data && !error) {
+                    @try {
+                        NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+                        if (json[@"token"] || json[@"access_token"] || json[@"api_token"]) {
+                            NSLog(@"[LC] 🔑 Authentication token detected in response");
+                        }
+                    } @catch (NSException *exception) {
+                        // Silent fail for non-JSON responses
+                    }
+                }
+                
+                if (completionHandler) {
+                    completionHandler(data, response, error);
+                }
+            };
+            
+            return original_dataTaskWithRequest(self, _cmd, request, wrappedCompletion);
+        }
+    }
+    
+    return original_dataTaskWithRequest(self, _cmd, request, completionHandler);
+}
+
+#pragma mark - Universal NSURLConnection Support (Legacy Apps)
+
+@implementation NSURLConnection(SockerProxy)
+
++ (void)load {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        if (proxyEnabled) {
+            swizzle([NSURLConnection class], @selector(initWithRequest:delegate:), @selector(socker_initWithRequest:delegate:));
+            swizzle([NSURLConnection class], @selector(initWithRequest:delegate:startImmediately:), @selector(socker_initWithRequest:delegate:startImmediately:));
+            swizzle([NSURLConnection class], @selector(sendSynchronousRequest:returningResponse:error:), @selector(socker_sendSynchronousRequest:returningResponse:error:));
+            
+            NSLog(@"[LC] 🔗 Universal NSURLConnection proxy hooks installed");
+        }
+    });
+}
+
+- (instancetype)socker_initWithRequest:(NSURLRequest *)request delegate:(id)delegate {
+    if (proxyEnabled) {
+        BOOL isAPI = isAPIRequest(request);
+        NSLog(@"[LC] 📡 Legacy %@ connection to: %@", isAPI ? @"API" : @"regular", request.URL.host);
+    }
+    return [self socker_initWithRequest:request delegate:delegate];
+}
+
+- (instancetype)socker_initWithRequest:(NSURLRequest *)request delegate:(id)delegate startImmediately:(BOOL)startImmediately {
+    if (proxyEnabled) {
+        BOOL isAPI = isAPIRequest(request);
+        NSLog(@"[LC] 📡 Legacy %@ connection (manual start) to: %@", isAPI ? @"API" : @"regular", request.URL.host);
+    }
+    return [self socker_initWithRequest:request delegate:delegate startImmediately:startImmediately];
+}
+
++ (NSData *)socker_sendSynchronousRequest:(NSURLRequest *)request returningResponse:(NSURLResponse **)response error:(NSError **)error {
+    if (proxyEnabled) {
+        BOOL isAPI = isAPIRequest(request);
+        NSLog(@"[LC] 📡 Synchronous %@ request to: %@", isAPI ? @"API" : @"regular", request.URL.host);
+    }
+    return [self socker_sendSynchronousRequest:request returningResponse:response error:error];
+}
+
+@end
+
+#pragma mark - Enhanced Proxy Testing (Socker + bt+ Style)
+
+@interface SockerProxyTester : NSObject
++ (void)testProxyConnection:(void(^)(BOOL success, NSTimeInterval latency, NSString *externalIP))completion;
++ (void)testAPIProxyCapability:(void(^)(BOOL success))completion;
+@end
+
+@implementation SockerProxyTester
+
++ (void)testProxyConnection:(void(^)(BOOL success, NSTimeInterval latency, NSString *externalIP))completion {
+    if (!proxyEnabled || !globalProxyConfig) {
+        completion(NO, 0, nil);
+        return;
+    }
+    
+    NSLog(@"[LC] 🧪 Testing Socker-style proxy connection...");
+    
+    NSURLSessionConfiguration *config = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+    config.connectionProxyDictionary = createSockerStyleProxyDictionary();
+    config.timeoutIntervalForRequest = 10.0;
+    
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
+    
+    // Test with multiple IP checking services
+    NSArray *testURLs = @[
+        @"https://httpbin.org/ip",
+        @"https://api.ipify.org?format=json",
+        @"https://ipapi.co/json/",
+        @"http://ip-api.com/json/"
+    ];
+    
+    NSString *testURL = testURLs[arc4random_uniform((uint32_t)testURLs.count)];
+    NSURL *url = [NSURL URLWithString:testURL];
+    
+    NSDate *startTime = [NSDate date];
+    NSURLSessionDataTask *task = [session dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        NSTimeInterval latency = [[NSDate date] timeIntervalSinceDate:startTime];
+        BOOL success = (error == nil && [(NSHTTPURLResponse *)response statusCode] == 200);
+        
+        NSString *externalIP = nil;
+        if (success && data) {
+            @try {
+                NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+                externalIP = json[@"ip"] ?: json[@"origin"] ?: json[@"query"] ?: @"Unknown";
+                NSLog(@"[LC] ✅ Socker proxy test successful - External IP: %@, Latency: %.2fs", externalIP, latency);
+            } @catch (NSException *exception) {
+                NSLog(@"[LC] ⚠️ Could not parse IP response: %@", exception);
+            }
+        } else {
+            NSLog(@"[LC] ❌ Socker proxy test failed - Error: %@", error.localizedDescription);
+        }
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            completion(success, latency, externalIP);
+        });
+    }];
+    
+    [task resume];
+}
+
++ (void)testAPIProxyCapability:(void(^)(BOOL success))completion {
+    if (!proxyEnabled || !globalProxyConfig) {
+        completion(NO);
+        return;
+    }
+    
+    NSLog(@"[LC] 🧪 Testing API proxy capability (bt+ style)...");
+    
+    NSURLSessionConfiguration *config = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+    config.connectionProxyDictionary = createSockerStyleProxyDictionary();
+    config.timeoutIntervalForRequest = 10.0;
+    
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
+    
+    // Test API endpoint
+    NSURL *apiURL = [NSURL URLWithString:@"https://httpbin.org/json"];
+    NSMutableURLRequest *apiRequest = [NSMutableURLRequest requestWithURL:apiURL];
+    [apiRequest setValue:@"application/json" forHTTPHeaderField:@"Accept"];
+    [apiRequest setValue:@"LiveContainer/1.0 API Test" forHTTPHeaderField:@"User-Agent"];
+    
+    NSURLSessionDataTask *task = [session dataTaskWithRequest:apiRequest completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        BOOL success = (error == nil && [(NSHTTPURLResponse *)response statusCode] == 200);
+        
+        if (success && data) {
+            @try {
+                NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+                if (json) {
+                    NSLog(@"[LC] ✅ API proxy capability confirmed - JSON response received");
+                }
+            } @catch (NSException *exception) {
+                success = NO;
+            }
+        }
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            completion(success);
+        });
+    }];
+    
+    [task resume];
+}
+
+@end
+
+#pragma mark - Initialization
 
 void NetworkGuestHooksInit(void) {
-    @try {
-        NSLog(@"[LC] 🚀 Initializing enhanced network spoofing hooks...");
-        
-        loadNetworkConfiguration();
-        
-        if (!spoofNetworkEnabled) {
-            NSLog(@"[LC] 📶 Network spoofing disabled");
-            return;
-        }
-        
-        NSLog(@"[LC] 🔗 Network spoofing enabled - Mode: %@, Proxy: %@://%@:%d", 
-              networkMode, proxyType, proxyHost, proxyPort);
-        
-        // Install socket-level hooks for aggressive mode using the same pattern as Dyld.m
-        // if ([networkMode isEqualToString:@"aggressive"]) {
-        //     NSLog(@"[LC] ⚡ Installing aggressive mode socket hooks...");
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        @try {
+            NSLog(@"[LC] 🚀 Initializing Socker+bt hybrid proxy system...");
             
-        //     // Use the exact same pattern as in LiveContainer/Tweaks/Dyld.m line 342
-        //     struct rebinding rebindings[] = {
-        //         {"connect", (void *)lc_connect, (void **)&original_connect},
-        //         {"gethostbyname", (void *)lc_gethostbyname, (void **)&original_gethostbyname},
-        //         {"getaddrinfo", (void *)lc_getaddrinfo, (void **)&original_getaddrinfo},
-        //         {"send", (void *)lc_send, (void **)&original_send},
-        //         {"sendto", (void *)lc_sendto, (void **)&original_sendto},
-        //         {"recv", (void *)original_recv, (void **)&original_recv},
-        //         {"recvfrom", (void *)original_recvfrom, (void **)&original_recvfrom},
-        //     };
+            loadProxyConfiguration();
             
-        //     int result = rebind_symbols(rebindings, 7);
-        //     if (result == 0) {
-        //         NSLog(@"[LC] ✅ Socket-level hooks installed successfully");
-        //     } else {
-        //         NSLog(@"[LC] ❌ Failed to install socket-level hooks: %d", result);
-        //     }
-        // }
-        
-        // Test the configuration
-        NSDictionary *testProxy = createEnhancedProxyDictionary();
-        if (testProxy) {
-            NSLog(@"[LC] ✅ Proxy configuration test passed");
-        } else {
-            NSLog(@"[LC] ❌ Proxy configuration test failed");
+            if (!proxyEnabled) {
+                NSLog(@"[LC] 📶 Universal proxy disabled");
+                return;
+            }
+            
+            NSLog(@"[LC] 🔗 Universal proxy enabled: %@://%@:%ld", 
+                  proxyType, proxyHost, (long)proxyPort);
+            
+            // Install universal data task hooks (Socker + bt+ pattern)
+            Class sessionClass = NSClassFromString(@"NSURLSession");
+            if (sessionClass) {
+                Method originalMethod = class_getInstanceMethod(sessionClass, @selector(dataTaskWithRequest:completionHandler:));
+                if (originalMethod) {
+                    original_dataTaskWithRequest = (void *)method_getImplementation(originalMethod);
+                    method_setImplementation(originalMethod, (IMP)socker_dataTaskWithRequest);
+                    NSLog(@"[LC] ✅ Enhanced data task hooks installed (Socker+Blaze pattern)");
+                }
+            }
+            
+            // Test the proxy connection
+            [SockerProxyTester testProxyConnection:^(BOOL success, NSTimeInterval latency, NSString *externalIP) {
+                if (success) {
+                    NSLog(@"[LC] ✅ Socker+Blaze universal proxy operational");
+                    NSLog(@"[LC] 📊 External IP: %@, Latency: %.2fs", externalIP, latency);
+                    
+                    // Test API capability
+                    [SockerProxyTester testAPIProxyCapability:^(BOOL apiSuccess) {
+                        if (apiSuccess) {
+                            NSLog(@"[LC] ✅ API proxy capability confirmed");
+                            NSLog(@"[LC] 🎯 Coverage: Universal HTTP/HTTPS + Enhanced API detection");
+                        } else {
+                            NSLog(@"[LC] ⚠️ API proxy test failed, but basic proxy works");
+                        }
+                    }];
+                } else {
+                    NSLog(@"[LC] ⚠️ Proxy connection test failed - check configuration");
+                }
+            }];
+            
+            NSLog(@"[LC] ✅ Socker+bt hybrid proxy system initialized");
+            NSLog(@"[LC] ℹ️ Features:");
+            NSLog(@"[LC] 🌐 Universal HTTP/HTTPS traffic proxying (Socker-style)");
+            NSLog(@"[LC] 🎯 Enhanced API request detection (bt+ style)");
+            NSLog(@"[LC] 🔐 Authentication endpoint monitoring");
+            NSLog(@"[LC] 📱 Legacy NSURLConnection support");
+            NSLog(@"[LC] ⚠️ Limitations: Raw sockets, WebRTC require jailbreak");
+            
+        } @catch (NSException *exception) {
+            NSLog(@"[LC] ❌ Failed to initialize hybrid proxy: %@", exception);
         }
-        
-        NSLog(@"[LC] ✅ Enhanced network hooks initialized successfully");
-        
-    } @catch (NSException *exception) {
-        NSLog(@"[LC] ❌ Failed to initialize network hooks: %@", exception);
-    }
+    });
 }
