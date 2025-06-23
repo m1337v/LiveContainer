@@ -153,6 +153,26 @@ class LCAppModel: ObservableObject, Hashable {
         }
     }
 
+    // MARK: Camera Transform Options
+    @Published var uiSpoofCameraTransformOrientation: String {
+        didSet {
+            appInfo.spoofCameraTransformOrientation = uiSpoofCameraTransformOrientation
+        }
+    }
+    @Published var uiSpoofCameraTransformScale: String {
+        didSet {
+            appInfo.spoofCameraTransformScale = uiSpoofCameraTransformScale
+        }
+    }
+    @Published var uiSpoofCameraTransformFlip: String {
+        didSet {
+            appInfo.spoofCameraTransformFlip = uiSpoofCameraTransformFlip
+        }
+    }
+
+    @Published var isProcessingVideo = false
+    @Published var videoProcessingProgress: Double = 0.0
+
     // MARK: Proxy Addon
     @Published var uiSpoofNetwork : Bool {
         didSet {
@@ -235,6 +255,10 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiSpoofCameraVideoPath = appInfo.spoofCameraVideoPath ?? ""
         self.uiSpoofCameraLoop = appInfo.spoofCameraLoop
         self.uiSpoofCameraMode = appInfo.spoofCameraMode ?? "standard"
+        // MARK: Camera transformation options initialization
+        self.uiSpoofCameraTransformOrientation = appInfo.spoofCameraTransformOrientation
+        self.uiSpoofCameraTransformScale = appInfo.spoofCameraTransformScale
+        self.uiSpoofCameraTransformFlip = appInfo.spoofCameraTransformFlip
         
         // MARK: Proxy Addon Section
         self.uiSpoofNetwork = appInfo.spoofNetwork

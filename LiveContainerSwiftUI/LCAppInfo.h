@@ -52,6 +52,9 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property NSString* spoofCameraVideoPath;
 @property BOOL spoofCameraLoop;
 @property NSString* spoofCameraMode; // NEW: "standard", "aggressive", "compatibility"
+@property (nonatomic) NSString* spoofCameraTransformOrientation; // "none", "portrait", "landscape"
+@property (nonatomic) NSString* spoofCameraTransformScale;       // "fit", "fill", "crop"
+@property (nonatomic) NSString* spoofCameraTransformFlip;        // "none", "horizontal", "vertical"
 
 // Network Addon Section
 @property BOOL spoofNetwork;

@@ -401,8 +401,8 @@ static CVPixelBufferRef createPixelBufferInFormat(CVPixelBufferRef sourceBuffer,
 static CVPixelBufferRef rotatePixelBufferToPortrait(CVPixelBufferRef sourceBuffer) {
     if (!sourceBuffer) return NULL;
     
-    // CRITICAL TEST: Don't rotate at all - just return the source buffer
-    NSLog(@"[LC] 🔄 FD: ROTATION DISABLED - returning source buffer as-is");
+    // NO ROTATION AT ALL - just return source buffer with retained reference
+    NSLog(@"[LC] 🚫 ALL ROTATION DISABLED - using source content as-is");
     CVPixelBufferRetain(sourceBuffer);
     return sourceBuffer;
 }
@@ -1690,6 +1690,8 @@ static NSString* fourCCToString(OSType fourCC) {
 }
 
 // Helper method to create pixel buffer from UIImage
+// Fix the createPixelBufferFromImage method around line 1699:
+
 + (CVPixelBufferRef)createPixelBufferFromImage:(UIImage *)image size:(CGSize)size {
     NSDictionary *options = @{
         (NSString*)kCVPixelBufferCGImageCompatibilityKey: @YES,
@@ -1724,7 +1726,7 @@ static NSString* fourCCToString(OSType fourCC) {
         CGContextSetRGBFillColor(context, 0, 0, 0, 1);
         CGContextFillRect(context, CGRectMake(0, 0, size.width, size.height));
         
-        // fd APPROACH: Always ensure target size is portrait
+        // FIXED: Always ensure target size is portrait
         CGSize adjustedSize = size;
         if (size.width > size.height) {
             // If target is landscape, swap to portrait
@@ -1758,11 +1760,8 @@ static NSString* fourCCToString(OSType fourCC) {
     CGColorSpaceRelease(colorSpace);
     CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
     
-    // fd APPROACH: Apply hardware rotation after creation if needed
-    CVPixelBufferRef finalBuffer = rotatePixelBufferToPortrait(pixelBuffer);
-    CVPixelBufferRelease(pixelBuffer);
-    
-    return finalBuffer;
+    // FIXED: Return the created pixelBuffer directly since rotation is disabled
+    return pixelBuffer;
 }
 
 // Helper method to create subtle variations for animation
@@ -2111,7 +2110,7 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
         
         // CRITICAL FIX: Don't alias the same buffer - just use it directly
         g_cachedPhotoPixelBuffer = spoofedPixelBuffer;
-        CVPixelBufferRetain(g_cachedPhotoPixelBuffer); // Retain for cache
+        CVPixelBufferRetain(g_cachedPhotoPixelBuffer);
         
         // Create CGImage from the pixel buffer
         size_t width = CVPixelBufferGetWidth(g_cachedPhotoPixelBuffer);

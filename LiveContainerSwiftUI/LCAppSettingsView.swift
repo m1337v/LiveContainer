@@ -650,6 +650,84 @@ struct LCAppSettingsView : View{
                             errorInfo: $errorInfo,
                             errorShow: $errorShow
                         )
+                        
+                        // FIXED: Video transformations inside the video type block
+                        if !model.uiSpoofCameraVideoPath.isEmpty {
+                            Divider()
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Video Transformations")
+                                    .font(.headline)
+                                    .padding(.top, 8)
+                                
+                                Picker("Orientation", selection: Binding(
+                                    get: { model.uiSpoofCameraTransformOrientation },
+                                    set: { newValue in
+                                        model.uiSpoofCameraTransformOrientation = newValue
+                                        Task {
+                                            await processVideoTransforms()
+                                        }
+                                    }
+                                )) {
+                                    Text("Original").tag("none")
+                                    Text("Force Portrait").tag("portrait") 
+                                    Text("Force Landscape").tag("landscape")
+                                }
+                                
+                                Picker("Scale", selection: Binding(
+                                    get: { model.uiSpoofCameraTransformScale },
+                                    set: { newValue in
+                                        model.uiSpoofCameraTransformScale = newValue
+                                        Task {
+                                            await processVideoTransforms()
+                                        }
+                                    }
+                                )) {
+                                    Text("Fit").tag("fit")
+                                    Text("Fill").tag("fill")
+                                    Text("Crop").tag("crop")
+                                }
+                                
+                                Picker("Flip", selection: Binding(
+                                    get: { model.uiSpoofCameraTransformFlip },
+                                    set: { newValue in
+                                        model.uiSpoofCameraTransformFlip = newValue
+                                        Task {
+                                            await processVideoTransforms()
+                                        }
+                                    }
+                                )) {
+                                    Text("None").tag("none")
+                                    Text("Horizontal").tag("horizontal")
+                                    Text("Vertical").tag("vertical")
+                                }
+                                
+                                if model.isProcessingVideo {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        HStack {
+                                            ProgressView()
+                                                .scaleEffect(0.8)
+                                            Text("Processing video...")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        
+                                        ProgressView(value: model.videoProcessingProgress)
+                                            .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                                        
+                                        Text("\(Int(model.videoProcessingProgress * 100))%")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .padding(.top, 4)
+                                }
+                                
+                                Text("Video will be automatically processed when settings change. Useful for fixing Instagram videos that appear rotated.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .padding(.top, 4)
+                            }
+                        }
                     }
                     
                     if #unavailable(iOS 16.0) {
@@ -676,6 +754,7 @@ struct LCAppSettingsView : View{
                     Text("When enabled, this app will receive the specified camera input instead of the device's actual camera data.")
                 }
             }
+           
 
             // MARK: Network Addon Section
             Section {
@@ -1158,6 +1237,195 @@ struct LCAppSettingsView : View{
             errorInfo = error.localizedDescription
             errorShow = true
         }
+    }
+
+    @MainActor
+    private func processVideoTransforms() async {
+        guard model.uiSpoofCamera && model.uiSpoofCameraType == "video" && !model.uiSpoofCameraVideoPath.isEmpty else {
+            return
+        }
+        
+        // Check if any transforms are applied
+        let hasTransforms = model.uiSpoofCameraTransformOrientation != "none" || 
+                        model.uiSpoofCameraTransformScale != "fit" || 
+                        model.uiSpoofCameraTransformFlip != "none"
+        
+        guard hasTransforms else { return }
+        
+        model.isProcessingVideo = true
+        model.videoProcessingProgress = 0.0
+        
+        do {
+            let transformedPath = try await transformVideo(
+                inputPath: model.uiSpoofCameraVideoPath,
+                orientation: model.uiSpoofCameraTransformOrientation,
+                scale: model.uiSpoofCameraTransformScale,
+                flip: model.uiSpoofCameraTransformFlip
+            )
+            
+            // Update the video path to use the transformed video
+            model.uiSpoofCameraVideoPath = transformedPath
+            
+        } catch {
+            errorInfo = "Video transformation failed: \(error.localizedDescription)"
+            errorShow = true
+        }
+        
+        model.isProcessingVideo = false
+    }
+
+    private func transformVideo(
+        inputPath: String,
+        orientation: String,
+        scale: String,
+        flip: String
+    ) async throws -> String {
+        
+        let inputURL = URL(fileURLWithPath: inputPath)
+        let outputFileName = inputURL.deletingPathExtension().lastPathComponent + "_transformed.mp4"
+        let outputURL = inputURL.deletingLastPathComponent().appendingPathComponent(outputFileName)
+        
+        // Remove existing transformed file
+        if FileManager.default.fileExists(atPath: outputURL.path) {
+            try FileManager.default.removeItem(at: outputURL)
+        }
+        
+        let asset = AVAsset(url: inputURL)
+        let composition = AVMutableComposition()
+        let videoComposition = AVMutableVideoComposition()
+        
+        // Add video track
+        guard let videoTrack = try await asset.loadTracks(withMediaType: .video).first else {
+            throw NSError(domain: "VideoTransform", code: 1, userInfo: [NSLocalizedDescriptionKey: "No video track found"])
+        }
+        
+        guard let compositionVideoTrack = composition.addMutableTrack(
+            withMediaType: .video,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else {
+            throw NSError(domain: "VideoTransform", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to create composition track"])
+        }
+        
+        let duration = try await asset.load(.duration)
+        try compositionVideoTrack.insertTimeRange(
+            CMTimeRange(start: .zero, duration: duration),
+            of: videoTrack,
+            at: .zero
+        )
+        
+        // Add audio track if present
+        if let audioTrack = try await asset.loadTracks(withMediaType: .audio).first {
+            if let compositionAudioTrack = composition.addMutableTrack(
+                withMediaType: .audio,
+                preferredTrackID: kCMPersistentTrackID_Invalid
+            ) {
+                try compositionAudioTrack.insertTimeRange(
+                    CMTimeRange(start: .zero, duration: duration),
+                    of: audioTrack,
+                    at: .zero
+                )
+            }
+        }
+        
+        // Calculate transform
+        let naturalSize = try await videoTrack.load(.naturalSize)
+        let preferredTransform = try await videoTrack.load(.preferredTransform)
+        
+        let transformResult = calculateVideoTransform(
+            naturalSize: naturalSize,
+            preferredTransform: preferredTransform,
+            orientation: orientation,
+            scale: scale,
+            flip: flip
+        )
+        
+        // Create video composition
+        let instruction = AVMutableVideoCompositionInstruction()
+        instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
+        
+        let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compositionVideoTrack)
+        layerInstruction.setTransform(transformResult.transform, at: .zero)
+        
+        instruction.layerInstructions = [layerInstruction]
+        videoComposition.instructions = [instruction]
+        videoComposition.renderSize = transformResult.renderSize
+        videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
+        
+        // Export with progress monitoring
+        guard let exportSession = AVAssetExportSession(
+            asset: composition,
+            presetName: AVAssetExportPresetHighestQuality
+        ) else {
+            throw NSError(domain: "VideoTransform", code: 3, userInfo: [NSLocalizedDescriptionKey: "Failed to create export session"])
+        }
+        
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = .mp4
+        exportSession.videoComposition = videoComposition
+        
+        // Monitor progress
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            Task { @MainActor in
+                model.videoProcessingProgress = Double(exportSession.progress)
+            }
+        }
+        
+        await exportSession.export()
+        timer.invalidate()
+        
+        switch exportSession.status {
+        case .completed:
+            await MainActor.run {
+                model.videoProcessingProgress = 1.0
+            }
+            return outputURL.path
+        case .failed:
+            throw exportSession.error ?? NSError(domain: "VideoTransform", code: 4, userInfo: [NSLocalizedDescriptionKey: "Export failed"])
+        default:
+            throw NSError(domain: "VideoTransform", code: 5, userInfo: [NSLocalizedDescriptionKey: "Export cancelled or failed"])
+        }
+    }
+
+    private func calculateVideoTransform(
+        naturalSize: CGSize,
+        preferredTransform: CGAffineTransform,
+        orientation: String,
+        scale: String,
+        flip: String
+    ) -> (transform: CGAffineTransform, renderSize: CGSize) {
+        
+        var transform = preferredTransform
+        var renderSize = naturalSize
+        
+        // Apply orientation
+        switch orientation {
+        case "portrait":
+            if naturalSize.width > naturalSize.height {
+                transform = transform.concatenating(CGAffineTransform(rotationAngle: .pi / 2))
+                renderSize = CGSize(width: naturalSize.height, height: naturalSize.width)
+            }
+        case "landscape":
+            if naturalSize.height > naturalSize.width {
+                transform = transform.concatenating(CGAffineTransform(rotationAngle: -.pi / 2))
+                renderSize = CGSize(width: naturalSize.height, height: naturalSize.width)
+            }
+        default: // "none"
+            break
+        }
+        
+        // Apply flip
+        switch flip {
+        case "horizontal":
+            transform = transform.concatenating(CGAffineTransform(scaleX: -1, y: 1))
+            transform = transform.concatenating(CGAffineTransform(translationX: renderSize.width, y: 0))
+        case "vertical":
+            transform = transform.concatenating(CGAffineTransform(scaleX: 1, y: -1))
+            transform = transform.concatenating(CGAffineTransform(translationX: 0, y: renderSize.height))
+        default: // "none"
+            break
+        }
+        
+        return (transform, renderSize)
     }
 }
 

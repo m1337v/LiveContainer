@@ -805,6 +805,47 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     [self save];
 }
 
+// MARK: Camera Transform Section
+
+- (NSString*)spoofCameraTransformOrientation {
+    NSString* orientation = _info[@"spoofCameraTransformOrientation"];
+    if (orientation && [orientation isKindOfClass:[NSString class]]) {
+        return orientation;
+    } else {
+        return @"none";
+    }
+}
+- (void)setSpoofCameraTransformOrientation:(NSString*)spoofCameraTransformOrientation {
+    _info[@"spoofCameraTransformOrientation"] = spoofCameraTransformOrientation ?: @"none";
+    [self save];
+}
+
+- (NSString*)spoofCameraTransformScale {
+    NSString* scale = _info[@"spoofCameraTransformScale"];
+    if (scale && [scale isKindOfClass:[NSString class]]) {
+        return scale;
+    } else {
+        return @"fit";
+    }
+}
+- (void)setSpoofCameraTransformScale:(NSString*)spoofCameraTransformScale {
+    _info[@"spoofCameraTransformScale"] = spoofCameraTransformScale ?: @"fit";
+    [self save];
+}
+
+- (NSString*)spoofCameraTransformFlip {
+    NSString* flip = _info[@"spoofCameraTransformFlip"];
+    if (flip && [flip isKindOfClass:[NSString class]]) {
+        return flip;
+    } else {
+        return @"none";
+    }
+}
+- (void)setSpoofCameraTransformFlip:(NSString*)spoofCameraTransformFlip {
+    _info[@"spoofCameraTransformFlip"] = spoofCameraTransformFlip ?: @"none";
+    [self save];
+}
+
 // MARK: Network Addon Section
 - (bool)spoofNetwork {
     if(_info[@"spoofNetwork"] != nil) {
