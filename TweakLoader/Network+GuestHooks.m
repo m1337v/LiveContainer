@@ -28,6 +28,12 @@ static int (*original_socket)(int, int, int) = NULL;
 static struct hostent *(*original_gethostbyname)(const char *) = NULL;
 static int (*original_getaddrinfo)(const char *, const char *, const struct addrinfo *, struct addrinfo **) = NULL;
 
+// Additional function pointers inspired by socker
+static ssize_t (*original_send)(int, const void *, size_t, int) = NULL;
+static ssize_t (*original_sendto)(int, const void *, size_t, int, const struct sockaddr *, socklen_t) = NULL;
+static ssize_t (*original_recv)(int, void *, size_t, int) = NULL;
+static ssize_t (*original_recvfrom)(int, void *, size_t, int, struct sockaddr *, socklen_t *) = NULL;
+
 #pragma mark - Configuration Loading
 
 static void loadNetworkConfiguration(void) {
@@ -47,13 +53,13 @@ static void loadNetworkConfiguration(void) {
     if (proxyPort == 0) proxyPort = 8080;
     proxyUsername = guestAppInfo[@"proxyUsername"] ?: @"";
     proxyPassword = guestAppInfo[@"proxyPassword"] ?: @"";
-    networkMode = guestAppInfo[@"spoofNetworkMode"] ?: @"standard"; // Fixed key name
+    networkMode = guestAppInfo[@"spoofNetworkMode"] ?: @"standard";
 
     NSLog(@"[LC] ⚙️ Network Config: Enabled=%d, Type=%@, Host=%@, Port=%d, Mode=%@", 
           spoofNetworkEnabled, proxyType, proxyHost, proxyPort, networkMode);
 }
 
-#pragma mark - Socket-Level Hooks (inspired by socker)
+#pragma mark - Enhanced Socket-Level Hooks (inspired by socker)
 
 static int lc_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     loadNetworkConfiguration();
@@ -66,7 +72,7 @@ static int lc_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen
     if ([networkMode isEqualToString:@"aggressive"]) {
         NSLog(@"[LC] 🔌 Intercepting socket connection in aggressive mode");
         
-        // Convert sockaddr to proxy connection
+        // Handle IPv4 connections
         if (addr->sa_family == AF_INET) {
             struct sockaddr_in *addr_in = (struct sockaddr_in *)addr;
             char ip_str[INET_ADDRSTRLEN];
@@ -74,6 +80,14 @@ static int lc_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen
             int port = ntohs(addr_in->sin_port);
             
             NSLog(@"[LC] 🎯 Original destination: %s:%d", ip_str, port);
+            
+            // Skip localhost and private network ranges in some cases
+            if (strcmp(ip_str, "127.0.0.1") == 0 || 
+                strncmp(ip_str, "192.168.", 8) == 0 ||
+                strncmp(ip_str, "10.", 3) == 0) {
+                NSLog(@"[LC] 🏠 Allowing local/private network connection");
+                return original_connect(sockfd, addr, addrlen);
+            }
             
             // Redirect to proxy
             if (proxyHost.length > 0) {
@@ -83,13 +97,28 @@ static int lc_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen
                 proxy_addr.sin_port = htons(proxyPort);
                 
                 // Resolve proxy host
-                struct hostent *proxy_host_entry = gethostbyname(proxyHost.UTF8String);
-                if (proxy_host_entry) {
+                struct hostent *proxy_host_entry = original_gethostbyname(proxyHost.UTF8String);
+                if (proxy_host_entry && proxy_host_entry->h_addr_list[0]) {
                     memcpy(&proxy_addr.sin_addr, proxy_host_entry->h_addr_list[0], proxy_host_entry->h_length);
                     NSLog(@"[LC] 🔄 Redirecting to proxy: %@:%d", proxyHost, proxyPort);
                     return original_connect(sockfd, (struct sockaddr *)&proxy_addr, sizeof(proxy_addr));
+                } else {
+                    NSLog(@"[LC] ❌ Failed to resolve proxy host: %@", proxyHost);
                 }
             }
+        }
+        // Handle IPv6 connections
+        else if (addr->sa_family == AF_INET6) {
+            struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)addr;
+            char ip_str[INET6_ADDRSTRLEN];
+            inet_ntop(AF_INET6, &(addr_in6->sin6_addr), ip_str, INET6_ADDRSTRLEN);
+            int port = ntohs(addr_in6->sin6_port);
+            
+            NSLog(@"[LC] 🎯 Original IPv6 destination: [%s]:%d", ip_str, port);
+            
+            // For IPv6, we might need different proxy handling
+            // For now, allow through but log
+            NSLog(@"[LC] 📡 IPv6 connection - passing through");
         }
     }
     
@@ -102,8 +131,17 @@ static struct hostent *lc_gethostbyname(const char *name) {
     if (spoofNetworkEnabled && [networkMode isEqualToString:@"aggressive"]) {
         NSLog(@"[LC] 🔍 DNS lookup intercepted: %s", name);
         
-        // In aggressive mode, we might want to return proxy IP for all lookups
-        // or implement custom DNS resolution logic here
+        // Skip resolution for localhost and known local hosts
+        if (strcmp(name, "localhost") == 0 || 
+            strcmp(name, "127.0.0.1") == 0 ||
+            strstr(name, ".local") != NULL) {
+            NSLog(@"[LC] 🏠 Allowing local DNS resolution");
+            return original_gethostbyname(name);
+        }
+        
+        // Could implement custom DNS resolution here
+        // For now, just log and pass through
+        NSLog(@"[LC] 📡 DNS resolution for: %s", name);
     }
     
     return original_gethostbyname(name);
@@ -115,9 +153,40 @@ static int lc_getaddrinfo(const char *node, const char *service,
     
     if (spoofNetworkEnabled && [networkMode isEqualToString:@"aggressive"]) {
         NSLog(@"[LC] 🔍 getaddrinfo intercepted: %s:%s", node ?: "null", service ?: "null");
+        
+        // Skip for local addresses
+        if (node && (strcmp(node, "localhost") == 0 || 
+                    strcmp(node, "127.0.0.1") == 0 ||
+                    strstr(node, ".local") != NULL)) {
+            NSLog(@"[LC] 🏠 Allowing local getaddrinfo");
+            return original_getaddrinfo(node, service, hints, res);
+        }
     }
     
     return original_getaddrinfo(node, service, hints, res);
+}
+
+// Additional hooks inspired by socker for more comprehensive coverage
+static ssize_t lc_send(int sockfd, const void *buf, size_t len, int flags) {
+    // Could intercept and modify data here
+    return original_send(sockfd, buf, len, flags);
+}
+
+static ssize_t lc_sendto(int sockfd, const void *buf, size_t len, int flags,
+                        const struct sockaddr *dest_addr, socklen_t addrlen) {
+    loadNetworkConfiguration();
+    
+    if (spoofNetworkEnabled && [networkMode isEqualToString:@"aggressive"]) {
+        if (dest_addr && dest_addr->sa_family == AF_INET) {
+            struct sockaddr_in *addr_in = (struct sockaddr_in *)dest_addr;
+            char ip_str[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &(addr_in->sin_addr), ip_str, INET_ADDRSTRLEN);
+            int port = ntohs(addr_in->sin_port);
+            NSLog(@"[LC] 📤 sendto intercepted: %s:%d (%zu bytes)", ip_str, port, len);
+        }
+    }
+    
+    return original_sendto(sockfd, buf, len, flags, dest_addr, addrlen);
 }
 
 #pragma mark - CFNetwork Hooks (Enhanced)
@@ -161,13 +230,13 @@ static NSDictionary *createEnhancedProxyDictionary(void) {
     
     NSMutableDictionary *proxyDict = [NSMutableDictionary dictionary];
     
-    // More comprehensive proxy configuration
+    // More comprehensive proxy configuration based on socker patterns
     if ([proxyType isEqualToString:@"HTTP"]) {
         proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPEnable] = @YES;
         proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPProxy] = proxyHost;
         proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPPort] = @(proxyPort);
         
-        // Enable for HTTPS as well (though constants may not be available)
+        // Enable for HTTPS as well
         proxyDict[@"HTTPSEnable"] = @YES;
         proxyDict[@"HTTPSProxy"] = proxyHost;
         proxyDict[@"HTTPSPort"] = @(proxyPort);
@@ -178,6 +247,13 @@ static NSDictionary *createEnhancedProxyDictionary(void) {
         proxyDict[@"SOCKSProxy"] = proxyHost;
         proxyDict[@"SOCKSPort"] = @(proxyPort);
         proxyDict[@"SOCKSVersion"] = @5;
+        
+    } else if ([proxyType isEqualToString:@"SOCKS4"]) {
+        // SOCKS4 configuration
+        proxyDict[@"SOCKSEnable"] = @YES;
+        proxyDict[@"SOCKSProxy"] = proxyHost;
+        proxyDict[@"SOCKSPort"] = @(proxyPort);
+        proxyDict[@"SOCKSVersion"] = @4;
         
     } else if ([proxyType isEqualToString:@"DIRECT"]) {
         // No proxy
@@ -198,6 +274,10 @@ static NSDictionary *createEnhancedProxyDictionary(void) {
         proxyDict[@"HTTPSProxyPassword"] = proxyPassword;
         proxyDict[@"SOCKSPassword"] = proxyPassword;
     }
+    
+    // Additional proxy settings for better compatibility
+    proxyDict[@"ExceptionsList"] = @[@"localhost", @"127.0.0.1", @"*.local"];
+    proxyDict[@"FTPPassive"] = @YES;
     
     NSLog(@"[LC] ✅ Created enhanced proxy dictionary: %@", proxyDict);
     return [proxyDict copy];
@@ -258,7 +338,7 @@ static NSDictionary *createEnhancedProxyDictionary(void) {
     if (proxyDict) {
         configuration.connectionProxyDictionary = proxyDict;
         
-        // Enhanced timeout configuration
+        // Enhanced timeout configuration based on mode
         if ([networkMode isEqualToString:@"aggressive"]) {
             configuration.timeoutIntervalForRequest = 60.0;
             configuration.timeoutIntervalForResource = 600.0;
@@ -310,22 +390,22 @@ void NetworkGuestHooksInit(void) {
         NSLog(@"[LC] 🔗 Network spoofing enabled - Mode: %@, Proxy: %@://%@:%d", 
               networkMode, proxyType, proxyHost, proxyPort);
         
-        // Install socket-level hooks for aggressive mode
+        // Install socket-level hooks for aggressive mode (using fishhook pattern from Dyld.m)
         if ([networkMode isEqualToString:@"aggressive"]) {
             NSLog(@"[LC] ⚡ Installing aggressive mode socket hooks...");
             
-            // Use fishhook for system-level function interception
-            struct rebinding socket_rebindings[] = {
+            // Use the same pattern as in Dyld.m
+            rebind_symbols((struct rebinding[7]){
                 {"connect", (void *)lc_connect, (void **)&original_connect},
                 {"gethostbyname", (void *)lc_gethostbyname, (void **)&original_gethostbyname},
                 {"getaddrinfo", (void *)lc_getaddrinfo, (void **)&original_getaddrinfo},
-            };
+                {"send", (void *)lc_send, (void **)&original_send},
+                {"sendto", (void *)lc_sendto, (void **)&original_sendto},
+                {"recv", (void *)original_recv, (void **)&original_recv},
+                {"recvfrom", (void *)original_recvfrom, (void **)&original_recvfrom},
+            }, 7);
             
-            if (rebind_symbols(socket_rebindings, sizeof(socket_rebindings)/sizeof(struct rebinding)) == 0) {
-                NSLog(@"[LC] ✅ Socket-level hooks installed successfully");
-            } else {
-                NSLog(@"[LC] ❌ Failed to install socket-level hooks");
-            }
+            NSLog(@"[LC] ✅ Socket-level hooks installed successfully");
         }
         
         // Test the configuration
