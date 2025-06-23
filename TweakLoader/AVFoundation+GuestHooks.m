@@ -666,6 +666,11 @@ static void setupVideoSpoofingResources() {
 // Add a simple frame cache at the top of GetFrame implementation
 static CVPixelBufferRef g_lastGoodFrame = NULL;
 
+// Add these static variables for high bitrate handling
+static CVPixelBufferRef g_highBitrateCache = NULL;
+static NSTimeInterval g_lastExtractionTime = 0;
+static Float64 g_videoDataRate = 0;
+
 // Fix the GetFrame getCurrentFrame method to better handle sample buffer creation:
 + (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originalFrame preserveOrientation:(BOOL)preserve {
     if (!spoofCameraEnabled) {
@@ -835,54 +840,74 @@ static NSString* fourCCToString(OSType fourCC) {
 }
 
 + (CVPixelBufferRef)getCurrentFramePixelBuffer:(OSType)requestedFormat {
-    NSLog(@"[LC] [GetFrame] getCurrentFramePixelBuffer called - format: %c%c%c%c, enabled: %@, player: %p, ready: %@", 
+    NSLog(@"[LC] [GetFrame] getCurrentFramePixelBuffer called - format: %c%c%c%c", 
           (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
-          (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF,
-          spoofCameraEnabled ? @"YES" : @"NO", frameExtractionPlayer, playerIsReady ? @"YES" : @"NO");
+          (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF);
     
     if (!spoofCameraEnabled || !frameExtractionPlayer || !playerIsReady) {
         return NULL;
     }
     
-    CMTime currentTime = frameExtractionPlayer.currentItem.currentTime;
-    CMTime duration = frameExtractionPlayer.currentItem.duration;
-    
-    // CRITICAL: Check for high bitrate video stalls
-    Float64 estimatedDataRate = 0;
-    NSArray *videoTracks = [frameExtractionPlayer.currentItem.asset tracksWithMediaType:AVMediaTypeVideo];
-    if (videoTracks.count > 0) {
-        estimatedDataRate = ((AVAssetTrack *)videoTracks.firstObject).estimatedDataRate;
+    // CRITICAL: Get video bitrate (like CaptureJailed)
+    if (g_videoDataRate == 0) {
+        NSArray *videoTracks = [frameExtractionPlayer.currentItem.asset tracksWithMediaType:AVMediaTypeVideo];
+        if (videoTracks.count > 0) {
+            g_videoDataRate = ((AVAssetTrack *)videoTracks.firstObject).estimatedDataRate;
+            NSLog(@"[LC] [GetFrame] Detected video bitrate: %.2f Mbps", g_videoDataRate / 1000000.0);
+        }
     }
     
-    BOOL isHighBitrate = estimatedDataRate > 2000000; // 2+ Mbps
+    BOOL isHighBitrate = g_videoDataRate > 2000000; // 2+ Mbps like your problematic video
+    NSTimeInterval currentTime = CACurrentMediaTime();
     
+    // CRITICAL: Frame rate limiting for high bitrate videos (like VCAM does)
     if (isHighBitrate) {
-        // For high bitrate videos, use more conservative timing
-        if (!CMTIME_IS_VALID(currentTime) || CMTimeGetSeconds(currentTime) < 0.2) {
-            NSLog(@"[LC] [GetFrame] 🎯 High bitrate: seeking to safe position");
-            currentTime = CMTimeMakeWithSeconds(0.5, 600); // Start further into video
-            [frameExtractionPlayer seekToTime:currentTime 
-                               toleranceBefore:kCMTimeZero 
-                                toleranceAfter:kCMTimeZero 
-                             completionHandler:^(BOOL finished) {
-                if (!finished) {
-                    NSLog(@"[LC] [GetFrame] ❌ High bitrate seek failed");
-                }
-            }];
-            
-            // Wait longer for high bitrate seeks
-            usleep(50000); // 50ms for high bitrate
-        }
-    } else {
-        // Standard timing logic for lower bitrate videos
-        if (!CMTIME_IS_VALID(currentTime) || CMTimeGetSeconds(currentTime) < 0.1) {
-            currentTime = CMTimeMake(3, 30);
+        NSTimeInterval timeSinceLastExtraction = currentTime - g_lastExtractionTime;
+        
+        // For high bitrate videos, limit extraction to 15fps max (every 66ms)
+        if (timeSinceLastExtraction < 0.066 && g_highBitrateCache) {
+            NSLog(@"[LC] [GetFrame] 🎯 High bitrate: using cached frame (%.3fs since last)", timeSinceLastExtraction);
+            CVPixelBufferRetain(g_highBitrateCache);
+            return g_highBitrateCache;
         }
     }
     
-    // Rest of your frame extraction logic...
-    AVPlayerItemVideoOutput *selectedOutput = NULL;
+    // CRITICAL: Use VCAM's approach for frame advancement
+    static int frameAdvanceCounter = 0;
+    frameAdvanceCounter++;
     
+    CMTime playerCurrentTime = frameExtractionPlayer.currentItem.currentTime;
+    CMTime duration = frameExtractionPlayer.currentItem.duration;
+    Float64 durationSeconds = CMTimeGetSeconds(duration);
+    
+    // VCAM-style frame progression
+    Float64 targetSeconds;
+    if (isHighBitrate) {
+        // For high bitrate: advance every 3 frames instead of every frame
+        targetSeconds = fmod((frameAdvanceCounter / 3) * 0.1, durationSeconds - 0.5);
+    } else {
+        // Normal videos: advance every frame
+        targetSeconds = fmod(frameAdvanceCounter * 0.033, durationSeconds - 0.5); // 30fps
+    }
+    
+    if (targetSeconds < 0.2) targetSeconds = 0.2; // Stay away from start
+    
+    CMTime seekTime = CMTimeMakeWithSeconds(targetSeconds, 600);
+    
+    // CRITICAL: Only seek if we actually need a new frame
+    if (CMTIME_COMPARE_INLINE(seekTime, !=, playerCurrentTime)) {
+        [frameExtractionPlayer seekToTime:seekTime toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
+        
+        // High bitrate videos need more time to seek
+        if (isHighBitrate) {
+            usleep(50000); // 50ms for high bitrate
+        } else {
+            usleep(16000); // 16ms for normal bitrate
+        }
+    }
+    
+    // Select output (your existing logic)
+    AVPlayerItemVideoOutput *selectedOutput = NULL;
     switch (requestedFormat) {
         case 875704422: // '420v'
             if (yuv420vOutput) selectedOutput = yuv420vOutput;
@@ -898,37 +923,47 @@ static NSString* fourCCToString(OSType fourCC) {
     }
     
     if (!selectedOutput) {
-        if (g_lastGoodFrame) {
-            CVPixelBufferRetain(g_lastGoodFrame);
-            return g_lastGoodFrame;
-        }
-        return NULL;
+        NSLog(@"[LC] [GetFrame] ❌ No output available");
+        return g_highBitrateCache ? (CVPixelBufferRetain(g_highBitrateCache), g_highBitrateCache) : NULL;
     }
     
-    // CRITICAL: For high bitrate videos, check output readiness more thoroughly
-    if (isHighBitrate && ![selectedOutput hasNewPixelBufferForItemTime:currentTime]) {
-        NSLog(@"[LC] [GetFrame] 🎯 High bitrate: output not ready, waiting...");
-        usleep(20000); // 20ms additional wait
-        
-        // Try a slightly different time
-        CMTime adjustedTime = CMTimeAdd(currentTime, CMTimeMake(1, 30));
-        if ([selectedOutput hasNewPixelBufferForItemTime:adjustedTime]) {
-            currentTime = adjustedTime;
+    // CRITICAL: Check buffer availability with patience for high bitrate
+    CMTime currentVideoTime = frameExtractionPlayer.currentItem.currentTime;
+    
+    if (![selectedOutput hasNewPixelBufferForItemTime:currentVideoTime]) {
+        if (isHighBitrate) {
+            NSLog(@"[LC] [GetFrame] 🎯 High bitrate: waiting for buffer...");
+            // Wait longer for high bitrate videos
+            usleep(100000); // 100ms wait
+            
+            // Try a few frames ahead
+            for (int i = 1; i <= 5; i++) {
+                CMTime futureTime = CMTimeAdd(currentVideoTime, CMTimeMake(i * 2, 30));
+                if ([selectedOutput hasNewPixelBufferForItemTime:futureTime]) {
+                    currentVideoTime = futureTime;
+                    NSLog(@"[LC] [GetFrame] 🎯 High bitrate: found buffer at +%d frames", i * 2);
+                    break;
+                }
+            }
         }
     }
     
-    CVPixelBufferRef pixelBuffer = [selectedOutput copyPixelBufferForItemTime:currentTime 
+    // Extract the frame
+    CVPixelBufferRef pixelBuffer = [selectedOutput copyPixelBufferForItemTime:currentVideoTime 
                                                            itemTimeForDisplay:NULL];
     
     if (pixelBuffer) {
         NSLog(@"[LC] [GetFrame] ✅ Frame extracted (high bitrate: %@)", isHighBitrate ? @"YES" : @"NO");
         
-        // Update cache
-        if (g_lastGoodFrame) {
-            CVPixelBufferRelease(g_lastGoodFrame);
+        // Update cache for high bitrate videos
+        if (isHighBitrate) {
+            if (g_highBitrateCache) {
+                CVPixelBufferRelease(g_highBitrateCache);
+            }
+            g_highBitrateCache = pixelBuffer;
+            CVPixelBufferRetain(g_highBitrateCache);
+            g_lastExtractionTime = currentTime;
         }
-        g_lastGoodFrame = pixelBuffer;
-        CVPixelBufferRetain(g_lastGoodFrame);
         
         // Scale if needed
         size_t width = CVPixelBufferGetWidth(pixelBuffer);
@@ -943,45 +978,8 @@ static NSString* fourCCToString(OSType fourCC) {
         return pixelBuffer;
     }
     
-    // Enhanced fallback for high bitrate videos
-    if (isHighBitrate) {
-        NSLog(@"[LC] [GetFrame] 🎯 High bitrate extraction failed, trying alternative positions");
-        
-        // Try multiple positions for high bitrate videos
-        for (int i = 1; i <= 5; i++) {
-            CMTime fallbackTime = CMTimeAdd(currentTime, CMTimeMake(i * 3, 30)); // Try +3 frames each time
-            CVPixelBufferRef fallbackBuffer = [selectedOutput copyPixelBufferForItemTime:fallbackTime 
-                                                                      itemTimeForDisplay:NULL];
-            if (fallbackBuffer) {
-                NSLog(@"[LC] [GetFrame] 🆘 High bitrate fallback #%d success", i);
-                
-                if (g_lastGoodFrame) {
-                    CVPixelBufferRelease(g_lastGoodFrame);
-                }
-                g_lastGoodFrame = fallbackBuffer;
-                CVPixelBufferRetain(g_lastGoodFrame);
-                
-                size_t width = CVPixelBufferGetWidth(fallbackBuffer);
-                size_t height = CVPixelBufferGetHeight(fallbackBuffer);
-                
-                if (width != (size_t)targetResolution.width || height != (size_t)targetResolution.height) {
-                    CVPixelBufferRef scaledBuffer = createScaledPixelBuffer(fallbackBuffer, targetResolution);
-                    CVPixelBufferRelease(fallbackBuffer);
-                    return scaledBuffer;
-                }
-                
-                return fallbackBuffer;
-            }
-        }
-    }
-    
-    // Final fallback to cached frame
-    if (g_lastGoodFrame) {
-        CVPixelBufferRetain(g_lastGoodFrame);
-        return g_lastGoodFrame;
-    }
-    
-    return NULL;
+    NSLog(@"[LC] [GetFrame] ❌ Frame extraction failed");
+    return g_highBitrateCache ? (CVPixelBufferRetain(g_highBitrateCache), g_highBitrateCache) : NULL;
 }
 
 + (void)setCurrentVideoPath:(NSString *)path {
@@ -1028,6 +1026,14 @@ static NSString* fourCCToString(OSType fourCC) {
         CVPixelBufferRelease(g_lastGoodFrame);
         g_lastGoodFrame = NULL;
     }
+
+    // Clean up high bitrate cache
+    if (g_highBitrateCache) {
+        CVPixelBufferRelease(g_highBitrateCache);
+        g_highBitrateCache = NULL;
+    }
+    g_lastExtractionTime = 0;
+    g_videoDataRate = 0;
 
     bgraOutput = nil;
     yuv420vOutput = nil;
