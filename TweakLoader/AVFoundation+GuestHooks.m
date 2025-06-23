@@ -96,6 +96,9 @@ static void cleanupPhotoCache(void);
 + (void)setCurrentVideoPath:(NSString *)path;
 + (void)setupPlayerWithPath:(NSString *)path;
 + (UIWindow *)getKeyWindow;
++ (void)createVideoFromImage:(UIImage *)sourceImage;
++ (CVPixelBufferRef)createPixelBufferFromImage:(UIImage *)image size:(CGSize)size;
++ (CVPixelBufferRef)createVariedPixelBufferFromOriginal:(CVPixelBufferRef)originalBuffer variation:(float)amount;
 @end
 
 // Level 1 hooks (Core Video)
@@ -425,8 +428,30 @@ static void setupImageSpoofingResources() {
         staticImageSpoofBuffer = NULL;
     }
 
-    // Create default gradient image
     UIImage *sourceImage = nil;
+    
+    // CRITICAL FIX: Try to load user's selected image first
+    NSDictionary *guestAppInfo = [NSUserDefaults guestAppInfo];
+    NSString *imagePath = guestAppInfo[@"spoofCameraImagePath"];
+    
+    if (imagePath && imagePath.length > 0 && [[NSFileManager defaultManager] fileExistsAtPath:imagePath]) {
+        NSLog(@"[LC] 🖼️ Loading user image from: %@", imagePath.lastPathComponent);
+        sourceImage = [UIImage imageWithContentsOfFile:imagePath];
+        
+        if (sourceImage) {
+            NSLog(@"[LC] ✅ User image loaded: %.0fx%.0f", sourceImage.size.width, sourceImage.size.height);
+            
+            // CRITICAL: Create a video from this image instead of just using it as static
+            [GetFrame createVideoFromImage:sourceImage];
+            return; // Exit early - we'll use video system instead
+        } else {
+            NSLog(@"[LC] ⚠️ Failed to load user image, falling back to default");
+        }
+    } else {
+        NSLog(@"[LC] 🖼️ No user image specified, using default gradient");
+    }
+
+    // Fallback: Create default gradient image (existing code)
     UIGraphicsBeginImageContextWithOptions(targetResolution, YES, 1.0);
     CGContextRef uigraphicsContext = UIGraphicsGetCurrentContext();
     if (uigraphicsContext) {
@@ -440,11 +465,11 @@ static void setupImageSpoofingResources() {
         CGColorSpaceRelease(colorSpace);
 
         // Add text
-        NSString *text = @"LiveContainer\nSpoofed";
+        NSString *text = @"LiveContainer\nCamera Spoof\nSelect Image in Settings";
         NSMutableParagraphStyle *paragraphStyle = [[NSMutableParagraphStyle alloc] init];
         paragraphStyle.alignment = NSTextAlignmentCenter;
         NSDictionary *attrs = @{ 
-            NSFontAttributeName: [UIFont boldSystemFontOfSize:targetResolution.width * 0.06], 
+            NSFontAttributeName: [UIFont boldSystemFontOfSize:targetResolution.width * 0.04], 
             NSForegroundColorAttributeName: [UIColor whiteColor],
             NSParagraphStyleAttributeName: paragraphStyle
         };
@@ -460,7 +485,7 @@ static void setupImageSpoofingResources() {
         return; 
     }
     
-    // Convert to CVPixelBuffer
+    // Convert to CVPixelBuffer (existing code)
     CGImageRef cgImage = sourceImage.CGImage;
     if (!cgImage) {
         NSLog(@"[LC] CRITICAL: CGImage is NULL");
@@ -1350,6 +1375,275 @@ static NSString* fourCCToString(OSType fourCC) {
 //         return spoofedFrame;
 //     }
 // }
+
++ (void)createVideoFromImage:(UIImage *)sourceImage {
+    NSLog(@"[LC] 🎬 Creating video from image: %.0fx%.0f", sourceImage.size.width, sourceImage.size.height);
+    
+    // Create temporary video file
+    NSString *tempDir = NSTemporaryDirectory();
+    NSString *tempVideoPath = [tempDir stringByAppendingPathComponent:@"lc_image_video.mp4"];
+    
+    // Remove existing temp file
+    if ([[NSFileManager defaultManager] fileExistsAtPath:tempVideoPath]) {
+        [[NSFileManager defaultManager] removeItemAtPath:tempVideoPath error:nil];
+    }
+    
+    NSURL *outputURL = [NSURL fileURLWithPath:tempVideoPath];
+    
+    // Create video writer
+    NSError *error = nil;
+    AVAssetWriter *writer = [[AVAssetWriter alloc] initWithURL:outputURL fileType:AVFileTypeMPEG4 error:&error];
+    if (!writer) {
+        NSLog(@"[LC] ❌ Failed to create video writer: %@", error);
+        return;
+    }
+    
+    // Determine video size (maintain aspect ratio but fit within target resolution)
+    CGSize imageSize = sourceImage.size;
+    CGSize videoSize = targetResolution;
+    
+    // Calculate scale to fit
+    CGFloat scaleX = targetResolution.width / imageSize.width;
+    CGFloat scaleY = targetResolution.height / imageSize.height;
+    CGFloat scale = MIN(scaleX, scaleY);
+    
+    videoSize = CGSizeMake(floor(imageSize.width * scale), floor(imageSize.height * scale));
+    
+    // Ensure even dimensions (required for H.264)
+    if ((int)videoSize.width % 2 != 0) videoSize.width -= 1;
+    if ((int)videoSize.height % 2 != 0) videoSize.height -= 1;
+    
+    NSLog(@"[LC] 🎬 Video size: %.0fx%.0f (scaled from %.0fx%.0f)", videoSize.width, videoSize.height, imageSize.width, imageSize.height);
+    
+    // Video settings
+    NSDictionary *videoSettings = @{
+        AVVideoCodecKey: AVVideoCodecTypeH264,
+        AVVideoWidthKey: @((int)videoSize.width),
+        AVVideoHeightKey: @((int)videoSize.height),
+        AVVideoCompressionPropertiesKey: @{
+            AVVideoAverageBitRateKey: @(1000000), // 1 Mbps - reasonable for looping
+            AVVideoProfileLevelKey: AVVideoProfileLevelH264BaselineAutoLevel
+        }
+    };
+    
+    AVAssetWriterInput *writerInput = [AVAssetWriterInput assetWriterInputWithMediaType:AVMediaTypeVideo outputSettings:videoSettings];
+    writerInput.expectsMediaDataInRealTime = NO;
+    
+    // Pixel buffer adaptor
+    NSDictionary *pixelBufferAttributes = @{
+        (NSString*)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA),
+        (NSString*)kCVPixelBufferWidthKey: @((int)videoSize.width),
+        (NSString*)kCVPixelBufferHeightKey: @((int)videoSize.height)
+    };
+    
+    AVAssetWriterInputPixelBufferAdaptor *adaptor = [AVAssetWriterInputPixelBufferAdaptor 
+                                                     assetWriterInputPixelBufferAdaptorWithAssetWriterInput:writerInput 
+                                                     sourcePixelBufferAttributes:pixelBufferAttributes];
+    
+    if (![writer canAddInput:writerInput]) {
+        NSLog(@"[LC] ❌ Cannot add video input to writer");
+        return;
+    }
+    
+    [writer addInput:writerInput];
+    
+    // Start writing
+    if (![writer startWriting]) {
+        NSLog(@"[LC] ❌ Failed to start writing: %@", writer.error);
+        return;
+    }
+    
+    [writer startSessionAtSourceTime:kCMTimeZero];
+    
+    // Create video in background
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+        // Create pixel buffer from image
+        CVPixelBufferRef pixelBuffer = [self createPixelBufferFromImage:sourceImage size:videoSize];
+        if (!pixelBuffer) {
+            NSLog(@"[LC] ❌ Failed to create pixel buffer from image");
+            return;
+        }
+        
+        // Video parameters
+        int frameRate = 30;
+        float videoDuration = 2.0; // 2 seconds
+        int totalFrames = (int)(videoDuration * frameRate);
+        
+        NSLog(@"[LC] 🎬 Creating %d frames at %d fps for %.1fs video", totalFrames, frameRate, videoDuration);
+        
+        // Write frames
+        CMTime frameDuration = CMTimeMake(1, frameRate);
+        CMTime currentTime = kCMTimeZero;
+        
+        for (int i = 0; i < totalFrames; i++) {
+            while (!writerInput.readyForMoreMediaData) {
+                usleep(10000); // Wait 10ms
+            }
+            
+            // Add slight variations to each frame to make it feel more "alive"
+            CVPixelBufferRef frameBuffer = pixelBuffer;
+            
+            // Every 10th frame, add a tiny brightness variation (subtle animation)
+            if (i % 10 == 0 && i > 0) {
+                frameBuffer = [self createVariedPixelBufferFromOriginal:pixelBuffer variation:(i % 100) / 100.0];
+            } else {
+                CVPixelBufferRetain(frameBuffer);
+            }
+            
+            BOOL success = [adaptor appendPixelBuffer:frameBuffer withPresentationTime:currentTime];
+            CVPixelBufferRelease(frameBuffer);
+            
+            if (!success) {
+                NSLog(@"[LC] ❌ Failed to append frame %d: %@", i, writer.error);
+                break;
+            }
+            
+            currentTime = CMTimeAdd(currentTime, frameDuration);
+            
+            if (i % 30 == 0) { // Log every second
+                NSLog(@"[LC] 🎬 Progress: %d/%d frames", i, totalFrames);
+            }
+        }
+        
+        CVPixelBufferRelease(pixelBuffer);
+        
+        // Finish writing
+        [writerInput markAsFinished];
+        [writer finishWritingWithCompletionHandler:^{
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (writer.status == AVAssetWriterStatusCompleted) {
+                    NSLog(@"[LC] ✅ Video created successfully at: %@", tempVideoPath);
+                    
+                    // CRITICAL: Set this as the current video path for GetFrame system
+                    spoofCameraVideoPath = tempVideoPath;
+                    currentVideoPath = tempVideoPath;
+                    
+                    // Initialize the GetFrame video system
+                    [GetFrame setCurrentVideoPath:tempVideoPath];
+                    
+                    // Also set up the main video spoofing system
+                    setupVideoSpoofingResources();
+                    
+                    NSLog(@"[LC] 🎬 Image-to-video conversion complete - video system activated");
+                } else {
+                    NSLog(@"[LC] ❌ Video creation failed: %@", writer.error);
+                }
+            });
+        }];
+    });
+}
+
+// Helper method to create pixel buffer from UIImage
++ (CVPixelBufferRef)createPixelBufferFromImage:(UIImage *)image size:(CGSize)size {
+    NSDictionary *options = @{
+        (NSString*)kCVPixelBufferCGImageCompatibilityKey: @YES,
+        (NSString*)kCVPixelBufferCGBitmapContextCompatibilityKey: @YES
+    };
+    
+    CVPixelBufferRef pixelBuffer = NULL;
+    CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
+                                         (size_t)size.width,
+                                         (size_t)size.height,
+                                         kCVPixelFormatType_32BGRA,
+                                         (__bridge CFDictionaryRef)options,
+                                         &pixelBuffer);
+    
+    if (status != kCVReturnSuccess) {
+        return NULL;
+    }
+    
+    CVPixelBufferLockBaseAddress(pixelBuffer, 0);
+    void *data = CVPixelBufferGetBaseAddress(pixelBuffer);
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    CGContextRef context = CGBitmapContextCreate(data,
+                                                size.width,
+                                                size.height,
+                                                8,
+                                                CVPixelBufferGetBytesPerRow(pixelBuffer),
+                                                colorSpace,
+                                                kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Little);
+    
+    if (context) {
+        // Fill with black background first
+        CGContextSetRGBFillColor(context, 0, 0, 0, 1);
+        CGContextFillRect(context, CGRectMake(0, 0, size.width, size.height));
+        
+        // Calculate centered rect for image
+        CGFloat imageAspect = image.size.width / image.size.height;
+        CGFloat targetAspect = size.width / size.height;
+        
+        CGRect imageRect;
+        if (imageAspect > targetAspect) {
+            // Image is wider - fit width
+            CGFloat scaledHeight = size.width / imageAspect;
+            imageRect = CGRectMake(0, (size.height - scaledHeight) / 2, size.width, scaledHeight);
+        } else {
+            // Image is taller - fit height  
+            CGFloat scaledWidth = size.height * imageAspect;
+            imageRect = CGRectMake((size.width - scaledWidth) / 2, 0, scaledWidth, size.height);
+        }
+        
+        CGContextDrawImage(context, imageRect, image.CGImage);
+        CGContextRelease(context);
+    }
+    
+    CGColorSpaceRelease(colorSpace);
+    CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+    
+    return pixelBuffer;
+}
+
+// Helper method to create subtle variations for animation
++ (CVPixelBufferRef)createVariedPixelBufferFromOriginal:(CVPixelBufferRef)originalBuffer variation:(float)amount {
+    if (!originalBuffer) return NULL;
+    
+    size_t width = CVPixelBufferGetWidth(originalBuffer);
+    size_t height = CVPixelBufferGetHeight(originalBuffer);
+    
+    CVPixelBufferRef newBuffer = NULL;
+    NSDictionary *options = @{
+        (NSString*)kCVPixelBufferCGImageCompatibilityKey: @YES,
+        (NSString*)kCVPixelBufferCGBitmapContextCompatibilityKey: @YES
+    };
+    
+    CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault, width, height,
+                                         kCVPixelFormatType_32BGRA,
+                                         (__bridge CFDictionaryRef)options, &newBuffer);
+    
+    if (status != kCVReturnSuccess) {
+        return NULL;
+    }
+    
+    // Copy original buffer
+    CVPixelBufferLockBaseAddress(originalBuffer, kCVPixelBufferLock_ReadOnly);
+    CVPixelBufferLockBaseAddress(newBuffer, 0);
+    
+    void *originalData = CVPixelBufferGetBaseAddress(originalBuffer);
+    void *newData = CVPixelBufferGetBaseAddress(newBuffer);
+    size_t bytesPerRow = CVPixelBufferGetBytesPerRow(originalBuffer);
+    
+    // Copy and apply subtle brightness variation
+    for (size_t row = 0; row < height; row++) {
+        uint8_t *originalRow = (uint8_t *)originalData + row * bytesPerRow;
+        uint8_t *newRow = (uint8_t *)newData + row * bytesPerRow;
+        
+        for (size_t col = 0; col < width * 4; col += 4) {
+            // BGRA format
+            float brightnessFactor = 1.0 + (amount * 0.02); // Very subtle ±2% variation
+            
+            newRow[col] = MIN(255, originalRow[col] * brightnessFactor);     // B
+            newRow[col + 1] = MIN(255, originalRow[col + 1] * brightnessFactor); // G  
+            newRow[col + 2] = MIN(255, originalRow[col + 2] * brightnessFactor); // R
+            newRow[col + 3] = originalRow[col + 3]; // A
+        }
+    }
+    
+    CVPixelBufferUnlockBaseAddress(newBuffer, 0);
+    CVPixelBufferUnlockBaseAddress(originalBuffer, kCVPixelBufferLock_ReadOnly);
+    
+    return newBuffer;
+}
+
 @end
 
 
@@ -2675,6 +2969,10 @@ static void loadSpoofingConfiguration(void) {
     spoofCameraLoop = (guestAppInfo[@"spoofCameraLoop"] != nil) ? [guestAppInfo[@"spoofCameraLoop"] boolValue] : YES;
     spoofCameraMode = guestAppInfo[@"spoofCameraMode"] ?: @"standard";
 
+    // NEW: Get camera type and image path
+    NSString *spoofCameraType = guestAppInfo[@"spoofCameraType"] ?: @"image";
+    NSString *spoofCameraImagePath = guestAppInfo[@"spoofCameraImagePath"] ?: @"";
+
     NSLog(@"[LC] ⚙️ Config: Enabled=%d, VideoPath='%@', Loop=%d, Mode='%@'", 
       spoofCameraEnabled, spoofCameraVideoPath, spoofCameraLoop, spoofCameraMode);
     
@@ -2709,6 +3007,13 @@ void AVFoundationGuestHooksInit(void) {
 
         // Setup primary image resources
         setupImageSpoofingResources();
+        
+        // If we have a video path now (either original or generated from image), set up video system
+        if (spoofCameraEnabled && spoofCameraVideoPath.length > 0) {
+            NSLog(@"[LC] 🎬 Setting up video spoofing system");
+            [GetFrame setCurrentVideoPath:spoofCameraVideoPath];
+            setupVideoSpoofingResources();
+        }
 
         // Create emergency fallback if needed
         if (!lastGoodSpoofedPixelBuffer) {
