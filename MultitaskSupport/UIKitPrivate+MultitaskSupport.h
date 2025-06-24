@@ -122,6 +122,9 @@
 - (audit_token_t)auditToken;
 @end
 
+@interface RBSTarget : NSObject
+@end
+
 @interface UIApplicationSceneSpecification : FBSSceneSpecification
 @end
 

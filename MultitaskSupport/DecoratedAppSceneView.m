@@ -5,6 +5,14 @@
 #import "PiPManager.h"
 #import "../LiveContainer/Localization.h"
 
+@implementation RBSTarget(hook)
++ (instancetype)hook_targetWithPid:(pid_t)pid environmentIdentifier:(NSString *)environmentIdentifier {
+    if([environmentIdentifier containsString:@"LiveProcess"]) {
+        environmentIdentifier = [NSString stringWithFormat:@"LiveProcess:%d", pid];
+    }
+    return [self hook_targetWithPid:pid environmentIdentifier:environmentIdentifier];
+}
+@end
 static int hook_return_2(void) {
     return 2;
 }
@@ -14,6 +22,10 @@ void UIKitFixesInit(void) {
     Class _UIFluidSliderInteraction = objc_getClass("_UIFluidSliderInteraction");
     if(_UIFluidSliderInteraction) {
         method_setImplementation(class_getInstanceMethod(_UIFluidSliderInteraction, @selector(_state)), (IMP)hook_return_2);
+    }
+    // Fix physical keyboard focus on iOS 17+
+    if(@available(iOS 17.0, *)) {
+        method_exchangeImplementations(class_getClassMethod(RBSTarget.class, @selector(targetWithPid:environmentIdentifier:)), class_getClassMethod(RBSTarget.class, @selector(hook_targetWithPid:environmentIdentifier:)));
     }
 }
 
