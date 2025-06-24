@@ -1364,13 +1364,16 @@ struct LCAppSettingsView : View{
         exportSession.videoComposition = videoComposition
         
         // Monitor progress
-        let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+        let Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak exportSession] _ in
+            guard let session = exportSession else { return }
             Task { @MainActor in
-                model.videoProcessingProgress = Double(exportSession.progress)
+                model.videoProcessingProgress = Double(session.progress)
             }
         }
         
-        await exportSession.export()
+        await MainActor.run {
+            await exportSession.export()
+        }
         timer.invalidate()
         
         switch exportSession.status {
