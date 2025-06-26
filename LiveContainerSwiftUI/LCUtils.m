@@ -369,6 +369,9 @@ Class LCSharedUtilsClass = nil;
     infoDict[@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"][1] = @"AppIcon76x76_2";
     infoDict[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"][0] = @"AppIcon60x60_2";
 
+    // reset a executable name so they don't look the same on the log
+    NSURL* appBundlePath = [tmpPayloadPath URLByAppendingPathComponent:@"App.app"];
+
     // Generate high-quality grey icons from AppIconGrey asset
     UIImage *greyIcon1024 = [UIImage imageNamed:@"AppIconGrey"];
     UIImage *greyDarkIcon1024 = [UIImage imageNamed:@"AppIconGreyDark"];
@@ -436,9 +439,6 @@ Class LCSharedUtilsClass = nil;
     } else {
         NSLog(@"[LC] Warning: AppIconGrey not found in assets");
     }
-
-    // reset a executable name so they don't look the same on the log
-    NSURL* appBundlePath = [tmpPayloadPath URLByAppendingPathComponent:@"App.app"];
     
     NSURL* execFromPath = [appBundlePath URLByAppendingPathComponent:infoDict[@"CFBundleExecutable"]];
     infoDict[@"CFBundleExecutable"] = @"LiveContainer2";
