@@ -3715,6 +3715,72 @@
         }
       }
     },
+    "lc.appList.sort.customManage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom Manage"
+          }
+        }
+      }
+    },
+    "lc.appList.sort.resetToAlphabetical" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset to Alphabetical"
+          }
+        }
+      }
+    },
+    "lc.appList.sort.customSortTip" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will reset the custom sort order to alphabetical order."
+          }
+        }
+      }
+    },
+    "lc.appList.sort.alphabetical" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name (A–Z)"
+          }
+        }
+      }
+    },
+    "lc.appList.sort.reverseAlphabetical" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name (Z–A)"
+          }
+        }
+      }
+    },
+    "lc.appList.sort.custom" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom"
+          }
+        }
+      }
+    },
     "lc.apppSettings.orientationLock" : {
       "extractionState" : "manual",
       "localizations" : {

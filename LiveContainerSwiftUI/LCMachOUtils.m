@@ -68,10 +68,10 @@ int LCPatchExecSlice(const char *path, struct mach_header_64 *header, bool doInj
     BOOL hasDylibCommand = NO;
     struct dylib_command * dylibLoaderCommand = 0;
     const char *tweakLoaderPath = "@loader_path/../../Tweaks/TweakLoader.dylib";
-    int tweakLoaderLoadDylibCmdSize = 0x48;
     const char *libCppPath = "/usr/lib/libc++.1.dylib";
     int textSectionOffest = 0;
     struct load_command *command = (struct load_command *)imageHeaderPtr;
+    bool codeSignatureCommandFound = false;
     for(int i = 0; i < header->ncmds; i++) {
         if(command->cmd == LC_ID_DYLIB) {
             hasDylibCommand = YES;
@@ -93,25 +93,35 @@ int LCPatchExecSlice(const char *path, struct mach_header_64 *header, bool doInj
                     }
                 }
             }
+        } else if (command->cmd == LC_CODE_SIGNATURE) {
+            codeSignatureCommandFound = true;
         }
         
         command = (struct load_command *)((void *)command + command->cmdsize);
     }
+    long freeLoadCommandCountLeft = (void*)header + textSectionOffest - (void*)command;
+    int tweakLoaderLoadDylibCmdSize = 0x48;
+    
+    // Insert command priority: LC_CODE_SIGNATURE > LC_ID_DYLIB > LC_LOAD_DYLIB
+    if(!codeSignatureCommandFound) {
+        freeLoadCommandCountLeft -= 0x10;
+    }
+    if(!hasDylibCommand && freeLoadCommandCountLeft >= sizeof(struct dylib_command)) {
+        freeLoadCommandCountLeft -= sizeof(struct dylib_command);
+        insertDylibCommand(LC_ID_DYLIB, path, header);
+    }
 
-    // Add LC_LOAD_DYLIB first, since LC_ID_DYLIB will change overall offsets
     if (dylibLoaderCommand) {
         dylibLoaderCommand->cmd = doInject ? LC_LOAD_DYLIB : 0x114514;
         strcpy((void *)dylibLoaderCommand + dylibLoaderCommand->dylib.name.offset, doInject ? tweakLoaderPath : libCppPath);
-    } else {
-        if((void*)header + textSectionOffest > (void*)command + tweakLoaderLoadDylibCmdSize) {
+    } else  {
+        if (freeLoadCommandCountLeft >= tweakLoaderLoadDylibCmdSize) {
+            freeLoadCommandCountLeft -= tweakLoaderLoadDylibCmdSize;
             insertDylibCommand(doInject ? LC_LOAD_DYLIB : 0x114514, doInject ? tweakLoaderPath : libCppPath, header);
         } else {
             // Not enough free space of injection tweak loader!
             ans |= PATCH_EXEC_RESULT_NO_SPACE_FOR_TWEAKLOADER;
         }
-    }
-    if (!hasDylibCommand) {
-        insertDylibCommand(LC_ID_DYLIB, path, header);
     }
     
     // Ensure No duplicated dylibs, often caused by incorrect tweak injection
@@ -338,6 +348,9 @@ bool checkCodeSignature(const char* path) {
         checked = true;
         
         struct code_signature_command* codeSignatureCommand = findSignatureCommand(header);
+        if(!codeSignatureCommand) {
+            return;
+        }
         off_t sliceOffset = (void*)header - filePtr;
         fsignatures_t siginfo;
         siginfo.fs_file_start = sliceOffset;

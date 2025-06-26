@@ -12,6 +12,34 @@ import SafariServices
 import Security
 import Combine
 
+enum AppSortType: String, CaseIterable {
+    case alphabetical = "alphabetical"
+    case reverseAlphabetical = "reverse_alphabetical"
+    case custom = "custom"
+    
+    var displayName: String {
+        switch self {
+        case .alphabetical:
+            return "lc.appList.sort.alphabetical".loc
+        case .reverseAlphabetical:
+            return "lc.appList.sort.reverseAlphabetical".loc
+        case .custom:
+            return "lc.appList.sort.custom".loc
+        }
+    }
+    
+    var systemImage: String {
+        switch self {
+        case .alphabetical:
+            return "chevron.down"
+        case .reverseAlphabetical:
+            return "chevron.up"
+        case .custom:
+            return "list.bullet"
+        }
+    }
+}
+
 struct LCPath {
     public static let docPath = {
         let fm = FileManager()
@@ -64,6 +92,7 @@ class SharedModel: ObservableObject {
     
     @Published var apps : [LCAppModel] = []
     @Published var hiddenApps : [LCAppModel] = []
+    
     let isPhone: Bool = {
         UIDevice.current.userInterfaceIdiom == .phone
     }()

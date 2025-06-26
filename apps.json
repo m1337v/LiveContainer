@@ -5,7 +5,11 @@
   "subtitle": "LiveContainer official AltStore Source.",
   "description": "This is the official AltStore Source for LiveContainer.\n\n Run iOS apps without actually installing them!",
   "tintColor": "#0784FC",
+<<<<<<< HEAD
   "iconURL": "https://raw.githubusercontent.com/m1337v/LiveContainer/main/screenshots/livecontainer_icon.png",
+=======
+  "iconURL": "https://raw.githubusercontent.com/LiveContainer/LiveContainer/main/screenshots/AppIcon1024.png",
+>>>>>>> upstream/main
   "headerURL": "https://raw.githubusercontent.com/LiveContainer/LiveContainer/main/screenshots/header.png",
   "apps": [
     {
@@ -19,7 +23,11 @@
       "versionDescription": "\u26a0\ufe0fThis version \u26a0\ufe0fREQUIRES\u26a0\ufe0f SideStore 0.6.0+ / AltStore 2.0+ to install.\r\n>[!NOTE]\r\n> This a minor release that solves the following issues in version 3.5.0. For more information, please see [3.5.0 release note](https://github.com/LiveContainer/LiveContainer/releases/tag/3.5.0).\r \nImprovement\r\nFix 590: We adopted a new method for relaunching LiveContainer which makes apps launch faster compared to 3.5.0. by @khanhduytran0\r \nBug Fix\r\nFix Liquid Glass option need to be toggled off and on in order to work. It's off by default now and you can toggle it on in iOS Settings -> Apps -> LiveContainer -> Enable Liquid Glass\r \n",
       "downloadURL": "https://github.com/LiveContainer/LiveContainer/releases/download/3.5.1/LiveContainer.ipa",
       "localizedDescription": "Run iOS apps without actually installing them!",
+<<<<<<< HEAD
       "iconURL": "https://raw.githubusercontent.com/m1337v/LiveContainer/main/screenshots/livecontainer_icon.png",
+=======
+      "iconURL": "https://raw.githubusercontent.com/LiveContainer/LiveContainer/main/screenshots/AppIcon1024.png",
+>>>>>>> upstream/main
       "tintColor": "#0784FC",
       "category": "utilities",
       "size": 2928772,

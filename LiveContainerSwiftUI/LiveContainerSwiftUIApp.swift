@@ -79,8 +79,12 @@ struct LiveContainerSwiftUIApp : App {
         } catch {
             NSLog("[LC] error:\(error)")
         }
+        
+
         DataManager.shared.model.apps = tempApps.sorted { $0.appInfo.displayName() < $1.appInfo.displayName() }
         DataManager.shared.model.hiddenApps = tempHiddenApps.sorted { $0.appInfo.displayName() < $1.appInfo.displayName() }
+        LCAppSortManager.shared.applySort()
+        
         _appDataFolderNames = State(initialValue: tempAppDataFolderNames)
         _tweakFolderNames = State(initialValue: tempTweakFolderNames)
     }
@@ -90,6 +94,7 @@ struct LiveContainerSwiftUIApp : App {
             LCTabView(appDataFolderNames: $appDataFolderNames, tweakFolderNames: $tweakFolderNames)
                 .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
                 .environmentObject(DataManager.shared.model)
+                .environmentObject(LCAppSortManager.shared)
         }
         
         if UIApplication.shared.supportsMultipleScenes, #available(iOS 16.1, *) {
