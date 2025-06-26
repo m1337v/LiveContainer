@@ -367,8 +367,8 @@ Class LCSharedUtilsClass = nil;
     NSURL* appBundlePath = [tmpPayloadPath URLByAppendingPathComponent:@"App.app"];
 
     // Load grey icons directly from Assets.xcassets (the simple way)
-    UIImage *greyIcon = [UIImage imageNamed:@"AppIconGrey"];
-    UIImage *greyDarkIcon = [UIImage imageNamed:@"AppIconGreyDark"];
+    UIImage *greyIcon = [UIImage imageNamed:@"AppIconGrey1024"] ?: [UIImage imageNamed:@"AppIconGrey"];
+    UIImage *greyDarkIcon = [UIImage imageNamed:@"AppIconGreyDark1024"] ?: [UIImage imageNamed:@"AppIconGreyDark"];
 
     if (greyIcon) {
         // Replace the main AppIcon1024.png with grey version
