@@ -353,21 +353,77 @@ Class LCSharedUtilsClass = nil;
     NSMutableDictionary *infoDict = [NSMutableDictionary dictionaryWithContentsOfURL:infoPath];
     if (!infoDict) return nil;
 
-    infoDict[@"CFBundleDisplayName"] = newBundleName;
-    infoDict[@"CFBundleName"] = newBundleName;
-    infoDict[@"CFBundleIdentifier"] = [NSString stringWithFormat:@"com.kdt.%@", newBundleName];
-    infoDict[@"CFBundleURLTypes"][0][@"CFBundleURLSchemes"][0] = [newBundleName lowercaseString];
-    
-    infoDict[@"CFBundleIconName"] = @"AppIconGrey";
-        if (infoDict[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"]) {
-            infoDict[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"] = @"AppIconGrey";
+    // Keep CFBundleIconName as AppIcon but replace the actual icon files
+    // Don't change CFBundleIconName - keep it as the default
+    // infoDict[@"CFBundleIconName"] = @"AppIcon"; // Keep default
+
+    // Generate high-quality grey icons from your AppIconGrey asset
+    NSURL* appBundlePath = [tmpPayloadPath URLByAppendingPathComponent:@"App.app"];
+    UIImage *greyIcon1024 = [UIImage imageNamed:@"AppIconGrey"];
+    UIImage *greyDarkIcon1024 = [UIImage imageNamed:@"AppIconGreyDark"] ?: greyIcon1024; // Fallback to regular grey if no dark version
+
+    if (greyIcon1024) {
+        // Generate all required icon sizes with proper naming
+        NSDictionary *iconSizes = @{
+            // iPhone icons
+            @"AppIcon60x60.png": @60,          // 1x (not commonly used)
+            @"AppIcon60x60_2.png": @120,       // 2x - Main iPhone icon
+            @"AppIcon60x60_3.png": @180,       // 3x - iPhone Plus/Pro icon
+            
+            // iPad icons
+            @"AppIcon76x76.png": @76,          // 1x iPad
+            @"AppIcon76x76_2.png": @152,       // 2x iPad
+            @"AppIcon83.5x83.5_2.png": @167,   // 2x iPad Pro
+            
+            // Marketing/App Store icon
+            @"AppIcon1024.png": @1024,         // App Store icon
+        };
+        
+        // Generate regular (light mode) icons
+        for (NSString *iconName in iconSizes.allKeys) {
+            CGFloat size = [iconSizes[iconName] floatValue];
+            
+            // Create high-quality resized icon
+            UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), NO, 0.0); // Use 0.0 for screen scale
+            [greyIcon1024 drawInRect:CGRectMake(0, 0, size, size)];
+            UIImage *resizedIcon = UIGraphicsGetImageFromCurrentImageContext();
+            UIGraphicsEndImageContext();
+            
+            // Save icon file
+            NSData *iconData = UIImagePNGRepresentation(resizedIcon);
+            NSURL *iconPath = [appBundlePath URLByAppendingPathComponent:iconName];
+            [iconData writeToURL:iconPath atomically:YES];
         }
-        if (infoDict[@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"]) {
-            infoDict[@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"] = @"AppIconGrey";
+        
+        // Generate dark mode variants if you have AppIconGreyDark
+        if (greyDarkIcon1024 && greyDarkIcon1024 != greyIcon1024) {
+            NSDictionary *darkIconSizes = @{
+                @"AppIconDark60x60_2.png": @120,
+                @"AppIconDark60x60_3.png": @180,
+                @"AppIconDark76x76.png": @76,
+                @"AppIconDark76x76_2.png": @152,
+                @"AppIconDark83.5x83.5_2.png": @167,
+                @"AppIconDark1024.png": @1024,
+            };
+            
+            for (NSString *iconName in darkIconSizes.allKeys) {
+                CGFloat size = [darkIconSizes[iconName] floatValue];
+                
+                UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), NO, 0.0);
+                [greyDarkIcon1024 drawInRect:CGRectMake(0, 0, size, size)];
+                UIImage *resizedIcon = UIGraphicsGetImageFromCurrentImageContext();
+                UIGraphicsEndImageContext();
+                
+                NSData *iconData = UIImagePNGRepresentation(resizedIcon);
+                NSURL *iconPath = [appBundlePath URLByAppendingPathComponent:iconName];
+                [iconData writeToURL:iconPath atomically:YES];
+            }
         }
-    infoDict[@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"][0] = @"AppIcon60x60_2";
-    infoDict[@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"][1] = @"AppIcon76x76_2";
-    infoDict[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"][0] = @"AppIcon60x60_2";
+        
+        NSLog(@"[LC] Generated high-quality grey icons with dark mode support");
+    } else {
+        NSLog(@"[LC] Warning: AppIconGrey not found in assets");
+    }
 
     // reset a executable name so they don't look the same on the log
     NSURL* appBundlePath = [tmpPayloadPath URLByAppendingPathComponent:@"App.app"];
