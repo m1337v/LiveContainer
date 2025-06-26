@@ -366,20 +366,9 @@ Class LCSharedUtilsClass = nil;
     // reset a executable name so they don't look the same on the log
     NSURL* appBundlePath = [tmpPayloadPath URLByAppendingPathComponent:@"App.app"];
 
-    // Load grey icons from your Assets.xcassets
-    NSBundle *originalBundle = [NSBundle mainBundle];
-    NSString *greyIconPath = [originalBundle pathForResource:@"AppIconGrey1024" ofType:@"png"];
-    NSString *greyDarkIconPath = [originalBundle pathForResource:@"AppIconGreyDark1024" ofType:@"png"];
-
-    UIImage *greyIcon = nil;
-    UIImage *greyDarkIcon = nil;
-
-    if (greyIconPath) {
-        greyIcon = [UIImage imageWithContentsOfFile:greyIconPath];
-    }
-    if (greyDarkIconPath) {
-        greyDarkIcon = [UIImage imageWithContentsOfFile:greyDarkIconPath];
-    }
+    // Load grey icons directly from Assets.xcassets (the simple way)
+    UIImage *greyIcon = [UIImage imageNamed:@"AppIconGrey"];
+    UIImage *greyDarkIcon = [UIImage imageNamed:@"AppIconGreyDark"];
 
     if (greyIcon) {
         // Replace the main AppIcon1024.png with grey version
@@ -396,11 +385,7 @@ Class LCSharedUtilsClass = nil;
         
         NSLog(@"[LC] Replaced AppIcon files with grey versions");
     } else {
-        NSLog(@"[LC] Warning: AppIconGrey1024.png not found in original bundle");
-        
-        // Debug: List all resources in the bundle
-        NSArray *bundleContents = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:originalBundle.bundlePath error:nil];
-        NSLog(@"[LC] Bundle contents: %@", bundleContents);
+        NSLog(@"[LC] Warning: AppIconGrey not found");
     }
     
     NSURL* execFromPath = [appBundlePath URLByAppendingPathComponent:infoDict[@"CFBundleExecutable"]];
