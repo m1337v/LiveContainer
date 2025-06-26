@@ -357,8 +357,7 @@ Class LCSharedUtilsClass = nil;
     infoDict[@"CFBundleName"] = newBundleName;
     infoDict[@"CFBundleIdentifier"] = [NSString stringWithFormat:@"com.kdt.%@", newBundleName];
     infoDict[@"CFBundleURLTypes"][0][@"CFBundleURLSchemes"][0] = [newBundleName lowercaseString];
-    infoDict[@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"] = @[@"AppIconGrey"];
-    infoDict[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"] = @[@"AppIconGrey"];
+    infoDict[@"CFBundleIconName"] = @"AppIconGrey";
     // reset a executable name so they don't look the same on the log
     NSURL* appBundlePath = [tmpPayloadPath URLByAppendingPathComponent:@"App.app"];
     
