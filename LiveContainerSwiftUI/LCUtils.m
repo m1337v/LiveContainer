@@ -358,6 +358,36 @@ Class LCSharedUtilsClass = nil;
     infoDict[@"CFBundleIdentifier"] = [NSString stringWithFormat:@"com.kdt.%@", newBundleName];
     infoDict[@"CFBundleURLTypes"][0][@"CFBundleURLSchemes"][0] = [newBundleName lowercaseString];
     infoDict[@"CFBundleIconName"] = @"AppIconGrey";
+
+    // Fix the old CFBundleIcons format as well
+    if (infoDict[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"]) {
+        infoDict[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"] = @"AppIconGrey";
+    }
+    if (infoDict[@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"]) {
+        infoDict[@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"] = @"AppIconGrey";
+    }
+
+    // Update icon file references
+    if (infoDict[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"]) {
+        NSMutableArray *iPhoneIcons = [infoDict[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"] mutableCopy];
+        for (NSInteger i = 0; i < iPhoneIcons.count; i++) {
+            NSString *originalIcon = iPhoneIcons[i];
+            NSString *greyIcon = [originalIcon stringByReplacingOccurrencesOfString:@"AppIcon" withString:@"AppIconGrey"];
+            iPhoneIcons[i] = greyIcon;
+        }
+        infoDict[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"] = iPhoneIcons;
+    }
+
+    if (infoDict[@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"]) {
+        NSMutableArray *iPadIcons = [infoDict[@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"] mutableCopy];
+        for (NSInteger i = 0; i < iPadIcons.count; i++) {
+            NSString *originalIcon = iPadIcons[i];
+            NSString *greyIcon = [originalIcon stringByReplacingOccurrencesOfString:@"AppIcon" withString:@"AppIconGrey"];
+            iPadIcons[i] = greyIcon;
+        }
+        infoDict[@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"] = iPadIcons;
+    }
+
     // reset a executable name so they don't look the same on the log
     NSURL* appBundlePath = [tmpPayloadPath URLByAppendingPathComponent:@"App.app"];
     
