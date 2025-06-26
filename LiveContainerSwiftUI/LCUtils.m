@@ -358,35 +358,20 @@ Class LCSharedUtilsClass = nil;
     infoDict[@"CFBundleIdentifier"] = [NSString stringWithFormat:@"com.kdt.%@", newBundleName];
     infoDict[@"CFBundleURLTypes"][0][@"CFBundleURLSchemes"][0] = [newBundleName lowercaseString];
     
-    // Legacy Fallback
-    infoDict[@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"][0] = @"AppIcon60x60_2";
-    infoDict[@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"][1] = @"AppIcon76x76_2";
-    infoDict[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"][0] = @"AppIcon60x60_2";
+    infoDict[@"CFBundleIconName"] = @"AppIconGrey";
+    if (infoDict[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"]) {
+        infoDict[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"] = @"AppIconGrey";
+    }
+    infoDict[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"][0] = @"AppIconGrey60x60";
+    
+    if (infoDict[@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"]) {
+        infoDict[@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"] = @"AppIconGrey";
+    }
+    infoDict[@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"][0] = @"AppIconGrey60x60";
+    infoDict[@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"][1] = @"AppIconGrey76x76";
 
     // reset a executable name so they don't look the same on the log
     NSURL* appBundlePath = [tmpPayloadPath URLByAppendingPathComponent:@"App.app"];
-
-    // Load grey icons directly from Assets.xcassets (the simple way)
-    UIImage *greyIcon = [UIImage imageNamed:@"AppIconGrey1024"] ?: [UIImage imageNamed:@"AppIconGrey"];
-    UIImage *greyDarkIcon = [UIImage imageNamed:@"AppIconGreyDark1024"] ?: [UIImage imageNamed:@"AppIconGreyDark"];
-
-    if (greyIcon) {
-        // Replace the main AppIcon1024.png with grey version
-        NSData *greyIconData = UIImagePNGRepresentation(greyIcon);
-        NSURL *appIcon1024Path = [appBundlePath URLByAppendingPathComponent:@"AppIcon1024.png"];
-        [greyIconData writeToURL:appIcon1024Path atomically:YES];
-        
-        // Replace the dark mode icon if available
-        if (greyDarkIcon) {
-            NSData *greyDarkIconData = UIImagePNGRepresentation(greyDarkIcon);
-            NSURL *appIconDark1024Path = [appBundlePath URLByAppendingPathComponent:@"AppIconDark1024.png"];
-            [greyDarkIconData writeToURL:appIconDark1024Path atomically:YES];
-        }
-        
-        NSLog(@"[LC] Replaced AppIcon files with grey versions");
-    } else {
-        NSLog(@"[LC] Warning: AppIconGrey not found");
-    }
     
     NSURL* execFromPath = [appBundlePath URLByAppendingPathComponent:infoDict[@"CFBundleExecutable"]];
     infoDict[@"CFBundleExecutable"] = @"LiveContainer2";
