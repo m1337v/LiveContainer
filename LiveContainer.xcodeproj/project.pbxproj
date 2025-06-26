@@ -150,6 +150,8 @@
 				AppIcon60x60.png,
 				AppIcon76x76_2.png,
 				AppIcon76x76.png,
+				AppIconGrey1024.png,
+				AppIconGreyDark1024.png,
 				Assets.xcassets,
 				LaunchScreen.storyboard,
 				DefaultIcon.png,
