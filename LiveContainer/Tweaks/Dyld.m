@@ -99,11 +99,13 @@ void* hook_dlsym(void * __handle, const char * __symbol) {
         __handle = appExecutableHandle;
     } else if (__handle != (void*)RTLD_SELF && __handle != (void*)RTLD_NEXT) {
         void* ans = orig_dlsym(__handle, __symbol);
+        if(!ans) {
+            return 0;
+        }
         for(struct rebindings_entry* cur = _rebindings_head; cur; cur = cur->next) {
             for(int i = 0; i < cur->rebindings_nel; ++i) {
                 if(ans == *(cur->rebindings[i].replaced)) {
-                    ans = cur->rebindings[i].replacement;
-                    break;
+                    return cur->rebindings[i].replacement;
                 }
             }
 
