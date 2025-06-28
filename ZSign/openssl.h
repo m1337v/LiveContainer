@@ -16,6 +16,7 @@ public:
 				bool bSHA256Only,
 				bool bSingleBinary);
     bool InitSimple(const void* strSignerPKeyData, int strSignerPKeyDataSize, const void* strProvisionData, int strProvisionDataSize, const string &strPassword);
+    bool InitAdhoc(const void* strEntitlementData, int strEntitlementDataSize);
     bool GetCMSContent2(const void* strCMSDataInput, int size, string &strContentOutput);
 	bool GenerateCMS(const string& strCDHashData, 
 						const string& strCDHashesPlist, 

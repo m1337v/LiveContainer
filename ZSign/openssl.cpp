@@ -858,3 +858,14 @@ bool ZSignAsset::InitSimple(const void* strSignerPKeyData, int strSignerPKeyData
     m_x509Cert = x509Cert;
     return true;
 }
+
+bool ZSignAsset::InitAdhoc(const void* strEntitlementData, int strEntitlementDataSize)
+{
+    m_bAdhoc = true;
+    m_bSHA256Only = false;
+    m_bSingleBinary = true;
+    m_strEntitleData = std::string((char*)strEntitlementData, strEntitlementDataSize);
+    
+    return true;
+    
+}

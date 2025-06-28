@@ -376,53 +376,52 @@ Class LCSharedUtilsClass = nil;
     infoDict[@"CFBundleExecutable"] = @"LiveContainer2";
     NSURL* execToPath = [appBundlePath URLByAppendingPathComponent:infoDict[@"CFBundleExecutable"]];
     
-    // we remove the teamId after app group id so it can be correctly signed by AltSign. We don't touch application-identifier or team-id since most signer can handle them correctly otherwise the app won't launch at all
-    __block NSError* parseExecError = nil;
-    LCParseMachO(execFromPath.path.UTF8String, false, ^(const char *path, struct mach_header_64 *header, int fd, void *filePtr) {
-        void* entitlementXMLPtr = 0;
-        NSString* entitlementXML = getEntitlementXML(header, &entitlementXMLPtr);
-        NSData *plistData = [entitlementXML dataUsingEncoding:NSUTF8StringEncoding];
-        NSDictionary *dict = [NSPropertyListSerialization propertyListWithData:plistData
-                                                                       options:NSPropertyListImmutable
-                                                                        format:nil
-                                                                         error:&parseExecError];
-        if(parseExecError) {
-            return;
-        }
-        
-        NSString* teamId = dict[@"com.apple.developer.team-identifier"];
-        if(![teamId isKindOfClass:NSString.class]) {
-            parseExecError = [NSError errorWithDomain:@"archiveIPAWithBundleName" code:-1 userInfo:@{NSLocalizedDescriptionKey:@"com.apple.developer.team-identifier is not a string!"}];
-            return;
-        }
-        infoDict[@"PrimaryLiveContainerTeamId"] = teamId;
-        NSArray* appGroupsToFind = @[
-            @"group.com.SideStore.SideStore",
-            @"group.com.rileytestut.AltStore",
-        ];
-        for(NSString* appGroup in appGroupsToFind) {
-            NSRange range = [entitlementXML rangeOfString:[NSString stringWithFormat:@"%@.%@", appGroup, teamId]];
-            if(range.location == NSNotFound) {
-                continue;
-            }
-            void* appGroupStrPtr = entitlementXMLPtr + range.location + appGroup.length;
-            if(memcmp(appGroupStrPtr + 1, teamId.UTF8String, 10) != 0) {
-                NSLog(@"App group id does not have prefix!");
-            }
-            memcpy(appGroupStrPtr, "</string>           ", 20);
-            
-        }
-        
-    });
-    
-    [manager moveItemAtURL:execFromPath toURL:execToPath error:error];
-    if (*error) {
-        NSLog(@"[LC] %@", *error);
+    // MARK: patch main executable
+    // we remove the teamId after app group id so it can be correctly signed by AltSign.
+    NSString* entitlementXML = getLCEntitlementXML();
+    NSData *plistData = [entitlementXML dataUsingEncoding:NSUTF8StringEncoding];
+    NSMutableDictionary *dict = [NSPropertyListSerialization propertyListWithData:plistData
+                                                                          options:NSPropertyListMutableContainers
+                                                                           format:nil
+                                                                            error:error];
+    if(*error) {
         return nil;
     }
     
+    NSString* teamId = dict[@"com.apple.developer.team-identifier"];
+    if(![teamId isKindOfClass:NSString.class]) {
+        *error = [NSError errorWithDomain:@"archiveIPAWithBundleName" code:-1 userInfo:@{NSLocalizedDescriptionKey:@"com.apple.developer.team-identifier is not a string!"}];
+        return nil;
+    }
+    infoDict[@"PrimaryLiveContainerTeamId"] = teamId;
+    NSArray* appGroupsToFind = @[
+        @"group.com.SideStore.SideStore",
+        @"group.com.rileytestut.AltStore",
+    ];
+    
+    // remove the team id prefix in app group id added by SideStore/AltStore
+    for(NSString* appGroup in appGroupsToFind) {
+        NSUInteger appGroupCount = [dict[@"com.apple.security.application-groups"] count];
+        for(int i = 0; i < appGroupCount; ++i) {
+            NSString* targetAppGroup = [NSString stringWithFormat:@"%@.%@", appGroup, teamId];
+            if([dict[@"com.apple.security.application-groups"][i] isEqualToString:targetAppGroup]) {
+                dict[@"com.apple.security.application-groups"][i] = appGroup;
+            }
+        }
+    }
+    
+    // set correct application-identifier
+    dict[@"application-identifier"] = [NSString stringWithFormat:@"%@.%@", teamId, infoDict[@"CFBundleIdentifier"]];
+    
+    // For TrollStore
+    NSString* containerId = dict[@"com.apple.private.security.container-required"];
+    if(containerId) {
+        dict[@"com.apple.private.security.container-required"] = infoDict[@"CFBundleIdentifier"];
+    }
+    
+    
     // We have to change executable's UUID so iOS won't consider 2 executables the same
-    NSString* errorChangeUUID = LCParseMachO([execToPath.path UTF8String], false, ^(const char *path, struct mach_header_64 *header, int fd, void* filePtr) {
+    NSString* errorChangeUUID = LCParseMachO([execFromPath.path UTF8String], false, ^(const char *path, struct mach_header_64 *header, int fd, void* filePtr) {
         LCChangeExecUUID(header);
     });
     if (errorChangeUUID) {
@@ -431,6 +430,22 @@ Class LCSharedUtilsClass = nil;
         // populate the error object with the details
         *error = [NSError errorWithDomain:@"world" code:200 userInfo:details];
         NSLog(@"[LC] %@", errorChangeUUID);
+        return nil;
+    }
+    
+    NSData* newEntitlementData = [NSPropertyListSerialization dataWithPropertyList:dict format:NSPropertyListXMLFormat_v1_0 options:0 error:error];
+    [LCUtils loadStoreFrameworksWithError2:error];
+    BOOL adhocSignSuccess = [NSClassFromString(@"ZSigner") adhocSignMachOAtPath:execFromPath.path bundleId:infoDict[@"CFBundleIdentifier"] entitlementData:newEntitlementData];
+    if (!adhocSignSuccess) {
+        *error = [NSError errorWithDomain:@"archiveIPAWithBundleName" code:-1 userInfo:@{NSLocalizedDescriptionKey:@"Failed to adhoc sign main executable!"}];
+        return nil;
+    }
+    
+    // MARK: archive bundle
+    
+    [manager moveItemAtURL:execFromPath toURL:execToPath error:error];
+    if (*error) {
+        NSLog(@"[LC] %@", *error);
         return nil;
     }
     

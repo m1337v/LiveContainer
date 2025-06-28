@@ -127,6 +127,24 @@ void zsign(NSString *appPath,
 	return;
 }
 
+bool adhocSignMachO(NSString *machoPath, NSString *bundleId, NSData* entitlementData) {
+    ZSignAsset zSignAsset;
+    zSignAsset.InitAdhoc([entitlementData bytes], (int)[entitlementData length]);
+    
+    ZMachO* macho = new ZMachO();
+    if (!macho->Init(machoPath.UTF8String)) {
+        ZLog::ErrorV(">>> Invalid mach-o file! %s\n", machoPath.UTF8String);
+        return false;
+    }
+
+    string strInfoSHA1;
+    string strInfoSHA256;
+    string strCodeResourcesData;
+    string strBundleId(bundleId.UTF8String);
+    bool bRet = macho->Sign(&zSignAsset, true, strBundleId, strInfoSHA1, strInfoSHA256, strCodeResourcesData);
+    return bRet;
+}
+
 NSString* getTeamId(NSData *prov,
                     NSData *key,
                     NSString *pass) {

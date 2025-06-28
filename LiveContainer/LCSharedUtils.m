@@ -14,7 +14,11 @@ extern NSBundle *lcMainBundle;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         void* taskSelf = SecTaskCreateFromSelf(NULL);
-        ans = SecTaskCopyTeamIdentifier(taskSelf, nil);
+        CFErrorRef error = NULL;
+        CFTypeRef cfans = SecTaskCopyValueForEntitlement(taskSelf, CFSTR("com.apple.developer.team-identifier"), &error);
+        if(CFGetTypeID(cfans) == CFStringGetTypeID()) {
+            ans = (__bridge NSString*)cfans;
+        }
         CFRelease(taskSelf);
         if(!ans) {
             // the above seems not to work if the device is jailbroken by Palera1n, so we use the public api one as backup

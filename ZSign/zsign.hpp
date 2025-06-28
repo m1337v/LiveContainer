@@ -34,6 +34,8 @@ void zsign(NSString *appPath,
           NSProgress* progress,
           void(^completionHandler)(BOOL success, NSError *error)
           );
+
+bool adhocSignMachO(NSString *machoPath, NSString *bundleId, NSData* entitlementData);
 NSString* getTeamId(NSData *prov,
                     NSData *key,
                     NSString *pass);
