@@ -1446,7 +1446,8 @@ struct LCAppSettingsView : View{
         }
         
         return (transform, renderSize)
-    
+    }
+
     func formatDate(date: Date?) -> String {
         guard let date else {
             return "lc.common.unknown".loc
