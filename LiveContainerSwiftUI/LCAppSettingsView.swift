@@ -1018,10 +1018,6 @@ struct LCAppSettingsView : View{
                 Text("lc.appSettings.forceSignDesc".loc)
             }
             
-<<<<<<< HEAD
-            // Remove the GPS section from the bottom of the form
-            // (delete the lines where you had it before)
-=======
             Section {
                 HStack {
                     Text("lc.appList.sort.lastLaunched".loc)
@@ -1039,7 +1035,6 @@ struct LCAppSettingsView : View{
                 Text("lc.common.statistics")
             }
 
->>>>>>> upstream/main
         }
         .navigationTitle(appInfo.displayName())
         .navigationBarTitleDisplayMode(.inline)

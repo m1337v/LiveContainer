@@ -135,35 +135,6 @@ class LCAppSortManager: ObservableObject {
     }
     
     func getSortedApps(_ appList: [LCAppModel], sortType: AppSortType, customSortOrder: [String]) -> [LCAppModel] {
-        var apps = appList
-        
-        // Apply last launched sorting first if enabled
-        if sortByLastLaunched {
-            let appsWithLaunchDate = apps.compactMap { app -> (LCAppModel, Date)? in
-                guard let launchDate = app.appInfo.lastLaunched else { return nil }
-                return (app, launchDate)
-            }
-            .sorted { $0.1 > $1.1 } // Sort by date, newest first
-            .map { $0.0 } // Extract just the app models
-
-            let appsWithoutLaunchDate = apps.filter { app in
-                return app.appInfo.lastLaunched == nil
-            }
-            
-            apps = appsWithLaunchDate + appsWithoutLaunchDate
-        }
-        
-        // If we only want last launched sorting, return here
-        if sortByLastLaunched && sortType == .alphabetical {
-            // For apps without launch date, sort alphabetically
-            let appsWithLaunchDate = apps.filter { $0.appInfo.lastLaunched != nil }
-            let appsWithoutLaunchDate = apps.filter { $0.appInfo.lastLaunched == nil }
-                .sorted { $0.appInfo.displayName().localizedCaseInsensitiveCompare($1.appInfo.displayName()) == .orderedAscending }
-            
-            return appsWithLaunchDate + appsWithoutLaunchDate
-        }
-        
-        // Apply secondary sorting for apps without launch dates or when custom/reverse sorting is selected
         switch sortType {
         case .defaultOrder:
             return appList
@@ -201,13 +172,7 @@ class LCAppSortManager: ObservableObject {
             
             return appsWithinstallationDate + appsWithoutInstallationDate
         case .custom:
-            if !sortByLastLaunched {
-                return sortByCustomOrder(apps, customSortOrder: customSortOrder)
-            } else {
-                // For custom sort with last launched, we need to respect both orders
-                // This is more complex - you might want to decide how to handle this case
-                return sortByCustomOrder(apps, customSortOrder: customSortOrder)
-            }
+            return sortByCustomOrder(appList, customSortOrder: customSortOrder)
         }
     }
     
