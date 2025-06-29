@@ -45,7 +45,6 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property CLLocationDegrees spoofLongitude;
 @property CLLocationDistance spoofAltitude;
 @property NSString* spoofLocationName;
-@property NSDate* lastLaunched;
 
 // Camera Addon Section
 @property BOOL spoofCamera;
