@@ -81,9 +81,8 @@ struct LiveContainerSwiftUIApp : App {
         }
         
 
-        DataManager.shared.model.apps = tempApps.sorted { $0.appInfo.displayName() < $1.appInfo.displayName() }
-        DataManager.shared.model.hiddenApps = tempHiddenApps.sorted { $0.appInfo.displayName() < $1.appInfo.displayName() }
-        LCAppSortManager.shared.applySort()
+        DataManager.shared.model.apps = tempApps
+        DataManager.shared.model.hiddenApps = tempHiddenApps
         
         _appDataFolderNames = State(initialValue: tempAppDataFolderNames)
         _tweakFolderNames = State(initialValue: tempTweakFolderNames)

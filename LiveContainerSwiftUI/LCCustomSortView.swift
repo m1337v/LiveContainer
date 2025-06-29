@@ -84,13 +84,13 @@ struct LCCustomSortView: View {
                 }
                 
                 Section {
-                    Button("lc.appList.sort.resetToAlphabetical".loc) {
+                    Button("lc.common.reset".loc) {
                         // Reset only affects local state
                         resetToAlphabetical()
                     }
                     .foregroundColor(.orange)
                 } footer: {
-                    Text("lc.appList.sort.customSortTip".loc)
+                    Text("lc.appList.sort.customSortResetTip".loc)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

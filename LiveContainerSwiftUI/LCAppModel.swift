@@ -406,7 +406,6 @@ class LCAppModel: ObservableObject, Hashable {
         
         // Record the launch time
         appInfo.lastLaunched = Date()
-        
         await MainActor.run {
             isAppRunning = false
         }

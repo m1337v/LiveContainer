@@ -945,4 +945,14 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     _info[@"lastLaunched"] = lastLaunched;
     [self save];
 }
+
+- (NSDate*)installationDate {
+    return _info[@"installationDate"];
+}
+
+- (void)setInstallationDate:(NSDate*)installationDate {
+    _info[@"installationDate"] = installationDate;
+    [self save];
+}
+
 @end

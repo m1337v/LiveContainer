@@ -159,6 +159,12 @@
             "state" : "translated",
             "value" : "有一些App正在以多任务模式运行，启动此App会终止这些App，要继续吗？"
           }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚有應用程式在多任務模式執行。執行此App將停止那些應用程式。要繼續嗎？"
+          }
         }
       }
     },
@@ -817,6 +823,12 @@
             "state" : "translated",
             "value" : "多任务"
           }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "多任務"
+          }
         }
       }
     },
@@ -1059,6 +1071,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "从LiveProcess中取回数据"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從 LiveProcess 獲取數據"
           }
         }
       }
@@ -3549,6 +3567,127 @@
         }
       }
     },
+    "lc.appList.sort.alphabetical" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name (A–Z)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名称升序"
+          }
+        }
+      }
+    },
+    "lc.appList.sort.custom" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自定义"
+          }
+        }
+      }
+    },
+    "lc.appList.sort.customManage" : {
+      "comment" : "use this button to access custom order managing view",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rearrange"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑排序"
+          }
+        }
+      }
+    },
+    "lc.appList.sort.customSortResetTip" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will reset the custom sort order to alphabetical order."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这将重置排序顺序为升序。"
+          }
+        }
+      }
+    },
+    "lc.appList.sort.installationDate" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installation Date"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装时间"
+          }
+        }
+      }
+    },
+    "lc.appList.sort.lastLaunched" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last Opened"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次打开"
+          }
+        }
+      }
+    },
+    "lc.appList.sort.reverseAlphabetical" : {
+      "comment" : "lc.appList.sort.reverseAlphabetical",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name (Z–A)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名称降序"
+          }
+        }
+      }
+    },
     "lc.appList.urlFileIsNotIpaError" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3711,72 +3850,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "輸入網址無效。 請檢查並重試"
-          }
-        }
-      }
-    },
-    "lc.appList.sort.customManage" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Custom Manage"
-          }
-        }
-      }
-    },
-    "lc.appList.sort.resetToAlphabetical" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reset to Alphabetical"
-          }
-        }
-      }
-    },
-    "lc.appList.sort.customSortTip" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This will reset the custom sort order to alphabetical order."
-          }
-        }
-      }
-    },
-    "lc.appList.sort.alphabetical" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Name (A–Z)"
-          }
-        }
-      }
-    },
-    "lc.appList.sort.reverseAlphabetical" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Name (Z–A)"
-          }
-        }
-      }
-    },
-    "lc.appList.sort.custom" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Custom"
           }
         }
       }
@@ -6807,6 +6880,12 @@
             "state" : "translated",
             "value" : "关闭"
           }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉"
+          }
         }
       }
     },
@@ -7221,6 +7300,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "資料"
+          }
+        }
+      }
+    },
+    "lc.common.default" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "默认"
           }
         }
       }
@@ -8383,6 +8479,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新命名"
+          }
+        }
+      }
+    },
+    "lc.common.reset" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置"
+          }
+        }
+      }
+    },
+    "lc.common.statistics" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Statistics"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "统计数据"
           }
         }
       }
@@ -10286,6 +10416,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法从LiveProcess取回数据。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從 LiveProcess 獲取資料夾失敗。"
           }
         }
       }
@@ -12748,6 +12884,12 @@
             "state" : "translated",
             "value" : "复制PID"
           }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複製進程ID"
+          }
         }
       }
     },
@@ -12824,6 +12966,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "启用画中画模式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "啟用畫中畫"
           }
         }
       }
@@ -12903,6 +13051,12 @@
             "state" : "translated",
             "value" : "缩放比例"
           }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "縮放"
+          }
         }
       }
     },
@@ -12979,6 +13133,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "App已被终止。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此應用程式已被停止。"
           }
         }
       }
@@ -13555,6 +13715,12 @@
             "state" : "translated",
             "value" : "默认以多任务模式启动"
           }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "默認以多任務模式啟動"
+          }
         }
       }
     },
@@ -13620,6 +13786,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "LiveContainer的包名，“%@”与权限中application-identifier期望的包名“%@”不符。一些功能可能无法正常使用使用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer 的套裝識別碼「%@」與權限中的 application-Identifier 不匹配，權限預期的套裝識別碼為「%@」。某些功能可能無法使用。"
           }
         }
       }
@@ -17405,6 +17577,12 @@
             "state" : "translated",
             "value" : "多任务模式"
           }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "多任務模式"
+          }
         }
       }
     },
@@ -17482,6 +17660,12 @@
             "state" : "translated",
             "value" : "原生窗口"
           }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原生視窗"
+          }
         }
       }
     },
@@ -17558,6 +17742,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "虚拟窗口"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "虛擬視窗"
           }
         }
       }
@@ -17646,12 +17836,18 @@
       }
     },
     "lc.settings.notDevCert" : {
-      "extractionState" : "manual",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LiveContainer cannot work with this certificate. You must use Development Certificate to sign LiveContainer."
+            "value" : "LiveContainer is not signed with a development certificate so LiveContainer won't work at all. Please sign LiveContainer with a development certificate."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer未被使用开发证书签名，因此无法正常工作。请使用开发证书签名LiveContainer。"
           }
         }
       }

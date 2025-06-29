@@ -1018,8 +1018,28 @@ struct LCAppSettingsView : View{
                 Text("lc.appSettings.forceSignDesc".loc)
             }
             
+<<<<<<< HEAD
             // Remove the GPS section from the bottom of the form
             // (delete the lines where you had it before)
+=======
+            Section {
+                HStack {
+                    Text("lc.appList.sort.lastLaunched".loc)
+                    Spacer()
+                    Text(formatDate(date: appInfo.lastLaunched))
+                        .foregroundStyle(.gray)
+                }
+                HStack {
+                    Text("lc.appList.sort.installationDate".loc)
+                    Spacer()
+                    Text(formatDate(date: appInfo.installationDate))
+                        .foregroundStyle(.gray)
+                }
+            } header: {
+                Text("lc.common.statistics")
+            }
+
+>>>>>>> upstream/main
         }
         .navigationTitle(appInfo.displayName())
         .navigationBarTitleDisplayMode(.inline)
@@ -1431,6 +1451,17 @@ struct LCAppSettingsView : View{
         }
         
         return (transform, renderSize)
+    
+    func formatDate(date: Date?) -> String {
+        guard let date else {
+            return "lc.common.unknown".loc
+        }
+        
+        let formatter1 = DateFormatter()
+        formatter1.dateStyle = .short
+        formatter1.timeStyle = .medium
+        return formatter1.string(from: date)
+    
     }
 }
 
