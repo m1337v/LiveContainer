@@ -168,27 +168,6 @@ class LCAppSortManager: ObservableObject {
         case .defaultOrder:
             return appList
         case .alphabetical:
-<<<<<<< HEAD
-            if !sortByLastLaunched {
-                return apps.sorted { $0.appInfo.displayName() < $1.appInfo.displayName() }
-            } else {
-                // Keep the last launched order but sort the non-launched apps alphabetically
-                let appsWithLaunchDate = apps.filter { $0.appInfo.lastLaunched != nil }
-                let appsWithoutLaunchDate = apps.filter { $0.appInfo.lastLaunched == nil }
-                    .sorted { $0.appInfo.displayName() < $1.appInfo.displayName() }
-                return appsWithLaunchDate + appsWithoutLaunchDate
-            }
-        case .reverseAlphabetical:
-            if !sortByLastLaunched {
-                return apps.sorted { $0.appInfo.displayName() > $1.appInfo.displayName() }
-            } else {
-                // Keep the last launched order but sort the non-launched apps reverse alphabetically
-                let appsWithLaunchDate = apps.filter { $0.appInfo.lastLaunched != nil }
-                let appsWithoutLaunchDate = apps.filter { $0.appInfo.lastLaunched == nil }
-                    .sorted { $0.appInfo.displayName() > $1.appInfo.displayName() }
-                return appsWithLaunchDate + appsWithoutLaunchDate
-            }
-=======
             return appList.sorted { $0.appInfo.displayName() < $1.appInfo.displayName() }
             
         case .reverseAlphabetical:
@@ -221,7 +200,6 @@ class LCAppSortManager: ObservableObject {
             }
             
             return appsWithinstallationDate + appsWithoutInstallationDate
->>>>>>> upstream/main
         case .custom:
             if !sortByLastLaunched {
                 return sortByCustomOrder(apps, customSortOrder: customSortOrder)
