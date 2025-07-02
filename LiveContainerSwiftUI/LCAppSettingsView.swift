@@ -980,7 +980,8 @@ struct LCAppSettingsView : View{
 
                 Toggle(isOn: $model.uiDontInjectTweakLoader) {
                     Text("lc.appSettings.dontInjectTweakLoader".loc)
-                }.disabled(model.uiTweakLoaderInjectFailed)
+                }
+                // }.disabled(model.uiTweakLoaderInjectFailed) // don't force disable
                 
                 if model.uiDontInjectTweakLoader {
                     Toggle(isOn: $model.uiDontLoadTweakLoader) {
