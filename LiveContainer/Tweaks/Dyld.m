@@ -50,42 +50,82 @@ static void overwriteAppExecutableFileType(void) {
     }
 }
 
-static inline int translateImageIndex(int origin) {
-    if(origin == lcImageIndex) {
-        if(!appExecutableFileTypeOverwritten) {
+// MARK: shouldHideLibrary
+static bool shouldHideLibrary(const char* imageName) {
+    if (!imageName) return false;
+    
+    static const char* suspiciousLibraries[] = {
+        // Substrate variants (primary detection target)
+        "CydiaSubstrate", "MobileSubstrate", "substrate", "libsubstrate",
+        
+        // LiveContainer components 
+        "LiveContainer", "TweakLoader",
+        
+        // Other injection frameworks
+        "fishhook",        
+        NULL
+    };
+    
+    for (int i = 0; suspiciousLibraries[i] != NULL; i++) {
+        if (strcasestr(imageName, suspiciousLibraries[i]) != NULL) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Helper for LiveContainer special case handling
+static bool isLiveContainerImage(uint32_t imageIndex, const char* imageName) {
+    return imageIndex == lcImageIndex || (imageName && strstr(imageName, "LiveContainer"));
+}
+
+static uint32_t handleLiveContainerReplacement(uint32_t imageIndex) {
+    if (imageIndex == lcImageIndex) {
+        if (!appExecutableFileTypeOverwritten) {
             overwriteAppExecutableFileType();
             appExecutableFileTypeOverwritten = true;
         }
-        
         return appMainImageIndex;
     }
-    
-    // find tweakloader index
-    if(tweakLoaderLoaded && tweakLoaderIndex == 0) {
-        const char* tweakloaderPath = [[[[NSUserDefaults lcMainBundle] bundlePath] stringByAppendingPathComponent:@"Frameworks/TweakLoader.dylib"] UTF8String];
-        if(tweakloaderPath) {
-            uint32_t imageCount = orig_dyld_image_count();
-            for(uint32_t i = imageCount - 1; i >= 0; --i) {
-                const char* imgName = orig_dyld_get_image_name(i);
-                if(imgName && strcmp(imgName, tweakloaderPath) == 0) {
-                    tweakLoaderIndex = i;
-                    break;
-                }
-            }
-        }
-
-        if(tweakLoaderIndex == 0) {
-            tweakLoaderIndex = -1; // can't find, don't search again in the future
-        }
-    }
-    
-    if(tweakLoaderLoaded && tweakLoaderIndex > 0 && origin >= tweakLoaderIndex) {
-        return origin + 2;
-    } else if(origin >= appMainImageIndex) {
-        return origin + 1;
-    }
-    return origin;
+    return imageIndex;
 }
+
+// static inline int translateImageIndex(int origin) {
+//     if(origin == lcImageIndex) {
+//         if(!appExecutableFileTypeOverwritten) {
+//             overwriteAppExecutableFileType();
+//             appExecutableFileTypeOverwritten = true;
+//         }
+        
+//         return appMainImageIndex;
+//     }
+    
+//     // find tweakloader index
+//     if(tweakLoaderLoaded && tweakLoaderIndex == 0) {
+//         const char* tweakloaderPath = [[[[NSUserDefaults lcMainBundle] bundlePath] stringByAppendingPathComponent:@"Frameworks/TweakLoader.dylib"] UTF8String];
+//         if(tweakloaderPath) {
+//             uint32_t imageCount = orig_dyld_image_count();
+//             for(uint32_t i = imageCount - 1; i >= 0; --i) {
+//                 const char* imgName = orig_dyld_get_image_name(i);
+//                 if(imgName && strcmp(imgName, tweakloaderPath) == 0) {
+//                     tweakLoaderIndex = i;
+//                     break;
+//                 }
+//             }
+//         }
+
+//         if(tweakLoaderIndex == 0) {
+//             tweakLoaderIndex = -1; // can't find, don't search again in the future
+//         }
+//     }
+    
+//     if(tweakLoaderLoaded && tweakLoaderIndex > 0 && origin >= tweakLoaderIndex) {
+//         return origin + 2;
+//     } else if(origin >= appMainImageIndex) {
+//         return origin + 1;
+//     }
+//     return origin;
+// }
 
 void* hook_dlsym(void * __handle, const char * __symbol) {
     if(__handle == (void*)RTLD_MAIN_ONLY) {
@@ -116,20 +156,124 @@ void* hook_dlsym(void * __handle, const char * __symbol) {
     __attribute__((musttail)) return orig_dlsym(__handle, __symbol);
 }
 
+// uint32_t hook_dyld_image_count(void) {
+//     return orig_dyld_image_count() - 1 - (uint32_t)tweakLoaderLoaded;
+// }
 uint32_t hook_dyld_image_count(void) {
-    return orig_dyld_image_count() - 1 - (uint32_t)tweakLoaderLoaded;
+    uint32_t originalCount = orig_dyld_image_count();
+    uint32_t hiddenCount = 0;
+    
+    // Count all hidden libraries (unified approach)
+    for (uint32_t i = 0; i < originalCount; i++) {
+        const char* imageName = orig_dyld_get_image_name(i);
+        if (imageName && shouldHideLibrary(imageName)) {
+            hiddenCount++;
+        }
+    }
+    
+    return originalCount - hiddenCount;
 }
 
+// const struct mach_header* hook_dyld_get_image_header(uint32_t image_index) {
+//     __attribute__((musttail)) return orig_dyld_get_image_header(translateImageIndex(image_index));
+// }
 const struct mach_header* hook_dyld_get_image_header(uint32_t image_index) {
-    __attribute__((musttail)) return orig_dyld_get_image_header(translateImageIndex(image_index));
+    uint32_t originalCount = orig_dyld_image_count();
+    uint32_t visibleIndex = 0;
+    
+    // Map visible index to real index by skipping hidden libraries
+    for (uint32_t i = 0; i < originalCount; i++) {
+        const char* imageName = orig_dyld_get_image_name(i);
+        
+        // Skip hidden libraries
+        if (imageName && shouldHideLibrary(imageName)) {
+            continue;
+        }
+        
+        // If this is the visible index we want
+        if (visibleIndex == image_index) {
+            // Handle LiveContainer special case
+            if (isLiveContainerImage(i, imageName)) {
+                uint32_t replacement = handleLiveContainerReplacement(i);
+                return orig_dyld_get_image_header(replacement);
+            }
+            
+            return orig_dyld_get_image_header(i);
+        }
+        
+        visibleIndex++;
+    }
+    
+    // Fallback - return dyld header (safe system library)
+    return orig_dyld_get_image_header(0);
 }
 
+// intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
+//     __attribute__((musttail)) return orig_dyld_get_image_vmaddr_slide(translateImageIndex(image_index));
+// }
 intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
-    __attribute__((musttail)) return orig_dyld_get_image_vmaddr_slide(translateImageIndex(image_index));
+    uint32_t originalCount = orig_dyld_image_count();
+    uint32_t visibleIndex = 0;
+    
+    // Map visible index to real index by skipping hidden libraries
+    for (uint32_t i = 0; i < originalCount; i++) {
+        const char* imageName = orig_dyld_get_image_name(i);
+        
+        // Skip hidden libraries
+        if (imageName && shouldHideLibrary(imageName)) {
+            continue;
+        }
+        
+        // If this is the visible index we want
+        if (visibleIndex == image_index) {
+            // Handle LiveContainer special case
+            if (isLiveContainerImage(i, imageName)) {
+                uint32_t replacement = handleLiveContainerReplacement(i);
+                return orig_dyld_get_image_vmaddr_slide(replacement);
+            }
+            
+            return orig_dyld_get_image_vmaddr_slide(i);
+        }
+        
+        visibleIndex++;
+    }
+    
+    // Fallback - return dyld slide
+    return orig_dyld_get_image_vmaddr_slide(0);
 }
 
+// const char* hook_dyld_get_image_name(uint32_t image_index) {
+//     __attribute__((musttail)) return orig_dyld_get_image_name(translateImageIndex(image_index));
+// }
 const char* hook_dyld_get_image_name(uint32_t image_index) {
-    __attribute__((musttail)) return orig_dyld_get_image_name(translateImageIndex(image_index));
+    uint32_t originalCount = orig_dyld_image_count();
+    uint32_t visibleIndex = 0;
+    
+    // Map visible index to real index by skipping hidden libraries
+    for (uint32_t i = 0; i < originalCount; i++) {
+        const char* imageName = orig_dyld_get_image_name(i);
+        
+        // Skip hidden libraries
+        if (imageName && shouldHideLibrary(imageName)) {
+            continue;
+        }
+        
+        // If this is the visible index we want
+        if (visibleIndex == image_index) {
+            // Handle LiveContainer special case
+            if (isLiveContainerImage(i, imageName)) {
+                uint32_t replacement = handleLiveContainerReplacement(i);
+                return orig_dyld_get_image_name(replacement);
+            }
+            
+            return imageName;
+        }
+        
+        visibleIndex++;
+    }
+    
+    // Fallback - return a legitimate system library
+    return "/usr/lib/libSystem.B.dylib";
 }
 
 void *findPrivateSymbol(struct mach_header_64 *mh, const char *target_name) {
