@@ -485,7 +485,12 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
     
     // set before hooks to prevent timing issues
     // appExecutableFileTypeOverwritten = !hideLiveContainer;
-    appExecutableFileTypeOverwritten = hideLiveContainer;
+    if (hideLiveContainer) {
+        overwriteAppExecutableFileType();  // Do it immediately
+        appExecutableFileTypeOverwritten = true;  // Set flag to true
+    } else {
+        appExecutableFileTypeOverwritten = false;  // Keep original logic for non-hiding
+    }
 
     // hook dlopen and dlsym to solve RTLD_MAIN_ONLY, hook other functions to hide LiveContainer itself
     rebind_symbols((struct rebinding[5]){
