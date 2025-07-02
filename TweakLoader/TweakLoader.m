@@ -97,13 +97,14 @@ static void TweakLoaderConstructor() {
         [errors addObject:@(substrateError)];
     } else {
         // Create compatibility symlink for tweaks expecting libsubstrate.dylib
-        NSString *libsubstratePath = [globalTweakFolder stringByAppendingPathComponent:@"libsubstrate.dylib"];
-        [[NSFileManager defaultManager] removeItemAtPath:libsubstratePath error:nil];
-        
-        // Relative path from Tweaks folder to CydiaSubstrate
-        NSString *relativePath = @"../../Frameworks/CydiaSubstrate.framework/CydiaSubstrate";
-        if (symlink(relativePath.UTF8String, libsubstratePath.UTF8String) == 0) {
-            NSLog(@"✅ Created libsubstrate.dylib symlink");
+        NSString *appBundlePath = [[NSBundle mainBundle] bundlePath];
+        NSString *substratePath = [appBundlePath stringByAppendingPathComponent:@"Frameworks/CydiaSubstrate.framework/CydiaSubstrate"];
+
+        // Use absolute path for symlink since relative path calculation is complex
+        if (symlink(substratePath.UTF8String, libsubstratePath.UTF8String) == 0) {
+            NSLog(@"✅ Created libsubstrate.dylib symlink to: %@", substratePath);
+        } else {
+            NSLog(@"❌ Failed to create libsubstrate.dylib symlink: %s", strerror(errno));
         }
     }
 
