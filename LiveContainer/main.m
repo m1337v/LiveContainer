@@ -466,9 +466,23 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         return appError;
     }
     
-    if([guestAppInfo[@"dontInjectTweakLoader"] boolValue] && ![guestAppInfo[@"dontLoadTweakLoader"] boolValue]) {
-        tweakLoaderLoaded = true;
-        // Ensure the environment variable is set before loading TweakLoader
+    // if([guestAppInfo[@"dontInjectTweakLoader"] boolValue] && ![guestAppInfo[@"dontLoadTweakLoader"] boolValue]) {
+    //     tweakLoaderLoaded = true;
+    //     // Ensure the environment variable is set before loading TweakLoader
+    //     NSString *tweakFolder = nil;
+    //     if (isSharedBundle) {
+    //         tweakFolder = [appGroupFolder.path stringByAppendingPathComponent:@"Tweaks"];
+    //     } else {
+    //         NSString *docPath = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].lastObject.path;
+    //         tweakFolder = [docPath stringByAppendingPathComponent:@"Tweaks"];
+    //     }
+    //     setenv("LC_GLOBAL_TWEAKS_FOLDER", tweakFolder.UTF8String, 1);
+    //     dlopen("@loader_path/../TweakLoader.dylib", RTLD_LAZY|RTLD_GLOBAL);
+    // }
+
+    // TweakLoader loading logic - only setup environment when needed
+    if (![guestAppInfo[@"dontLoadTweakLoader"] boolValue]) {
+        // Setup TweakLoader environment only when we're actually going to load it
         NSString *tweakFolder = nil;
         if (isSharedBundle) {
             tweakFolder = [appGroupFolder.path stringByAppendingPathComponent:@"Tweaks"];
@@ -477,9 +491,41 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             tweakFolder = [docPath stringByAppendingPathComponent:@"Tweaks"];
         }
         setenv("LC_GLOBAL_TWEAKS_FOLDER", tweakFolder.UTF8String, 1);
-        dlopen("@loader_path/../TweakLoader.dylib", RTLD_LAZY|RTLD_GLOBAL);
+
+        BOOL shouldInject = ![guestAppInfo[@"dontInjectTweakLoader"] boolValue];
+        BOOL canInject = ![guestAppInfo[@"LCTweakLoaderCantInject"] boolValue];
+        
+        if (shouldInject) {
+            if (canInject) {
+                // Standard injection method
+                NSLog(@"[LC] Using injection method for TweakLoader");
+                tweakLoaderLoaded = true;
+            } else {
+                // Fallback method for apps that can't be injected
+                NSLog(@"[LC] Using fallback TweakLoader loading for %@", lcGuestAppId ?: @"unknown");
+                void *tweakLoaderHandle = dlopen("@executable_path/Frameworks/TweakLoader.dylib", RTLD_LAZY | RTLD_GLOBAL);
+                if (tweakLoaderHandle) {
+                    NSLog(@"[LC] ✅ TweakLoader loaded via fallback method");
+                    tweakLoaderLoaded = true;
+                } else {
+                    NSLog(@"[LC] ❌ Failed to load TweakLoader via fallback: %s", dlerror());
+                }
+            }
+        } else {
+            // Manual loading method (injection explicitly disabled)
+            NSLog(@"[LC] Loading TweakLoader manually for %@", lcGuestAppId ?: @"unknown");
+            void *tweakLoaderHandle = dlopen("@loader_path/../TweakLoader.dylib", RTLD_LAZY|RTLD_GLOBAL);
+            if (tweakLoaderHandle) {
+                NSLog(@"[LC] ✅ TweakLoader loaded via manual method");
+                tweakLoaderLoaded = true;
+            } else {
+                NSLog(@"[LC] ❌ Failed to load TweakLoader manually: %s", dlerror());
+            }
+        }
+    } else {
+        NSLog(@"[LC] TweakLoader loading disabled for %@", lcGuestAppId ?: @"unknown");
     }
-    
+
     // Fix dynamic properties of some apps
     [NSUserDefaults performSelector:@selector(initialize)];
 

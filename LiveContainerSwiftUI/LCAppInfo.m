@@ -318,7 +318,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
                 has64bitSlice |= YES;
                 int patchResult = LCPatchExecSlice(path, header, ![self dontInjectTweakLoader]);
                 if(patchResult & PATCH_EXEC_RESULT_NO_SPACE_FOR_TWEAKLOADER) {
-                    // info[@"LCTweakLoaderCantInject"] = @YES;
+                    info[@"LCTweakLoaderCantInject"] = @YES;
                     // info[@"dontInjectTweakLoader"] = @YES;
                 }
             }
