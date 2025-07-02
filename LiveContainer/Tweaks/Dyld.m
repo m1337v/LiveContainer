@@ -9,6 +9,7 @@
 #import "../../fishhook/fishhook.h"
 #import "../utils.h"
 #include <sys/mman.h>
+#include <ctype.h>
 @import Darwin;
 @import Foundation;
 @import MachO;
@@ -51,17 +52,33 @@ static void overwriteAppExecutableFileType(void) {
 }
 
 // MARK: shouldHideLibrary
+// static bool shouldHideLibrary(const char* imageName) {
+//     if (!imageName) return false;
+    
+//     // Only hide exact matches to avoid breaking legitimate frameworks
+//     return (strstr(imageName, "TweakLoader.dylib") ||
+//             strstr(imageName, "LiveContainerShared") ||
+//             strstr(imageName, "CydiaSubstrate") ||
+//             strstr(imageName, "MobileSubstrate") ||
+//             strstr(imageName, "substrate") ||
+//             strstr(imageName, "fishhook") ||
+//             (strstr(imageName, "LiveContainer") && strstr(imageName, ".app/")));
+// }
+
 static bool shouldHideLibrary(const char* imageName) {
     if (!imageName) return false;
     
-    // Only hide exact matches to avoid breaking legitimate frameworks
-    return (strstr(imageName, "TweakLoader.dylib") ||
-            strstr(imageName, "LiveContainerShared") ||
-            strstr(imageName, "CydiaSubstrate") ||
-            strstr(imageName, "MobileSubstrate") ||
-            strstr(imageName, "substrate") ||
-            strstr(imageName, "fishhook") ||
-            (strstr(imageName, "LiveContainer") && strstr(imageName, ".app/")));
+    // Convert to lowercase for case-insensitive comparison
+    char lowerImageName[1024];
+    strlcpy(lowerImageName, imageName, sizeof(lowerImageName));
+    for (int i = 0; lowerImageName[i]; i++) {
+        lowerImageName[i] = tolower(lowerImageName[i]);
+    }
+    
+    // Ultra-minimal - only what Reveil specifically looks for
+    return (strstr(lowerImageName, "substrate") ||      // All substrate variants
+            strstr(lowerImageName, "tweakloader") ||    // TweakLoader
+            strstr(lowerImageName, "livecontainer"));   // LiveContainer
 }
 
 // Helper for LiveContainer special case handling
