@@ -33,6 +33,24 @@ static NSString *loadTweakAtURL(NSURL *url) {
         NSLog(@"Loaded tweak %@", tweak);
         return nil;
     } else if (error) {
+        // Check if the error is about missing libsubstrate.dylib
+        NSString *errorStr = @(error);
+        if ([errorStr containsString:@"libsubstrate.dylib"]) {
+            NSLog(@"Tweak %@ needs libsubstrate.dylib, creating compatibility copy...", tweak);
+            
+            // Create libsubstrate.dylib copy on demand
+            if ([self createLibsubstrateCompatibility]) {
+                // Retry loading the tweak
+                handle = dlopen(tweakPath.UTF8String, RTLD_LAZY | RTLD_GLOBAL);
+                error = dlerror();
+                
+                if (handle) {
+                    NSLog(@"✅ Loaded tweak %@ after creating libsubstrate.dylib", tweak);
+                    return nil;
+                }
+            }
+        }
+        
         NSLog(@"Error: %s", error);
         return @(error);
     } else {
@@ -95,17 +113,6 @@ static void TweakLoaderConstructor() {
     const char *substrateError = dlerror();
     if (substrateError) {
         [errors addObject:@(substrateError)];
-    } else {
-        // Create compatibility symlink for tweaks expecting libsubstrate.dylib
-        NSString *appBundlePath = [[NSBundle mainBundle] bundlePath];
-        NSString *substratePath = [appBundlePath stringByAppendingPathComponent:@"Frameworks/CydiaSubstrate.framework/CydiaSubstrate"];
-
-        // Use absolute path for symlink since relative path calculation is complex
-        if (symlink(substratePath.UTF8String, libsubstratePath.UTF8String) == 0) {
-            NSLog(@"✅ Created libsubstrate.dylib symlink to: %@", substratePath);
-        } else {
-            NSLog(@"❌ Failed to create libsubstrate.dylib symlink: %s", strerror(errno));
-        }
     }
 
     // Load global tweaks
