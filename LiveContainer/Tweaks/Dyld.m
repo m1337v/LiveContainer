@@ -477,13 +477,10 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         const struct mach_header* currentImageHeader = _dyld_get_image_header(i);
         if(currentImageHeader->filetype == MH_EXECUTE) {
             lcImageIndex = i;
-            appMainImageIndex = i;  // FIX: Set appMainImageIndex
             break;
         }
     }
     
-    appExecutableHandle = dlopen(NULL, RTLD_LAZY);
-
     orig_dyld_get_image_header = _dyld_get_image_header;
     
     // hook dlopen and dlsym to solve RTLD_MAIN_ONLY, hook other functions to hide LiveContainer itself
@@ -495,13 +492,7 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         {"_dyld_get_image_name", (void *)hook_dyld_get_image_name, (void **)&orig_dyld_get_image_name},
     }, hideLiveContainer ? 5: 1);
     
-    if (hideLiveContainer) {
-        // Pre-trigger the file type modification safely
-        overwriteAppExecutableFileType();
-        appExecutableFileTypeOverwritten = true;  // Enable hiding
-    } else {
-        appExecutableFileTypeOverwritten = false;  // Use original lazy logic
-    }
+    appExecutableFileTypeOverwritten = !hideLiveContainer;
     
     if(spoofSDKVersion) {
         guestAppSdkVersion = spoofSDKVersion;
