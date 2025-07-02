@@ -483,6 +483,10 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
     
     orig_dyld_get_image_header = _dyld_get_image_header;
     
+    // set before hooks to prevent timing issues
+    // appExecutableFileTypeOverwritten = !hideLiveContainer;
+    appExecutableFileTypeOverwritten = hideLiveContainer;
+
     // hook dlopen and dlsym to solve RTLD_MAIN_ONLY, hook other functions to hide LiveContainer itself
     rebind_symbols((struct rebinding[5]){
         {"dlsym", (void *)hook_dlsym, (void **)&orig_dlsym},
@@ -492,7 +496,7 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         {"_dyld_get_image_name", (void *)hook_dyld_get_image_name, (void **)&orig_dyld_get_image_name},
     }, hideLiveContainer ? 5: 1);
     
-    appExecutableFileTypeOverwritten = !hideLiveContainer;
+
     
     if(spoofSDKVersion) {
         guestAppSdkVersion = spoofSDKVersion;
