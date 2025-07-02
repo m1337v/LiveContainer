@@ -1,4 +1,4 @@
-name: Xcode - Build
+name: Xcode - Fast Build
 
 on: 
   push:
@@ -12,7 +12,7 @@ on:
 
 jobs:
   build:
-    name: Build using xcodebuild command
+    name: Fast Build using optimized xcodebuild
     runs-on: macos-latest
     env:
       scheme: LiveContainer
@@ -25,10 +25,46 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: '16.2'
+          
       - name: Checkout
         uses: actions/checkout@v3
         with:
           submodules: recursive
+
+      # ✅ Speed Optimization 1: Install build tools
+      - name: Install Build Optimization Tools
+        run: |
+          brew install ninja ccache gnu-time
+          echo "$(brew --prefix)/bin" >> $GITHUB_PATH
+          echo "$(brew --prefix)/opt/gnu-time/libexec/gnubin" >> $GITHUB_PATH
+
+      # ✅ Speed Optimization 2: Setup ccache
+      - name: Setup ccache
+        run: |
+          ccache --set-config=cache_dir=${{ runner.temp }}/ccache
+          ccache --set-config=compression=true
+          ccache --set-config=max_size=2G
+          ccache --set-config=sloppiness=pch_defines,time_macros
+          ccache -z
+
+      # ✅ Speed Optimization 3: Cache builds
+      - name: Cache ccache
+        uses: actions/cache@v3
+        with:
+          path: ${{ runner.temp }}/ccache
+          key: ccache-${{ runner.os }}-${{ hashFiles('**/*.m', '**/*.mm', '**/*.c', '**/*.cpp', '**/*.h') }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
+      # ✅ Speed Optimization 4: Cache derived data
+      - name: Cache Xcode Derived Data
+        uses: actions/cache@v3
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: deriveddata-${{ runner.os }}-${{ hashFiles('**/*.pbxproj') }}
+          restore-keys: |
+            deriveddata-${{ runner.os }}-
+
       - name: Set Scheme
         id: scheme
         run: |
@@ -41,34 +77,66 @@ jobs:
             echo Using configured scheme: $scheme
           fi
           echo "scheme=$scheme" >> $GITHUB_OUTPUT
+
       - name: Set filetype_parameter
         id: filetype_parameter
         run: |
           filetype_parameter=`ls -A | grep -i \\.xcworkspace\$ && echo workspace || echo project`
           echo "filetype_parameter=$filetype_parameter" >> $GITHUB_OUTPUT
+
       - name: Set file_to_build
         id: file_to_build
         run: |
           file_to_build=`ls -A | grep -i \\.xcworkspace\$ || ls -A | grep -i \\.xcodeproj\$`
           file_to_build=`echo $file_to_build | awk '{$1=$1;print}'`
           echo "file_to_build=$file_to_build" >> $GITHUB_OUTPUT
-      - name: Archive
+
+      # ✅ Speed Optimization 5: Fast Archive with all optimizations
+      - name: Fast Archive
         env:
           scheme: ${{ steps.scheme.outputs.scheme }}
           filetype_parameter: ${{ steps.filetype_parameter.outputs.filetype_parameter }}
           file_to_build: ${{ steps.file_to_build.outputs.file_to_build }}
-        run: xcodebuild archive -archivePath "$archive_path" -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -sdk iphoneos -arch arm64 -configuration Release | xcpretty && exit ${PIPESTATUS[0]}
+          CC: ccache clang
+          CXX: ccache clang++
+        run: |
+          # Get CPU count for parallel builds
+          CPU_COUNT=$(sysctl -n hw.ncpu)
+          echo "Building with $CPU_COUNT parallel jobs"
+          
+          # Optimized xcodebuild command
+          time xcodebuild archive \
+            -archivePath "$archive_path" \
+            -scheme "$scheme" \
+            -"$filetype_parameter" "$file_to_build" \
+            -sdk iphoneos -arch arm64 \
+            -configuration Release \
+            -jobs $CPU_COUNT \
+            -parallelizeTargets \
+            -hideShellScriptEnvironment \
+            -showBuildTimingSummary \
+            -allowProvisioningUpdates \
+            | xcpretty && exit ${PIPESTATUS[0]}
+          
+          # Show ccache stats
+          echo "=== ccache statistics ==="
+          ccache -s
+
+      # Rest of your workflow unchanged...
       - name: Tar Build Artifact
         run: tar -cvf "$archive_path.xcarchive.tar" "$archive_path.xcarchive"
+        
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.archive_path }}.xcarchive.tar
           path: ${{ env.archive_path }}.xcarchive.tar
+          
       - name: Create IPA
         run: |
           mv "$archive_path.xcarchive/Products/Applications" Payload
           zip -r "$scheme.ipa" "Payload" -x "._*" -x ".DS_Store" -x "__MACOSX"
+          
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v4
         with:
