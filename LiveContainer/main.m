@@ -468,6 +468,15 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     
     if([guestAppInfo[@"dontInjectTweakLoader"] boolValue] && ![guestAppInfo[@"dontLoadTweakLoader"] boolValue]) {
         tweakLoaderLoaded = true;
+        // Ensure the environment variable is set before loading TweakLoader
+        NSString *tweakFolder = nil;
+        if (isSharedBundle) {
+            tweakFolder = [appGroupFolder.path stringByAppendingPathComponent:@"Tweaks"];
+        } else {
+            NSString *docPath = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].lastObject.path;
+            tweakFolder = [docPath stringByAppendingPathComponent:@"Tweaks"];
+        }
+        setenv("LC_GLOBAL_TWEAKS_FOLDER", tweakFolder.UTF8String, 1);
         dlopen("@loader_path/../TweakLoader.dylib", RTLD_LAZY|RTLD_GLOBAL);
     }
     

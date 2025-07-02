@@ -64,7 +64,13 @@ static void showDlerrAlert(NSString *error) {
  __attribute__((constructor))
 static void TweakLoaderConstructor() {
     const char *tweakFolderC = getenv("LC_GLOBAL_TWEAKS_FOLDER");
-    NSString *globalTweakFolder = @(tweakFolderC);
+
+    // NULL check to prevent *** +[NSString stringWithUTF8String:]: NULL cString
+    // if (!tweakFolderC) {
+    //     NSLog(@"[LC] TweakLoader: LC_GLOBAL_TWEAKS_FOLDER not set, skipping tweak loading");
+    //     return;
+    // }
+    NSString *globalTweakFolder = @(tweakFolderC); // This crashes if tweakFolderC is NULL
     unsetenv("LC_GLOBAL_TWEAKS_FOLDER");
     
     if([NSUserDefaults.guestAppInfo[@"dontInjectTweakLoader"] boolValue]) {
@@ -85,10 +91,20 @@ static void TweakLoaderConstructor() {
     }
 
     // Load CydiaSubstrate
-    dlopen("@loader_path/CydiaSubstrate.framework/CydiaSubstrate", RTLD_LAZY | RTLD_GLOBAL);
+    dlopen("@loader_path/../Frameworks/CydiaSubstrate.framework/CydiaSubstrate", RTLD_LAZY | RTLD_GLOBAL);
     const char *substrateError = dlerror();
     if (substrateError) {
         [errors addObject:@(substrateError)];
+    } else {
+        // Create compatibility symlink for tweaks expecting libsubstrate.dylib
+        NSString *libsubstratePath = [globalTweakFolder stringByAppendingPathComponent:@"libsubstrate.dylib"];
+        [[NSFileManager defaultManager] removeItemAtPath:libsubstratePath error:nil];
+        
+        // Relative path from Tweaks folder to CydiaSubstrate
+        NSString *relativePath = @"../../Frameworks/CydiaSubstrate.framework/CydiaSubstrate";
+        if (symlink(relativePath.UTF8String, libsubstratePath.UTF8String) == 0) {
+            NSLog(@"✅ Created libsubstrate.dylib symlink");
+        }
     }
 
     // Load global tweaks
