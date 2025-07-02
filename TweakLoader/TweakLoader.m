@@ -33,24 +33,6 @@ static NSString *loadTweakAtURL(NSURL *url) {
         NSLog(@"Loaded tweak %@", tweak);
         return nil;
     } else if (error) {
-        // Check if the error is about missing libsubstrate.dylib
-        NSString *errorStr = @(error);
-        if ([errorStr containsString:@"libsubstrate.dylib"]) {
-            NSLog(@"Tweak %@ needs libsubstrate.dylib, creating compatibility copy...", tweak);
-            
-            // Create libsubstrate.dylib copy on demand
-            if ([self createLibsubstrateCompatibility]) {
-                // Retry loading the tweak
-                handle = dlopen(tweakPath.UTF8String, RTLD_LAZY | RTLD_GLOBAL);
-                error = dlerror();
-                
-                if (handle) {
-                    NSLog(@"✅ Loaded tweak %@ after creating libsubstrate.dylib", tweak);
-                    return nil;
-                }
-            }
-        }
-        
         NSLog(@"Error: %s", error);
         return @(error);
     } else {
