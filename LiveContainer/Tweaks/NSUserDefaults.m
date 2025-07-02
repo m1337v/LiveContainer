@@ -9,8 +9,9 @@
 #import "LCSharedUtils.h"
 #import "utils.h"
 #import "LCSharedUtils.h"
+#import "../../fishhook/fishhook.h"
 
-BOOL hook_return_false() {
+BOOL hook_return_false(void) {
     return NO;
 }
 
@@ -18,9 +19,18 @@ void swizzle(Class class, SEL originalAction, SEL swizzledAction) {
     method_exchangeImplementations(class_getInstanceMethod(class, originalAction), class_getInstanceMethod(class, swizzledAction));
 }
 
+void swizzle2(Class class, SEL originalAction, Class class2, SEL swizzledAction) {
+    Method m1 = class_getInstanceMethod(class2, swizzledAction);
+    class_addMethod(class, swizzledAction, method_getImplementation(m1), method_getTypeEncoding(m1));
+    method_exchangeImplementations(class_getInstanceMethod(class, originalAction), class_getInstanceMethod(class, swizzledAction));
+}
+
 NSMutableDictionary* LCPreferences = 0;
 
-void NUDGuestHooksInit() {
+CFDictionaryRef hook_CFPreferencesCopyMultiple(CFArrayRef keysToFetch, CFStringRef applicationID, CFStringRef userName, CFStringRef hostName);
+CFDictionaryRef (*orig_CFPreferencesCopyMultiple)(CFArrayRef keysToFetch, CFStringRef applicationID, CFStringRef userName, CFStringRef hostName);
+
+void NUDGuestHooksInit(void) {
     // fix for macOS host
     if(access("/Users", F_OK) == 0) {
         method_setImplementation(class_getInstanceMethod(NSClassFromString(@"CFPrefsPlistSource"), @selector(_isSharedInTheiOSSimulator)), (IMP)hook_return_false);
@@ -34,6 +44,22 @@ void NUDGuestHooksInit() {
     swizzle(NSUserDefaults.class, @selector(dictionaryRepresentation), @selector(hook_dictionaryRepresentation));
     swizzle(NSUserDefaults.class, @selector(persistentDomainForName:), @selector(hook_persistentDomainForName:));
     swizzle(NSUserDefaults.class, @selector(removePersistentDomainForName:), @selector(hook_removePersistentDomainForName:));
+    swizzle(NSUserDefaults.class, @selector(setPersistentDomain:forName:), @selector(hook_setPersistentDomain:forName:));
+    
+    // let lc itself bypass
+    [NSUserDefaults.lcUserDefaults _setContainer:[NSURL URLWithString:@"/LiveContainer"]];
+    [NSUserDefaults.lcSharedDefaults _setContainer:[NSURL URLWithString:@"/LiveContainer"]];
+    
+    Class _CFXPreferencesClass = NSClassFromString(@"_CFXPreferences");
+
+    swizzle2(_CFXPreferencesClass, @selector(copyAppValueForKey:identifier:container:configurationURL:), _CFXPreferences2.class, @selector(hook_copyAppValueForKey:identifier:container:configurationURL:));
+    swizzle2(_CFXPreferencesClass, @selector(copyValueForKey:identifier:user:host:container:), _CFXPreferences2.class,  @selector(hook_copyValueForKey:identifier:user:host:container:));
+    swizzle2(_CFXPreferencesClass, @selector(setValue:forKey:appIdentifier:container:configurationURL:), _CFXPreferences2.class, @selector(hook_setValue:forKey:appIdentifier:container:configurationURL:));
+
+    rebind_symbols((struct rebinding[1]){
+        {"CFPreferencesCopyMultiple", (void *)hook_CFPreferencesCopyMultiple, (void **)&orig_CFPreferencesCopyMultiple},
+    }, 1);
+    
     LCPreferences = [[NSMutableDictionary alloc] init];
     NSFileManager* fm = NSFileManager.defaultManager;
     NSURL* libraryPath = [fm URLsForDirectory:NSLibraryDirectory inDomains:NSUserDomainMask].lastObject;
@@ -217,6 +243,29 @@ void LCSavePreference(void) {
     
 }
 
+- (void) hook_setPersistentDomain:(NSDictionary*)domain forName:(NSString*)domainName {
+    if([domainName hasPrefix:@"com.kdt.livecontainer"]) {
+        domainName = NSUserDefaults.standardUserDefaults._identifier;
+    }
+    @synchronized (LCPreferences) {
+        NSMutableDictionary* preferenceDict = LCGetPreference(domainName);
+        if(!preferenceDict) {
+            preferenceDict = [[NSMutableDictionary alloc] init];
+            LCPreferences[domainName] = preferenceDict;
+        }
+        for(NSString* key in domain) {
+            NSObject* obj = domain[key];
+            if(![preferenceDict[key] isEqual:obj]) {
+                [self willChangeValueForKey:key];
+                preferenceDict[key] = obj;
+                [self didChangeValueForKey:key];
+                [NSNotificationCenter.defaultCenter postNotificationName:NSUserDefaultsDidChangeNotification object:self];
+            }
+        }
+        LCSavePreference();
+    }
+}
+
 - (void) hook_removePersistentDomainForName:(NSString*)domainName {
     NSMutableDictionary* ans = [[self hook_persistentDomainForName:domainName] mutableCopy];
     @synchronized (LCPreferences) {
@@ -237,3 +286,85 @@ void LCSavePreference(void) {
 }
 
 @end
+
+
+// save preference to livecontainer's user default
+void LCSavePreference2(_CFXPreferences2* pref) {
+    NSString* containerId = [[NSString stringWithUTF8String:getenv("HOME")] lastPathComponent];
+    [pref hook_setValue:(__bridge CFDictionaryRef)LCPreferences forKey:(__bridge CFStringRef)containerId appIdentifier:kCFPreferencesCurrentApplication container:nil configurationURL:nil];
+}
+
+
+@implementation _CFXPreferences2
+
+-(CFPropertyListRef)hook_copyAppValueForKey:(CFStringRef)key identifier:(CFStringRef)identifier container:(CFStringRef)container configurationURL:(CFURLRef)configurationURL {
+    // let lc itself bypass
+    if(container && CFStringCompare(container, CFSTR("/LiveContainer"), 0) == kCFCompareEqualTo) {
+        return [self hook_copyAppValueForKey:key identifier:identifier container:nil configurationURL:configurationURL];
+    }
+    if(identifier == kCFPreferencesCurrentApplication) {
+        identifier = (__bridge CFStringRef)NSUserDefaults.lcGuestAppId;
+    }
+    
+    NSMutableDictionary* preferenceDict = LCGetPreference((__bridge NSString*)identifier);
+    if(preferenceDict && preferenceDict[(__bridge NSString*)key]) {
+        return CFPropertyListCreateDeepCopy(nil, CFDictionaryGetValue((__bridge CFDictionaryRef)preferenceDict, key), 0);
+    } else {
+        return [self hook_copyAppValueForKey:key identifier:identifier container:container configurationURL:configurationURL];
+    }
+}
+
+-(CFPropertyListRef)hook_copyValueForKey:(CFStringRef)key identifier:(CFStringRef)identifier user:(CFStringRef)user host:(CFStringRef)host container:(CFStringRef)container {
+    if(identifier == kCFPreferencesCurrentApplication) {
+        identifier = (__bridge CFStringRef)NSUserDefaults.lcGuestAppId;
+    }
+    NSMutableDictionary* preferenceDict = LCGetPreference((__bridge NSString*)identifier);
+    if(preferenceDict && preferenceDict[(__bridge NSString*)key]) {
+        return CFPropertyListCreateDeepCopy(nil, CFDictionaryGetValue((__bridge CFDictionaryRef)preferenceDict, key), 0);
+    } else {
+        return [self hook_copyValueForKey:key identifier:identifier user:user host:host container:container];
+    }
+    
+}
+
+-(void)hook_setValue:(CFPropertyListRef)value forKey:(CFStringRef)key appIdentifier:(CFStringRef)appIdentifier container:(CFStringRef)container configurationURL:(CFURLRef)configurationURL {
+    // let lc itself bypass
+    if(container && CFStringCompare(container, CFSTR("/LiveContainer"), 0) == kCFCompareEqualTo) {
+        return [self hook_setValue:value forKey:key appIdentifier:appIdentifier container:nil configurationURL:configurationURL];
+    }
+    
+    if(appIdentifier == kCFPreferencesCurrentApplication) {
+        appIdentifier = (__bridge CFStringRef)NSUserDefaults.lcGuestAppId;
+    }
+    
+    @synchronized (LCPreferences) {
+        NSMutableDictionary* preferenceDict = LCGetPreference((__bridge NSString*)appIdentifier);
+        if(!preferenceDict) {
+            preferenceDict = [[NSMutableDictionary alloc] init];
+            LCPreferences[(__bridge NSString*)appIdentifier] = preferenceDict;
+        }
+        if(!value) {
+            [preferenceDict removeObjectForKey:(__bridge NSString*)key];
+            LCSavePreference2(self);
+            return;
+        }
+        CFTypeRef cur = CFDictionaryGetValue((__bridge CFDictionaryRef)preferenceDict, key);
+        
+        if(!cur || !CFEqual(cur, value)) {
+            CFDictionarySetValue((__bridge CFMutableDictionaryRef)preferenceDict, key, value);
+            LCSavePreference2(self);
+        }
+
+    }
+}
+
+@end
+
+CFDictionaryRef hook_CFPreferencesCopyMultiple(CFArrayRef keysToFetch, CFStringRef applicationID, CFStringRef userName, CFStringRef hostName) {
+    NSMutableDictionary* preferenceDict = LCGetPreference((__bridge NSString*)applicationID);
+    if(preferenceDict) {
+        return CFDictionaryCreateCopy(nil, (__bridge CFDictionaryRef)preferenceDict);
+    } else {
+        return orig_CFPreferencesCopyMultiple(keysToFetch, applicationID, userName, hostName);
+    }
+}

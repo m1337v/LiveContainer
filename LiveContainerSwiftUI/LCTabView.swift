@@ -39,9 +39,9 @@ struct LCTabView: View {
                     }
                     Tab("Search".loc, systemImage: "magnifyingglass", role: .search) {
                         appListView
+                            .searchable(text: appListView.$searchContext.query)
                     }
                 }
-                .searchable(text: appListView.$searchContext.query)
             } else {
                 TabView {
                     appListView

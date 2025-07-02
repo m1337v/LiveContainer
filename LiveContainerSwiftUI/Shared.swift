@@ -12,6 +12,11 @@ import SafariServices
 import Security
 import Combine
 
+enum MultitaskMode : Int {
+    case virtualWindow = 0
+    case nativeWindow = 1
+}
+
 struct LCPath {
     public static let docPath = {
         let fm = FileManager()

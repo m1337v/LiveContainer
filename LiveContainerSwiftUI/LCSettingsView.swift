@@ -16,11 +16,6 @@ enum JITEnablerType : Int {
     case SideStore = 4
 }
 
-enum MultitaskMode : Int {
-    case virtualWindow = 0
-    case nativeWindow = 1
-}
-
 struct LCSettingsView: View {
     @State var errorShow = false
     @State var errorInfo = ""
@@ -52,6 +47,7 @@ struct LCSettingsView: View {
     
     @AppStorage("LCMultitaskMode", store: LCUtils.appGroupUserDefault) var multitaskMode: MultitaskMode = .virtualWindow
     @AppStorage("LCLaunchInMultitaskMode") var launchInMultitaskMode = false
+    @AppStorage("LCDockWidth", store: LCUtils.appGroupUserDefault) var dockWidth: Double = 80
     
     @State var store : Store = .Unknown
     
@@ -251,6 +247,24 @@ struct LCSettingsView: View {
                     }
                     Toggle(isOn: $launchInMultitaskMode) {
                         Text("lc.settings.autoLaunchInMultitaskMode".loc)
+                    }
+                    
+                    if multitaskMode == .virtualWindow {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("lc.settings.dockWidth".loc)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Text("\(Int(dockWidth))px")
+                                    .foregroundColor(.secondary)
+                                    .font(.caption)
+                            }
+                            Slider(value: $dockWidth, in: 60...110) {
+                                Text("lc.settings.dockWidth".loc)
+                            }
+                            .tint(.accentColor)
+                        }
+                        .padding(.vertical, 4)
                     }
                 }
                 

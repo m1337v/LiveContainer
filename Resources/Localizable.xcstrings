@@ -13724,6 +13724,17 @@
         }
       }
     },
+    "lc.settings.dockWidth" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dock Width"
+          }
+        }
+      }
+    },
     "lc.settings.bundleIdMismatch %@ %@" : {
       "comment" : "lc.settings.bundleIdMismatch",
       "extractionState" : "stale",

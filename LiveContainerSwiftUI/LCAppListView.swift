@@ -874,10 +874,16 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
 
         do {
             if launchInMultitaskMode && appFound.uiIsShared {
-                if #available(iOS 16.1, *) {
-                    if let currentDataFolder = container != nil ? container : appFound.uiSelectedContainer?.folderName,
-                        MultitaskManager.isUsing(container: currentDataFolder),
-                        MultitaskWindowManager.openExistingAppWindow(dataUUID: currentDataFolder) {
+                if let currentDataFolder = container != nil ? container : appFound.uiSelectedContainer?.folderName,
+                   MultitaskManager.isUsing(container: currentDataFolder) {
+                    var found = false
+                    if #available(iOS 16.1, *) {
+                        found = MultitaskWindowManager.openExistingAppWindow(dataUUID: currentDataFolder)
+                    }
+                    if !found {
+                        found = MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: currentDataFolder)
+                    }
+                    if found {
                         return
                     }
                 }

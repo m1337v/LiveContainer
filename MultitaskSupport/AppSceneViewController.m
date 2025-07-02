@@ -147,6 +147,10 @@
         [self.delegate appDidExit];
         self.delegate = nil;
         [MultitaskManager unregisterMultitaskContainerWithContainer:self.dataUUID];
+        
+        MultitaskDockManager *dock = [MultitaskDockManager shared];
+        [dock removeRunningApp:self.dataUUID];
+        
         self.isAppRunning = false;
     }
 }

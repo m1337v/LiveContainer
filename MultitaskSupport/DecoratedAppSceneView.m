@@ -36,6 +36,9 @@ void UIKitFixesInit(void) {
 @property(nonatomic) NSString* windowName;
 @property(nonatomic) int pid;
 @property(nonatomic) CGFloat scaleRatio;
+@property(nonatomic) BOOL isMaximized;
+@property(nonatomic) CGRect originalFrame;
+@property(nonatomic) UIBarButtonItem *maximizeButton;
 
 @end
 
@@ -53,6 +56,8 @@ void UIKitFixesInit(void) {
     NSLog(@"Presenting app scene from PID %d", pid);
     
     self.scaleRatio = 1.0;
+    self.isMaximized = NO;
+    self.originalFrame = CGRectZero;
     NSArray *menuItems = @[
         [UIAction actionWithTitle:@"lc.multitask.copyPid".loc image:[UIImage systemImageNamed:@"doc.on.doc"] identifier:nil handler:^(UIAction * _Nonnull action) {
             UIPasteboard.generalPasteboard.string = @(pid).stringValue;
@@ -78,7 +83,31 @@ void UIKitFixesInit(void) {
             return [UIMenu menuWithTitle:pidText children:menuItems];
         }
     }];
-    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemClose target:self action:@selector(closeWindow)];
+    
+    UIImage *minimizeImage = [UIImage systemImageNamed:@"minus.circle"];
+    UIImageConfiguration *minimizeConfig = [UIImageSymbolConfiguration configurationWithPointSize:16.0 weight:UIImageSymbolWeightMedium];
+    minimizeImage = [minimizeImage imageWithConfiguration:minimizeConfig];
+    UIBarButtonItem *minimizeButton = [[UIBarButtonItem alloc] initWithImage:minimizeImage style:UIBarButtonItemStylePlain target:self action:@selector(minimizeWindow)];
+    minimizeButton.tintColor = [UIColor systemYellowColor];
+    
+    UIImage *maximizeImage = [UIImage systemImageNamed:@"arrow.up.left.and.arrow.down.right.circle"];
+    UIImageConfiguration *maximizeConfig = [UIImageSymbolConfiguration configurationWithPointSize:16.0 weight:UIImageSymbolWeightMedium];
+    maximizeImage = [maximizeImage imageWithConfiguration:maximizeConfig];
+    self.maximizeButton = [[UIBarButtonItem alloc] initWithImage:maximizeImage style:UIBarButtonItemStylePlain target:self action:@selector(maximizeWindow)];
+    self.maximizeButton.tintColor = [UIColor systemGreenColor];
+    
+    UIImage *closeImage = [UIImage systemImageNamed:@"xmark.circle"];
+    UIImageConfiguration *closeConfig = [UIImageSymbolConfiguration configurationWithPointSize:16.0 weight:UIImageSymbolWeightMedium];
+    closeImage = [closeImage imageWithConfiguration:closeConfig];
+    UIBarButtonItem *closeButton = [[UIBarButtonItem alloc] initWithImage:closeImage style:UIBarButtonItemStylePlain target:self action:@selector(closeWindow)];
+    closeButton.tintColor = [UIColor systemRedColor];
+    
+    self.navigationItem.rightBarButtonItems = @[closeButton, self.maximizeButton, minimizeButton];
+    
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self adjustNavigationBarButtonSpacingWithNegativeSpacing:-8.0 rightMargin:-4.0];
+    });
+    
     self.windowName = windowName;
     self.navigationItem.title = windowName;
     
@@ -140,6 +169,72 @@ void UIKitFixesInit(void) {
     [self.appSceneView closeWindow];
 }
 
+- (void)minimizeWindow {
+    [UIView animateWithDuration:0.3 
+                          delay:0 
+                        options:UIViewAnimationOptionCurveEaseInOut 
+                     animations:^{
+                         self.alpha = 0;
+                         self.transform = CGAffineTransformMakeScale(0.1, 0.1);
+                     } 
+                     completion:^(BOOL finished) {
+                         self.hidden = YES;
+                     }];
+}
+
+- (void)maximizeWindow {
+    if (self.isMaximized) {
+        [UIView animateWithDuration:0.3 
+                              delay:0 
+                            options:UIViewAnimationOptionCurveEaseInOut 
+                         animations:^{
+                             self.frame = self.originalFrame;
+                         } 
+                         completion:^(BOOL finished) {
+                             self.isMaximized = NO;
+                             UIImage *maximizeImage = [UIImage systemImageNamed:@"arrow.up.left.and.arrow.down.right.circle"];
+                             UIImageConfiguration *maximizeConfig = [UIImageSymbolConfiguration configurationWithPointSize:16.0 weight:UIImageSymbolWeightMedium];
+                             self.maximizeButton.image = [maximizeImage imageWithConfiguration:maximizeConfig];
+                             CGSize size = self.contentView.bounds.size;
+                             [self.appSceneView resizeWindowWithFrame:CGRectMake(0, 0, size.width / self.scaleRatio, size.height / self.scaleRatio)];
+                         }];
+    } else {
+        self.originalFrame = self.frame;
+        
+        CGRect screenBounds = [UIScreen mainScreen].bounds;
+        UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
+        UIEdgeInsets safeAreaInsets = UIEdgeInsetsZero;
+        
+        if (@available(iOS 11.0, *)) {
+            if (keyWindow) {
+                safeAreaInsets = keyWindow.safeAreaInsets;
+            }
+        }
+        
+        CGRect maxFrame = CGRectMake(
+            safeAreaInsets.left,
+            safeAreaInsets.top,
+            screenBounds.size.width - safeAreaInsets.left - safeAreaInsets.right,
+            screenBounds.size.height - safeAreaInsets.top - safeAreaInsets.bottom
+        );
+        
+        [UIView animateWithDuration:0.3 
+                              delay:0 
+                            options:UIViewAnimationOptionCurveEaseInOut 
+                         animations:^{
+                             self.frame = maxFrame;
+                         } 
+                         completion:^(BOOL finished) {
+                             self.isMaximized = YES;
+                             UIImage *restoreImage = [UIImage systemImageNamed:@"arrow.down.right.and.arrow.up.left.circle"];
+                             UIImageConfiguration *restoreConfig = [UIImageSymbolConfiguration configurationWithPointSize:16.0 weight:UIImageSymbolWeightMedium];
+                             self.maximizeButton.image = [restoreImage imageWithConfiguration:restoreConfig];
+                             CGSize size = self.contentView.bounds.size;
+                             [self.appSceneView resizeWindowWithFrame:CGRectMake(0, 0, size.width / self.scaleRatio, size.height / self.scaleRatio)];
+                         }];
+    }
+}
+
 - (void)resizeWindow:(UIPanGestureRecognizer*)sender {
     [super resizeWindow:sender];
     CGSize size = self.contentView.bounds.size;
@@ -147,11 +242,54 @@ void UIKitFixesInit(void) {
 }
 
 - (void)appDidExit {
+    MultitaskDockManager *dock = [MultitaskDockManager shared];
+    [dock removeRunningApp:self.dataUUID];
+    
     self.layer.masksToBounds = NO;
     [UIView transitionWithView:self duration:0.4 options:UIViewAnimationOptionTransitionCurlUp animations:^{
         self.hidden = YES;
     } completion:^(BOOL b){
         [self removeFromSuperview];
     }];
+}
+
+- (void)adjustNavigationBarButtonSpacingWithNegativeSpacing:(CGFloat)spacing rightMargin:(CGFloat)margin {
+    if (!self.navigationBar) return;
+    
+    [self findAndAdjustButtonBarStackView:self.navigationBar withSpacing:spacing rightMargin:margin];
+}
+
+- (void)findAndAdjustButtonBarStackView:(UIView *)view withSpacing:(CGFloat)spacing rightMargin:(CGFloat)margin {
+    for (UIView *subview in view.subviews) {
+        NSString *className = NSStringFromClass([subview class]);
+        
+        if ([className isEqualToString:@"_UIButtonBarStackView"]) {
+            if ([subview respondsToSelector:@selector(setSpacing:)]) {
+                NSMethodSignature *methodSignature = [subview methodSignatureForSelector:@selector(setSpacing:)];
+                NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:methodSignature];
+                [invocation setTarget:subview];
+                [invocation setSelector:@selector(setSpacing:)];
+                [invocation setArgument:&spacing atIndex:2];
+                [invocation invoke];
+            }
+            
+            if (subview.superview) {
+                for (NSLayoutConstraint *constraint in subview.superview.constraints) {
+                    if ((constraint.firstItem == subview && constraint.firstAttribute == NSLayoutAttributeTrailing) ||
+                        (constraint.secondItem == subview && constraint.secondAttribute == NSLayoutAttributeTrailing)) {
+                        constraint.constant = (constraint.firstItem == subview) ? -margin : margin;
+                        break;
+                    }
+                }
+                
+                [subview setNeedsLayout];
+                [subview.superview setNeedsLayout];
+            }
+            
+            return;
+        }
+        
+        [self findAndAdjustButtonBarStackView:subview withSpacing:spacing rightMargin:margin];
+    }
 }
 @end
