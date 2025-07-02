@@ -471,34 +471,21 @@ void do_hook_loadableIntoProcess(void) {
 
 
 void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
-    // ✅ STEP 1: Find LiveContainer's image index
     // iterate through loaded images and find LiveContainer it self
     int imageCount = _dyld_image_count();
     for(int i = 0; i < imageCount; ++i) {
         const struct mach_header* currentImageHeader = _dyld_get_image_header(i);
         if(currentImageHeader->filetype == MH_EXECUTE) {
             lcImageIndex = i;
+            appMainImageIndex = i;  // FIX: Set appMainImageIndex
             break;
         }
     }
     
-    // ✅ STEP 2: Initialize appMainImageIndex properly
-    appMainImageIndex = lcImageIndex;  // This is the critical missing line
-    
-    // ✅ STEP 3: Set up appExecutableHandle for dlsym
     appExecutableHandle = dlopen(NULL, RTLD_LAZY);
 
     orig_dyld_get_image_header = _dyld_get_image_header;
     
-    // ✅ STEP 4: Now it's safe to modify file type if needed
-    if (hideLiveContainer) {
-        overwriteAppExecutableFileType();  // ✅ Safe: appMainImageIndex is set
-        appExecutableFileTypeOverwritten = true;
-    } else {
-        appExecutableFileTypeOverwritten = false;
-    }
-
-    // ✅ STEP 5: Install hooks
     // hook dlopen and dlsym to solve RTLD_MAIN_ONLY, hook other functions to hide LiveContainer itself
     rebind_symbols((struct rebinding[5]){
         {"dlsym", (void *)hook_dlsym, (void **)&orig_dlsym},
@@ -507,6 +494,14 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         {"_dyld_get_image_vmaddr_slide", (void *)hook_dyld_get_image_vmaddr_slide, (void **)&orig_dyld_get_image_vmaddr_slide},
         {"_dyld_get_image_name", (void *)hook_dyld_get_image_name, (void **)&orig_dyld_get_image_name},
     }, hideLiveContainer ? 5: 1);
+    
+    if (hideLiveContainer) {
+        // Pre-trigger the file type modification safely
+        overwriteAppExecutableFileType();
+        appExecutableFileTypeOverwritten = true;  // Enable hiding
+    } else {
+        appExecutableFileTypeOverwritten = false;  // Use original lazy logic
+    }
     
     if(spoofSDKVersion) {
         guestAppSdkVersion = spoofSDKVersion;
