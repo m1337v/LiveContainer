@@ -72,6 +72,9 @@ static NSData *g_cachedPhotoJPEGData = nil;
 static AVCaptureVideoOrientation g_currentPhotoOrientation = AVCaptureVideoOrientationPortrait;
 static CGAffineTransform g_currentVideoTransform;
 
+// Global to track current camera position for flip logic
+static AVCaptureDevicePosition g_currentSessionCameraPosition = AVCaptureDevicePositionUnspecified;
+
 // pragma MARK: - Helper Interface
 
 @interface NSUserDefaults(LiveContainerPrivate)
@@ -532,12 +535,35 @@ static CVPixelBufferRef correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
     // After +90deg rotation, content that was at (0,sourceHeight) in source (bottom-left if Y is up, or top-left if Y is down and it's about max Y)
     // is now at (-sourceHeight, 0) in the rotated space.
     // To bring this new logical origin (-sourceHeight,0) to (0,0) of the output buffer, translate by (sourceHeight,0).
-    CGAffineTransform rotationTransform = CGAffineTransformMakeRotation(M_PI_2); // +90 degrees
-    CGAffineTransform translateTransform = CGAffineTransformMakeTranslation(sourceHeight, 0); // Translate by original sourceHeight (which is newWidth)
+    // CGAffineTransform rotationTransform = CGAffineTransformMakeRotation(M_PI_2); // +90 degrees
+    // CGAffineTransform translateTransform = CGAffineTransformMakeTranslation(sourceHeight, 0); // Translate by original sourceHeight (which is newWidth)
+    // CGAffineTransform combinedTransform = CGAffineTransformConcat(rotationTransform, translateTransform);
 
-    CGAffineTransform combinedTransform = CGAffineTransformConcat(rotationTransform, translateTransform);
+    CGAffineTransform finalTransform = CGAffineTransformIdentity;
 
-    CIImage *rotatedCIImage = [ciImage imageByApplyingTransform:combinedTransform];
+    // Base transform: +90 degree rotation (corrects initial +90 error and render pipeline XY flip)
+    CGAffineTransform baseRotationTransform = CGAffineTransformMakeRotation(M_PI_2); // +90 degrees
+    CGAffineTransform baseTranslateTransform = CGAffineTransformMakeTranslation(sourceHeight, 0); // New width is sourceHeight
+    finalTransform = CGAffineTransformConcat(baseRotationTransform, baseTranslateTransform);
+
+    if (g_currentSessionCameraPosition == AVCaptureDevicePositionFront) {
+        NSLog(@"[LC] 📷 Front camera active. Applying additional horizontal flip.");
+        // Apply horizontal flip on top of the base +90deg transform.
+        // A horizontal flip is Scale(-1,1) then Translate(width_of_current_image, 0).
+        // The "current image" here is the one already transformed by finalTransform (which is +90deg rotated).
+        // Its width is sourceHeight.
+        CGAffineTransform flipScale = CGAffineTransformMakeScale(-1, 1);
+        CGAffineTransform flipTranslate = CGAffineTransformMakeTranslation(sourceHeight, 0); // Width of the buffer being drawn into
+        CGAffineTransform horizontalFlipMatrix = CGAffineTransformConcat(flipScale, flipTranslate);
+
+        // Order: apply baseTransform first, then horizontalFlipMatrix
+        finalTransform = CGAffineTransformConcat(horizontalFlipMatrix, finalTransform);
+    } else {
+        NSLog(@"[LC] 📷 Back camera or unspecified. Using base +90deg rotation transform.");
+        // finalTransform is already set to the base +90deg transform
+    }
+
+    CIImage *rotatedCIImage = [ciImage imageByApplyingTransform:finalTransform];
 
     // Render the rotated CIImage to the new CVPixelBuffer
     [sharedCIContext render:rotatedCIImage toCVPixelBuffer:rotatedBuffer];
@@ -2592,14 +2618,21 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 @implementation AVCaptureSession(LiveContainerSpoof)
 
 - (void)lc_addInput:(AVCaptureInput *)input {
-    if (spoofCameraEnabled && [input isKindOfClass:[AVCaptureDeviceInput class]]) {
+    if ([input isKindOfClass:[AVCaptureDeviceInput class]]) {
         AVCaptureDeviceInput *deviceInput = (AVCaptureDeviceInput *)input;
-        NSLog(@"[LC] 🎥 L4: Intercepting session input: %@ (pos: %ld)", 
-              deviceInput.device.localizedName, (long)deviceInput.device.position);
-        
-        objc_setAssociatedObject(self, @selector(lc_addInput:), @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        if ([deviceInput.device hasMediaType:AVMediaTypeVideo]) {
+            g_currentSessionCameraPosition = deviceInput.device.position;
+            NSLog(@"[LC] 🎥 L4: Active camera position set to: %ld (Front=%ld, Back=%ld)",
+                  (long)g_currentSessionCameraPosition, (long)AVCaptureDevicePositionFront, (long)AVCaptureDevicePositionBack);
+            if (spoofCameraEnabled) { // Keep original spoof-related logic if any
+                 NSLog(@"[LC] 🎥 L4: Intercepting session input for spoofing: %@ (pos: %ld)",
+                       deviceInput.device.localizedName, (long)deviceInput.device.position);
+                 // The existing associated object seems related to preview layer or general spoofing state, keep it.
+                 objc_setAssociatedObject(self, @selector(lc_addInput:), @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+        }
     }
-    [self lc_addInput:input];
+    [self lc_addInput:input]; // Call original
 }
 
 - (void)lc_addOutput:(AVCaptureOutput *)output {
