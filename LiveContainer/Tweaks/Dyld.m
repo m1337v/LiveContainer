@@ -77,8 +77,8 @@ static bool shouldHideLibrary(const char* imageName) {
     
     // Ultra-minimal - only what Reveil specifically looks for
     return (strstr(lowerImageName, "substrate") ||      // All substrate variants
-            strstr(lowerImageName, "tweakloader") ||    // TweakLoader
-            strstr(lowerImageName, "livecontainer"));   // LiveContainer
+            strstr(lowerImageName, "tweakloader"));    // TweakLoader
+            // strstr(lowerImageName, "livecontainer"));   // LiveContainer
 }
 
 // Helper for LiveContainer special case handling
@@ -300,8 +300,8 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
             
             // Check if should hide
             shouldHide = (strstr(lowerImageName, "substrate") ||
-                         strstr(lowerImageName, "tweakloader") ||
-                         strstr(lowerImageName, "livecontainer"));
+                         strstr(lowerImageName, "tweakloader"));
+                        //  strstr(lowerImageName, "livecontainer"));
         }
         
         if(shouldHide) {
