@@ -564,10 +564,10 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         }
     }
     
-    if(access("/Users", F_OK) != -1) {
-        // not running on macOS, skip this
-        do_hook_loadableIntoProcess();
-    }
+    // if(access("/Users", F_OK) != -1) {
+    //     // not running on macOS, skip this
+    //     do_hook_loadableIntoProcess();
+    // }
 }
 
 void* getGuestAppHeader(void) {
