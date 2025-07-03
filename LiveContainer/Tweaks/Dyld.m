@@ -188,11 +188,21 @@ uint32_t hook_dyld_image_count(void) {
 //     __attribute__((musttail)) return orig_dyld_get_image_header(translateImageIndex(image_index));
 // }
 const struct mach_header* hook_dyld_get_image_header(uint32_t image_index) {
-    if(!appExecutableFileTypeOverwritten) {
-        return orig_dyld_get_image_header(translateImageIndex(image_index));
+    // ALWAYS handle LiveContainer replacement first
+    if(image_index == lcImageIndex) {
+        if(!appExecutableFileTypeOverwritten) {
+            overwriteAppExecutableFileType();
+            appExecutableFileTypeOverwritten = true;
+        }
+        return orig_dyld_get_image_header(appMainImageIndex);
     }
     
-    // Remap index like in hook_dyld_get_image_name
+    // Before we're ready to hide libraries, use simple passthrough
+    if(!appExecutableFileTypeOverwritten) {
+        return orig_dyld_get_image_header(image_index);
+    }
+    
+    // After we're ready, use the hiding logic
     uint32_t realCount = orig_dyld_image_count();
     uint32_t visibleIndex = 0;
     
@@ -217,11 +227,21 @@ const struct mach_header* hook_dyld_get_image_header(uint32_t image_index) {
 //     __attribute__((musttail)) return orig_dyld_get_image_vmaddr_slide(translateImageIndex(image_index));
 // }
 intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
-    if(!appExecutableFileTypeOverwritten) {
-        return orig_dyld_get_image_vmaddr_slide(translateImageIndex(image_index));
+    // ALWAYS handle LiveContainer replacement first
+    if(image_index == lcImageIndex) {
+        if(!appExecutableFileTypeOverwritten) {
+            overwriteAppExecutableFileType();
+            appExecutableFileTypeOverwritten = true;
+        }
+        return orig_dyld_get_image_vmaddr_slide(appMainImageIndex);
     }
     
-    // Remap index like in hook_dyld_get_image_name
+    // Before we're ready to hide libraries, use simple passthrough
+    if(!appExecutableFileTypeOverwritten) {
+        return orig_dyld_get_image_vmaddr_slide(image_index);
+    }
+    
+    // After we're ready, use the hiding logic
     uint32_t realCount = orig_dyld_image_count();
     uint32_t visibleIndex = 0;
     
@@ -246,11 +266,21 @@ intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
 //     __attribute__((musttail)) return orig_dyld_get_image_name(translateImageIndex(image_index));
 // }
 const char* hook_dyld_get_image_name(uint32_t image_index) {
+    // ALWAYS handle LiveContainer replacement first
+    if(image_index == lcImageIndex) {
+        if(!appExecutableFileTypeOverwritten) {
+            overwriteAppExecutableFileType();
+            appExecutableFileTypeOverwritten = true;
+        }
+        return orig_dyld_get_image_name(appMainImageIndex);
+    }
+    
+    // Before we're ready to hide libraries, use simple passthrough
     if(!appExecutableFileTypeOverwritten) {
         return orig_dyld_get_image_name(image_index);
     }
     
-    // Remap index to skip hidden images
+    // After we're ready, use the hiding logic
     uint32_t realCount = orig_dyld_image_count();
     uint32_t visibleIndex = 0;
     
