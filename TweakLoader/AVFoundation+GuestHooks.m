@@ -269,18 +269,17 @@ static CVPixelBufferRef createPixelBufferInFormat(CVPixelBufferRef sourceBuffer,
         (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
     };
 
-    // Create target buffer in the exact requested format
+    // Output buffer dimensions will be sourceHeight x sourceWidth due to the base +90deg rotation.
     CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
-                                          (size_t)targetSize.width,
-                                          (size_t)targetSize.height,
-                                          targetFormat,
-                                          (__bridge CFDictionaryRef)pixelAttributes,
-                                          &targetBuffer);
+                                        sourceHeight, // New width after +90deg base rotation
+                                        sourceWidth,  // New height after +90deg base rotation
+                                        CVPixelBufferGetPixelFormatType(sourceBuffer),
+                                        (__bridge CFDictionaryRef)attributes,
+                                        &rotatedBuffer);
     
     if (status != kCVReturnSuccess || !targetBuffer) {
         NSLog(@"[LC] ❌ Failed to create target buffer in format %c%c%c%c: %d", 
-              (targetFormat >> 24) & 0xFF, (targetFormat >> 16) & 0xFF, 
-              (targetFormat >> 8) & 0xFF, targetFormat & 0xFF, status);
+        if (rotatedBuffer) CVPixelBufferRelease(rotatedBuffer);
         return NULL;
     }
 
@@ -495,6 +494,9 @@ static CVPixelBufferRef correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
 
     NSLog(@"[LC] 📷 correctPhotoRotation: Input %zux%zu. Applying base +90deg rotation logic.", sourceWidth, sourceHeight); // Adjusted log slightly for clarity
 
+    // Initial log, actual rotation logic follows. The "+90deg" refers to the base transform.
+    NSLog(@"[LC] 📷 correctPhotoRotation: Input %zux%zu. Base logic aims for +90deg effective rotation before front-cam flip.", sourceWidth, sourceHeight);
+    
     CVPixelBufferRef rotatedBuffer = NULL;
     NSDictionary *attributes = @{
         (NSString*)kCVPixelBufferCGImageCompatibilityKey: @YES,
