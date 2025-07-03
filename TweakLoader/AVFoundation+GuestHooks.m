@@ -397,14 +397,154 @@ static CVPixelBufferRef createPixelBufferInFormat(CVPixelBufferRef sourceBuffer,
     
 //     return rotatedBuffer;
 // }
-// MARK: TEMPORARY FIX: Disable all rotation to test
 static CVPixelBufferRef rotatePixelBufferToPortrait(CVPixelBufferRef sourceBuffer) {
     if (!sourceBuffer) return NULL;
     
-    // NO ROTATION AT ALL - just return source buffer with retained reference
-    NSLog(@"[LC] 🚫 ALL ROTATION DISABLED - using source content as-is");
-    CVPixelBufferRetain(sourceBuffer);
-    return sourceBuffer;
+    size_t sourceWidth = CVPixelBufferGetWidth(sourceBuffer);
+    size_t sourceHeight = CVPixelBufferGetHeight(sourceBuffer);
+    
+    NSLog(@"[LC] 🔄 fd: Input buffer %zux%zu", sourceWidth, sourceHeight);
+    
+    // CRITICAL FIX: Don't automatically assume rotation is needed
+    // Let's check what the target resolution expects
+    BOOL targetIsPortrait = (targetResolution.height > targetResolution.width);
+    BOOL sourceIsPortrait = (sourceHeight > sourceWidth);
+    
+    NSLog(@"[LC] 🔄 fd: Target expects portrait: %@, Source is portrait: %@", 
+          targetIsPortrait ? @"YES" : @"NO", sourceIsPortrait ? @"YES" : @"NO");
+    
+    // CRITICAL: Only rotate if source and target orientations don't match
+    BOOL needsRotation = (targetIsPortrait != sourceIsPortrait);
+    
+    if (!needsRotation) {
+        NSLog(@"[LC] 🔄 fd: No rotation needed - orientations match");
+        CVPixelBufferRetain(sourceBuffer);
+        return sourceBuffer;
+    }
+    
+    NSLog(@"[LC] 🔄 fd: Rotating %zux%zu to match target orientation", sourceWidth, sourceHeight);
+    
+    // Create rotated buffer (swap dimensions)
+    CVPixelBufferRef rotatedBuffer = NULL;
+    NSDictionary *attributes = @{
+        (NSString*)kCVPixelBufferCGImageCompatibilityKey: @YES,
+        (NSString*)kCVPixelBufferCGBitmapContextCompatibilityKey: @YES,
+        (NSString*)kCVPixelBufferIOSurfacePropertiesKey: @{}
+    };
+    
+    CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
+                                         sourceHeight, // Swap width/height for rotation
+                                         sourceWidth,
+                                         CVPixelBufferGetPixelFormatType(sourceBuffer),
+                                         (__bridge CFDictionaryRef)attributes,
+                                         &rotatedBuffer);
+    
+    if (status != kCVReturnSuccess) {
+        NSLog(@"[LC] ❌ fd: Failed to create rotated buffer: %d", status);
+        return NULL;
+    }
+    
+    // CRITICAL: Hardware-level rotation using Core Image
+    if (!sharedCIContext) {
+        sharedCIContext = [CIContext contextWithOptions:nil];
+    }
+    
+    CIImage *sourceImage = [CIImage imageWithCVPixelBuffer:sourceBuffer];
+    
+    // CRITICAL FIX: Determine correct rotation direction
+    CGAffineTransform rotationTransform;
+    CGAffineTransform translationTransform;
+    
+    if (sourceIsPortrait && !targetIsPortrait) {
+        // Source is portrait, target is landscape: rotate +90° (clockwise)
+        rotationTransform = CGAffineTransformMakeRotation(M_PI_2);
+        translationTransform = CGAffineTransformMakeTranslation(sourceHeight, 0);
+        NSLog(@"[LC] 🔄 fd: Portrait to landscape (+90°)");
+    } else {
+        // Source is landscape, target is portrait: rotate -90° (counterclockwise)
+        rotationTransform = CGAffineTransformMakeRotation(-M_PI_2);
+        translationTransform = CGAffineTransformMakeTranslation(0, sourceWidth);
+        NSLog(@"[LC] 🔄 fd: Landscape to portrait (-90°)");
+    }
+    
+    // Combine transforms
+    CGAffineTransform combinedTransform = CGAffineTransformConcat(rotationTransform, translationTransform);
+    CIImage *rotatedCIImage = [sourceImage imageByApplyingTransform:combinedTransform];
+    
+    // Render to the rotated buffer
+    [sharedCIContext render:rotatedCIImage toCVPixelBuffer:rotatedBuffer];
+    
+    NSLog(@"[LC] ✅ fd: Buffer rotated from %zux%zu to %zux%zu", 
+          sourceWidth, sourceHeight, CVPixelBufferGetWidth(rotatedBuffer), CVPixelBufferGetHeight(rotatedBuffer));
+    
+    return rotatedBuffer;
+}
+
+static CVPixelBufferRef correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
+    if (!sourceBuffer) {
+        NSLog(@"[LC] 📷 correctPhotoRotation: sourceBuffer is NULL");
+        return NULL;
+    }
+
+    size_t sourceWidth = CVPixelBufferGetWidth(sourceBuffer);
+    size_t sourceHeight = CVPixelBufferGetHeight(sourceBuffer);
+
+    NSLog(@"[LC] 📷 correctPhotoRotation: Input %zux%zu. Applying fixed -90deg rotation.", sourceWidth, sourceHeight);
+
+    CVPixelBufferRef rotatedBuffer = NULL;
+    NSDictionary *attributes = @{
+        (NSString*)kCVPixelBufferCGImageCompatibilityKey: @YES,
+        (NSString*)kCVPixelBufferCGBitmapContextCompatibilityKey: @YES,
+        (NSString*)kCVPixelBufferIOSurfacePropertiesKey: @{}
+    };
+
+    // Output buffer will have dimensions sourceHeight (new width) x sourceWidth (new height)
+    CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
+                                         sourceHeight, // New width
+                                         sourceWidth,  // New height
+                                         CVPixelBufferGetPixelFormatType(sourceBuffer),
+                                         (__bridge CFDictionaryRef)attributes,
+                                         &rotatedBuffer);
+
+    if (status != kCVReturnSuccess || !rotatedBuffer) {
+        NSLog(@"[LC] 📷❌ correctPhotoRotation: Failed to create rotated CVPixelBuffer. Status: %d", status);
+        if (rotatedBuffer) CVPixelBufferRelease(rotatedBuffer); // Should be NULL if status is not success, but defensive
+        return NULL;
+    }
+
+    if (!sharedCIContext) {
+        sharedCIContext = [CIContext contextWithOptions:nil];
+        if (!sharedCIContext) {
+            NSLog(@"[LC] 📷❌ correctPhotoRotation: Failed to create shared CIContext.");
+            CVPixelBufferRelease(rotatedBuffer);
+            return NULL;
+        }
+    }
+
+    CIImage *ciImage = [CIImage imageWithCVPixelBuffer:sourceBuffer];
+    
+    // Apply -90 degree rotation (M_PI / -2.0 or -M_PI_2)
+    // A rotation of -90 degrees around the origin (0,0) maps a point (x,y) to (y,-x).
+    // To correctly position this in a new buffer (whose top-left is 0,0),
+    // the image needs to be translated. After -90deg rotation, content that was at (0,0) in source
+    // is now at (0,0) in the rotated space. Content that was at (W,H) is at (H, -W).
+    // The new buffer has width H_source and height W_source.
+    // We need to translate the rotated image by (0, W_source) to bring it into the positive quadrant.
+    CGAffineTransform rotationTransform = CGAffineTransformMakeRotation(-M_PI_2); // -90 degrees
+    CGAffineTransform translateTransform = CGAffineTransformMakeTranslation(0, sourceWidth); // Translate by original sourceWidth (which is newHeight)
+    
+    CGAffineTransform combinedTransform = CGAffineTransformConcat(rotationTransform, translateTransform);
+    
+    CIImage *rotatedCIImage = [ciImage imageByApplyingTransform:combinedTransform];
+
+    // Render the rotated CIImage to the new CVPixelBuffer
+    [sharedCIContext render:rotatedCIImage toCVPixelBuffer:rotatedBuffer];
+    
+    NSLog(@"[LC] 📷✅ correctPhotoRotation: Buffer rotated -90deg. Original: %zux%zu, New: %zux%zu",
+          sourceWidth, sourceHeight,
+          CVPixelBufferGetWidth(rotatedBuffer), CVPixelBufferGetHeight(rotatedBuffer));
+          
+    return rotatedBuffer; // Caller is responsible for releasing this new buffer
 }
 
 // Replace crash-resistant version:
@@ -2099,24 +2239,36 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
         NSLog(@"[LC] 📷 FIXED: Caching photo data WITHOUT rotation");
         
         // Get spoofed frame 
-        CVPixelBufferRef spoofedPixelBuffer = [GetFrame getCurrentFramePixelBuffer:kCVPixelFormatType_32BGRA];
-        if (!spoofedPixelBuffer) {
-            NSLog(@"[LC] 📷 ❌ No spoofed pixel buffer available");
+        CVPixelBufferRef originalSpoofedPixelBuffer = [GetFrame getCurrentFramePixelBuffer:kCVPixelFormatType_32BGRA];
+        if (!originalSpoofedPixelBuffer) {
+            NSLog(@"[LC] 📷 ❌ No original spoofed pixel buffer available for photo cache.");
             return;
         }
         
         // Clean up existing cache
         cleanupPhotoCache();
+
+        // Apply fixed -90 degree rotation to correct the consistent rotation issue
+        CVPixelBufferRef correctedPixelBuffer = correctPhotoRotation(originalSpoofedPixelBuffer);
+        CVPixelBufferRelease(originalSpoofedPixelBuffer); // Release original buffer from GetFrame
+
+        if (!correctedPixelBuffer) {
+            NSLog(@"[LC] 📷 ❌ Failed to apply rotation correction to photo buffer. Using uncorrected buffer as fallback (if any).");
+            // As a fallback, consider if we should attempt to use originalSpoofedPixelBuffer or just fail.
+            // For now, if correction fails, we can't proceed to cache because g_cachedPhotoPixelBuffer would be NULL.
+            return;
+        }
         
-        // CRITICAL FIX: Don't alias the same buffer - just use it directly
-        g_cachedPhotoPixelBuffer = spoofedPixelBuffer;
-        CVPixelBufferRetain(g_cachedPhotoPixelBuffer);
+        // Store the corrected (and rotated) pixel buffer
+        g_cachedPhotoPixelBuffer = correctedPixelBuffer; 
+        // No need to CVPixelBufferRetain here, as correctPhotoRotation returns a new, retained buffer.
+        // We are taking ownership of the buffer returned by correctPhotoRotation.
         
-        // Create CGImage from the pixel buffer
-        size_t width = CVPixelBufferGetWidth(g_cachedPhotoPixelBuffer);
-        size_t height = CVPixelBufferGetHeight(g_cachedPhotoPixelBuffer);
+        // Create CGImage from the *corrected* pixel buffer
+        size_t width = CVPixelBufferGetWidth(g_cachedPhotoPixelBuffer); // Width of the corrected buffer
+        size_t height = CVPixelBufferGetHeight(g_cachedPhotoPixelBuffer); // Height of the corrected buffer
         
-        NSLog(@"[LC] 📷 FIXED: Creating CGImage from %zux%zu buffer (no rotation)", width, height);
+        NSLog(@"[LC] 📷 Creating CGImage from CORRECTED %zux%zu buffer", width, height);
         
         CVPixelBufferLockBaseAddress(g_cachedPhotoPixelBuffer, kCVPixelBufferLock_ReadOnly);
         void *baseAddress = CVPixelBufferGetBaseAddress(g_cachedPhotoPixelBuffer);
@@ -2208,12 +2360,13 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
                   g_cachedPhotoPixelBuffer, g_cachedPhotoCGImage, g_cachedPhotoJPEGData.length);
         }
         
-        // CRITICAL FIX: Don't release the original buffer since we got it from GetFrame
-        // GetFrame manages its own memory, we just retain what we need
-        CVPixelBufferRelease(spoofedPixelBuffer); // Release our reference to the GetFrame buffer
-        
+        // g_cachedPhotoPixelBuffer (which is correctedPixelBuffer) will be released in cleanupPhotoCache.
+        // No need to release spoofedPixelBuffer here as it was already released after passing to correctPhotoRotation.
+        // No need to release originalSpoofedPixelBuffer explicitly here, it was released.
+        // No need to release correctedPixelBuffer here, as it's now g_cachedPhotoPixelBuffer and managed by the cache.
+
     } @catch (NSException *exception) {
-        NSLog(@"[LC] 📷 ❌ FIXED photo caching exception: %@", exception);
+        NSLog(@"[LC] 📷 ❌ Photo caching exception with rotation: %@", exception);
     }
 }
 
