@@ -522,25 +522,26 @@ static CVPixelBufferRef correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
     }
 
     CIImage *ciImage = [CIImage imageWithCVPixelBuffer:sourceBuffer];
-    
-    // Apply -90 degree rotation (M_PI / -2.0 or -M_PI_2)
-    // A rotation of -90 degrees around the origin (0,0) maps a point (x,y) to (y,-x).
-    // To correctly position this in a new buffer (whose top-left is 0,0),
-    // the image needs to be translated. After -90deg rotation, content that was at (0,0) in source
-    // is now at (0,0) in the rotated space. Content that was at (W,H) is at (H, -W).
+
+    // Hypothesis: Initial +90deg error, plus render pipeline XY flip (equiv. to 180deg rot).
+    // To correct: Apply +90deg rotation from our side.
+    // Total = Initial(+90) + OurFix(+90) + RenderFlip(+180) = +360 = Identity.
+    // A +90 degree rotation around the origin (0,0) maps a point (x,y) to (-y,x).
     // The new buffer has width H_source and height W_source.
-    // We need to translate the rotated image by (0, W_source) to bring it into the positive quadrant.
-    CGAffineTransform rotationTransform = CGAffineTransformMakeRotation(-M_PI_2); // -90 degrees
-    CGAffineTransform translateTransform = CGAffineTransformMakeTranslation(0, sourceWidth); // Translate by original sourceWidth (which is newHeight)
-    
+    // After +90deg rotation, content that was at (0,sourceHeight) in source (bottom-left if Y is up, or top-left if Y is down and it's about max Y)
+    // is now at (-sourceHeight, 0) in the rotated space.
+    // To bring this new logical origin (-sourceHeight,0) to (0,0) of the output buffer, translate by (sourceHeight,0).
+    CGAffineTransform rotationTransform = CGAffineTransformMakeRotation(M_PI_2); // +90 degrees
+    CGAffineTransform translateTransform = CGAffineTransformMakeTranslation(sourceHeight, 0); // Translate by original sourceHeight (which is newWidth)
+
     CGAffineTransform combinedTransform = CGAffineTransformConcat(rotationTransform, translateTransform);
     
     CIImage *rotatedCIImage = [ciImage imageByApplyingTransform:combinedTransform];
 
     // Render the rotated CIImage to the new CVPixelBuffer
     [sharedCIContext render:rotatedCIImage toCVPixelBuffer:rotatedBuffer];
-    
-    NSLog(@"[LC] 📷✅ correctPhotoRotation: Buffer rotated -90deg. Original: %zux%zu, New: %zux%zu",
+
+    NSLog(@"[LC] 📷✅ correctPhotoRotation: Buffer rotated +90deg (to counteract initial +90 and render flip). Original: %zux%zu, New: %zux%zu",
           sourceWidth, sourceHeight,
           CVPixelBufferGetWidth(rotatedBuffer), CVPixelBufferGetHeight(rotatedBuffer));
           
