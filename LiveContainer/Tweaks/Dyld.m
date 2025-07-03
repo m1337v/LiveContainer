@@ -79,12 +79,23 @@ static inline int translateImageIndex(int origin) {
         }
     }
     
-    if(tweakLoaderLoaded && tweakLoaderIndex > 0 && origin >= tweakLoaderIndex) {
-        return origin + 2;
-    } else if(origin >= appMainImageIndex) {
-        return origin + 1;
+    // Convert visible index to real index
+    uint32_t realIndex = origin;
+    
+    // Add offset for LiveContainer (always hidden)
+    if(realIndex >= appMainImageIndex) {
+        realIndex++;
     }
-    return origin;
+    
+    // Add offset for TweakLoader (if loaded and present)
+    if(tweakLoaderLoaded && tweakLoaderIndex > 0) {
+        // Check if our adjusted index would be at or after the TweakLoader position
+        if(realIndex >= tweakLoaderIndex) {
+            realIndex++;
+        }
+    }
+    
+    return realIndex;
 }
 
 void* hook_dlsym(void * __handle, const char * __symbol) {
