@@ -493,8 +493,7 @@ static CVPixelBufferRef correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
     size_t sourceWidth = CVPixelBufferGetWidth(sourceBuffer);
     size_t sourceHeight = CVPixelBufferGetHeight(sourceBuffer);
 
-    // Informative initial log
-    NSLog(@"[LC] 📷 correctPhotoRotation: Input %zux%zu. Base logic applies +90deg rotation.", sourceWidth, sourceHeight);
+    NSLog(@"[LC] 📷 correctPhotoRotation: Input %zux%zu. Applying base +90deg rotation logic.", sourceWidth, sourceHeight); // Adjusted log slightly for clarity
 
     CVPixelBufferRef rotatedBuffer = NULL;
     NSDictionary *attributes = @{
@@ -504,15 +503,15 @@ static CVPixelBufferRef correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
     };
 
     CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
-                                         sourceHeight, // New width after +90deg base rotation
-                                         sourceWidth,  // New height after +90deg base rotation
+                                         sourceHeight, // New width
+                                         sourceWidth,  // New height
                                          CVPixelBufferGetPixelFormatType(sourceBuffer),
                                          (__bridge CFDictionaryRef)attributes,
                                          &rotatedBuffer);
 
     if (status != kCVReturnSuccess || !rotatedBuffer) {
         NSLog(@"[LC] 📷❌ correctPhotoRotation: Failed to create rotated CVPixelBuffer. Status: %d", status);
-        if (rotatedBuffer) CVPixelBufferRelease(rotatedBuffer); // Defensive release
+        if (rotatedBuffer) CVPixelBufferRelease(rotatedBuffer); 
         return NULL;
     }
 
@@ -526,28 +525,27 @@ static CVPixelBufferRef correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
     }
 
     CIImage *ciImage = [CIImage imageWithCVPixelBuffer:sourceBuffer];
-    NSString *appliedTransformationsLog = @""; 
+    NSString *appliedTransformationsLog = @"";
 
     CGAffineTransform baseRotationTransform = CGAffineTransformMakeRotation(M_PI_2); // +90 degrees
     CGAffineTransform baseTranslateTransform = CGAffineTransformMakeTranslation(sourceHeight, 0); 
     CGAffineTransform finalTransform = CGAffineTransformConcat(baseRotationTransform, baseTranslateTransform);
-    // appliedTransformationsLog is set below based on camera position
+    // appliedTransformationsLog will be set in the if/else block
 
     if (g_currentSessionCameraPosition == AVCaptureDevicePositionFront) {
-        NSLog(@"[LC] 📷 Front camera active. Applying additional horizontal flip.");
-        
-        CGAffineTransform flipScaleMatrix = CGAffineTransformMakeScale(-1, 1); 
-        CGAffineTransform flipTranslateMatrix = CGAffineTransformMakeTranslation(sourceHeight, 0); 
-        
-        CGAffineTransform horizontalFlipMatrix = CGAffineTransformConcat(flipTranslateMatrix, flipScaleMatrix); // CORRECTED ORDER
+        NSLog(@"[LC] 📷 Front camera active. Applying additional horizontal flip (original concatenation order).");
+        CGAffineTransform flipScale = CGAffineTransformMakeScale(-1, 1);
+        CGAffineTransform flipTranslate = CGAffineTransformMakeTranslation(sourceHeight, 0); 
+        // Using the order that resulted in an offset, but was visible:
+        CGAffineTransform horizontalFlipMatrix = CGAffineTransformConcat(flipScale, flipTranslate); 
 
         finalTransform = CGAffineTransformConcat(horizontalFlipMatrix, finalTransform);
-        appliedTransformationsLog = @"+90deg base then HorizontalFlip for FrontCam";
+        appliedTransformationsLog = @"+90deg base then (Translate*Scale)Flip for FrontCam"; // Log reflects this order
     } else {
         appliedTransformationsLog = @"+90deg base (BackCam or Unspecified)";
-         NSLog(@"[LC] 📷 Back camera or unspecified. Using base +90deg rotation transform.");
+        NSLog(@"[LC] 📷 Back camera or unspecified. Using base +90deg rotation transform.");
     }
-    
+
     CIImage *transformedCIImage = [ciImage imageByApplyingTransform:finalTransform];
 
     [sharedCIContext render:transformedCIImage toCVPixelBuffer:rotatedBuffer];
@@ -557,7 +555,7 @@ static CVPixelBufferRef correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
           sourceWidth, sourceHeight,
           (long)g_currentSessionCameraPosition,
           CVPixelBufferGetWidth(rotatedBuffer), CVPixelBufferGetHeight(rotatedBuffer));
-          
+
     return rotatedBuffer;
 }
 
