@@ -221,6 +221,15 @@ const struct mach_header* hook_dyld_get_image_header(uint32_t image_index) {
     for(uint32_t i = 0; i < realCount; i++) {
         const char* imageName = orig_dyld_get_image_name(i);
         
+        // ADD THIS: Handle LiveContainer replacement within collection scan
+        if(i == lcImageIndex) {
+            if(visibleIndex == image_index) {
+                return orig_dyld_get_image_header(appMainImageIndex);  // Return guest app header
+            }
+            visibleIndex++;
+            continue;
+        }
+        
         if(shouldHideLibrary(imageName)) {
             continue;
         }
@@ -259,6 +268,15 @@ intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
     
     for(uint32_t i = 0; i < realCount; i++) {
         const char* imageName = orig_dyld_get_image_name(i);
+        
+        // ADD THIS: Handle LiveContainer replacement within collection scan
+        if(i == lcImageIndex) {
+            if(visibleIndex == image_index) {
+                return orig_dyld_get_image_vmaddr_slide(appMainImageIndex);  // Return guest app slide
+            }
+            visibleIndex++;
+            continue;
+        }
         
         if(shouldHideLibrary(imageName)) {
             continue;
