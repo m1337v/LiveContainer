@@ -200,17 +200,13 @@ uint32_t hook_dyld_image_count(void) {
 //     __attribute__((musttail)) return orig_dyld_get_image_header(translateImageIndex(image_index));
 // }
 const struct mach_header* hook_dyld_get_image_header(uint32_t image_index) {
-    // ALWAYS handle LiveContainer replacement first
-    if(image_index == lcImageIndex) {
-        if(!appExecutableFileTypeOverwritten) {
+    // Early initialization - simple passthrough
+    if(!appExecutableFileTypeOverwritten) {
+        if(image_index == lcImageIndex) {
             overwriteAppExecutableFileType();
             appExecutableFileTypeOverwritten = true;
+            return orig_dyld_get_image_header(appMainImageIndex);
         }
-        return orig_dyld_get_image_header(appMainImageIndex);
-    }
-    
-    // Before we're ready to hide libraries, use simple passthrough
-    if(!appExecutableFileTypeOverwritten) {
         return orig_dyld_get_image_header(image_index);
     }
     
@@ -296,13 +292,19 @@ intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
 //     __attribute__((musttail)) return orig_dyld_get_image_name(translateImageIndex(image_index));
 // }
 const char* hook_dyld_get_image_name(uint32_t image_index) {
-    // Trigger hiding immediately on first call
+    // During early initialization, use simple passthrough
     if(!appExecutableFileTypeOverwritten) {
-        overwriteAppExecutableFileType();
-        appExecutableFileTypeOverwritten = true;
+        // Simple case: just replace LiveContainer with main app
+        if(image_index == lcImageIndex) {
+            overwriteAppExecutableFileType();
+            appExecutableFileTypeOverwritten = true;
+            return orig_dyld_get_image_name(appMainImageIndex);
+        }
+        // For all other early calls, pass through unchanged
+        return orig_dyld_get_image_name(image_index);
     }
     
-    // Now we can safely assume hiding is active
+    // After initialization, use the complex hiding logic
     uint32_t realCount = orig_dyld_image_count();
     uint32_t visibleIndex = 0;
     
@@ -330,7 +332,7 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
         visibleIndex++;
     }
     
-    // Safe fallback for out-of-bounds
+    // Safe fallback
     return orig_dyld_get_image_name(0);
 }
 
@@ -564,10 +566,10 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         }
     }
     
-    // if(access("/Users", F_OK) != -1) {
-    //     // not running on macOS, skip this
-    //     do_hook_loadableIntoProcess();
-    // }
+    if(access("/Users", F_OK) != -1) {
+        // not running on macOS, skip this
+        do_hook_loadableIntoProcess();
+    }
 }
 
 void* getGuestAppHeader(void) {
