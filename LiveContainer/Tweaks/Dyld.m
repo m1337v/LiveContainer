@@ -78,6 +78,7 @@ static bool shouldHideLibrary(const char* imageName) {
     // Ultra-minimal - only what Reveil specifically looks for
     return (strstr(lowerImageName, "substrate") ||      // All substrate variants
             strstr(lowerImageName, "tweakloader") ||    // TweakLoader
+            strstr(lowerImageName, "fishhook") ||       // FishHook
             strstr(lowerImageName, "livecontainershared"));   // LiveContainerShared
 }
 
@@ -168,14 +169,25 @@ void* hook_dlsym(void * __handle, const char * __symbol) {
 // }
 uint32_t hook_dyld_image_count(void) {
     uint32_t count = orig_dyld_image_count();
+    
+    // Trigger hiding immediately on first call
     if(!appExecutableFileTypeOverwritten) {
-        return count;  // Don't hide anything until we're ready
+        overwriteAppExecutableFileType();
+        appExecutableFileTypeOverwritten = true;
     }
     
-    // Count visible (non-hidden) images
+    // Always return the reduced count
     uint32_t visibleCount = 0;
     for(uint32_t i = 0; i < count; i++) {
         const char* imageName = orig_dyld_get_image_name(i);
+        
+        // LiveContainer stays in the count (gets replaced when accessed)
+        if(i == lcImageIndex) {
+            visibleCount++;
+            continue;
+        }
+        
+        // Hide other libraries
         if(!shouldHideLibrary(imageName)) {
             visibleCount++;
         }
@@ -266,45 +278,30 @@ intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
 //     __attribute__((musttail)) return orig_dyld_get_image_name(translateImageIndex(image_index));
 // }
 const char* hook_dyld_get_image_name(uint32_t image_index) {
-    // ALWAYS handle LiveContainer replacement first
-    if(image_index == lcImageIndex) {
-        if(!appExecutableFileTypeOverwritten) {
-            overwriteAppExecutableFileType();
-            appExecutableFileTypeOverwritten = true;
-        }
-        return orig_dyld_get_image_name(appMainImageIndex);
-    }
-    
-    // Before we're ready to hide libraries, use simple passthrough
+    // Trigger hiding immediately on first call
     if(!appExecutableFileTypeOverwritten) {
-        return orig_dyld_get_image_name(image_index);
+        overwriteAppExecutableFileType();
+        appExecutableFileTypeOverwritten = true;
     }
     
-    // After we're ready, use the hiding logic with DIRECT name checking
+    // Now we can safely assume hiding is active
     uint32_t realCount = orig_dyld_image_count();
     uint32_t visibleIndex = 0;
     
     for(uint32_t i = 0; i < realCount; i++) {
-        // Get the name DIRECTLY without recursion risk
         const char* imageName = orig_dyld_get_image_name(i);
         
-        // INLINE hiding check to avoid shouldHideLibrary recursion
-        bool shouldHide = false;
-        if (imageName) {
-            // Convert to lowercase for case-insensitive comparison
-            char lowerImageName[1024];
-            strlcpy(lowerImageName, imageName, sizeof(lowerImageName));
-            for (int j = 0; lowerImageName[j]; j++) {
-                lowerImageName[j] = tolower(lowerImageName[j]);
+        // Handle LiveContainer replacement
+        if(i == lcImageIndex) {
+            if(visibleIndex == image_index) {
+                return orig_dyld_get_image_name(appMainImageIndex);
             }
-            
-            // Check if should hide
-            shouldHide = (strstr(lowerImageName, "substrate") ||
-                         strstr(lowerImageName, "tweakloader") ||
-                         strstr(lowerImageName, "livecontainershared"));
+            visibleIndex++;
+            continue;
         }
         
-        if(shouldHide) {
+        // Check if should hide this library
+        if(shouldHideLibrary(imageName)) {
             continue;
         }
         
@@ -315,7 +312,8 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
         visibleIndex++;
     }
     
-    return NULL;
+    // Safe fallback for out-of-bounds
+    return orig_dyld_get_image_name(0);
 }
 
 void *findPrivateSymbol(struct mach_header_64 *mh, const char *target_name) {
