@@ -280,19 +280,34 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
         return orig_dyld_get_image_name(image_index);
     }
     
-    // After we're ready, use the hiding logic
+    // After we're ready, use the hiding logic with DIRECT name checking
     uint32_t realCount = orig_dyld_image_count();
     uint32_t visibleIndex = 0;
     
     for(uint32_t i = 0; i < realCount; i++) {
+        // Get the name DIRECTLY without recursion risk
         const char* imageName = orig_dyld_get_image_name(i);
         
-        // Skip hidden images
-        if(shouldHideLibrary(imageName)) {
+        // INLINE hiding check to avoid shouldHideLibrary recursion
+        bool shouldHide = false;
+        if (imageName) {
+            // Convert to lowercase for case-insensitive comparison
+            char lowerImageName[1024];
+            strlcpy(lowerImageName, imageName, sizeof(lowerImageName));
+            for (int j = 0; lowerImageName[j]; j++) {
+                lowerImageName[j] = tolower(lowerImageName[j]);
+            }
+            
+            // Check if should hide
+            shouldHide = (strstr(lowerImageName, "substrate") ||
+                         strstr(lowerImageName, "tweakloader") ||
+                         strstr(lowerImageName, "livecontainer"));
+        }
+        
+        if(shouldHide) {
             continue;
         }
         
-        // If this visible image matches our requested index
         if(visibleIndex == image_index) {
             return imageName;
         }
