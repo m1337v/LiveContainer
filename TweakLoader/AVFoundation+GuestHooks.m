@@ -533,17 +533,18 @@ static CVPixelBufferRef correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
     // appliedTransformationsLog will be set in the if/else block
 
     if (g_currentSessionCameraPosition == AVCaptureDevicePositionFront) {
-        NSLog(@"[LC] 📷 Front camera active. Applying additional horizontal flip (original concatenation order).");
+        NSLog(@"[LC] 📷 Front camera active. Applying horizontal flip and corrective translation.");
         CGAffineTransform flipScale = CGAffineTransformMakeScale(-1, 1);
-        CGAffineTransform flipTranslate = CGAffineTransformMakeTranslation(sourceHeight, 0); 
-        // Using the order that resulted in an offset, but was visible:
-        CGAffineTransform horizontalFlipMatrix = CGAffineTransformConcat(flipScale, flipTranslate); 
-
-        finalTransform = CGAffineTransformConcat(horizontalFlipMatrix, finalTransform);
-        appliedTransformationsLog = @"+90deg base then (Translate*Scale)Flip for FrontCam"; // Log reflects this order
-    } else {
-        appliedTransformationsLog = @"+90deg base (BackCam or Unspecified)";
-        NSLog(@"[LC] 📷 Back camera or unspecified. Using base +90deg rotation transform.");
+        CGAffineTransform flipTranslate = CGAffineTransformMakeTranslation(sourceHeight, 0);
+        CGAffineTransform horizontalFlipMatrix_IncorrectOrder = CGAffineTransformConcat(flipScale, flipTranslate);
+        
+        CGAffineTransform transformBeforeCorrection = CGAffineTransformConcat(horizontalFlipMatrix_IncorrectOrder, finalTransform);
+        
+        // Corrective translation to shift from [-2*sourceHeight, -sourceHeight] to [0, sourceHeight]
+        CGAffineTransform correctiveTranslate = CGAffineTransformMakeTranslation(2 * sourceHeight, 0);
+        finalTransform = CGAffineTransformConcat(correctiveTranslate, transformBeforeCorrection);
+        
+        appliedTransformationsLog = @"+90deg base then IncorrectFlipOrder then CorrectiveTranslate for FrontCam";
     }
 
     CIImage *transformedCIImage = [ciImage imageByApplyingTransform:finalTransform];
