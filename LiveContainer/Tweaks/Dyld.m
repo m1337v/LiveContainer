@@ -289,46 +289,66 @@ intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
 //     __attribute__((musttail)) return orig_dyld_get_image_name(translateImageIndex(image_index));
 // }
 const char* hook_dyld_get_image_name(uint32_t image_index) {
-    // Ensure appMainImageIndex is set
+    // Add debugging to see WHY we hit the fallback
+    NSLog(@"[LC] dyld_get_image_name called: index=%d", image_index);
+    
     ensureAppMainIndexIsSet();
 
     // ALWAYS handle LiveContainer replacement first
     if(image_index == lcImageIndex) {
+        NSLog(@"[LC] LiveContainer replacement: %d → %d", lcImageIndex, appMainImageIndex);
         if(!appExecutableFileTypeOverwritten) {
             overwriteAppExecutableFileType();
             appExecutableFileTypeOverwritten = true;
         }
-        return orig_dyld_get_image_name(appMainImageIndex);
+        const char* result = orig_dyld_get_image_name(appMainImageIndex);
+        NSLog(@"[LC] LC replacement result: %s", result ? result : "NULL");
+        return result;
     }
     
     // Before we're ready to hide libraries, use simple passthrough
     if(!appExecutableFileTypeOverwritten) {
+        NSLog(@"[LC] Passthrough mode for index %d", image_index);
         return orig_dyld_get_image_name(image_index);
     }
     
-    // Use EXACT SAME logic as hook_dyld_image_count
+    // Debug the index mapping
     uint32_t realCount = orig_dyld_image_count();
+    uint32_t expectedCount = hook_dyld_image_count();
+    NSLog(@"[LC] Filtering mode: index=%d, realCount=%d, expectedCount=%d", 
+          image_index, realCount, expectedCount);
+    
+    if(image_index >= expectedCount) {
+        NSLog(@"[LC] OUT OF BOUNDS: index %d >= expected %d", image_index, expectedCount);
+    }
+    
     uint32_t visibleIndex = 0;
     
     for(uint32_t i = 0; i < realCount; i++) {
         const char* imageName = orig_dyld_get_image_name(i);
+        bool shouldHide = shouldHideLibrary(imageName);
         
-        // Use SAME hiding logic as count function
-        if(shouldHideLibrary(imageName)) {
+        NSLog(@"[LC] Image %d: %s (hide: %d)", i, imageName ? imageName : "NULL", shouldHide);
+        
+        if(shouldHide) {
             continue;
         }
         
         if(visibleIndex == image_index) {
+            NSLog(@"[LC] Found mapping: visible %d → real %d (%s)", 
+                  visibleIndex, i, imageName ? imageName : "NULL");
             return imageName;
         }
         
         visibleIndex++;
     }
     
-    // IOSSecuritySuite-safe fallback: NEVER return NULL
-    // Return the guest app name as a safe fallback
-    NSLog(@"[LC] ERROR: IOSSecuritySuite out-of-bounds access: %d", image_index);
-    return NULL; // crashes if not properly handled
+    // Log the exact failure
+    NSLog(@"[LC] CRITICAL: No mapping found for index %d (visibleIndex reached %d)", 
+          image_index, visibleIndex);
+    
+    // Return NULL as expected by stock iOS
+    return NULL;
 }
 
 void *findPrivateSymbol(struct mach_header_64 *mh, const char *target_name) {
