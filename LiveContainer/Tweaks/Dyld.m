@@ -280,24 +280,17 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
         return orig_dyld_get_image_name(image_index);
     }
     
-    // FIX: Use SAME logic as hook_dyld_image_count
+    // Use EXACT SAME logic as hook_dyld_image_count
     uint32_t realCount = orig_dyld_image_count();
     uint32_t visibleIndex = 0;
     
     for(uint32_t i = 0; i < realCount; i++) {
         const char* imageName = orig_dyld_get_image_name(i);
         
-        // ADD: Handle LiveContainer in the loop (same as count function)
-        if(i == lcImageIndex) {
-            if(visibleIndex == image_index) {
-                // This should never happen since we handle it above
-                return orig_dyld_get_image_name(appMainImageIndex);
-            }
-            visibleIndex++;
-            continue;
-        }
+        // REMOVE: Don't handle LiveContainer in the loop
+        // The count function doesn't handle it here either
         
-        // Use shouldHideLibrary function instead of inline logic
+        // Use SAME hiding logic as count function
         if(shouldHideLibrary(imageName)) {
             continue;
         }
@@ -309,8 +302,9 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
         visibleIndex++;
     }
     
-    // Better fallback: return the first visible image name
-    return orig_dyld_get_image_name(appMainImageIndex);
+    // This should NEVER be reached if your logic is correct
+    NSLog(@"[LC] ERROR: Out of bounds dyld_get_image_name call: %d", image_index);
+    return NULL;  // ← Return NULL like stock iOS
 }
 
 void *findPrivateSymbol(struct mach_header_64 *mh, const char *target_name) {
