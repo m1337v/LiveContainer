@@ -618,7 +618,7 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
     orig_dyld_get_image_header = _dyld_get_image_header;
     
     // hook dlopen and dlsym to solve RTLD_MAIN_ONLY, hook other functions to hide LiveContainer itself
-    rebind_symbols((struct rebinding[5]){
+    rebind_symbols((struct rebinding[6]){
         {"dlsym", (void *)hook_dlsym, (void **)&orig_dlsym},
         {"_dyld_image_count", (void *)hook_dyld_image_count, (void **)&orig_dyld_image_count},
         {"_dyld_get_image_header", (void *)hook_dyld_get_image_header, (void **)&orig_dyld_get_image_header},
