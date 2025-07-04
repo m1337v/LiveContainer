@@ -158,6 +158,43 @@ static void ensureAppMainIndexIsSet(void) {
 // }
 
 void* hook_dlsym(void * __handle, const char * __symbol) {
+    // Hide jailbreak detection symbols
+    if (__symbol && (
+        // MobileSubstrate/Substrate
+        strcmp(__symbol, "MSHookFunction") == 0 ||
+        strcmp(__symbol, "MSHookMessageEx") == 0 ||
+        strcmp(__symbol, "MSFindSymbol") == 0 ||
+        strcmp(__symbol, "MSGetImageByName") == 0 ||
+        strcmp(__symbol, "MSImageFromName") == 0 ||
+        strcmp(__symbol, "MSSymbolFromName") == 0 ||
+        strcmp(__symbol, "_MSHookFunction") == 0 ||
+
+        // fishhook (since you use it!)
+        strcmp(__symbol, "rebind_symbols") == 0 ||
+        strcmp(__symbol, "rebind_symbols_image") == 0 ||
+        strcmp(__symbol, "_rebindings_head") == 0 ||
+        strcmp(__symbol, "prepend_rebindings") == 0 ||
+        strcmp(__symbol, "rebind_symbols_for_image") == 0 ||
+        strcmp(__symbol, "_rebind_symbols_for_image") == 0 ||
+        strcmp(__symbol, "perform_rebinding_with_section") == 0 ||
+
+        // libhooker
+        strcmp(__symbol, "LHHookFunction") == 0 ||
+        strcmp(__symbol, "LHHookFunctions") == 0 ||
+        strcmp(__symbol, "LHFindSymbol") == 0 ||
+        
+         // Theos/Logo
+        strcmp(__symbol, "_logos_method_orig") == 0 ||
+        strcmp(__symbol, "_logos_method_called") == 0 ||
+        strcmp(__symbol, "_logos_register_hook") == 0 || 
+        strcmp(__symbol, "_logos_method_replaced") == 0 ||
+
+        strcmp(__symbol, "ZzBuildHook") == 0 ||
+        strcmp(__symbol, "DobbyHook") == 0 ||
+        strcmp(__symbol, "pspawn_hook") == 0)) {
+        return NULL;  // Hide these symbols
+    }
+
     if(__handle == (void*)RTLD_MAIN_ONLY) {
         if(strcmp(__symbol, MH_EXECUTE_SYM) == 0) {
             if(!appExecutableFileTypeOverwritten) {
