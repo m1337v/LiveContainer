@@ -1597,6 +1597,15 @@ struct CameraImagePickerView: View {
                         .font(.headline)
                     Spacer()
                     Button("Clear") {
+                        // Remove the file from filesystem before clearing the path
+                        if FileManager.default.fileExists(atPath: imagePath) {
+                            do {
+                                try FileManager.default.removeItem(atPath: imagePath)
+                            } catch {
+                                errorInfo = "Failed to remove image file: \(error.localizedDescription)"
+                                errorShow = true
+                            }
+                        }
                         imagePath = ""
                         previewImage = nil
                     }
@@ -1791,6 +1800,15 @@ struct CameraVideoPickerView: View {
                         .font(.headline)
                     Spacer()
                     Button("Clear") {
+                        // Remove the file from filesystem before clearing the path
+                        if FileManager.default.fileExists(atPath: videoPath) {
+                            do {
+                                try FileManager.default.removeItem(atPath: videoPath)
+                            } catch {
+                                errorInfo = "Failed to remove video file: \(error.localizedDescription)"
+                                errorShow = true
+                            }
+                        }
                         videoPath = ""
                         videoThumbnail = nil
                         videoDuration = ""
