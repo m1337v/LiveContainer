@@ -68,25 +68,17 @@ static void overwriteAppExecutableFileType(void) {
 static bool shouldHideLibrary(const char* imageName) {
     if (!imageName) return false;
     
-    // Use static buffer to avoid stack issues
-    static char lowerImageName[1024];
-    
-    // Bounds check
-    size_t len = strlen(imageName);
-    if (len >= sizeof(lowerImageName)) {
-        len = sizeof(lowerImageName) - 1;
+    // Convert to lowercase for case-insensitive comparison
+    char lowerImageName[1024];
+    strlcpy(lowerImageName, imageName, sizeof(lowerImageName));
+    for (int i = 0; lowerImageName[i]; i++) {
+        lowerImageName[i] = tolower(lowerImageName[i]);
     }
     
-    // Convert to lowercase
-    for (size_t i = 0; i < len; i++) {
-        lowerImageName[i] = tolower(imageName[i]);
-    }
-    lowerImageName[len] = '\0';
-    
-    // Check patterns
-    return (strstr(lowerImageName, "substrate") ||
-            strstr(lowerImageName, "tweakloader") ||
-            strstr(lowerImageName, "livecontainershared"));
+    // Ultra-minimal - only what Reveil specifically looks for
+    return (strstr(lowerImageName, "substrate") ||      // All substrate variants
+            strstr(lowerImageName, "tweakloader") ||    // TweakLoader
+            strstr(lowerImageName, "livecontainershared"));   // LiveContainerShared
 }
 
 // Helper for LiveContainer special case handling
@@ -288,15 +280,31 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
         return orig_dyld_get_image_name(image_index);
     }
     
-    // After we're ready, use the hiding logic
+    // After we're ready, use the hiding logic with DIRECT name checking
     uint32_t realCount = orig_dyld_image_count();
     uint32_t visibleIndex = 0;
     
     for(uint32_t i = 0; i < realCount; i++) {
+        // Get the name DIRECTLY without recursion risk
         const char* imageName = orig_dyld_get_image_name(i);
         
-        // Use the existing shouldHideLibrary function (no duplication)
-        if(shouldHideLibrary(imageName)) {
+        // INLINE hiding check to avoid shouldHideLibrary recursion
+        bool shouldHide = false;
+        if (imageName) {
+            // Convert to lowercase for case-insensitive comparison
+            char lowerImageName[1024];
+            strlcpy(lowerImageName, imageName, sizeof(lowerImageName));
+            for (int j = 0; lowerImageName[j]; j++) {
+                lowerImageName[j] = tolower(lowerImageName[j]);
+            }
+            
+            // Check if should hide
+            shouldHide = (strstr(lowerImageName, "substrate") ||
+                         strstr(lowerImageName, "tweakloader") ||
+                         strstr(lowerImageName, "livecontainershared"));
+        }
+        
+        if(shouldHide) {
             continue;
         }
         
@@ -307,7 +315,6 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
         visibleIndex++;
     }
     
-    // SAFE FALLBACK: Return first valid image name, NOT NULL
     return orig_dyld_get_image_name(0);
 }
 
