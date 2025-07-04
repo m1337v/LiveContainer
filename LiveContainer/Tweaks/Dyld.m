@@ -10,6 +10,12 @@
 #import "../utils.h"
 #include <sys/mman.h>
 #include <ctype.h>
+#include <ifaddrs.h>
+#include <sys/socket.h>
+#include <net/if.h>
+#include <netdb.h>
+#include <SystemConfiguration/SystemConfiguration.h>
+#include <CFNetwork/CFNetwork.h>
 @import Darwin;
 @import Foundation;
 @import MachO;
@@ -38,6 +44,12 @@ uint32_t guestAppSdkVersion = 0;
 uint32_t guestAppSdkVersionSet = 0;
 bool (*orig_dyld_program_sdk_at_least)(void* dyldPtr, dyld_build_version_t version);
 uint32_t (*orig_dyld_get_program_sdk_version)(void* dyldPtr);
+
+// VPN Detection Bypass hooks
+static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
+static CFDictionaryRef (*orig_SCDynamicStoreCopyProxies)(SCDynamicStoreRef store, CFArrayRef targetHosts);
+static int (*orig_getifaddrs)(struct ifaddrs **ifap);
+static struct hostent* (*orig_gethostbyname)(const char *name);
 
 static void overwriteAppExecutableFileType(void) {
     struct mach_header_64* appImageMachOHeader = (struct mach_header_64*) orig_dyld_get_image_header(appMainImageIndex);
@@ -411,6 +423,123 @@ uint32_t hook_dyld_get_program_sdk_version(void* dyldApiInstancePtr) {
     return guestAppSdkVersion;
 }
 
+// MARK: VPN Detection Bypass implementations
+static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {    
+    NSLog(@"[LC] 🎭 Spoofing system proxy settings (hiding proxy/VPN detection)");
+    
+    NSDictionary *cleanProxySettings = @{
+        @"HTTPEnable": @0,
+        @"HTTPProxy": @"",
+        @"HTTPPort": @0,
+        @"HTTPSEnable": @0,
+        @"HTTPSProxy": @"",
+        @"HTTPSPort": @0,
+        @"ProxyAutoConfigEnable": @0,
+        @"SOCKSEnable": @0,
+        @"SOCKSProxy": @"",
+        @"SOCKSPort": @0,
+        @"ExceptionsList": @[],
+        @"__SCOPED__": @{} // Critical: Empty scoped settings
+    };
+    
+    return CFBridgingRetain(cleanProxySettings);
+}
+
+static CFDictionaryRef hook_SCDynamicStoreCopyProxies(SCDynamicStoreRef store, CFArrayRef targetHosts) {
+    NSLog(@"[LC] 🎭 Spoofing SCDynamicStore proxy settings");
+    
+    NSDictionary *cleanSettings = @{
+        @"HTTPEnable": @0,
+        @"HTTPProxy": @"",
+        @"HTTPPort": @0,
+        @"HTTPSEnable": @0,
+        @"HTTPSProxy": @"",
+        @"HTTPSPort": @0,
+        @"ProxyAutoConfigEnable": @0,
+        @"SOCKSEnable": @0,
+        @"SOCKSProxy": @"",
+        @"SOCKSPort": @0,
+        @"ExceptionsList": @[]
+    };
+    
+    return CFBridgingRetain(cleanSettings);
+}
+
+static int hook_getifaddrs(struct ifaddrs **ifap) {
+    int result = orig_getifaddrs(ifap);
+    
+    if (result != 0 || !ifap || !*ifap) {
+        return result;
+    }
+    
+    NSLog(@"[LC] 🎭 Filtering VPN interfaces from getifaddrs");
+    
+    // Filter out VPN-related interfaces
+    struct ifaddrs *current = *ifap;
+    struct ifaddrs *prev = NULL;
+    
+    while (current != NULL) {
+        BOOL shouldRemove = NO;
+        
+        if (current->ifa_name) {
+            NSString *interfaceName = [NSString stringWithUTF8String:current->ifa_name];
+            NSArray *vpnPrefixes = @[@"utun", @"tap", @"tun", @"ppp", @"ipsec", @"l2tp", @"pptp"];
+            
+            for (NSString *prefix in vpnPrefixes) {
+                if ([interfaceName hasPrefix:prefix]) {
+                    shouldRemove = YES;
+                    NSLog(@"[LC] 🎭 Hiding VPN interface: %@", interfaceName);
+                    break;
+                }
+            }
+        }
+        
+        if (shouldRemove) {
+            if (prev) {
+                prev->ifa_next = current->ifa_next;
+            } else {
+                *ifap = current->ifa_next;
+            }
+            struct ifaddrs *toRemove = current;
+            current = current->ifa_next;
+            free(toRemove);
+        } else {
+            prev = current;
+            current = current->ifa_next;
+        }
+    }
+    
+    return result;
+}
+
+static struct hostent* hook_gethostbyname(const char *name) {
+    if (name) {
+        NSString *hostname = [NSString stringWithUTF8String:name];
+        
+        // Block common proxy/VPN detection domains
+        NSArray *blockedDomains = @[
+            @"whatismyipaddress.com",
+            @"ipinfo.io",
+            @"ip-api.com",
+            @"ipapi.co",
+            @"geoip.com",
+            @"maxmind.com",
+            @"proxy-checker.com",
+            @"vpndetector.com",
+            @"proxydetector.com"
+        ];
+        
+        for (NSString *blocked in blockedDomains) {
+            if ([hostname containsString:blocked]) {
+                NSLog(@"[LC] 🎭 Blocking proxy detection domain: %@", hostname);
+                h_errno = HOST_NOT_FOUND;
+                return NULL;
+            }
+        }
+    }
+    
+    return orig_gethostbyname(name);
+}
 
 bool performHookDyldApi(const char* functionName, uint32_t adrpOffset, void** origFunction, void* hookFunction) {
     
@@ -578,7 +707,12 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         {"_dyld_get_image_header", (void *)hook_dyld_get_image_header, (void **)&orig_dyld_get_image_header},
         {"_dyld_get_image_vmaddr_slide", (void *)hook_dyld_get_image_vmaddr_slide, (void **)&orig_dyld_get_image_vmaddr_slide},
         {"_dyld_get_image_name", (void *)hook_dyld_get_image_name, (void **)&orig_dyld_get_image_name},
-    }, hideLiveContainer ? 5: 1);
+        // VPN Detection Bypass hooks
+        {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
+        {"SCDynamicStoreCopyProxies", (void *)hook_SCDynamicStoreCopyProxies, (void **)&orig_SCDynamicStoreCopyProxies},
+        {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
+        {"gethostbyname", (void *)hook_gethostbyname, (void **)&orig_gethostbyname},
+    }, hideLiveContainer ? 9: 1);
     
     appExecutableFileTypeOverwritten = !hideLiveContainer;
     
