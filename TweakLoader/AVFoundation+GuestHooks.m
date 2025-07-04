@@ -481,7 +481,7 @@ static CVPixelBufferRef rotatePixelBufferToPortrait(CVPixelBufferRef sourceBuffe
     return rotatedBuffer;
 }
 
-correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
+static CVPixelBufferRef correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
     if (!sourceBuffer) {
         NSLog(@"[LC] 📷 correctPhotoRotation: sourceBuffer is NULL");
         return NULL;
