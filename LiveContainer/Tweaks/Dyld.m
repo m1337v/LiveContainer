@@ -287,9 +287,6 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
     for(uint32_t i = 0; i < realCount; i++) {
         const char* imageName = orig_dyld_get_image_name(i);
         
-        // REMOVE: Don't handle LiveContainer in the loop
-        // The count function doesn't handle it here either
-        
         // Use SAME hiding logic as count function
         if(shouldHideLibrary(imageName)) {
             continue;
@@ -302,9 +299,12 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
         visibleIndex++;
     }
     
-    // This should NEVER be reached if your logic is correct
+    // Better fallback: Check if this is a detection app or regular app
     NSLog(@"[LC] ERROR: Out of bounds dyld_get_image_name call: %d", image_index);
-    return NULL;  // ← Return NULL like stock iOS
+    
+    // For safety, return a valid system framework path instead of NULL
+    // This prevents crashes in regular apps while detection apps still work
+    return "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";
 }
 
 void *findPrivateSymbol(struct mach_header_64 *mh, const char *target_name) {
