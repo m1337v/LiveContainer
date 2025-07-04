@@ -536,10 +536,22 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
     int imageCount = _dyld_image_count();
     for(int i = 0; i < imageCount; ++i) {
         const struct mach_header* currentImageHeader = _dyld_get_image_header(i);
+        const char* imageName = _dyld_get_image_name(i);
+        
         if(currentImageHeader->filetype == MH_EXECUTE) {
-            lcImageIndex = i;
-            break;
+            if(imageName && strstr(imageName, "LiveContainer.app")) {
+                lcImageIndex = i;
+                NSLog(@"[LC] Found LiveContainer at index %d: %s", i, imageName);
+            } else {
+                appMainImageIndex = i;
+                NSLog(@"[LC] Found guest app at index %d: %s", i, imageName ?: "NULL");
+            }
         }
+    }
+    
+    // Validate both indices
+    if(appMainImageIndex == 0 || lcImageIndex == 0) {
+        NSLog(@"[LC] ERROR: Failed to find executables - LC:%d Guest:%d", lcImageIndex, appMainImageIndex);
     }
     
     orig_dyld_get_image_header = _dyld_get_image_header;
