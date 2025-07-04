@@ -538,21 +538,16 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         const struct mach_header* currentImageHeader = _dyld_get_image_header(i);
         const char* imageName = _dyld_get_image_name(i);
         
-        if(currentImageHeader->filetype == MH_EXECUTE) {
-            if(imageName && strstr(imageName, "LiveContainer.app")) {
-                lcImageIndex = i;
-                NSLog(@"[LC] Found LiveContainer at index %d: %s", i, imageName);
-            } else {
-                appMainImageIndex = i;
-                NSLog(@"[LC] Found guest app at index %d: %s", i, imageName ?: "NULL");
-            }
+        if(currentImageHeader->filetype == MH_EXECUTE && 
+           imageName && strstr(imageName, "LiveContainer.app")) {
+            lcImageIndex = i;
+            NSLog(@"[LC] Found LiveContainer at index %d", i);
+            break;
         }
     }
     
-    // Validate both indices
-    if(appMainImageIndex == 0 || lcImageIndex == 0) {
-        NSLog(@"[LC] ERROR: Failed to find executables - LC:%d Guest:%d", lcImageIndex, appMainImageIndex);
-    }
+    // Guest app will be found later when hooks are called
+    appMainImageIndex = 0; // Will be set on first hook call
     
     orig_dyld_get_image_header = _dyld_get_image_header;
     
