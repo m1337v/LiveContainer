@@ -289,62 +289,40 @@ intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
 //     __attribute__((musttail)) return orig_dyld_get_image_name(translateImageIndex(image_index));
 // }
 const char* hook_dyld_get_image_name(uint32_t image_index) {
-    NSLog(@"[LC] dyld_get_image_name called: index=%d", image_index);
-    
     ensureAppMainIndexIsSet();
 
-    // ALWAYS handle LiveContainer replacement first
-    if(image_index == lcImageIndex) {
-        NSLog(@"[LC] LiveContainer replacement: %d → %d", lcImageIndex, appMainImageIndex);
-        if(!appExecutableFileTypeOverwritten) {
-            overwriteAppExecutableFileType();
-            appExecutableFileTypeOverwritten = true;
-        }
-        const char* result = orig_dyld_get_image_name(appMainImageIndex);
-        NSLog(@"[LC] LC replacement result: %s", result ? result : "NULL");
-        return result;
-    }
-    
     // Before we're ready to hide libraries, use simple passthrough
     if(!appExecutableFileTypeOverwritten) {
-        NSLog(@"[LC] Passthrough mode for index %d", image_index);
         return orig_dyld_get_image_name(image_index);
     }
     
-    // Debug the index mapping
+    // Use EXACT SAME logic as hook_dyld_image_count
     uint32_t realCount = orig_dyld_image_count();
-    uint32_t expectedCount = hook_dyld_image_count();
-    NSLog(@"[LC] Filtering mode: index=%d, realCount=%d, expectedCount=%d", 
-          image_index, realCount, expectedCount);
-    
-    // Handle out-of-bounds requests gracefully
-    if(image_index >= expectedCount) {
-        NSLog(@"[LC] OUT OF BOUNDS: index %d >= expected %d (CosmoPayout bug)", image_index, expectedCount);
-        // Return NULL as stock iOS would for out-of-bounds
-        return NULL;
-    }
-    
     uint32_t visibleIndex = 0;
     
     for(uint32_t i = 0; i < realCount; i++) {
         const char* imageName = orig_dyld_get_image_name(i);
-        bool shouldHide = shouldHideLibrary(imageName);
         
-        if(shouldHide) {
+        if(shouldHideLibrary(imageName)) {
             continue;
         }
         
         if(visibleIndex == image_index) {
-            NSLog(@"[LC] Found mapping: visible %d → real %d (%s)", 
-                  visibleIndex, i, imageName ? imageName : "NULL");
+            // Special case: if this is LiveContainer, return guest app instead
+            if(i == lcImageIndex) {
+                if(!appExecutableFileTypeOverwritten) {
+                    overwriteAppExecutableFileType();
+                    appExecutableFileTypeOverwritten = true;
+                }
+                return orig_dyld_get_image_name(appMainImageIndex);
+            }
             return imageName;
         }
         
         visibleIndex++;
     }
     
-    // This should never be reached now
-    NSLog(@"[LC] CRITICAL: Logic error - should not reach here");
+    // Out of bounds - return NULL
     return NULL;
 }
 
