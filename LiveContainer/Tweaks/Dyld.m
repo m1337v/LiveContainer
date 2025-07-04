@@ -289,7 +289,6 @@ intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
 //     __attribute__((musttail)) return orig_dyld_get_image_name(translateImageIndex(image_index));
 // }
 const char* hook_dyld_get_image_name(uint32_t image_index) {
-    // Add debugging to see WHY we hit the fallback
     NSLog(@"[LC] dyld_get_image_name called: index=%d", image_index);
     
     ensureAppMainIndexIsSet();
@@ -318,8 +317,11 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
     NSLog(@"[LC] Filtering mode: index=%d, realCount=%d, expectedCount=%d", 
           image_index, realCount, expectedCount);
     
+    // Handle out-of-bounds requests gracefully
     if(image_index >= expectedCount) {
-        NSLog(@"[LC] OUT OF BOUNDS: index %d >= expected %d", image_index, expectedCount);
+        NSLog(@"[LC] OUT OF BOUNDS: index %d >= expected %d (CosmoPayout bug)", image_index, expectedCount);
+        // Return NULL as stock iOS would for out-of-bounds
+        return NULL;
     }
     
     uint32_t visibleIndex = 0;
@@ -327,8 +329,6 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
     for(uint32_t i = 0; i < realCount; i++) {
         const char* imageName = orig_dyld_get_image_name(i);
         bool shouldHide = shouldHideLibrary(imageName);
-        
-        NSLog(@"[LC] Image %d: %s (hide: %d)", i, imageName ? imageName : "NULL", shouldHide);
         
         if(shouldHide) {
             continue;
@@ -343,11 +343,8 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
         visibleIndex++;
     }
     
-    // Log the exact failure
-    NSLog(@"[LC] CRITICAL: No mapping found for index %d (visibleIndex reached %d)", 
-          image_index, visibleIndex);
-    
-    // Return NULL as expected by stock iOS
+    // This should never be reached now
+    NSLog(@"[LC] CRITICAL: Logic error - should not reach here");
     return NULL;
 }
 
