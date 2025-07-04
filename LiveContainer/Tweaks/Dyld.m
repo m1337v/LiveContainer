@@ -77,9 +77,8 @@ static bool shouldHideLibrary(const char* imageName) {
     
     // Ultra-minimal - only what Reveil specifically looks for
     return (strstr(lowerImageName, "substrate") ||      // All substrate variants
-            strstr(lowerImageName, "tweakloader") ||    // TweakLoader
-            // strstr(lowerImageName, "fishhook") ||       // FishHook
-            strstr(lowerImageName, "livecontainershared"));   // LiveContainerShared
+            strstr(lowerImageName, "tweakloader"));    // TweakLoader
+            // strstr(lowerImageName, "livecontainer"));   // LiveContainer
 }
 
 // Helper for LiveContainer special case handling
@@ -169,26 +168,14 @@ void* hook_dlsym(void * __handle, const char * __symbol) {
 // }
 uint32_t hook_dyld_image_count(void) {
     uint32_t count = orig_dyld_image_count();
+    if(!appExecutableFileTypeOverwritten) {
+        return count;  // Don't hide anything until we're ready
+    }
     
-    // Trigger hiding immediately on first call
-    // Problem AppMainImageIndex is not set yet, so we can't overwrite the file type
-    // if(!appExecutableFileTypeOverwritten) {
-    //     overwriteAppExecutableFileType();
-    //     appExecutableFileTypeOverwritten = true;
-    // }
-    
-    // Always return the reduced count
+    // Count visible (non-hidden) images
     uint32_t visibleCount = 0;
     for(uint32_t i = 0; i < count; i++) {
         const char* imageName = orig_dyld_get_image_name(i);
-        
-        // LiveContainer stays in the count (gets replaced when accessed)
-        if(i == lcImageIndex) {
-            visibleCount++;
-            continue;
-        }
-        
-        // Hide other libraries
         if(!shouldHideLibrary(imageName)) {
             visibleCount++;
         }
@@ -201,7 +188,7 @@ uint32_t hook_dyld_image_count(void) {
 //     __attribute__((musttail)) return orig_dyld_get_image_header(translateImageIndex(image_index));
 // }
 const struct mach_header* hook_dyld_get_image_header(uint32_t image_index) {
-    // ALWAYS handle LiveContainer replacement first (keep this)
+    // ALWAYS handle LiveContainer replacement first
     if(image_index == lcImageIndex) {
         if(!appExecutableFileTypeOverwritten) {
             overwriteAppExecutableFileType();
@@ -215,15 +202,12 @@ const struct mach_header* hook_dyld_get_image_header(uint32_t image_index) {
         return orig_dyld_get_image_header(image_index);
     }
     
-    // REVERT: Use working version's simple logic
+    // After we're ready, use the hiding logic
     uint32_t realCount = orig_dyld_image_count();
     uint32_t visibleIndex = 0;
     
     for(uint32_t i = 0; i < realCount; i++) {
         const char* imageName = orig_dyld_get_image_name(i);
-        
-        // REMOVE: Don't handle LiveContainer in the loop
-        // if(i == lcImageIndex) { ... }
         
         if(shouldHideLibrary(imageName)) {
             continue;
@@ -257,14 +241,12 @@ intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
         return orig_dyld_get_image_vmaddr_slide(image_index);
     }
     
-    // REVERT: Use working version's simple logic
+    // After we're ready, use the hiding logic
     uint32_t realCount = orig_dyld_image_count();
     uint32_t visibleIndex = 0;
     
     for(uint32_t i = 0; i < realCount; i++) {
         const char* imageName = orig_dyld_get_image_name(i);
-        
-        // REMOVE: Don't handle LiveContainer in the loop
         
         if(shouldHideLibrary(imageName)) {
             continue;
@@ -298,25 +280,28 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
         return orig_dyld_get_image_name(image_index);
     }
     
-    // After we're ready, use the hiding logic with safe fallback
+    // After we're ready, use the hiding logic with DIRECT name checking
     uint32_t realCount = orig_dyld_image_count();
     uint32_t visibleIndex = 0;
     
     for(uint32_t i = 0; i < realCount; i++) {
+        // Get the name DIRECTLY without recursion risk
         const char* imageName = orig_dyld_get_image_name(i);
         
-        // Use inline hiding check
+        // INLINE hiding check to avoid shouldHideLibrary recursion
         bool shouldHide = false;
         if (imageName) {
+            // Convert to lowercase for case-insensitive comparison
             char lowerImageName[1024];
             strlcpy(lowerImageName, imageName, sizeof(lowerImageName));
             for (int j = 0; lowerImageName[j]; j++) {
                 lowerImageName[j] = tolower(lowerImageName[j]);
             }
             
+            // Check if should hide
             shouldHide = (strstr(lowerImageName, "substrate") ||
-                         strstr(lowerImageName, "tweakloader") ||
-                         strstr(lowerImageName, "livecontainershared"));
+                         strstr(lowerImageName, "tweakloader"));
+                        //  strstr(lowerImageName, "livecontainer"));
         }
         
         if(shouldHide) {
@@ -536,18 +521,11 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
     int imageCount = _dyld_image_count();
     for(int i = 0; i < imageCount; ++i) {
         const struct mach_header* currentImageHeader = _dyld_get_image_header(i);
-        const char* imageName = _dyld_get_image_name(i);
-        
-        if(currentImageHeader->filetype == MH_EXECUTE && 
-           imageName && strstr(imageName, "LiveContainer.app")) {
+        if(currentImageHeader->filetype == MH_EXECUTE) {
             lcImageIndex = i;
-            NSLog(@"[LC] Found LiveContainer at index %d", i);
             break;
         }
     }
-    
-    // Guest app will be found later when hooks are called
-    appMainImageIndex = 0; // Will be set on first hook call
     
     orig_dyld_get_image_header = _dyld_get_image_header;
     
