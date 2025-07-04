@@ -477,7 +477,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     if(_info[@"hideLiveContainer"] != nil) {
         return [_info[@"hideLiveContainer"] boolValue];
     } else {
-        return NO;
+        return YES; // default to YES
     }
 }
 - (void)setHideLiveContainer:(bool)hideLiveContainer {
