@@ -189,9 +189,6 @@ void* hook_dlsym(void * __handle, const char * __symbol) {
         strcmp(__symbol, "_logos_register_hook") == 0 || 
         strcmp(__symbol, "_logos_method_replaced") == 0 ||
 
-        // TrollStore/App detection functions
-        strcmp(__symbol, "SBSLaunchApplicationWithIdentifierAndURLAndLaunchOptions") == 0 ||
-
         strcmp(__symbol, "ZzBuildHook") == 0 ||
         strcmp(__symbol, "DobbyHook") == 0 ||
         strcmp(__symbol, "pspawn_hook") == 0)) {
