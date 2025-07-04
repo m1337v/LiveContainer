@@ -315,7 +315,7 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
         visibleIndex++;
     }
     
-    return orig_dyld_get_image_name(0);
+    return NULL;
 }
 
 void *findPrivateSymbol(struct mach_header_64 *mh, const char *target_name) {
