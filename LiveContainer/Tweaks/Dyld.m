@@ -280,31 +280,25 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
         return orig_dyld_get_image_name(image_index);
     }
     
-    // After we're ready, use the hiding logic with DIRECT name checking
+    // FIX: Use SAME logic as hook_dyld_image_count
     uint32_t realCount = orig_dyld_image_count();
     uint32_t visibleIndex = 0;
     
     for(uint32_t i = 0; i < realCount; i++) {
-        // Get the name DIRECTLY without recursion risk
         const char* imageName = orig_dyld_get_image_name(i);
         
-        // INLINE hiding check to avoid shouldHideLibrary recursion
-        bool shouldHide = false;
-        if (imageName) {
-            // Convert to lowercase for case-insensitive comparison
-            char lowerImageName[1024];
-            strlcpy(lowerImageName, imageName, sizeof(lowerImageName));
-            for (int j = 0; lowerImageName[j]; j++) {
-                lowerImageName[j] = tolower(lowerImageName[j]);
+        // ADD: Handle LiveContainer in the loop (same as count function)
+        if(i == lcImageIndex) {
+            if(visibleIndex == image_index) {
+                // This should never happen since we handle it above
+                return orig_dyld_get_image_name(appMainImageIndex);
             }
-            
-            // Check if should hide
-            shouldHide = (strstr(lowerImageName, "substrate") ||
-                         strstr(lowerImageName, "tweakloader") ||
-                         strstr(lowerImageName, "livecontainershared"));
+            visibleIndex++;
+            continue;
         }
         
-        if(shouldHide) {
+        // Use shouldHideLibrary function instead of inline logic
+        if(shouldHideLibrary(imageName)) {
             continue;
         }
         
@@ -315,7 +309,8 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
         visibleIndex++;
     }
     
-    return NULL;
+    // Better fallback: return the first visible image name
+    return orig_dyld_get_image_name(appMainImageIndex);
 }
 
 void *findPrivateSymbol(struct mach_header_64 *mh, const char *target_name) {
