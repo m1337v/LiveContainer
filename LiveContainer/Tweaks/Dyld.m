@@ -105,57 +105,57 @@ static void ensureAppMainIndexIsSet(void) {
 }
 
 // Helper for LiveContainer special case handling
-static bool isLiveContainerImage(uint32_t imageIndex, const char* imageName) {
-    return imageIndex == lcImageIndex || (imageName && strstr(imageName, "LiveContainer"));
-}
+// static bool isLiveContainerImage(uint32_t imageIndex, const char* imageName) {
+//     return imageIndex == lcImageIndex || (imageName && strstr(imageName, "LiveContainer"));
+// }
 
-static uint32_t handleLiveContainerReplacement(uint32_t imageIndex) {
-    if (imageIndex == lcImageIndex) {
-        if (!appExecutableFileTypeOverwritten) {
-            overwriteAppExecutableFileType();
-            appExecutableFileTypeOverwritten = true;
-        }
-        return appMainImageIndex;
-    }
-    return imageIndex;
-}
+// static uint32_t handleLiveContainerReplacement(uint32_t imageIndex) {
+//     if (imageIndex == lcImageIndex) {
+//         if (!appExecutableFileTypeOverwritten) {
+//             overwriteAppExecutableFileType();
+//             appExecutableFileTypeOverwritten = true;
+//         }
+//         return appMainImageIndex;
+//     }
+//     return imageIndex;
+// }
 
-static inline int translateImageIndex(int origin) {
-    if(origin == lcImageIndex) {
-        if(!appExecutableFileTypeOverwritten) {
-            overwriteAppExecutableFileType();
-            appExecutableFileTypeOverwritten = true;
-        }
+// static inline int translateImageIndex(int origin) {
+//     if(origin == lcImageIndex) {
+//         if(!appExecutableFileTypeOverwritten) {
+//             overwriteAppExecutableFileType();
+//             appExecutableFileTypeOverwritten = true;
+//         }
         
-        return appMainImageIndex;
-    }
+//         return appMainImageIndex;
+//     }
     
-    // find tweakloader index
-    if(tweakLoaderLoaded && tweakLoaderIndex == 0) {
-        const char* tweakloaderPath = [[[[NSUserDefaults lcMainBundle] bundlePath] stringByAppendingPathComponent:@"Frameworks/TweakLoader.dylib"] UTF8String];
-        if(tweakloaderPath) {
-            uint32_t imageCount = orig_dyld_image_count();
-            for(uint32_t i = imageCount - 1; i >= 0; --i) {
-                const char* imgName = orig_dyld_get_image_name(i);
-                if(imgName && strcmp(imgName, tweakloaderPath) == 0) {
-                    tweakLoaderIndex = i;
-                    break;
-                }
-            }
-        }
+//     // find tweakloader index
+//     if(tweakLoaderLoaded && tweakLoaderIndex == 0) {
+//         const char* tweakloaderPath = [[[[NSUserDefaults lcMainBundle] bundlePath] stringByAppendingPathComponent:@"Frameworks/TweakLoader.dylib"] UTF8String];
+//         if(tweakloaderPath) {
+//             uint32_t imageCount = orig_dyld_image_count();
+//             for(uint32_t i = imageCount - 1; i >= 0; --i) {
+//                 const char* imgName = orig_dyld_get_image_name(i);
+//                 if(imgName && strcmp(imgName, tweakloaderPath) == 0) {
+//                     tweakLoaderIndex = i;
+//                     break;
+//                 }
+//             }
+//         }
 
-        if(tweakLoaderIndex == 0) {
-            tweakLoaderIndex = -1; // can't find, don't search again in the future
-        }
-    }
+//         if(tweakLoaderIndex == 0) {
+//             tweakLoaderIndex = -1; // can't find, don't search again in the future
+//         }
+//     }
     
-    if(tweakLoaderLoaded && tweakLoaderIndex > 0 && origin >= tweakLoaderIndex) {
-        return origin + 2;
-    } else if(origin >= appMainImageIndex) {
-        return origin + 1;
-    }
-    return origin;
-}
+//     if(tweakLoaderLoaded && tweakLoaderIndex > 0 && origin >= tweakLoaderIndex) {
+//         return origin + 2;
+//     } else if(origin >= appMainImageIndex) {
+//         return origin + 1;
+//     }
+//     return origin;
+// }
 
 void* hook_dlsym(void * __handle, const char * __symbol) {
     if(__handle == (void*)RTLD_MAIN_ONLY) {
@@ -191,11 +191,8 @@ void* hook_dlsym(void * __handle, const char * __symbol) {
 // }
 uint32_t hook_dyld_image_count(void) {
     uint32_t count = orig_dyld_image_count();
-    if(!appExecutableFileTypeOverwritten) {
-        return count;  // Don't hide anything until we're ready
-    }
     
-    // Count visible (non-hidden) images
+    // Count visible (non-hidden) images INCLUDING LiveContainer (which will be replaced)
     uint32_t visibleCount = 0;
     for(uint32_t i = 0; i < count; i++) {
         const char* imageName = orig_dyld_get_image_name(i);
@@ -213,6 +210,7 @@ uint32_t hook_dyld_image_count(void) {
 const struct mach_header* hook_dyld_get_image_header(uint32_t image_index) {
     // ALWAYS handle LiveContainer replacement first
     if(image_index == lcImageIndex) {
+        ensureAppMainIndexIsSet();
         if(!appExecutableFileTypeOverwritten) {
             overwriteAppExecutableFileType();
             appExecutableFileTypeOverwritten = true;
@@ -243,7 +241,7 @@ const struct mach_header* hook_dyld_get_image_header(uint32_t image_index) {
         visibleIndex++;
     }
     
-    return orig_dyld_get_image_header(0); // Fallback
+    return NULL; // ← Don't return fallback, return NULL like stock iOS
 }
 
 // intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
@@ -289,8 +287,16 @@ intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
 //     __attribute__((musttail)) return orig_dyld_get_image_name(translateImageIndex(image_index));
 // }
 const char* hook_dyld_get_image_name(uint32_t image_index) {
-    ensureAppMainIndexIsSet();
-
+    // ALWAYS handle LiveContainer replacement first
+    if(image_index == lcImageIndex) {
+        ensureAppMainIndexIsSet();
+        if(!appExecutableFileTypeOverwritten) {
+            overwriteAppExecutableFileType();
+            appExecutableFileTypeOverwritten = true;
+        }
+        return orig_dyld_get_image_name(appMainImageIndex);
+    }
+    
     // Before we're ready to hide libraries, use simple passthrough
     if(!appExecutableFileTypeOverwritten) {
         return orig_dyld_get_image_name(image_index);
@@ -308,15 +314,7 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
         }
         
         if(visibleIndex == image_index) {
-            // Special case: if this is LiveContainer, return guest app instead
-            if(i == lcImageIndex) {
-                if(!appExecutableFileTypeOverwritten) {
-                    overwriteAppExecutableFileType();
-                    appExecutableFileTypeOverwritten = true;
-                }
-                return orig_dyld_get_image_name(appMainImageIndex);
-            }
-            return imageName;
+            return imageName;  // ← Remove the special LC handling here
         }
         
         visibleIndex++;
