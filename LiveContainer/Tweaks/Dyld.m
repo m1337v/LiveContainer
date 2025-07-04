@@ -81,6 +81,29 @@ static bool shouldHideLibrary(const char* imageName) {
             strstr(lowerImageName, "livecontainershared"));   // LiveContainerShared
 }
 
+static void ensureAppMainIndexIsSet(void) {
+    if (appMainImageIndex != 0) {
+        return; // Already found
+    }
+    
+    // Find the guest app executable (not LiveContainer)
+    int imageCount = orig_dyld_image_count();
+    for(int i = 0; i < imageCount; ++i) {
+        const struct mach_header* currentImageHeader = orig_dyld_get_image_header(i);
+        const char* imageName = orig_dyld_get_image_name(i);
+        
+        if(currentImageHeader && currentImageHeader->filetype == MH_EXECUTE && 
+           imageName && i != lcImageIndex && !strstr(imageName, "LiveContainer.app")) {
+            
+            appMainImageIndex = i;
+            NSLog(@"[LC] Found guest app at index %d: %s", i, imageName);
+            return;
+        }
+    }
+    
+    NSLog(@"[LC] ERROR: Could not find guest app executable!");
+}
+
 // Helper for LiveContainer special case handling
 static bool isLiveContainerImage(uint32_t imageIndex, const char* imageName) {
     return imageIndex == lcImageIndex || (imageName && strstr(imageName, "LiveContainer"));
@@ -266,6 +289,9 @@ intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
 //     __attribute__((musttail)) return orig_dyld_get_image_name(translateImageIndex(image_index));
 // }
 const char* hook_dyld_get_image_name(uint32_t image_index) {
+    // Ensure appMainImageIndex is set
+    ensureAppMainIndexIsSet();
+
     // ALWAYS handle LiveContainer replacement first
     if(image_index == lcImageIndex) {
         if(!appExecutableFileTypeOverwritten) {
@@ -299,12 +325,10 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
         visibleIndex++;
     }
     
-    // Better fallback: Check if this is a detection app or regular app
-    NSLog(@"[LC] ERROR: Out of bounds dyld_get_image_name call: %d", image_index);
-    
-    // For safety, return a valid system framework path instead of NULL
-    // This prevents crashes in regular apps while detection apps still work
-    return "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";
+    // IOSSecuritySuite-safe fallback: NEVER return NULL
+    // Return the guest app name as a safe fallback
+    NSLog(@"[LC] ERROR: IOSSecuritySuite out-of-bounds access: %d", image_index);
+    return NULL; // crashes if not properly handled
 }
 
 void *findPrivateSymbol(struct mach_header_64 *mh, const char *target_name) {
