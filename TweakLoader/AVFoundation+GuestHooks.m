@@ -55,6 +55,7 @@ static OSType lastRequestedFormat = 0;
 
 // Image spoofing resources
 static CVPixelBufferRef staticImageSpoofBuffer = NULL;
+static AVCaptureDevicePosition g_currentCameraPosition = AVCaptureDevicePositionBack;
 
 // Video spoofing resources
 static AVPlayer *videoSpoofPlayer = nil;
@@ -480,7 +481,7 @@ static CVPixelBufferRef rotatePixelBufferToPortrait(CVPixelBufferRef sourceBuffe
     return rotatedBuffer;
 }
 
-static CVPixelBufferRef correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
+correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
     if (!sourceBuffer) {
         NSLog(@"[LC] 📷 correctPhotoRotation: sourceBuffer is NULL");
         return NULL;
@@ -489,7 +490,10 @@ static CVPixelBufferRef correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
     size_t sourceWidth = CVPixelBufferGetWidth(sourceBuffer);
     size_t sourceHeight = CVPixelBufferGetHeight(sourceBuffer);
 
-    NSLog(@"[LC] 📷 correctPhotoRotation: Input %zux%zu. Applying fixed -90deg rotation.", sourceWidth, sourceHeight);
+    BOOL isFrontCamera = (g_currentCameraPosition == AVCaptureDevicePositionFront);
+    
+    NSLog(@"[LC] 📷 correctPhotoRotation: Input %zux%zu, Camera: %s", 
+          sourceWidth, sourceHeight, isFrontCamera ? "FRONT" : "BACK");
 
     CVPixelBufferRef rotatedBuffer = NULL;
     NSDictionary *attributes = @{
@@ -508,7 +512,6 @@ static CVPixelBufferRef correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
 
     if (status != kCVReturnSuccess || !rotatedBuffer) {
         NSLog(@"[LC] 📷❌ correctPhotoRotation: Failed to create rotated CVPixelBuffer. Status: %d", status);
-        if (rotatedBuffer) CVPixelBufferRelease(rotatedBuffer); // Should be NULL if status is not success, but defensive
         return NULL;
     }
 
@@ -523,29 +526,44 @@ static CVPixelBufferRef correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
 
     CIImage *ciImage = [CIImage imageWithCVPixelBuffer:sourceBuffer];
 
-    // Hypothesis: Initial +90deg error, plus render pipeline XY flip (equiv. to 180deg rot).
-    // To correct: Apply +90deg rotation from our side.
-    // Total = Initial(+90) + OurFix(+90) + RenderFlip(+180) = +360 = Identity.
-    // A +90 degree rotation around the origin (0,0) maps a point (x,y) to (-y,x).
-    // The new buffer has width H_source and height W_source.
-    // After +90deg rotation, content that was at (0,sourceHeight) in source (bottom-left if Y is up, or top-left if Y is down and it's about max Y)
-    // is now at (-sourceHeight, 0) in the rotated space.
-    // To bring this new logical origin (-sourceHeight,0) to (0,0) of the output buffer, translate by (sourceHeight,0).
-    CGAffineTransform rotationTransform = CGAffineTransformMakeRotation(M_PI_2); // +90 degrees
-    CGAffineTransform translateTransform = CGAffineTransformMakeTranslation(sourceHeight, 0); // Translate by original sourceHeight (which is newWidth)
-
-    CGAffineTransform combinedTransform = CGAffineTransformConcat(rotationTransform, translateTransform);
+    // CRITICAL: Different transforms for front vs back camera
+    CGAffineTransform finalTransform;
     
-    CIImage *rotatedCIImage = [ciImage imageByApplyingTransform:combinedTransform];
+    if (isFrontCamera) {
+        // Front camera: Rotate +90° AND mirror horizontally
+        CGAffineTransform rotationTransform = CGAffineTransformMakeRotation(M_PI_2); // +90 degrees
+        CGAffineTransform translateAfterRotation = CGAffineTransformMakeTranslation(sourceHeight, 0);
+        
+        // Mirror horizontally (flip left-right)
+        CGAffineTransform mirrorTransform = CGAffineTransformMakeScale(-1, 1);
+        CGAffineTransform translateAfterMirror = CGAffineTransformMakeTranslation(sourceHeight, 0);
+        
+        // Combine: rotate first, then translate, then mirror, then translate again
+        finalTransform = CGAffineTransformConcat(rotationTransform, translateAfterRotation);
+        finalTransform = CGAffineTransformConcat(finalTransform, mirrorTransform);
+        finalTransform = CGAffineTransformConcat(finalTransform, translateAfterMirror);
+        
+        NSLog(@"[LC] 📷 correctPhotoRotation: FRONT camera - applying +90deg rotation + horizontal mirror");
+    } else {
+        // Back camera: Just rotate +90° (no mirroring needed)
+        CGAffineTransform rotationTransform = CGAffineTransformMakeRotation(M_PI_2); // +90 degrees
+        CGAffineTransform translateTransform = CGAffineTransformMakeTranslation(sourceHeight, 0);
+        finalTransform = CGAffineTransformConcat(rotationTransform, translateTransform);
+        
+        NSLog(@"[LC] 📷 correctPhotoRotation: BACK camera - applying +90deg rotation only");
+    }
+    
+    CIImage *transformedCIImage = [ciImage imageByApplyingTransform:finalTransform];
 
-    // Render the rotated CIImage to the new CVPixelBuffer
-    [sharedCIContext render:rotatedCIImage toCVPixelBuffer:rotatedBuffer];
+    // Render the transformed CIImage to the new CVPixelBuffer
+    [sharedCIContext render:transformedCIImage toCVPixelBuffer:rotatedBuffer];
 
-    NSLog(@"[LC] 📷✅ correctPhotoRotation: Buffer rotated +90deg (to counteract initial +90 and render flip). Original: %zux%zu, New: %zux%zu",
+    NSLog(@"[LC] 📷✅ correctPhotoRotation: %s camera processed. Original: %zux%zu, New: %zux%zu",
+          isFrontCamera ? "FRONT (rotated+mirrored)" : "BACK (rotated)",
           sourceWidth, sourceHeight,
           CVPixelBufferGetWidth(rotatedBuffer), CVPixelBufferGetHeight(rotatedBuffer));
           
-    return rotatedBuffer; // Caller is responsible for releasing this new buffer
+    return rotatedBuffer;
 }
 
 // Replace crash-resistant version:
@@ -2593,6 +2611,14 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 - (void)lc_addInput:(AVCaptureInput *)input {
     if (spoofCameraEnabled && [input isKindOfClass:[AVCaptureDeviceInput class]]) {
         AVCaptureDeviceInput *deviceInput = (AVCaptureDeviceInput *)input;
+        
+        // CRITICAL: Track camera position for photo orientation
+        if ([deviceInput.device hasMediaType:AVMediaTypeVideo]) {
+            g_currentCameraPosition = deviceInput.device.position;
+            NSLog(@"[LC] 🎥 L4: Camera position updated: %s", 
+                  (g_currentCameraPosition == AVCaptureDevicePositionFront) ? "FRONT" : "BACK");
+        }
+        
         NSLog(@"[LC] 🎥 L4: Intercepting session input: %@ (pos: %ld)", 
               deviceInput.device.localizedName, (long)deviceInput.device.position);
         
