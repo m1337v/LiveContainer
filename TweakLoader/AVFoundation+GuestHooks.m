@@ -530,20 +530,28 @@ static CVPixelBufferRef correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
     CGAffineTransform finalTransform;
     
     if (isFrontCamera) {
-        // Front camera: Rotate +90° AND mirror horizontally
+        // Front camera: Rotate +90°, mirror horizontally, then rotate 180° to fix upside down
+        
+        // Step 1: Rotate +90°
         CGAffineTransform rotationTransform = CGAffineTransformMakeRotation(M_PI_2); // +90 degrees
         CGAffineTransform translateAfterRotation = CGAffineTransformMakeTranslation(sourceHeight, 0);
         
-        // Mirror horizontally (flip left-right)
+        // Step 2: Mirror horizontally (flip left-right)
         CGAffineTransform mirrorTransform = CGAffineTransformMakeScale(-1, 1);
         CGAffineTransform translateAfterMirror = CGAffineTransformMakeTranslation(sourceHeight, 0);
         
-        // Combine: rotate first, then translate, then mirror, then translate again
+        // Step 3: Rotate 180° to fix upside down
+        CGAffineTransform uprightTransform = CGAffineTransformMakeRotation(M_PI); // 180 degrees
+        CGAffineTransform translateAfterUpright = CGAffineTransformMakeTranslation(sourceHeight, sourceWidth);
+        
+        // Combine all transforms: rotate → translate → mirror → translate → upright → translate
         finalTransform = CGAffineTransformConcat(rotationTransform, translateAfterRotation);
         finalTransform = CGAffineTransformConcat(finalTransform, mirrorTransform);
         finalTransform = CGAffineTransformConcat(finalTransform, translateAfterMirror);
+        finalTransform = CGAffineTransformConcat(finalTransform, uprightTransform);
+        finalTransform = CGAffineTransformConcat(finalTransform, translateAfterUpright);
         
-        NSLog(@"[LC] 📷 correctPhotoRotation: FRONT camera - applying +90deg rotation + horizontal mirror");
+        NSLog(@"[LC] 📷 correctPhotoRotation: FRONT camera - applying +90deg rotation + horizontal mirror + 180deg upright");
     } else {
         // Back camera: Just rotate +90° (no mirroring needed)
         CGAffineTransform rotationTransform = CGAffineTransformMakeRotation(M_PI_2); // +90 degrees
@@ -559,7 +567,7 @@ static CVPixelBufferRef correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
     [sharedCIContext render:transformedCIImage toCVPixelBuffer:rotatedBuffer];
 
     NSLog(@"[LC] 📷✅ correctPhotoRotation: %s camera processed. Original: %zux%zu, New: %zux%zu",
-          isFrontCamera ? "FRONT (rotated+mirrored)" : "BACK (rotated)",
+          isFrontCamera ? "FRONT (rotated+mirrored+upright)" : "BACK (rotated)",
           sourceWidth, sourceHeight,
           CVPixelBufferGetWidth(rotatedBuffer), CVPixelBufferGetHeight(rotatedBuffer));
           
