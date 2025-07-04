@@ -220,153 +220,153 @@ static NSDictionary *createSockerStyleProxyDictionary(void) {
 #pragma mark - Proxy/VPN Detection Bypass (Shadowrocket Compatible)
 
 // Hook CFNetworkCopySystemProxySettings to return clean proxy settings
-static CFDictionaryRef (*original_CFNetworkCopySystemProxySettings)(void);
+// static CFDictionaryRef (*original_CFNetworkCopySystemProxySettings)(void);
 
-static CFDictionaryRef spoofed_CFNetworkCopySystemProxySettings(void) {
-    if (!proxyEnabled) {
-        return original_CFNetworkCopySystemProxySettings();
-    }
+// static CFDictionaryRef spoofed_CFNetworkCopySystemProxySettings(void) {
+//     if (!proxyEnabled) {
+//         return original_CFNetworkCopySystemProxySettings();
+//     }
     
-    NSLog(@"[LC] 🎭 Spoofing system proxy settings (hiding proxy/VPN detection)");
+//     NSLog(@"[LC] 🎭 Spoofing system proxy settings (hiding proxy/VPN detection)");
     
-    // Return a clean proxy configuration that looks like no proxy is set
-    NSDictionary *cleanProxySettings = @{
-        @"HTTPEnable": @0,
-        @"HTTPProxy": @"",
-        @"HTTPPort": @0,
-        @"HTTPSEnable": @0,
-        @"HTTPSProxy": @"",
-        @"HTTPSPort": @0,
-        @"ProxyAutoConfigEnable": @0,
-        @"ProxyAutoConfigURLString": @"",
-        @"SOCKSEnable": @0,
-        @"SOCKSProxy": @"",
-        @"SOCKSPort": @0,
-        @"ExceptionsList": @[],
-        @"FTPEnable": @0,
-        @"FTPPassive": @1,
-        @"FTPProxy": @"",
-        @"FTPPort": @0,
-        @"__SCOPED__": @{} // Empty scoped settings (no VPN interfaces)
-    };
+//     // Return a clean proxy configuration that looks like no proxy is set
+//     NSDictionary *cleanProxySettings = @{
+//         @"HTTPEnable": @0,
+//         @"HTTPProxy": @"",
+//         @"HTTPPort": @0,
+//         @"HTTPSEnable": @0,
+//         @"HTTPSProxy": @"",
+//         @"HTTPSPort": @0,
+//         @"ProxyAutoConfigEnable": @0,
+//         @"ProxyAutoConfigURLString": @"",
+//         @"SOCKSEnable": @0,
+//         @"SOCKSProxy": @"",
+//         @"SOCKSPort": @0,
+//         @"ExceptionsList": @[],
+//         @"FTPEnable": @0,
+//         @"FTPPassive": @1,
+//         @"FTPProxy": @"",
+//         @"FTPPort": @0,
+//         @"__SCOPED__": @{} // Empty scoped settings (no VPN interfaces)
+//     };
     
-    return CFBridgingRetain(cleanProxySettings);
-}
+//     return CFBridgingRetain(cleanProxySettings);
+// }
 
 // Hook SCDynamicStoreCopyProxies for system-level proxy detection
-static CFDictionaryRef (*original_SCDynamicStoreCopyProxies)(SCDynamicStoreRef store, CFArrayRef targetHosts);
+// static CFDictionaryRef (*original_SCDynamicStoreCopyProxies)(SCDynamicStoreRef store, CFArrayRef targetHosts);
 
-static CFDictionaryRef spoofed_SCDynamicStoreCopyProxies(SCDynamicStoreRef store, CFArrayRef targetHosts) {
-    if (!proxyEnabled) {
-        return original_SCDynamicStoreCopyProxies(store, targetHosts);
-    }
+// static CFDictionaryRef spoofed_SCDynamicStoreCopyProxies(SCDynamicStoreRef store, CFArrayRef targetHosts) {
+//     if (!proxyEnabled) {
+//         return original_SCDynamicStoreCopyProxies(store, targetHosts);
+//     }
     
-    NSLog(@"[LC] 🎭 Spoofing SCDynamicStore proxy settings");
+//     NSLog(@"[LC] 🎭 Spoofing SCDynamicStore proxy settings");
     
-    // Return clean proxy settings using string keys (iOS compatible)
-    NSDictionary *cleanSettings = @{
-        @"HTTPEnable": @0,
-        @"HTTPProxy": @"",
-        @"HTTPPort": @0,
-        @"HTTPSEnable": @0,
-        @"HTTPSProxy": @"",
-        @"HTTPSPort": @0,
-        @"ProxyAutoConfigEnable": @0,
-        @"SOCKSEnable": @0,
-        @"SOCKSProxy": @"",
-        @"SOCKSPort": @0,
-        @"ExceptionsList": @[]
-    };
+//     // Return clean proxy settings using string keys (iOS compatible)
+//     NSDictionary *cleanSettings = @{
+//         @"HTTPEnable": @0,
+//         @"HTTPProxy": @"",
+//         @"HTTPPort": @0,
+//         @"HTTPSEnable": @0,
+//         @"HTTPSProxy": @"",
+//         @"HTTPSPort": @0,
+//         @"ProxyAutoConfigEnable": @0,
+//         @"SOCKSEnable": @0,
+//         @"SOCKSProxy": @"",
+//         @"SOCKSPort": @0,
+//         @"ExceptionsList": @[]
+//     };
     
-    return CFBridgingRetain(cleanSettings);
-}
+//     return CFBridgingRetain(cleanSettings);
+// }
 
 #pragma mark - Network Interface Detection Bypass
 
-static int (*original_getifaddrs)(struct ifaddrs **ifap);
+// static int (*original_getifaddrs)(struct ifaddrs **ifap);
 
-static int spoofed_getifaddrs(struct ifaddrs **ifap) {
-    if (!proxyEnabled) {
-        return original_getifaddrs(ifap);
-    }
+// static int spoofed_getifaddrs(struct ifaddrs **ifap) {
+//     if (!proxyEnabled) {
+//         return original_getifaddrs(ifap);
+//     }
     
-    int result = original_getifaddrs(ifap);
-    if (result != 0 || !ifap || !*ifap) {
-        return result;
-    }
+//     int result = original_getifaddrs(ifap);
+//     if (result != 0 || !ifap || !*ifap) {
+//         return result;
+//     }
     
-    NSLog(@"[LC] 🎭 Filtering VPN interfaces from getifaddrs");
+//     NSLog(@"[LC] 🎭 Filtering VPN interfaces from getifaddrs");
     
-    // Filter out VPN-related interfaces
-    struct ifaddrs *current = *ifap;
-    struct ifaddrs *prev = NULL;
+//     // Filter out VPN-related interfaces
+//     struct ifaddrs *current = *ifap;
+//     struct ifaddrs *prev = NULL;
     
-    while (current != NULL) {
-        BOOL shouldRemove = NO;
+//     while (current != NULL) {
+//         BOOL shouldRemove = NO;
         
-        if (current->ifa_name) {
-            NSString *interfaceName = [NSString stringWithUTF8String:current->ifa_name];
-            NSArray *vpnPrefixes = @[@"utun", @"tap", @"tun", @"ppp", @"ipsec", @"l2tp", @"pptp"];
+//         if (current->ifa_name) {
+//             NSString *interfaceName = [NSString stringWithUTF8String:current->ifa_name];
+//             NSArray *vpnPrefixes = @[@"utun", @"tap", @"tun", @"ppp", @"ipsec", @"l2tp", @"pptp"];
             
-            for (NSString *prefix in vpnPrefixes) {
-                if ([interfaceName hasPrefix:prefix]) {
-                    shouldRemove = YES;
-                    NSLog(@"[LC] 🎭 Hiding VPN interface: %@", interfaceName);
-                    break;
-                }
-            }
-        }
+//             for (NSString *prefix in vpnPrefixes) {
+//                 if ([interfaceName hasPrefix:prefix]) {
+//                     shouldRemove = YES;
+//                     NSLog(@"[LC] 🎭 Hiding VPN interface: %@", interfaceName);
+//                     break;
+//                 }
+//             }
+//         }
         
-        if (shouldRemove) {
-            if (prev) {
-                prev->ifa_next = current->ifa_next;
-            } else {
-                *ifap = current->ifa_next;
-            }
-            struct ifaddrs *toRemove = current;
-            current = current->ifa_next;
-            free(toRemove);
-        } else {
-            prev = current;
-            current = current->ifa_next;
-        }
-    }
+//         if (shouldRemove) {
+//             if (prev) {
+//                 prev->ifa_next = current->ifa_next;
+//             } else {
+//                 *ifap = current->ifa_next;
+//             }
+//             struct ifaddrs *toRemove = current;
+//             current = current->ifa_next;
+//             free(toRemove);
+//         } else {
+//             prev = current;
+//             current = current->ifa_next;
+//         }
+//     }
     
-    return result;
-}
+//     return result;
+// }
 
 #pragma mark - DNS Resolution Bypass
 
-static struct hostent *(*original_gethostbyname)(const char *name);
+// static struct hostent *(*original_gethostbyname)(const char *name);
 
-static struct hostent *spoofed_gethostbyname(const char *name) {
-    if (proxyEnabled && name) {
-        NSString *hostname = [NSString stringWithUTF8String:name];
+// static struct hostent *spoofed_gethostbyname(const char *name) {
+//     if (proxyEnabled && name) {
+//         NSString *hostname = [NSString stringWithUTF8String:name];
         
-        // Block common proxy/VPN detection domains
-        NSArray *blockedDomains = @[
-            @"whatismyipaddress.com",
-            @"ipinfo.io",
-            @"ip-api.com",
-            @"ipapi.co",
-            @"geoip.com",
-            @"maxmind.com",
-            @"proxy-checker.com",
-            @"vpndetector.com",
-            @"proxydetector.com"
-        ];
+//         // Block common proxy/VPN detection domains
+//         NSArray *blockedDomains = @[
+//             @"whatismyipaddress.com",
+//             @"ipinfo.io",
+//             @"ip-api.com",
+//             @"ipapi.co",
+//             @"geoip.com",
+//             @"maxmind.com",
+//             @"proxy-checker.com",
+//             @"vpndetector.com",
+//             @"proxydetector.com"
+//         ];
         
-        for (NSString *blocked in blockedDomains) {
-            if ([hostname containsString:blocked]) {
-                NSLog(@"[LC] 🎭 Blocking proxy detection domain: %@", hostname);
-                h_errno = HOST_NOT_FOUND;
-                return NULL;
-            }
-        }
-    }
+//         for (NSString *blocked in blockedDomains) {
+//             if ([hostname containsString:blocked]) {
+//                 NSLog(@"[LC] 🎭 Blocking proxy detection domain: %@", hostname);
+//                 h_errno = HOST_NOT_FOUND;
+//                 return NULL;
+//             }
+//         }
+//     }
     
-    return original_gethostbyname(name);
-}
+//     return original_gethostbyname(name);
+// }
 
 #pragma mark - Custom Detection Function Bypass
 
@@ -414,34 +414,34 @@ static NSMutableURLRequest *removeProxyHeaders(NSMutableURLRequest *request) {
 
 #pragma mark - Initialize Proxy Detection Bypass
 
-static void initializeProxyDetectionBypass(void) {
-    if (!proxyEnabled) return;
+// static void initializeProxyDetectionBypass(void) {
+//     if (!proxyEnabled) return;
     
-    NSLog(@"[LC] 🎭 Installing proxy/VPN detection bypass hooks...");
+//     NSLog(@"[LC] 🎭 Installing proxy/VPN detection bypass hooks...");
     
-    // Note: We're using a simplified approach since we can't use fishhook/rebind_symbols
-    // These hooks will work for basic detection bypass
+//     // Note: We're using a simplified approach since we can't use fishhook/rebind_symbols
+//     // These hooks will work for basic detection bypass
     
-    // Hook CFNetwork functions
-    void *cfnetwork = dlopen("/System/Library/Frameworks/CFNetwork.framework/CFNetwork", RTLD_LAZY);
-    if (cfnetwork) {
-        original_CFNetworkCopySystemProxySettings = dlsym(cfnetwork, "CFNetworkCopySystemProxySettings");
-        NSLog(@"[LC] 🎭 CFNetwork hooks prepared");
-    }
+//     // Hook CFNetwork functions
+//     void *cfnetwork = dlopen("/System/Library/Frameworks/CFNetwork.framework/CFNetwork", RTLD_LAZY);
+//     if (cfnetwork) {
+//         original_CFNetworkCopySystemProxySettings = dlsym(cfnetwork, "CFNetworkCopySystemProxySettings");
+//         NSLog(@"[LC] 🎭 CFNetwork hooks prepared");
+//     }
     
-    // Hook SystemConfiguration functions
-    void *syscfg = dlopen("/System/Library/Frameworks/SystemConfiguration.framework/SystemConfiguration", RTLD_LAZY);
-    if (syscfg) {
-        original_SCDynamicStoreCopyProxies = dlsym(syscfg, "SCDynamicStoreCopyProxies");
-        NSLog(@"[LC] 🎭 SystemConfiguration hooks prepared");
-    }
+//     // Hook SystemConfiguration functions
+//     void *syscfg = dlopen("/System/Library/Frameworks/SystemConfiguration.framework/SystemConfiguration", RTLD_LAZY);
+//     if (syscfg) {
+//         original_SCDynamicStoreCopyProxies = dlsym(syscfg, "SCDynamicStoreCopyProxies");
+//         NSLog(@"[LC] 🎭 SystemConfiguration hooks prepared");
+//     }
     
-    // Prepare system function hooks
-    original_getifaddrs = getifaddrs;
-    original_gethostbyname = gethostbyname;
+//     // Prepare system function hooks
+//     original_getifaddrs = getifaddrs;
+//     original_gethostbyname = gethostbyname;
     
-    NSLog(@"[LC] ✅ Proxy/VPN detection bypass prepared (basic level)");
-}
+//     NSLog(@"[LC] ✅ Proxy/VPN detection bypass prepared (basic level)");
+// }
 
 #pragma mark - Universal NSURLSession Hooks (Socker Pattern)
 
@@ -811,7 +811,7 @@ void NetworkGuestHooksInit(void) {
             }
             
             // Initialize proxy detection bypass
-            initializeProxyDetectionBypass();
+            // initializeProxyDetectionBypass();
             
             // Test the proxy connection
             [SockerProxyTester testProxyConnection:^(BOOL success, NSTimeInterval latency, NSString *externalIP) {

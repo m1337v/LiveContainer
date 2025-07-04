@@ -422,9 +422,27 @@ uint32_t hook_dyld_get_program_sdk_version(void* dyldApiInstancePtr) {
 
 // MARK: VPN Detection Bypass implementations
 static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
+    NSLog(@"[LC] 🎭 CFNetworkCopySystemProxySettings called");
+    
+    // Safety check: if original function wasn't found or hooked properly
+    if (!orig_CFNetworkCopySystemProxySettings) {
+        NSLog(@"[LC] ⚠️ Original CFNetworkCopySystemProxySettings not available - returning clean settings");
+        
+        // Return minimal clean settings without calling original
+        NSDictionary *safeSettings = @{
+            @"HTTPEnable": @0,
+            @"HTTPSEnable": @0,
+            @"SOCKSEnable": @0,
+            @"ProxyAutoConfigEnable": @0,
+            @"__SCOPED__": @{}
+        };
+        
+        return CFBridgingRetain(safeSettings);
+    }
+    
+    // Original function is available - proceed with normal spoofing
     NSLog(@"[LC] 🎭 Spoofing system proxy settings (hiding proxy/VPN detection)");
     
-    // Return completely clean settings with NO proxy keys at all
     NSDictionary *cleanProxySettings = @{
         @"HTTPEnable": @0,
         @"HTTPPort": @0,
@@ -435,7 +453,6 @@ static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
         @"SOCKSPort": @0,
         @"ExceptionsList": @[],
         @"__SCOPED__": @{}        // ✅ Blocks VPN detection (empty = no VPN interfaces)
-        // ❌ REMOVED: @"HTTPProxy": @"" and @"HTTPSProxy": @""
     };
     
     return CFBridgingRetain(cleanProxySettings);
@@ -608,7 +625,7 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         {"_dyld_get_image_vmaddr_slide", (void *)hook_dyld_get_image_vmaddr_slide, (void **)&orig_dyld_get_image_vmaddr_slide},
         {"_dyld_get_image_name", (void *)hook_dyld_get_image_name, (void **)&orig_dyld_get_image_name},
         {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
-    }, hideLiveContainer ? 6: 1);
+    }, hideLiveContainer ? 5: 1);
     
     appExecutableFileTypeOverwritten = !hideLiveContainer;
     
