@@ -20,6 +20,7 @@ struct LCDataManagementView : View {
     
     @StateObject private var appFolderRemovalAlert = YesNoHelper()
     @State private var folderRemoveCount = 0
+    @StateObject private var resetUserDefaultsAlert = YesNoHelper()
     
     @StateObject private var keyChainRemovalAlert = YesNoHelper()
     
@@ -72,6 +73,12 @@ struct LCDataManagementView : View {
                     Task { await removeKeyChain() }
                 } label: {
                     Text("lc.settings.cleanKeychain".loc)
+                }
+
+                Button(role:.destructive) {
+                    Task { await resetUserDefaults() }
+                } label: {
+                    Text("Reset UserDefaults")
                 }
             }
             
@@ -293,6 +300,40 @@ struct LCDataManagementView : View {
                 try fm.moveItem(at: file, to: LCPath.appGroupPath.appendingPathComponent(file.lastPathComponent))
             }
             successInfo = "lc.settings.appGroup.moveSuccess".loc
+            successShow = true
+            
+        } catch {
+            errorInfo = error.localizedDescription
+            errorShow = true
+        }
+    }
+
+    func resetUserDefaults() async {
+        guard let doReset = await resetUserDefaultsAlert.open(), doReset else {
+            return
+        }
+        
+        do {
+            // Nuclear option: completely wipe all UserDefaults
+            let bundleId = Bundle.main.bundleIdentifier!
+            UserDefaults.standard.removePersistentDomain(forName: bundleId)
+            UserDefaults.standard.synchronize()
+            
+            // Clear the local preferences folder completely
+            let libraryPath = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
+            let preferencesPath = libraryPath.appendingPathComponent("Preferences")
+            
+            if FileManager.default.fileExists(atPath: preferencesPath.path) {
+                let contents = try FileManager.default.contentsOfDirectory(at: preferencesPath, includingPropertiesForKeys: nil)
+                
+                for file in contents {
+                    if file.pathExtension == "plist" {
+                        try FileManager.default.removeItem(at: file)
+                    }
+                }
+            }
+            
+            successInfo = "UserDefaults wiped. You should now force re-sign all apps to rebuild settings."
             successShow = true
             
         } catch {
