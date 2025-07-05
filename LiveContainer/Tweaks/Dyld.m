@@ -39,14 +39,17 @@ uint32_t (*orig_dyld_image_count)(void);
 const struct mach_header* (*orig_dyld_get_image_header)(uint32_t image_index);
 intptr_t (*orig_dyld_get_image_vmaddr_slide)(uint32_t image_index);
 const char* (*orig_dyld_get_image_name)(uint32_t image_index);
+// VPN Detection Bypass hooks
+static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
+// Signal handlers
+int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact);
 
 uint32_t guestAppSdkVersion = 0;
 uint32_t guestAppSdkVersionSet = 0;
 bool (*orig_dyld_program_sdk_at_least)(void* dyldPtr, dyld_build_version_t version);
 uint32_t (*orig_dyld_get_program_sdk_version)(void* dyldPtr);
 
-// VPN Detection Bypass hooks
-static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
+
 
 static void overwriteAppExecutableFileType(void) {
     struct mach_header_64* appImageMachOHeader = (struct mach_header_64*) orig_dyld_get_image_header(appMainImageIndex);
@@ -458,6 +461,60 @@ static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
     return CFBridgingRetain(cleanProxySettings);
 }
 
+int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact) {
+    // Call the original function first
+    int result = orig_sigaction(sig, act, oact);
+    
+    // If this is a query (act is NULL) and oact is not NULL, spoof the result
+    if (act == NULL && oact != NULL) {
+        // Make it look like no signal handler is installed
+        memset(oact, 0, sizeof(struct sigaction));
+        oact->sa_handler = SIG_DFL; // Default handler
+        
+        NSLog(@"[LC] 🎭 Hiding signal handler for signal %d", sig);
+    }
+    
+    return result;
+}
+
+// advanced
+// int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact) {
+//     int result = orig_sigaction(sig, act, oact);
+    
+//     if (act == NULL && oact != NULL) {
+//         // List of signals commonly checked by anti-debugging
+//         static const int suspiciousSignals[] = {
+//             SIGTRAP,  // Debugger breakpoints
+//             SIGSTOP,  // Process stopping
+//             SIGTSTP,  // Terminal stop
+//             SIGCONT,  // Continue after stop
+//             SIGSEGV,  // Segmentation fault (crash reporters)
+//             SIGBUS,   // Bus error
+//             SIGILL,   // Illegal instruction
+//             SIGABRT,  // Abort signal
+//             SIGFPE,   // Floating point exception
+//         };
+        
+//         // Check if this signal is commonly monitored
+//         bool shouldSpoof = false;
+//         for (int i = 0; i < sizeof(suspiciousSignals)/sizeof(int); i++) {
+//             if (sig == suspiciousSignals[i]) {
+//                 shouldSpoof = true;
+//                 break;
+//             }
+//         }
+        
+//         if (shouldSpoof) {
+//             // Clear the signal handler to look clean
+//             memset(oact, 0, sizeof(struct sigaction));
+//             oact->sa_handler = SIG_DFL;
+//             NSLog(@"[LC] 🎭 Spoofed signal handler for signal %d (%s)", sig, strsignal(sig));
+//         }
+//     }
+    
+//     return result;
+// }
+
 bool performHookDyldApi(const char* functionName, uint32_t adrpOffset, void** origFunction, void* hookFunction) {
     
     uint32_t* baseAddr = dlsym(RTLD_DEFAULT, functionName);
@@ -618,14 +675,15 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
     orig_dyld_get_image_header = _dyld_get_image_header;
     
     // hook dlopen and dlsym to solve RTLD_MAIN_ONLY, hook other functions to hide LiveContainer itself
-    rebind_symbols((struct rebinding[6]){
+    rebind_symbols((struct rebinding[7]){
         {"dlsym", (void *)hook_dlsym, (void **)&orig_dlsym},
         {"_dyld_image_count", (void *)hook_dyld_image_count, (void **)&orig_dyld_image_count},
         {"_dyld_get_image_header", (void *)hook_dyld_get_image_header, (void **)&orig_dyld_get_image_header},
         {"_dyld_get_image_vmaddr_slide", (void *)hook_dyld_get_image_vmaddr_slide, (void **)&orig_dyld_get_image_vmaddr_slide},
         {"_dyld_get_image_name", (void *)hook_dyld_get_image_name, (void **)&orig_dyld_get_image_name},
         {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
-    }, hideLiveContainer ? 6: 1);
+        {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
+    }, hideLiveContainer ? 7: 1);
     
     appExecutableFileTypeOverwritten = !hideLiveContainer;
     
