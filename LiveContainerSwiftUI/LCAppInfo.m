@@ -203,7 +203,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
         return icon;
     }
 
-    UIImage *lcIcon = [UIImage imageNamed:@"AppIcon76x76"];
+    UIImage *lcIcon = [UIImage imageNamed:@"AppIcon60x60@2x"];
     CGFloat iconXY = (lcIcon.size.width - 40) / 2;
     UIGraphicsBeginImageContextWithOptions(lcIcon.size, NO, 0.0);
     [lcIcon drawInRect:CGRectMake(0, 0, lcIcon.size.width, lcIcon.size.height)];

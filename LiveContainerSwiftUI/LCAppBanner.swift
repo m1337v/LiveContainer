@@ -162,7 +162,7 @@ struct LCAppBanner : View {
             }
             Spacer()
             Button {
-                if launchInMultitaskMode && model.uiIsShared {
+                if sharedModel.multiLCStatus != 2 && launchInMultitaskMode && model.uiIsShared {
                      if let currentDataFolder = model.uiSelectedContainer?.folderName,
                         MultitaskManager.isUsing(container: currentDataFolder) {
                          var found = false
