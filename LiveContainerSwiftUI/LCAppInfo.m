@@ -258,11 +258,13 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 - (void)save {
     if(!_autoSaveDisabled) {
         [_info writeToFile:[NSString stringWithFormat:@"%@/LCAppInfo.plist", _bundlePath] atomically:YES];
-        
+
         // Also save camera settings to guestAppInfo for hooks
         NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
         NSMutableDictionary *guestAppInfo = [[defaults objectForKey:@"guestAppInfo"] mutableCopy] ?: [@{} mutableCopy];
         
+        guestAppInfo[@"hideLiveContainer"] = @(self.hideLiveContainer);
+
         // Only save the 3 camera variables to guestAppInfo (keep it simple)
         guestAppInfo[@"spoofCamera"] = @(self.spoofCamera);
         guestAppInfo[@"spoofCameraVideoPath"] = self.spoofCameraVideoPath ?: @"";
