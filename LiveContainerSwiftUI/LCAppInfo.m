@@ -287,7 +287,9 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 
 - (void)patchExecAndSignIfNeedWithCompletionHandler:(void(^)(bool success, NSString* errorInfo))completetionHandler progressHandler:(void(^)(NSProgress* progress))progressHandler forceSign:(BOOL)forceSign {
     [NSUserDefaults.standardUserDefaults setObject:@(YES) forKey:@"SigningInProgress"];
-    NSString *appPath = self.bundlePath;
+
+    @try {
+        NSString *appPath = self.bundlePath;
     NSString *infoPath = [NSString stringWithFormat:@"%@/Info.plist", appPath];
     NSMutableDictionary *info = _info;
     NSMutableDictionary *infoPlist = _infoPlist;
@@ -418,7 +420,13 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
             if (progress) {
                 progressHandler(progress);
             }
-
+    } @finally {
+        // ✅ CRITICAL: This ALWAYS runs, even if there's a crash, exception, or early return
+        // This ensures the SigningInProgress flag is cleared no matter what happens
+        [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SigningInProgress"];
+        [NSUserDefaults.standardUserDefaults synchronize];
+        NSLog(@"[LC] SigningInProgress flag cleared in @finally block");
+    }
 }
 
 - (bool)isJITNeeded {
