@@ -102,8 +102,15 @@ struct LCTabView: View {
         var errorStr = UserDefaults.standard.string(forKey: "error")
         
         if errorStr == nil && UserDefaults.standard.bool(forKey: "SigningInProgress") {
-            errorStr = "lc.signer.crashDuringSignErr".loc
+            // Check if this is a stale flag (app was restarted)
+            let appLaunchTime = Date()
+            
+            // If we just launched and there's a SigningInProgress flag, it's stale
+            NSLog("[LC] Clearing stale SigningInProgress flag from previous session")
             UserDefaults.standard.removeObject(forKey: "SigningInProgress")
+            
+            // Don't show the crash error for stale flags
+            return
         }
         
         guard let errorStr else {

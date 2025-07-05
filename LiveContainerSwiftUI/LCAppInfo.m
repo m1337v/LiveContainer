@@ -390,19 +390,14 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
         [infoPlist removeObjectForKey:@"LCBundleExecutable"];
         [infoPlist removeObjectForKey:@"LCBundleIdentifier"];
         
-        void (^signCompletionHandler)(BOOL success, NSError *error)  = ^(BOOL success, NSError *_Nullable error) {
+        void (^signCompletionHandler)(BOOL success, NSError *error) = ^(BOOL success, NSError *_Nullable error) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                
                 // Remove fake main executable
                 [fm removeItemAtPath:tmpExecPath error:nil];
                 
                 // Save sign ID and restore bundle ID
                 [self save];
                 [infoPlist writeToFile:infoPath atomically:YES];
-                
-                // ✅ IMPORTANT: Clear the signing progress flag in the completion handler
-                [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SigningInProgress"];
-                [NSUserDefaults.standardUserDefaults synchronize];
                 
                 if(!success) {
                     completetionHandler(NO, error.localizedDescription);
@@ -414,7 +409,6 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
                         completetionHandler(NO, @"lc.signer.latestCertificateInvalidErr");
                     }
                 }
-                
             });
         };
         
@@ -425,8 +419,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
         }
         
     } @finally {
-        // ✅ CRITICAL: This ALWAYS runs, even if there's a crash, exception, or early return
-        // This ensures the SigningInProgress flag is cleared no matter what happens
+         // ✅ ONLY clear the flag here - this always runs regardless of how the method exits
         [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SigningInProgress"];
         [NSUserDefaults.standardUserDefaults synchronize];
         NSLog(@"[LC] SigningInProgress flag cleared in @finally block");
