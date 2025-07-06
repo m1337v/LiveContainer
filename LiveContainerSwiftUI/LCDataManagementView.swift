@@ -78,7 +78,7 @@ struct LCDataManagementView : View {
                 Button(role:.destructive) {
                     Task { await resetUserDefaults() }
                 } label: {
-                    Text("Reset UserDefaults")
+                    Text("Reset NSUserDefaults")
                 }
             }
             
@@ -144,6 +144,19 @@ struct LCDataManagementView : View {
         }
         .onAppear {
             onAppearFunc()
+        }
+        .alert("Reset NSUserDefaults", isPresented: $resetUserDefaultsAlert.show) {
+            Button(role: .destructive) {
+                resetUserDefaultsAlert.close(result: true)
+            } label: {
+                Text("Reset")
+            }
+            
+            Button("Cancel", role: .cancel) {
+                resetUserDefaultsAlert.close(result: false)
+            }
+        } message: {
+            Text("This will completely reset all app preferences and LiveContainer settings. This action cannot be undone and may require re-signing apps.")
         }
     }
     
@@ -314,30 +327,51 @@ struct LCDataManagementView : View {
         }
         
         do {
-            // Nuclear option: completely wipe all UserDefaults
+            let lcDefaults = UserDefaults.standard
             let bundleId = Bundle.main.bundleIdentifier!
-            UserDefaults.standard.removePersistentDomain(forName: bundleId)
-            UserDefaults.standard.synchronize()
             
-            // Clear the local preferences folder completely
-            let libraryPath = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
+            // Step 1: Clear LiveContainer's accessible NSUserDefaults completely
+            // This is where guest app data gets stored due to the hooking system
+            let allCurrentKeys = Array(lcDefaults.dictionaryRepresentation().keys)
+            
+            for key in allCurrentKeys {
+                lcDefaults.removeObject(forKey: key)
+                NSLog("[LC] Removed key: \(key)")
+            }
+            
+            // Step 2: Remove the persistent domain entirely (this targets the system location)
+            lcDefaults.removePersistentDomain(forName: bundleId)
+            lcDefaults.synchronize()
+            
+            // Step 3: Clear the physical preference files from accessible locations
+            let fm = FileManager.default
+            let libraryPath = fm.urls(for: .libraryDirectory, in: .userDomainMask).first!
             let preferencesPath = libraryPath.appendingPathComponent("Preferences")
             
-            if FileManager.default.fileExists(atPath: preferencesPath.path) {
-                let contents = try FileManager.default.contentsOfDirectory(at: preferencesPath, includingPropertiesForKeys: nil)
+            if fm.fileExists(atPath: preferencesPath.path) {
+                let contents = try fm.contentsOfDirectory(at: preferencesPath, includingPropertiesForKeys: nil)
                 
                 for file in contents {
-                    if file.pathExtension == "plist" {
-                        try FileManager.default.removeItem(at: file)
+                    let fileName = file.lastPathComponent
+                    if fileName.contains(bundleId) || fileName.contains("LiveContainer") {
+                        try fm.removeItem(at: file)
+                        NSLog("[LC] Removed preference file: \(fileName)")
                     }
                 }
             }
             
-            successInfo = "UserDefaults wiped. You should now force re-sign all apps to rebuild settings."
+            // Step 4: Force exit to make the system reload NSUserDefaults from scratch
+            // This is the key part - just like when you delete and reinstall the app
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                NSLog("[LC] NSUserDefaults cleared - forcing app restart for clean state")
+                exit(0) // Force exit so the system reloads everything fresh
+            }
+            
+            successInfo = "NSUserDefaults completely cleared. LiveContainer will restart with clean preferences. Your app data in Files/LiveContainer is preserved."
             successShow = true
             
         } catch {
-            errorInfo = error.localizedDescription
+            errorInfo = "Failed to reset NSUserDefaults: \(error.localizedDescription)"
             errorShow = true
         }
     }
