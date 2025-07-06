@@ -485,13 +485,15 @@ struct LCDataManagementView : View {
             }
             
             // Clear CFPreferences cache (force system reload)
-            if let cfPrefsClass = NSClassFromString("_CFXPreferences") {
-                let resetMethod = NSSelectorFromString("resetPreferences")
-                if cfPrefsClass.responds(to: resetMethod) {
-                    cfPrefsClass.perform(resetMethod)
-                    NSLog("[LC] 🔄 Cleared CFPreferences cache")
-                }
-            }
+            // if let cfPrefsClass = NSClassFromString("_CFXPreferences") {
+            //     let resetMethod = NSSelectorFromString("resetPreferences")
+            //     if cfPrefsClass.responds(to: resetMethod) {
+            //         // Use objc_msgSend to call the class method
+            //         let objc_msgSend = unsafeBitCast(dlsym(dlopen(nil, RTLD_LAZY), "objc_msgSend"), to: (@convention(c) (AnyClass, Selector) -> Void).self)
+            //         objc_msgSend(cfPrefsClass, resetMethod)
+            //         NSLog("[LC] 🔄 Cleared CFPreferences cache")
+            //     }
+            // }
             
             let systemsDetected = [
                 clearedContainerPrefs > 0 ? "container-based" : nil,
