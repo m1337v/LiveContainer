@@ -527,7 +527,7 @@ int LiveContainerMain(int argc, char *argv[]) {
     NSString* lastLaunchDataUUID;
     if(!isLiveProcess) {
         lastLaunchDataUUID = [lcUserDefaults objectForKey:@"lastLaunchDataUUID"];
-    } else if ([lcUserDefaults objectForKey:selectedContainer]) {
+    } else {
         lastLaunchDataUUID = selectedContainer;
     }
     
@@ -558,8 +558,8 @@ int LiveContainerMain(int argc, char *argv[]) {
     } else if (isLiveProcess && [lcUserDefaults boolForKey:@"liveprocessRetrieveData"]) {
         [lcUserDefaults removeObjectForKey:@"selected"];
         [lcUserDefaults removeObjectForKey:@"selectedContainer"];
-        NSString* preferencesTo = [LCSharedUtils.appGroupPath.path stringByAppendingPathComponent:[NSString stringWithFormat:@"LiveContainer/Data/Application/%@/Library/Preferences", lastLaunchDataUUID]];
-        [LCSharedUtils dumpPreferenceToPath:preferencesTo dataUUID:lastLaunchDataUUID];
+        NSString* preferencesTo = [LCSharedUtils.appGroupPath.path stringByAppendingPathComponent:[NSString stringWithFormat:@"LiveContainer/Data/Application/%@/Library/Preferences", selectedContainer]];
+        [LCSharedUtils dumpPreferenceToPath:preferencesTo dataUUID:selectedContainer];
         [LCSharedUtils setContainerUsingByThisLC:selectedContainer remove:YES];
         [lcUserDefaults removeObjectForKey:@"liveprocessRetrieveData"];
         exit(0);

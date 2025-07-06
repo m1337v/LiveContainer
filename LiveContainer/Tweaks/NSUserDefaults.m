@@ -117,7 +117,6 @@ NSMutableDictionary* LCGetPreference(NSString* identifier) {
     
     NSNumber* newNudId = [NSNumber numberWithInt:(arc4random() % [userDefaultsPool count])];
     userDefaultsIdMap[identifier] = newNudId;
-    NSLog(@"userDefaultsIdMap = %@", userDefaultsIdMap);
     if(!LCPreferences[newNudId]) {
         LCPreferences[newNudId] = [[NSMutableDictionary alloc] init];
     }
