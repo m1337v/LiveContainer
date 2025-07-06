@@ -27,6 +27,7 @@ struct LCContainerView : View {
     @StateObject private var deleteDataAlert = YesNoHelper()
     @StateObject private var removeKeychainAlert = YesNoHelper()
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var sharedModel : SharedModel
     @State private var typingContainerName : String = ""
     @State private var inUse = false
     @State private var runningLC : String? = nil
@@ -94,15 +95,6 @@ struct LCContainerView : View {
                 if inUse {
                     Text("lc.container.inUse".loc)
                         .foregroundStyle(.gray)
-                    if #available(iOS 16.0, *) {
-                        if runningLC == "liveprocess" && DataManager.shared.model.multiLCStatus != 2 {
-                            Button {
-                                Task { await retrieveDataFromLiveProcess() }
-                            } label: {
-                                Text("lc.appBanner.retrieveDataFromLiveProcess".loc)
-                            }
-                        }
-                    }
                     
                 } else {
                     if !container.isShared {
@@ -192,6 +184,9 @@ struct LCContainerView : View {
             settingsBundle = delegate.getSettingsBundle()
             runningLC = LCUtils.getContainerUsingLCScheme(containerName: container.folderName)
             inUse = runningLC != nil
+            if runningLC == "liveprocess" && sharedModel.multiLCStatus != 2 && !MultitaskManager.isUsing(container: container.folderName) {
+                inUse = false
+            }
         }
         
     }
@@ -279,46 +274,6 @@ struct LCContainerView : View {
                 }
                 try fm.removeItem(at: file)
             }
-        } catch {
-            errorInfo = error.localizedDescription
-            errorShow = true
-        }
-    }
-    
-    @available(iOS 16.0, *)
-    func retrieveDataFromLiveProcess() async {
-        do {
-            if MultitaskManager.isUsing(container: container.folderName) {
-                throw "lc.container.inUseBy %@".localizeWithFormat("Multitask")
-            }
-        
-            UserDefaults.standard.set("", forKey: "selected")
-            UserDefaults.standard.set(container.folderName, forKey: "selectedContainer")
-            defer {
-                UserDefaults.standard.removeObject(forKey: "selected")
-                UserDefaults.standard.removeObject(forKey: "selectedContainer")
-            }
-            try await LCUtils.launchMultitaskGuestDataRetrieve("LiveProcessDataRetrieve")
-
-            // wait 20 * 0.1s for LiveProcess to move the data back
-            var complete = false
-            for _ in 0..<20 {
-                usleep(1000*100)
-                if let _ = LCUtils.getContainerUsingLCScheme(containerName: container.folderName) {
-
-                } else {
-                    complete = true
-                    break
-                }
-            }
-            
-            if !complete {
-                throw "lc.container.unableToMoveContainerFromLiveProcess".loc
-            }
-            
-            inUse = false
-            runningLC = nil
-            
         } catch {
             errorInfo = error.localizedDescription
             errorShow = true

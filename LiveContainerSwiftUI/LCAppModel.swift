@@ -329,53 +329,16 @@ class LCAppModel: ObservableObject, Hashable {
         if
             let fn = uiSelectedContainer?.folderName,
             var runningLC = LCUtils.getContainerUsingLCScheme(containerName: fn),
-            !(multitask && runningLC == "liveprocess")
+            !multitask && runningLC == "liveprocess" && DataManager.shared.model.multiLCStatus == 2
         {
-            
-            if multitask {
-                throw "lc.container.inUse".loc + "\n" + runningLC
+            // we can't control the extension from lc2, so we launch lc1
+            runningLC = "livecontainer"
+
+            let openURL = URL(string: "\(runningLC)://livecontainer-launch?bundle-name=\(self.appInfo.relativeBundlePath!)&container-folder-name=\(fn)")!
+            if await UIApplication.shared.canOpenURL(openURL) {
+                await UIApplication.shared.open(openURL)
+                return
             }
-            
-            // it the user is trying to launch the app in normal mode, but the folder is currently in liveprocess's folder, we need to ask liveprocess to put the folder back
-            if !multitask && runningLC == "liveprocess" && DataManager.shared.model.multiLCStatus != 2, #available(iOS 16.0, *) {
-                UserDefaults.standard.set(self.appInfo.relativeBundlePath, forKey: "selected")
-                UserDefaults.standard.set(uiSelectedContainer?.folderName, forKey: "selectedContainer")
-                defer {
-                    UserDefaults.standard.removeObject(forKey: "selected")
-                    UserDefaults.standard.removeObject(forKey: "selectedContainer")
-                }
-                try await LCUtils.launchMultitaskGuestDataRetrieve("LiveProcessDataRetrieve")
-
-                // wait 20 * 0.1s for LiveProcess to move the data back
-                var complete = false
-                for _ in 0..<20 {
-                    usleep(1000*100)
-                    if let _ = LCUtils.getContainerUsingLCScheme(containerName: fn) {
-
-                    } else {
-                        complete = true
-                        break
-                    }
-                }
-                
-                if !complete {
-                    throw "lc.container.unableToMoveContainerFromLiveProcess".loc
-                }
-                
-            } else {
-                if DataManager.shared.model.multiLCStatus == 2 {
-                    // we can't control the extension from lc2, so we launch lc1
-                    runningLC = "livecontainer"
-                }
-                
-                let openURL = URL(string: "\(runningLC)://livecontainer-launch?bundle-name=\(self.appInfo.relativeBundlePath!)&container-folder-name=\(fn)")!
-                if await UIApplication.shared.canOpenURL(openURL) {
-                    await UIApplication.shared.open(openURL)
-                    return
-                }
-            }
-            
-
         }
         await MainActor.run {
             isAppRunning = true

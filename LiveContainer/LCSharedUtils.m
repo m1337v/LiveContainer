@@ -285,6 +285,7 @@ extern NSBundle *lcMainBundle;
 }
 
 // move app data to private folder to prevent 0xdead10cc https://forums.developer.apple.com/forums/thread/126438
+// This method is here for backward compatability, 0xdead10cc is already resolved.
 + (void)moveSharedAppFolderBack {
     NSFileManager *fm = NSFileManager.defaultManager;
     NSURL *libraryPathUrl = [fm URLsForDirectory:NSLibraryDirectory inDomains:NSUserDomainMask]
@@ -296,7 +297,7 @@ extern NSBundle *lcMainBundle;
     NSError *error;
     NSString *sharedAppDataFolderPath = [libraryPathUrl.path stringByAppendingPathComponent:@"SharedDocuments"];
     if(![fm fileExistsAtPath:sharedAppDataFolderPath]){
-        [fm createDirectoryAtPath:sharedAppDataFolderPath withIntermediateDirectories:YES attributes:@{} error:&error];
+        return;
     }
     // move all apps in shared folder back
     NSArray<NSString *> * sharedDataFoldersToMove = [fm contentsOfDirectoryAtPath:sharedAppDataFolderPath error:&error];
@@ -327,39 +328,6 @@ extern NSBundle *lcMainBundle;
     
 }
 
-+ (BOOL)moveSharedAppFolderBackWithDataUUID:(NSString*)dataUUID {
-    NSFileManager *fm = NSFileManager.defaultManager;
-    NSURL *libraryPathUrl = [fm URLsForDirectory:NSLibraryDirectory inDomains:NSUserDomainMask]
-        .lastObject;
-    NSURL *docPathUrl = [fm URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask]
-        .lastObject;
-    NSURL *appGroupFolder = [[LCSharedUtils appGroupPath] URLByAppendingPathComponent:@"LiveContainer"];
-    
-    NSError *error = nil;
-    NSString *sharedAppDataFolderPath = [libraryPathUrl.path stringByAppendingPathComponent:@"SharedDocuments"];
-    if(![fm fileExistsAtPath:sharedAppDataFolderPath]){
-        [fm createDirectoryAtPath:sharedAppDataFolderPath withIntermediateDirectories:YES attributes:@{} error:&error];
-    }
-    // something went wrong with app group
-    if(!appGroupFolder) {
-        [lcUserDefaults setObject:@"LiveContainer was unable to move the data of shared app back because LiveContainer cannot access app group. Please check JITLess diagnose page in LiveContainer settings for more information." forKey:@"error"];
-        return false;
-    }
-    
-    NSString* destPath = [appGroupFolder.path stringByAppendingPathComponent:[NSString stringWithFormat:@"Data/Application/%@", dataUUID]];
-    if([fm fileExistsAtPath:destPath]) {
-        return false;
-    } else {
-        [fm
-         moveItemAtPath:[sharedAppDataFolderPath stringByAppendingPathComponent:dataUUID]
-         toPath:destPath
-         error:&error
-        ];
-        return error == nil;
-    }
-    
-}
-
 + (NSBundle*)findBundleWithBundleId:(NSString*)bundleId {
     NSString *docPath = [NSString stringWithFormat:@"%s/Documents", getenv("LC_HOME_PATH")];
     
@@ -377,6 +345,7 @@ extern NSBundle *lcMainBundle;
     return appBundle;
 }
 
+// This method is here for backward compatability, preferences is direcrly saved to app's preference folder.
 + (void)dumpPreferenceToPath:(NSString*)plistLocationTo dataUUID:(NSString*)dataUUID {
     NSFileManager* fm = [[NSFileManager alloc] init];
     NSError* error1;

@@ -125,43 +125,6 @@ Class LCSharedUtilsClass = nil;
     }];
 }
 
-+ (void)launchMultitaskGuestDataRetrieve:(NSString *)displayName completionHandler:(void (^)(NSError *error))completionHandler {
-    NSBundle *liveProcessBundle = [NSBundle bundleWithPath:[NSBundle.mainBundle.builtInPlugInsPath stringByAppendingPathComponent:@"LiveProcess.appex"]];
-    if(!liveProcessBundle) {
-        NSError *error = [NSError errorWithDomain:displayName code:2 userInfo:@{NSLocalizedDescriptionKey: @"LiveProcess extension not found. Please reinstall LiveContainer and select Keep Extensions"}];
-        completionHandler(error);
-        return;
-    }
-    
-    NSError *error;
-    NSExtension *extension = [NSExtension extensionWithIdentifier:liveProcessBundle.bundleIdentifier error:&error];
-    if(error) {
-        completionHandler(error);
-        return;
-    }
-    
-    NSUserDefaults *lcUserDefaults = NSUserDefaults.standardUserDefaults;
-    NSExtensionItem *item = [NSExtensionItem new];
-    item.userInfo = @{
-        @"selected": [lcUserDefaults stringForKey:@"selected"],
-        @"selectedContainer": [lcUserDefaults stringForKey:@"selectedContainer"],
-        @"liveprocessRetrieveData": @YES
-    };
-    [lcUserDefaults removeObjectForKey:@"selected"];
-    [lcUserDefaults removeObjectForKey:@"selectedContainer"];
-    
-    [extension beginExtensionRequestWithInputItems:@[item] completion:^(NSUUID *identifier) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if(identifier) {
-                completionHandler(nil);
-            } else {
-                NSError *error = [NSError errorWithDomain:displayName code:2 userInfo:@{NSLocalizedDescriptionKey: @"Failed to start app. Child process has unexpectedly crashed"}];
-                completionHandler(error);
-            }
-        });
-    }];
-}
-
 #pragma mark Code signing
 
 

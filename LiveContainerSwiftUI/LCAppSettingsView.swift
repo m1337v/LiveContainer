@@ -1186,9 +1186,14 @@ struct LCAppSettingsView : View{
     
     func movePrivateDoc() async {
         for container in appInfo.containers {
-            let runningLC = LCUtils.getContainerUsingLCScheme(containerName: container.folderName)
-            if runningLC != nil {
-                errorInfo = "lc.appSettings.appOpenInOtherLc %@ %@".localizeWithFormat(runningLC!, runningLC!)
+            if let runningLC = LCUtils.getContainerUsingLCScheme(containerName: container.folderName) {
+                
+                // it's fine to move not running container out
+                if runningLC == "liveprocess" && sharedModel.multiLCStatus != 2 && !MultitaskManager.isUsing(container: container.folderName) {
+                    continue
+                }
+                
+                errorInfo = "lc.appSettings.appOpenInOtherLc %@ %@".localizeWithFormat(runningLC, runningLC)
                 errorShow = true
                 return
             }
