@@ -7,6 +7,7 @@
 @interface NSUserDefaults(private)
 + (void)setStandardUserDefaults:(id)defaults;
 - (NSString*)_identifier;
+- (NSString*)_container;
 - (void)_setContainer:(NSURL*)identifier;
 @end
 
