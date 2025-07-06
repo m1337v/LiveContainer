@@ -156,7 +156,7 @@ struct LCDataManagementView : View {
                 resetUserDefaultsAlert.close(result: false)
             }
         } message: {
-            Text("This will completely reset all app preferences and LiveContainer settings. This action cannot be undone and may require re-signing apps.")
+            Text("This will completely reset NSUserDefaults to fix issue due to corruption (supports both legacy and new storage systems). LiveContainer will restart with clean preferences. Your app data in Files/LiveContainer is preserved.")
         }
     }
     
@@ -330,44 +330,100 @@ struct LCDataManagementView : View {
             let lcDefaults = UserDefaults.standard
             let bundleId = Bundle.main.bundleIdentifier!
             
-            // Step 1: Clear LiveContainer's accessible NSUserDefaults completely
-            // This is where guest app data gets stored due to the hooking system
+            NSLog("[LC] 🧹 Starting comprehensive NSUserDefaults reset (legacy + new system)")
+            
+            // Step 1: Clear new 8-file storage system (if present)
+            var clearedStoragePools = 0
+            for i in 0..<8 {
+                let suiteName = "com.kdt.livecontainer.userDefaultsStorage.\(i)"
+                if let poolDefaults = UserDefaults(suiteName: suiteName) {
+                    let poolData = poolDefaults.dictionaryRepresentation()
+                    if !poolData.isEmpty {
+                        NSLog("[LC] 📦 Clearing userDefaultsStorage[\(i)] with \(poolData.count) container entries")
+                        
+                        for key in poolData.keys {
+                            poolDefaults.removeObject(forKey: key)
+                        }
+                        poolDefaults.removePersistentDomain(forName: suiteName)
+                        poolDefaults.synchronize()
+                        clearedStoragePools += 1
+                    }
+                }
+            }
+            
+            if clearedStoragePools > 0 {
+                NSLog("[LC] ✅ Cleared \(clearedStoragePools) new storage pools")
+            } else {
+                NSLog("[LC] 📝 No new storage pools found - using legacy behavior")
+            }
+            
+            // Step 2: Clear legacy NSUserDefaults system (always run for compatibility)
             let allCurrentKeys = Array(lcDefaults.dictionaryRepresentation().keys)
+            NSLog("[LC] 🗂️ Clearing legacy NSUserDefaults with \(allCurrentKeys.count) keys")
             
             for key in allCurrentKeys {
                 lcDefaults.removeObject(forKey: key)
                 NSLog("[LC] Removed key: \(key)")
             }
             
-            // Step 2: Remove the persistent domain entirely (this targets the system location)
+            // Step 3: Remove persistent domains (both legacy and new)
             lcDefaults.removePersistentDomain(forName: bundleId)
+            
+            // Also remove new storage domains if they exist
+            for i in 0..<8 {
+                let suiteName = "com.kdt.livecontainer.userDefaultsStorage.\(i)"
+                if let poolDefaults = UserDefaults(suiteName: suiteName) {
+                    poolDefaults.removePersistentDomain(forName: suiteName)
+                }
+            }
+            
             lcDefaults.synchronize()
             
-            // Step 3: Clear the physical preference files from accessible locations
+            // Step 4: Enhanced physical file cleanup (covers both systems)
             let fm = FileManager.default
             let libraryPath = fm.urls(for: .libraryDirectory, in: .userDomainMask).first!
             let preferencesPath = libraryPath.appendingPathComponent("Preferences")
             
+            var deletedFiles = 0
+            var totalDeletedSize = 0
+            
             if fm.fileExists(atPath: preferencesPath.path) {
-                let contents = try fm.contentsOfDirectory(at: preferencesPath, includingPropertiesForKeys: nil)
+                let contents = try fm.contentsOfDirectory(at: preferencesPath, 
+                                                        includingPropertiesForKeys: [.fileSizeKey])
                 
                 for file in contents {
                     let fileName = file.lastPathComponent
-                    if fileName.contains(bundleId) || fileName.contains("LiveContainer") {
+                    
+                    // Enhanced pattern matching for all LiveContainer preference files
+                    let shouldDelete = fileName.contains(bundleId) || 
+                                    fileName.contains("LiveContainer") ||
+                                    fileName.contains("userDefaultsStorage") ||
+                                    fileName.hasPrefix("com.kdt.livecontainer") ||
+                                    fileName.matches(pattern: "com\\.kdt\\.livecontainer.*\\.plist")
+                    
+                    if shouldDelete {
+                        // Get file size before deletion
+                        if let fileSize = try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize {
+                            totalDeletedSize += fileSize
+                        }
+                        
                         try fm.removeItem(at: file)
-                        NSLog("[LC] Removed preference file: \(fileName)")
+                        deletedFiles += 1
+                        NSLog("[LC] 🗑️ Removed preference file: \(fileName)")
                     }
                 }
             }
             
-            // Step 4: Force exit to make the system reload NSUserDefaults from scratch
-            // This is the key part - just like when you delete and reinstall the app
+            NSLog("[LC] 📊 Deleted \(deletedFiles) preference files (\(totalDeletedSize / 1024)KB total)")
+            
+            // Step 5: Force restart with enhanced logging
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                NSLog("[LC] NSUserDefaults cleared - forcing app restart for clean state")
-                exit(0) // Force exit so the system reloads everything fresh
+                NSLog("[LC] 🔄 NSUserDefaults completely reset (legacy + new system) - forcing clean restart")
+                exit(0)
             }
             
-            successInfo = "NSUserDefaults completely cleared. LiveContainer will restart with clean preferences. Your app data in Files/LiveContainer is preserved."
+            let systemType = clearedStoragePools > 0 ? "new multi-pool" : "legacy single-file"
+            successInfo = "NSUserDefaults completely reset (\(systemType) system). Deleted \(deletedFiles) files (\(totalDeletedSize / 1024)KB). LiveContainer will restart with clean preferences. Your app data in Files/LiveContainer is preserved."
             successShow = true
             
         } catch {
@@ -433,6 +489,18 @@ struct LCDataManagementView : View {
                     break
                 }
             }
+        }
+    }
+}
+
+extension String {
+    func matches(pattern: String) -> Bool {
+        do {
+            let regex = try NSRegularExpression(pattern: pattern, options: .caseInsensitive)
+            let range = NSRange(location: 0, length: self.count)
+            return regex.firstMatch(in: self, range: range) != nil
+        } catch {
+            return false
         }
     }
 }
