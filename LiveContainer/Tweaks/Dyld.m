@@ -216,6 +216,24 @@ void* hook_dlsym(void * __handle, const char * __symbol) {
         strcmp(__symbol, "objc_getAssociatedObject") == 0 ||
         strcmp(__symbol, "objc_setAssociatedObject") == 0 ||
 
+        // Litehook-specific symbols
+        strcmp(__symbol, "litehook_find_dsc_symbol") == 0 ||
+        strcmp(__symbol, "litehook_find_symbol") == 0 ||
+        strcmp(__symbol, "litehook_hook_function") == 0 ||
+        strcmp(__symbol, "litehook_unhook_function") == 0 ||
+        strcmp(__symbol, "_litehook_find_dsc_symbol") == 0 ||
+        strcmp(__symbol, "_litehook_find_symbol") == 0 ||
+
+        // NOT USED - DSC iteration functions
+        // strcmp(__symbol, "dyld_shared_cache_some_image_only_contains_addr") == 0 ||
+        // strcmp(__symbol, "dyld_shared_cache_iterate_text") == 0 ||
+        // strcmp(__symbol, "_dyld_shared_cache_contains_path") == 0 ||
+
+        // NOT USED - Mach-O parsing (you use dlsym instead)
+        // strcmp(__symbol, "getsectiondata") == 0 ||
+        // strcmp(__symbol, "getsegmentdata") == 0 ||
+        // strcmp(__symbol, "_dyld_get_image_slide") == 0 ||
+
         strcmp(__symbol, "ZzBuildHook") == 0 ||
         strcmp(__symbol, "DobbyHook") == 0 ||
         strcmp(__symbol, "pspawn_hook") == 0)) {
