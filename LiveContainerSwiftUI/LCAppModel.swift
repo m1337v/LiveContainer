@@ -329,10 +329,12 @@ class LCAppModel: ObservableObject, Hashable {
         if
             let fn = uiSelectedContainer?.folderName,
             var runningLC = LCUtils.getContainerUsingLCScheme(containerName: fn),
-            !multitask && runningLC == "liveprocess" && DataManager.shared.model.multiLCStatus == 2
+            !(runningLC == "liveprocess" && DataManager.shared.model.multiLCStatus != 2)
         {
-            // we can't control the extension from lc2, so we launch lc1
-            runningLC = "livecontainer"
+            if(!multitask && runningLC == "liveprocess" && DataManager.shared.model.multiLCStatus == 2) {
+                // we can't control the extension from lc2, so we launch lc1
+                runningLC = "livecontainer"
+            }
 
             let openURL = URL(string: "\(runningLC)://livecontainer-launch?bundle-name=\(self.appInfo.relativeBundlePath!)&container-folder-name=\(fn)")!
             if await UIApplication.shared.canOpenURL(openURL) {

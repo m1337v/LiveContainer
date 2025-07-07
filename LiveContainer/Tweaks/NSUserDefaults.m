@@ -27,7 +27,7 @@ void swizzle2(Class class, SEL originalAction, Class class2, SEL swizzledAction)
 
 CFDictionaryRef hook_CFPreferencesCopyMultiple(CFArrayRef keysToFetch, CFStringRef applicationID, CFStringRef userName, CFStringRef hostName);
 CFDictionaryRef (*orig_CFPreferencesCopyMultiple)(CFArrayRef keysToFetch, CFStringRef applicationID, CFStringRef userName, CFStringRef hostName);
-
+CFDictionaryRef _CFPreferencesCopyMultipleWithContainer(CFArrayRef keysToFetch, CFStringRef applicationID, CFStringRef userName, CFStringRef hostName, CFStringRef container);
 NSURL* appContainerURL = 0;
 NSString* appContainerPath = 0;
 
@@ -89,6 +89,20 @@ void NUDGuestHooksInit(void) {
     
 }
 
+NSArray* appleIdentifierPrefixes = @[
+    @"com.apple.",
+    @"group.com.apple.",
+    @"systemgroup.com.apple."
+];
+
+bool isAppleIdentifier(NSString* identifier) {
+    for(NSString* cur in appleIdentifierPrefixes) {
+        if([identifier hasPrefix:cur]) {
+            return true;
+        }
+    }
+    return false;
+}
 
 @implementation NSUserDefaults(LiveContainerHooks)
 
@@ -101,6 +115,9 @@ void NUDGuestHooksInit(void) {
 - (instancetype)hook__initWithSuiteName:(NSString*)suiteName container:(NSURL*)container {
     if(!suiteName) {
         return NSUserDefaults.standardUserDefaults;
+    }
+    if(isAppleIdentifier(suiteName)) {
+        return [self hook__initWithSuiteName:suiteName container:container];
     }
     
     return [self hook__initWithSuiteName:suiteName container:appContainerURL];
@@ -134,9 +151,11 @@ void NUDGuestHooksInit(void) {
 @implementation _CFXPreferences2
 
 -(CFPropertyListRef)hook_copyAppValueForKey:(CFStringRef)key identifier:(CFStringRef)identifier container:(CFStringRef)container configurationURL:(CFURLRef)configurationURL {
-    // let lc itself bypass
+    // let lc itself and Apple bypass
     if(container && CFStringCompare(container, CFSTR("/LiveContainer"), 0) == kCFCompareEqualTo) {
         return [self hook_copyAppValueForKey:key identifier:identifier container:nil configurationURL:configurationURL];
+    } else if (isAppleIdentifier((__bridge NSString*)identifier)) {
+        return [self hook_copyAppValueForKey:key identifier:identifier container:container configurationURL:configurationURL];
     } else {
         container = (__bridge CFStringRef)appContainerPath;
     }
@@ -150,6 +169,8 @@ void NUDGuestHooksInit(void) {
 -(CFPropertyListRef)hook_copyValueForKey:(CFStringRef)key identifier:(CFStringRef)identifier user:(CFStringRef)user host:(CFStringRef)host container:(CFStringRef)container {
     if(container && CFStringCompare(container, CFSTR("/LiveContainer"), 0) == kCFCompareEqualTo) {
         return [self hook_copyValueForKey:key identifier:identifier user:user host:host container:nil];
+    } else if (isAppleIdentifier((__bridge NSString*)identifier)) {
+        return [self hook_copyValueForKey:key identifier:identifier user:user host:host container:container];
     } else {
         container = (__bridge CFStringRef)appContainerPath;
     }
@@ -160,11 +181,12 @@ void NUDGuestHooksInit(void) {
 }
 
 -(void)hook_setValue:(CFPropertyListRef)value forKey:(CFStringRef)key appIdentifier:(CFStringRef)appIdentifier container:(CFStringRef)container configurationURL:(CFURLRef)configurationURL {
-    // let lc itself bypass
-    // if(appIdentifier && CFStringHasPrefix(appIdentifier, CFSTR("com.kdt"))) {
+    // let lc itself and Apple bypass
     if(container && CFStringCompare(container, CFSTR("/LiveContainer"), 0) == kCFCompareEqualTo) {
         return [self hook_setValue:value forKey:key appIdentifier:appIdentifier container:nil configurationURL:configurationURL];
-    } else {
+    } else if (isAppleIdentifier((__bridge NSString*)appIdentifier)) {
+        return [self hook_setValue:value forKey:key appIdentifier:appIdentifier container:container configurationURL:configurationURL];
+    } else  {
         container = (__bridge CFStringRef)appContainerPath;
     }
     
@@ -178,6 +200,11 @@ void NUDGuestHooksInit(void) {
 @end
 
 CFDictionaryRef hook_CFPreferencesCopyMultiple(CFArrayRef keysToFetch, CFStringRef applicationID, CFStringRef userName, CFStringRef hostName) {
-    NSUserDefaults* nud = [[NSUserDefaults alloc] initWithSuiteName:(__bridge NSString*)applicationID];
-    return (__bridge CFDictionaryRef)[nud dictionaryRepresentation];
+    // let Apple bypass
+    if (isAppleIdentifier((__bridge NSString*)applicationID)) {
+        return orig_CFPreferencesCopyMultiple(keysToFetch, applicationID, userName, hostName);
+    } else {
+        return _CFPreferencesCopyMultipleWithContainer(keysToFetch, applicationID, userName, hostName, (__bridge CFStringRef)appContainerPath);
+    }
+
 }
