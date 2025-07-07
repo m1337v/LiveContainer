@@ -9,10 +9,9 @@
 + (BOOL)launchToGuestAppWithURL:(NSURL *)url;
 + (void)setWebPageUrlForNextLaunch:(NSString*)urlString;
 + (NSString*)getContainerUsingLCSchemeWithFolderName:(NSString*)folderName;
-+ (void)setContainerUsingByThisLC:(NSString*)folderName remove:(BOOL)remove;
++ (void)setContainerUsingByLC:(NSString*)lc folderName:(NSString*)folderName;
 + (void)moveSharedAppFolderBack;
 + (BOOL)moveSharedAppFolderBackWithDataUUID:(NSString*)dataUUID;
-+ (void)removeContainerUsingByLC:(NSString*)LCScheme;
 + (NSBundle*)findBundleWithBundleId:(NSString*)bundleId;
 + (void)dumpPreferenceToPath:(NSString*)plistLocationTo dataUUID:(NSString*)dataUUID;
 + (NSString*)findDefaultContainerWithBundleId:(NSString*)bundleId;

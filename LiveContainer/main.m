@@ -268,7 +268,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     }
     
     if(isSharedBundle) {
-        [LCSharedUtils setContainerUsingByThisLC:dataUUID remove:NO];
+        [LCSharedUtils setContainerUsingByLC:lcAppUrlScheme folderName:dataUUID];
     }
     
     NSError *error;
@@ -374,14 +374,6 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         NSString *dirPath = [newHomePath stringByAppendingPathComponent:dir];
         [fm createDirectoryAtPath:dirPath withIntermediateDirectories:YES attributes:nil error:nil];
     }
-
-    [lcUserDefaults setObject:dataUUID forKey:@"lastLaunchDataUUID"];
-    if(isSharedBundle) {
-        [lcUserDefaults setObject:@"Shared" forKey:@"lastLaunchType"];
-    } else {
-        [lcUserDefaults setObject:@"Private" forKey:@"lastLaunchType"];
-    }
-
     
     // Overwrite NSBundle
     overwriteMainNSBundle(appBundle);
@@ -619,10 +611,13 @@ int LiveContainerMain(int argc, char *argv[]) {
     NSString* runningLC = [LCSharedUtils getContainerUsingLCSchemeWithFolderName:selectedContainer];
     // if another instance is running, we just switch to that one, these should be called after uiapplication initialized
     // however if the running lc is liveprocess and current lc is livecontainer1 we just continue
-    if(selectedApp && runningLC && ![runningLC isEqualToString:lcAppUrlScheme] &&
-       !([[NSUserDefaults lcAppUrlScheme] isEqualToString:@"livecontainer"] && [runningLC isEqualToString:@"liveprocess"])) {
+    if(selectedApp && runningLC) {
         [lcUserDefaults removeObjectForKey:@"selected"];
         [lcUserDefaults removeObjectForKey:@"selectedContainer"];
+        
+        if([runningLC isEqualToString:@"liveprocess"]) {
+            runningLC = @"livecontainer";
+        }
         
         NSString* selectedAppBackUp = selectedApp;
         selectedApp = nil;
@@ -655,8 +650,6 @@ int LiveContainerMain(int argc, char *argv[]) {
                     [[NSClassFromString(@"UIApplication") sharedApplication] openURL:url options:@{} completionHandler:nil];
 
                 }
-            } else {
-                [LCSharedUtils removeContainerUsingByLC: runningLC];
             }
         });
 
@@ -691,7 +684,7 @@ int LiveContainerMain(int argc, char *argv[]) {
             return 1;
         }
     }
-    [LCSharedUtils setContainerUsingByThisLC:nil remove:YES];
+    
     // recover language before reaching UI
     NSArray* savedLaunguage = [lcUserDefaults objectForKey:@"LCLastLanguages"];
     if(savedLaunguage) {

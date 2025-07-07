@@ -328,7 +328,7 @@ class LCAppModel: ObservableObject, Hashable {
         
         if
             let fn = uiSelectedContainer?.folderName,
-            var runningLC = LCUtils.getContainerUsingLCScheme(containerName: fn),
+            var runningLC = LCUtils.getContainerUsingLCScheme(withFolderName: fn),
             !(runningLC == "liveprocess" && DataManager.shared.model.multiLCStatus != 2)
         {
             if(!multitask && runningLC == "liveprocess" && DataManager.shared.model.multiLCStatus == 2) {

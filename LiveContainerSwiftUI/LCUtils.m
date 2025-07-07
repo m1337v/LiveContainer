@@ -64,6 +64,10 @@ Class LCSharedUtilsClass = nil;
     return [LCSharedUtilsClass launchToGuestAppWithURL:url];
 }
 
++ (NSString*)getContainerUsingLCSchemeWithFolderName:(NSString*)folderName {
+    return [LCSharedUtilsClass getContainerUsingLCSchemeWithFolderName:folderName];
+}
+
 #pragma mark Multitasking (WIP, PoC only)
 + (void)launchMultitaskGuestApp:(NSString *)displayName completionHandler:(void (^)(NSError *error))completionHandler {
     NSBundle *liveProcessBundle = [NSBundle bundleWithPath:[NSBundle.mainBundle.builtInPlugInsPath stringByAppendingPathComponent:@"LiveProcess.appex"]];

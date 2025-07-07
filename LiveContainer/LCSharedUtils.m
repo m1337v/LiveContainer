@@ -215,73 +215,47 @@ extern NSBundle *lcMainBundle;
         return nil;
     }
     
-    for (NSString* key in info) {
-        if([info[key] isKindOfClass:NSString.class]) {
-            // incase user have app opened while update
-            if([folderName isEqualToString:info[key]]) {
-                return key;
-            }
-        } else if ([info[key] isKindOfClass:NSArray.class]) {
-            // in newer version with liveprocess support, it is possible that one lc can open more than 1 app, so we need to save it in an array
-            for(NSString* runningFolderName in info[key]) {
-                if([folderName isEqualToString:runningFolderName]) {
-                    return key;
-                }
-            }
-        }
+    NSDictionary* appUsageInfo = info[folderName];
+    if (!appUsageInfo) {
+        return nil;
+    }
+    uint64_t val57 = [[appUsageInfo valueForKey:@"auditToken57"] longLongValue];
+    audit_token_t token;
+    token.val[5] = val57 >> 32;
+    token.val[7] = val57 & 0xffffffff;
+
+    int ret = csops_audittoken(token.val[5], 0, NULL, 0, &token);
+    int err = errno;
+    if(err == 1) {
+        return appUsageInfo[@"runningLC"];
     }
     
     return nil;
 }
 
-+ (void)setContainerUsingByThisLC:(NSString*)folderName remove:(BOOL)remove {
++ (void)setContainerUsingByLC:(NSString*)lc folderName:(NSString*)folderName {
     NSURL* infoPath = [self containerLockPath];
     
     NSMutableDictionary *info = [NSMutableDictionary dictionaryWithContentsOfFile:infoPath.path];
     if (!info) {
         info = [NSMutableDictionary new];
     }
-    if(remove) {
-        if([info[lcAppUrlScheme] isKindOfClass:NSString.class]) {
-            [info removeObjectForKey:lcAppUrlScheme];
-        } else if ([info[lcAppUrlScheme] isKindOfClass:NSArray.class]) {
-            if(folderName){
-                [(NSMutableArray*)info[lcAppUrlScheme] removeObject:folderName];
-            } else {
-                [(NSMutableArray*)info[lcAppUrlScheme] removeAllObjects];
-            }
-        }
-    } else {
-        if([info[lcAppUrlScheme] isKindOfClass:NSString.class]) {
-            // upgrade
-            NSString* oldFolderName = info[lcAppUrlScheme];
-            info[lcAppUrlScheme] = [NSMutableArray new];
-            [(NSMutableArray*)info[lcAppUrlScheme] addObject:folderName];
-            [(NSMutableArray*)info[lcAppUrlScheme] addObject:oldFolderName];
-        } else if ([info[lcAppUrlScheme] isKindOfClass:NSArray.class]) {
-            if(![(NSMutableArray*)info[lcAppUrlScheme] containsObject:folderName]) {
-                [(NSMutableArray*)info[lcAppUrlScheme] addObject:folderName];
-            }
-
-        } else {
-            info[lcAppUrlScheme] = [NSMutableArray new];
-            [(NSMutableArray*)info[lcAppUrlScheme] addObject:folderName];
-        }
-    }
-    [info writeToFile:infoPath.path atomically:YES];
-
-}
-
-+ (void)removeContainerUsingByLC:(NSString*)LCScheme {
-    NSURL* infoPath = [self containerLockPath];
     
-    NSMutableDictionary *info = [NSMutableDictionary dictionaryWithContentsOfFile:infoPath.path];
-    if (!info) {
-        return;
-    }
-    [info removeObjectForKey:LCScheme];
-    [info writeToFile:infoPath.path atomically:YES];
+    audit_token_t token;
+    mach_msg_type_number_t size = TASK_AUDIT_TOKEN_COUNT;
 
+    kern_return_t kr = task_info(mach_task_self(), TASK_AUDIT_TOKEN, (task_info_t)&token, &size);
+    if (kr != KERN_SUCCESS) {
+        NSLog(@"Error getting task audit_token");
+    }
+    uint64_t val57 = token.val[7];
+    val57 |= ((uint64_t)token.val[5]) << 32;
+    info[folderName] = @{
+        @"runningLC": lc,
+        @"auditToken57": @(val57)
+    };
+    
+    [info writeToFile:infoPath.path atomically:YES];
 }
 
 // move app data to private folder to prevent 0xdead10cc https://forums.developer.apple.com/forums/thread/126438

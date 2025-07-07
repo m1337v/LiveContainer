@@ -712,55 +712,7 @@ extension LCUtils {
         try tweakSignInfo.write(to: tweakFolderUrl.appendingPathComponent("TweakInfo.plist"))
         
     }
-    
-    public static func getContainerUsingLCScheme(containerName: String) -> String? {
-        // Retrieve the app group path using the app group ID
-        let infoPath = LCPath.lcGroupDocPath.appendingPathComponent("containerLock.plist")
-        // Read the plist file into a dictionary
-        guard let info = NSDictionary(contentsOf: infoPath) as? [String: Any] else {
-            return nil
-        }
-        // Iterate over the dictionary to find the matching bundle ID
-        for (key, value) in info {
-            if key == LCUtils.appUrlScheme() {
-                continue
-            }
-            
-            if let value2 = value as? String {
-                if value2 == containerName {
-                    return key
-                }
-            } else if let value2 = value as? [String] {
-                for container in value2 {
-                    if container == containerName {
-                        return key
-                    }
-                }
-            }
-        }
         
-        return nil
-    }
-    
-    public static func removeContainerUsedByLC(lc:String, containerName: String) {
-        let infoPath = LCPath.lcGroupDocPath.appendingPathComponent("containerLock.plist")
-        
-        guard var info = NSDictionary(contentsOf: infoPath) as? [String: Any] else {
-            return
-        }
-        if var runningContainers = info[lc] as? [String] {
-            guard let index = runningContainers.firstIndex(where: {$0 == containerName}) else { return }
-            runningContainers.remove(at: index)
-            info[lc] = runningContainers
-        }
-        do {
-            let data = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
-            try data.write(to: infoPath)
-        } catch {
-            print("failed to save app lock, error = \(error)")
-        }
-    }
-    
     private static func authenticateUser(completion: @escaping (Bool, Error?) -> Void) {
         // Create a context for authentication
         let context = LAContext()
@@ -1008,7 +960,6 @@ struct JITStreamerEBMountResponse : Codable {
         usingMultitaskContainers.removeAll(where: { c in
             return c == container
         })
-        LCUtils.removeContainerUsedByLC(lc: "liveprocess", containerName: container)
     }
     
     @objc class func isUsing(container: String) -> Bool {
