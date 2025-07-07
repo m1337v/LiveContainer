@@ -109,7 +109,7 @@ def update_json_file_release(json_file, latest_release):
         "caption": f"Update of LiveContainer just got released!",
         "date": latest_release["published_at"],
         "identifier": news_identifier,
-        "imageURL": "https://raw.githubusercontent.com/LiveContainer/LiveContainer/main/screenshots/release.png",
+        "imageURL": "https://raw.githubusercontent.com/m1337v/livecontainer/main/screenshots/release.png",
         "notify": True,
         "tintColor": "#0784FC",
         "title": f"{full_version} - LiveContainer  {date_string}",
@@ -159,7 +159,7 @@ def update_json_file_nightly(json_file, nightly_release):
     commit_msg = os.environ.get("commit_msg", "").strip()
 
     description = f"""\
-Nightly build from [{commit_sha}](https://github.com/LiveContainer/LiveContainer/commit/{commit_sha}):\
+Nightly build from [{commit_sha}](https://github.com/m1337v/livecontainer/commit/{commit_sha}):\
  {commit_msg}
 
 This is a nightly release [created automatically with GitHub Actions workflow]({nightly_link}).
