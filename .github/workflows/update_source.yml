@@ -29,8 +29,8 @@ jobs:
     - name: Get latest commit info
       id: commit_info
       run: |
-        COMMIT_SHA=$(jq -r .release.target_commitish "$GITHUB_EVENT_PATH")
-        COMMIT_MSG=$(jq -r .release.body "$GITHUB_EVENT_PATH" | head -n 1)
+        COMMIT_SHA=$(git rev-list -n 1 HEAD)
+        COMMIT_MSG=$(git log -1 --pretty=%s)
         echo "commit_sha=$COMMIT_SHA" >> $GITHUB_ENV
         echo "commit_msg=$COMMIT_MSG" >> $GITHUB_ENV
 
