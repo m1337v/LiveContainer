@@ -202,6 +202,20 @@ void* hook_dlsym(void * __handle, const char * __symbol) {
         strcmp(__symbol, "_logos_register_hook") == 0 || 
         strcmp(__symbol, "_logos_method_replaced") == 0 ||
 
+        // Objective-C runtime introspection
+        strcmp(__symbol, "method_exchangeImplementations") == 0 ||
+        strcmp(__symbol, "class_getInstanceMethod") == 0 ||
+        strcmp(__symbol, "class_addMethod") == 0 ||
+        strcmp(__symbol, "method_getImplementation") == 0 ||
+        strcmp(__symbol, "method_setImplementation") == 0 ||
+        strcmp(__symbol, "class_copyMethodList") == 0 ||
+        strcmp(__symbol, "class_getMethodImplementation") == 0 ||
+        strcmp(__symbol, "method_getName") == 0 ||
+        strcmp(__symbol, "method_getTypeEncoding") == 0 ||
+        strcmp(__symbol, "object_getClass") == 0 ||
+        strcmp(__symbol, "objc_getAssociatedObject") == 0 ||
+        strcmp(__symbol, "objc_setAssociatedObject") == 0 ||
+
         strcmp(__symbol, "ZzBuildHook") == 0 ||
         strcmp(__symbol, "DobbyHook") == 0 ||
         strcmp(__symbol, "pspawn_hook") == 0)) {
