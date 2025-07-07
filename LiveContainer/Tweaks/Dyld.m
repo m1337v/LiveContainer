@@ -7,6 +7,7 @@
 #include <dlfcn.h>
 #include <stdlib.h>
 #import "../../fishhook/fishhook.h"
+#import "../../litehook/src/litehook.h"
 #import "../utils.h"
 #include <sys/mman.h>
 #include <ctype.h>
@@ -373,41 +374,6 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
     return NULL;
 }
 
-void *findPrivateSymbol(struct mach_header_64 *mh, const char *target_name) {
-    if (!mh || !target_name) return NULL;
-
-    // Find load commands
-    const struct load_command* lc = (const struct load_command*)(mh + 1);
-    const struct symtab_command* symtab = NULL;
-
-    // Iterate through load commands to find LC_SYMTAB
-    for (uint32_t i = 0; i < mh->ncmds; ++i) {
-        if (lc->cmd == LC_SYMTAB) {
-            symtab = (const struct symtab_command*)lc;
-            break;
-        }
-        lc = (const struct load_command*)((const uint8_t*)lc + lc->cmdsize);
-    }
-
-    if (!symtab) return NULL;
-
-    // Get symbol table and string table
-    const struct nlist_64* symtab_base = (const struct nlist_64*)((const uint8_t*)mh + symtab->symoff);
-    const char* strtab_base = (const char*)((const uint8_t*)mh + symtab->stroff);
-
-    for (uint32_t i = 0; i < symtab->nsyms; ++i) {
-        const struct nlist_64* sym = &symtab_base[i];
-        const char* name = strtab_base + sym->n_un.n_strx;
-
-        // Check for private symbol (not external) and name match
-        if (!(sym->n_type & N_EXT) && strcmp(name, target_name) == 0) {
-            return ((void*)mh) + ((struct nlist_64*)sym)->n_value;  // Cast away const
-        }
-    }
-
-    return NULL;
-}
-
 bool hook_dyld_program_sdk_at_least(void* dyldApiInstancePtr, dyld_build_version_t version) {
     // we are targeting ios, so we hard code 2
     if(version.platform == 0xffffffff){
@@ -593,14 +559,9 @@ bool performHookDyldApi(const char* functionName, uint32_t adrpOffset, void** or
 }
 
 bool initGuestSDKVersionInfo(void) {
-    int fd = open("/usr/lib/dyld", O_RDONLY, 0400);
-    struct stat s;
-    fstat(fd, &s);
-    void *map = mmap(NULL, s.st_size, PROT_READ , MAP_PRIVATE, fd, 0);
-    
     // it seems Apple is constantly changing findVersionSetEquivalent's signature so we directly search sVersionMap instead
     // however sVersionMap's struct size is also unknown, but we can figure it out
-    uint32_t* versionMapPtr = findPrivateSymbol(map, "__ZN5dyld3L11sVersionMapE");
+    uint32_t* versionMapPtr = litehook_find_dsc_symbol("/usr/lib/dyld", "__ZN5dyld3L11sVersionMapE");
     assert(versionMapPtr);
 
     // we assume the size is 10K so we won't need to change this line until maybe iOS 40
@@ -638,15 +599,12 @@ bool initGuestSDKVersionInfo(void) {
 
     guestAppSdkVersionSet = candidateVersionEquivalent;
     
-    munmap(map, s.st_size);
-    close(fd);
-    
     return true;
 }
 
 void do_hook_loadableIntoProcess(void) {
 
-    uint32_t *patchAddr = (uint32_t *)findPrivateSymbol(getDyldBase(), "__ZNK6mach_o6Header19loadableIntoProcessENS_8PlatformE7CStringb");
+    uint32_t *patchAddr = (uint32_t *)litehook_find_dsc_symbol("/usr/lib/dyld", "__ZNK6mach_o6Header19loadableIntoProcessENS_8PlatformE7CStringb");
     size_t patchSize = sizeof(uint32_t[2]);
 
     kern_return_t kret;

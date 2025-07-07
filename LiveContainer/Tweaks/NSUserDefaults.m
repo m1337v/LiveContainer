@@ -10,6 +10,8 @@
 #import "utils.h"
 #import "LCSharedUtils.h"
 #import "../../fishhook/fishhook.h"
+#import "../../litehook/src/litehook.h"
+@import ObjectiveC;
 
 BOOL hook_return_false(void) {
     return NO;
@@ -25,9 +27,6 @@ void swizzle2(Class class, SEL originalAction, Class class2, SEL swizzledAction)
     method_exchangeImplementations(class_getInstanceMethod(class, originalAction), class_getInstanceMethod(class, swizzledAction));
 }
 
-CFDictionaryRef hook_CFPreferencesCopyMultiple(CFArrayRef keysToFetch, CFStringRef applicationID, CFStringRef userName, CFStringRef hostName);
-CFDictionaryRef (*orig_CFPreferencesCopyMultiple)(CFArrayRef keysToFetch, CFStringRef applicationID, CFStringRef userName, CFStringRef hostName);
-CFDictionaryRef _CFPreferencesCopyMultipleWithContainer(CFArrayRef keysToFetch, CFStringRef applicationID, CFStringRef userName, CFStringRef hostName, CFStringRef container);
 NSURL* appContainerURL = 0;
 NSString* appContainerPath = 0;
 
@@ -43,28 +42,33 @@ void NUDGuestHooksInit(void) {
         method_setImplementation(class_getInstanceMethod(NSClassFromString(@"CFPrefsPlistSource"), @selector(_isSharedInTheiOSSimulator)), (IMP)hook_return_false);
     }
     
-    swizzle(NSUserDefaults.class, @selector(init), @selector(hook_init));
-    swizzle(NSUserDefaults.class, @selector(persistentDomainForName:), @selector(hook_persistentDomainForName:));
-    swizzle(NSUserDefaults.class, @selector(_initWithSuiteName:container:), @selector(hook__initWithSuiteName:container:));
-    swizzle(NSUserDefaults.class, @selector(setPersistentDomain:forName:), @selector(hook_setPersistentDomain:forName:));
-    
-    // let lc itself bypass
-    [NSUserDefaults.lcUserDefaults _setContainer:[NSURL URLWithString:@"/LiveContainer"]];
-    [NSUserDefaults.lcSharedDefaults _setContainer:[NSURL URLWithString:@"/LiveContainer"]];
-    [NSUserDefaults.standardUserDefaults _setContainer:appContainerURL];
-    
-    Class _CFXPreferencesClass = NSClassFromString(@"_CFXPreferences");
 
-    swizzle2(_CFXPreferencesClass, @selector(copyAppValueForKey:identifier:container:configurationURL:), _CFXPreferences2.class, @selector(hook_copyAppValueForKey:identifier:container:configurationURL:));
-    swizzle2(_CFXPreferencesClass, @selector(copyValueForKey:identifier:user:host:container:), _CFXPreferences2.class,  @selector(hook_copyValueForKey:identifier:user:host:container:));
-    swizzle2(_CFXPreferencesClass, @selector(setValue:forKey:appIdentifier:container:configurationURL:), _CFXPreferences2.class, @selector(hook_setValue:forKey:appIdentifier:container:configurationURL:));
+    Class CFPrefsPlistSourceClass = NSClassFromString(@"CFPrefsPlistSource");
+
+
     
+    swizzle2(CFPrefsPlistSourceClass, @selector(initWithDomain:user:byHost:containerPath:containingPreferences:), CFPrefsPlistSource2.class, @selector(hook_initWithDomain:user:byHost:containerPath:containingPreferences:));
     #pragma clang diagnostic pop
     
-    rebind_symbols((struct rebinding[1]){
-        {"CFPreferencesCopyMultiple", (void *)hook_CFPreferencesCopyMultiple, (void **)&orig_CFPreferencesCopyMultiple},
-    }, 1);
+    Class CFXPreferencesClass = NSClassFromString(@"_CFXPreferences");
+    NSMutableDictionary* sources = object_getIvar([CFXPreferencesClass copyDefaultPreferences], class_getInstanceVariable(CFXPreferencesClass, "_sources"));
+
+    [sources removeObjectForKey:@"C/A//B/L"];
+    [sources removeObjectForKey:@"C/C//*/L"];
     
+    // replace _CFPrefsCurrentAppIdentifierCache so kCFPreferencesCurrentApplication refers to the guest app
+    CFStringRef* _CFPrefsCurrentAppIdentifierCache = litehook_find_dsc_symbol("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", "__CFPrefsCurrentAppIdentifierCache");
+//    NSLog(@"[LC] _CFPrefsCurrentAppIdentifierCache = %@ ,time = %lf", *_CFPrefsCurrentAppIdentifierCache, [d1 timeIntervalSinceNow]);
+    [NSUserDefaults.lcUserDefaults _setIdentifier:(__bridge NSString*)CFStringCreateCopy(nil, *_CFPrefsCurrentAppIdentifierCache)];
+    *_CFPrefsCurrentAppIdentifierCache = (__bridge CFStringRef)NSUserDefaults.lcGuestAppId;
+    
+    NSUserDefaults* newStandardUserDefaults = [[NSUserDefaults alloc] initWithSuiteName:@"whatever"];
+    [newStandardUserDefaults _setIdentifier:NSUserDefaults.lcGuestAppId];
+    NSUserDefaults.standardUserDefaults = newStandardUserDefaults;
+    
+
+    
+
     // Create Library/Preferences folder in app's data folder in case it does not exist
     NSFileManager* fm = NSFileManager.defaultManager;
     NSURL* libraryPath = [fm URLsForDirectory:NSLibraryDirectory inDomains:NSUserDomainMask].lastObject;
@@ -85,8 +89,6 @@ void NUDGuestHooksInit(void) {
             [NSUserDefaults.lcUserDefaults setObject:savedLaunguage forKey:@"AppleLanguages"];
         }
     }];
-    
-    
 }
 
 NSArray* appleIdentifierPrefixes = @[
@@ -104,107 +106,13 @@ bool isAppleIdentifier(NSString* identifier) {
     return false;
 }
 
-@implementation NSUserDefaults(LiveContainerHooks)
 
-- (instancetype)hook_init {
-    NSUserDefaults* nud = [self hook_init];
-    [nud _setContainer:appContainerURL];
-    return nud;
-}
-
-- (instancetype)hook__initWithSuiteName:(NSString*)suiteName container:(NSURL*)container {
-    if(!suiteName) {
-        return NSUserDefaults.standardUserDefaults;
+@implementation CFPrefsPlistSource2
+-(id)hook_initWithDomain:(CFStringRef)domain user:(CFStringRef)user byHost:(bool)host containerPath:(CFStringRef)containerPath containingPreferences:(id)arg5 {
+    NSLog(@"domain = %@", domain);
+    if(isAppleIdentifier((__bridge NSString*)domain)) {
+        return [self hook_initWithDomain:domain user:user byHost:host containerPath:containerPath containingPreferences:arg5];
     }
-    if(isAppleIdentifier(suiteName)) {
-        return [self hook__initWithSuiteName:suiteName container:container];
-    }
-    
-    return [self hook__initWithSuiteName:suiteName container:appContainerURL];
+    return [self hook_initWithDomain:domain user:user byHost:host containerPath:(__bridge CFStringRef)appContainerPath containingPreferences:arg5];
 }
-
-- (NSDictionary*) hook_persistentDomainForName:(NSString*)domainName {
-    NSUserDefaults* nud = [[NSUserDefaults alloc] initWithSuiteName:domainName];
-    return [nud dictionaryRepresentation];
-}
-
-- (void)hook_setPersistentDomain:(NSDictionary*)domain forName:(NSString*)domainName {
-    NSUserDefaults* nud = [[NSUserDefaults alloc] initWithSuiteName:domainName];
-    
-    if(!domain) {
-        NSDictionary* dict = [nud dictionaryRepresentation];
-        for(NSString* key in dict) {
-            [nud removeObjectForKey:key];
-        }
-        return;
-    }
-
-    for(NSString* key in domain) {
-        NSObject* obj = domain[key];
-        [nud setObject:obj forKey:key];
-    }
-}
-
 @end
-
-
-@implementation _CFXPreferences2
-
--(CFPropertyListRef)hook_copyAppValueForKey:(CFStringRef)key identifier:(CFStringRef)identifier container:(CFStringRef)container configurationURL:(CFURLRef)configurationURL {
-    // let lc itself and Apple bypass
-    if(container && CFStringCompare(container, CFSTR("/LiveContainer"), 0) == kCFCompareEqualTo) {
-        return [self hook_copyAppValueForKey:key identifier:identifier container:nil configurationURL:configurationURL];
-    } else if (isAppleIdentifier((__bridge NSString*)identifier)) {
-        return [self hook_copyAppValueForKey:key identifier:identifier container:container configurationURL:configurationURL];
-    } else {
-        container = (__bridge CFStringRef)appContainerPath;
-    }
-    if(identifier == kCFPreferencesCurrentApplication) {
-        identifier = (__bridge CFStringRef)NSUserDefaults.lcGuestAppId;
-    }
-    
-    return [self hook_copyAppValueForKey:key identifier:identifier container:container configurationURL:configurationURL];
-}
-
--(CFPropertyListRef)hook_copyValueForKey:(CFStringRef)key identifier:(CFStringRef)identifier user:(CFStringRef)user host:(CFStringRef)host container:(CFStringRef)container {
-    if(container && CFStringCompare(container, CFSTR("/LiveContainer"), 0) == kCFCompareEqualTo) {
-        return [self hook_copyValueForKey:key identifier:identifier user:user host:host container:nil];
-    } else if (isAppleIdentifier((__bridge NSString*)identifier)) {
-        return [self hook_copyValueForKey:key identifier:identifier user:user host:host container:container];
-    } else {
-        container = (__bridge CFStringRef)appContainerPath;
-    }
-    if(identifier == kCFPreferencesCurrentApplication) {
-        identifier = (__bridge CFStringRef)NSUserDefaults.lcGuestAppId;
-    }
-    return [self hook_copyValueForKey:key identifier:identifier user:user host:host container:container];
-}
-
--(void)hook_setValue:(CFPropertyListRef)value forKey:(CFStringRef)key appIdentifier:(CFStringRef)appIdentifier container:(CFStringRef)container configurationURL:(CFURLRef)configurationURL {
-    // let lc itself and Apple bypass
-    if(container && CFStringCompare(container, CFSTR("/LiveContainer"), 0) == kCFCompareEqualTo) {
-        return [self hook_setValue:value forKey:key appIdentifier:appIdentifier container:nil configurationURL:configurationURL];
-    } else if (isAppleIdentifier((__bridge NSString*)appIdentifier)) {
-        return [self hook_setValue:value forKey:key appIdentifier:appIdentifier container:container configurationURL:configurationURL];
-    } else  {
-        container = (__bridge CFStringRef)appContainerPath;
-    }
-    
-    if(appIdentifier == kCFPreferencesCurrentApplication) {
-        appIdentifier = (__bridge CFStringRef)NSUserDefaults.lcGuestAppId;
-    }
-    
-    return [self hook_setValue:value forKey:key appIdentifier:appIdentifier container:container configurationURL:configurationURL];
-}
-
-@end
-
-CFDictionaryRef hook_CFPreferencesCopyMultiple(CFArrayRef keysToFetch, CFStringRef applicationID, CFStringRef userName, CFStringRef hostName) {
-    // let Apple bypass
-    if (isAppleIdentifier((__bridge NSString*)applicationID)) {
-        return orig_CFPreferencesCopyMultiple(keysToFetch, applicationID, userName, hostName);
-    } else {
-        return _CFPreferencesCopyMultipleWithContainer(keysToFetch, applicationID, userName, hostName, (__bridge CFStringRef)appContainerPath);
-    }
-
-}
