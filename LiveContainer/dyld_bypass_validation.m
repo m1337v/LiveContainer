@@ -82,31 +82,6 @@ static bool searchAndPatch(char *name, char *base, char *signature, int length, 
     return redirectFunction(name, patchAddr, target);
 }
 
-static struct dyld_all_image_infos *_alt_dyld_get_all_image_infos(void) {
-    static struct dyld_all_image_infos *result;
-    if (result) {
-        return result;
-    }
-    struct task_dyld_info dyld_info;
-    mach_vm_address_t image_infos;
-    mach_msg_type_number_t count = TASK_DYLD_INFO_COUNT;
-    kern_return_t ret;
-    ret = task_info(mach_task_self_,
-                    TASK_DYLD_INFO,
-                    (task_info_t)&dyld_info,
-                    &count);
-    if (ret != KERN_SUCCESS) {
-        return NULL;
-    }
-    image_infos = dyld_info.all_image_info_addr;
-    result = (struct dyld_all_image_infos *)image_infos;
-    return result;
-}
-
-void *getDyldBase(void) {
-    return (void *)_alt_dyld_get_all_image_infos()->dyldImageLoadAddress;
-}
-
 static void* hooked_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset) {
     void *map = __mmap(addr, len, prot, flags, fd, offset);
     if (map == MAP_FAILED && fd && (prot & PROT_EXEC)) {
@@ -121,11 +96,11 @@ static void* hooked_mmap(void *addr, size_t len, int prot, int flags, int fd, of
 
 static int hooked___fcntl(int fildes, int cmd, void *param) {
     if (cmd == F_ADDFILESIGS_RETURN) {
-        if (access("/Users", F_OK) != 0) {
-            // attempt to attach code signature on iOS only as the binaries may have been signed
-            // on macOS, attaching on unsigned binaries without CS_DEBUGGED will crash
-            orig_fcntl(fildes, cmd, param);
-        }
+#if !(TARGET_OS_MACCATALYST || TARGET_OS_SIMULATOR)
+        // attempt to attach code signature on iOS only as the binaries may have been signed
+        // on macOS, attaching on unsigned binaries without CS_DEBUGGED will crash
+        orig_fcntl(fildes, cmd, param);
+#endif
         fsignatures_t *fsig = (fsignatures_t*)param;
         // called to check that cert covers file.. so we'll make it cover everything ;)
         fsig->fs_file_start = 0xFFFFFFFF;

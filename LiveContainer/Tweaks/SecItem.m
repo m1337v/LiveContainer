@@ -8,14 +8,14 @@
 #import <Security/Security.h>
 #import "utils.h"
 #import <CommonCrypto/CommonDigest.h>
-#import "../../fishhook/fishhook.h"
+#import "../../litehook/src/litehook.h"
 #import "LCSharedUtils.h"
 
 extern void* (*msHookFunction)(void *symbol, void *hook, void **old);
-OSStatus (*orig_SecItemAdd)(CFDictionaryRef attributes, CFTypeRef *result);
-OSStatus (*orig_SecItemCopyMatching)(CFDictionaryRef query, CFTypeRef *result);
-OSStatus (*orig_SecItemUpdate)(CFDictionaryRef query, CFDictionaryRef attributesToUpdate);
-OSStatus (*orig_SecItemDelete)(CFDictionaryRef query);
+OSStatus (*orig_SecItemAdd)(CFDictionaryRef attributes, CFTypeRef *result) = SecItemAdd;
+OSStatus (*orig_SecItemCopyMatching)(CFDictionaryRef query, CFTypeRef *result) = SecItemCopyMatching;
+OSStatus (*orig_SecItemUpdate)(CFDictionaryRef query, CFDictionaryRef attributesToUpdate) = SecItemUpdate;
+OSStatus (*orig_SecItemDelete)(CFDictionaryRef query) = SecItemDelete;
 
 NSString* accessGroup = nil;
 NSString* containerId = nil;
@@ -101,11 +101,8 @@ void SecItemGuestHooksInit(void)  {
         return;
     }
     
-    struct rebinding rebindings[] = (struct rebinding[]){
-        {"SecItemAdd", (void *)new_SecItemAdd, (void **)&orig_SecItemAdd},
-        {"SecItemCopyMatching", (void *)new_SecItemCopyMatching, (void **)&orig_SecItemCopyMatching},
-        {"SecItemUpdate", (void *)new_SecItemUpdate, (void **)&orig_SecItemUpdate},
-        {"SecItemDelete", (void *)new_SecItemDelete, (void **)&orig_SecItemDelete}
-    };
-    rebind_symbols(rebindings, sizeof(rebindings)/sizeof(struct rebinding));
+    litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, SecItemAdd, new_SecItemAdd, nil);
+    litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, SecItemCopyMatching, new_SecItemCopyMatching, nil);
+    litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, SecItemUpdate, new_SecItemUpdate, nil);
+    litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, SecItemDelete, new_SecItemDelete, nil);
 }

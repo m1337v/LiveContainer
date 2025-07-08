@@ -6,9 +6,6 @@
 //
 #include <dlfcn.h>
 #include <stdlib.h>
-#import "../../fishhook/fishhook.h"
-#import "../../litehook/src/litehook.h"
-#import "../utils.h"
 #include <sys/mman.h>
 #include <ctype.h>
 #include <ifaddrs.h>
@@ -17,6 +14,10 @@
 #include <netdb.h>
 #include <SystemConfiguration/SystemConfiguration.h>
 #include <CFNetwork/CFNetwork.h>
+#import "../../fishhook/fishhook.h"
+#import "litehook_internal.h"
+#import "LCMachOUtils.h"
+#import "../utils.h"
 @import Darwin;
 @import Foundation;
 @import MachO;
@@ -35,11 +36,11 @@ void* appExecutableHandle = 0;
 bool tweakLoaderLoaded = false;
 bool appExecutableFileTypeOverwritten = false;
 
-void* (*orig_dlsym)(void * __handle, const char * __symbol);
-uint32_t (*orig_dyld_image_count)(void);
-const struct mach_header* (*orig_dyld_get_image_header)(uint32_t image_index);
-intptr_t (*orig_dyld_get_image_vmaddr_slide)(uint32_t image_index);
-const char* (*orig_dyld_get_image_name)(uint32_t image_index);
+void* (*orig_dlsym)(void * __handle, const char * __symbol) = dlsym;
+uint32_t (*orig_dyld_image_count)(void) = _dyld_image_count;
+const struct mach_header* (*orig_dyld_get_image_header)(uint32_t image_index) = _dyld_get_image_header;
+intptr_t (*orig_dyld_get_image_vmaddr_slide)(uint32_t image_index) = _dyld_get_image_vmaddr_slide;
+const char* (*orig_dyld_get_image_name)(uint32_t image_index) = _dyld_get_image_name;
 // VPN Detection Bypass hooks
 static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
 // Signal handlers
@@ -49,8 +50,6 @@ uint32_t guestAppSdkVersion = 0;
 uint32_t guestAppSdkVersionSet = 0;
 bool (*orig_dyld_program_sdk_at_least)(void* dyldPtr, dyld_build_version_t version);
 uint32_t (*orig_dyld_get_program_sdk_version)(void* dyldPtr);
-
-
 
 static void overwriteAppExecutableFileType(void) {
     struct mach_header_64* appImageMachOHeader = (struct mach_header_64*) orig_dyld_get_image_header(appMainImageIndex);
@@ -254,13 +253,11 @@ void* hook_dlsym(void * __handle, const char * __symbol) {
         if(!ans) {
             return 0;
         }
-        for(struct rebindings_entry* cur = _rebindings_head; cur; cur = cur->next) {
-            for(int i = 0; i < cur->rebindings_nel; ++i) {
-                if(ans == *(cur->rebindings[i].replaced)) {
-                    return cur->rebindings[i].replacement;
-                }
+        for(int i = 0; i < gRebindCount; i++) {
+            global_rebind rebind = gRebinds[i];
+            if(ans == rebind.replacee) {
+                return rebind.replacement;
             }
-
         }
         return ans;
     }
@@ -406,27 +403,8 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
     return NULL;
 }
 
-const uint8_t* getUUID(struct mach_header_64* mh) {
-    if (!mh) return NULL;
-
-    // Find load commands
-    const struct load_command* lc = (const struct load_command*)(mh + 1);
-    const struct uuid_command* uuidCmd = NULL;
-
-    // Iterate through load commands to find LC_SYMTAB
-    for (uint32_t i = 0; i < mh->ncmds; ++i) {
-        if (lc->cmd == LC_UUID) {
-            uuidCmd = (const struct uuid_command*)lc;
-            break;
-        }
-        lc = (const struct load_command*)((const uint8_t*)lc + lc->cmdsize);
-    }
-
-    return uuidCmd->uuid;
-}
-
 void* getCachedSymbol(NSString* symbolName, mach_header_u* header) {
-    NSDictionary* symbolOffsetDict = [NSUserDefaults.lcUserDefaults objectForKey:@"symbolOffsetCache"][symbolName];
+    NSDictionary* symbolOffsetDict = [NSUserDefaults.lcSharedDefaults objectForKey:@"symbolOffsetCache"][symbolName];
     if(!symbolOffsetDict) {
         return NULL;
     }
@@ -434,7 +412,7 @@ void* getCachedSymbol(NSString* symbolName, mach_header_u* header) {
     if(!cachedSymbolUUID) {
         return NULL;
     }
-    const uint8_t* uuid = getUUID(header);
+    const uint8_t* uuid = LCGetMachOUUID(header);
     if(!uuid || memcmp(uuid, [cachedSymbolUUID bytes], 16)) {
         return NULL;
     }
@@ -442,15 +420,15 @@ void* getCachedSymbol(NSString* symbolName, mach_header_u* header) {
 }
 
 void saveCachedSymbol(NSString* symbolName, mach_header_u* header, uint64_t offset) {
-    NSMutableDictionary* allSymbolOffsetDict = [[NSUserDefaults.lcUserDefaults objectForKey:@"symbolOffsetCache"] mutableCopy];
+    NSMutableDictionary* allSymbolOffsetDict = [[NSUserDefaults.lcSharedDefaults objectForKey:@"symbolOffsetCache"] mutableCopy];
     if(!allSymbolOffsetDict) {
         allSymbolOffsetDict = [[NSMutableDictionary alloc] init];
     }
     allSymbolOffsetDict[symbolName] = @{
-        @"uuid": [NSData dataWithBytes:getUUID(header) length:16],
+        @"uuid": [NSData dataWithBytes:LCGetMachOUUID(header) length:16],
         @"offset": @(offset)
     };
-    [NSUserDefaults.lcUserDefaults setObject:allSymbolOffsetDict forKey:@"symbolOffsetCache"];
+    [NSUserDefaults.lcSharedDefaults setObject:allSymbolOffsetDict forKey:@"symbolOffsetCache"];
 }
 
 bool hook_dyld_program_sdk_at_least(void* dyldApiInstancePtr, dyld_build_version_t version) {
@@ -642,18 +620,15 @@ bool initGuestSDKVersionInfo(void) {
     // it seems Apple is constantly changing findVersionSetEquivalent's signature so we directly search sVersionMap instead
     uint32_t* versionMapPtr = getCachedSymbol(@"__ZN5dyld3L11sVersionMapE", dyldBase);
     if(!versionMapPtr) {
-        int fd = open("/usr/lib/dyld", O_RDONLY, 0400);
-        struct stat s;
-        fstat(fd, &s);
-        void *map = mmap(NULL, s.st_size, PROT_READ , MAP_PRIVATE, fd, 0);
-        
-
-        versionMapPtr = litehook_find_symbol(map, "__ZN5dyld3L11sVersionMapE");
-        uint64_t offset = (uint64_t)((void*)versionMapPtr - map);
+#if !TARGET_OS_SIMULATOR
+        const char* dyldPath = "/usr/lib/dyld";
+        uint64_t offset = LCFindSymbolOffset(dyldPath, "__ZN5dyld3L11sVersionMapE");
+#else
+        void *result = litehook_find_symbol(dyldBase, "__ZN5dyld3L11sVersionMapE");
+        uint64_t offset = (uint64_t)result - (uint64_t)dyldBase;
+#endif
         versionMapPtr = dyldBase + offset;
         saveCachedSymbol(@"__ZN5dyld3L11sVersionMapE", dyldBase, offset);
-        munmap(map, s.st_size);
-        close(fd);
     }
     
     assert(versionMapPtr);
@@ -696,8 +671,8 @@ bool initGuestSDKVersionInfo(void) {
     return true;
 }
 
-void do_hook_loadableIntoProcess(void) {
-
+#if TARGET_OS_MACCATALYST || TARGET_OS_SIMULATOR
+void DyldHookLoadableIntoProcess(void) {
     uint32_t *patchAddr = (uint32_t *)litehook_find_symbol(getDyldBase(), "__ZNK6mach_o6Header19loadableIntoProcessENS_8PlatformE7CStringb");
     size_t patchSize = sizeof(uint32_t[2]);
 
@@ -711,7 +686,7 @@ void do_hook_loadableIntoProcess(void) {
     kret = builtin_vm_protect(mach_task_self(), (vm_address_t)patchAddr, patchSize, false, PROT_READ | PROT_EXEC);
     assert(kret == KERN_SUCCESS);
 }
-
+#endif
 
 void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
     // iterate through loaded images and find LiveContainer it self
@@ -727,15 +702,17 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
     orig_dyld_get_image_header = _dyld_get_image_header;
     
     // hook dlopen and dlsym to solve RTLD_MAIN_ONLY, hook other functions to hide LiveContainer itself
-    rebind_symbols((struct rebinding[7]){
-        {"dlsym", (void *)hook_dlsym, (void **)&orig_dlsym},
-        {"_dyld_image_count", (void *)hook_dyld_image_count, (void **)&orig_dyld_image_count},
-        {"_dyld_get_image_header", (void *)hook_dyld_get_image_header, (void **)&orig_dyld_get_image_header},
-        {"_dyld_get_image_vmaddr_slide", (void *)hook_dyld_get_image_vmaddr_slide, (void **)&orig_dyld_get_image_vmaddr_slide},
-        {"_dyld_get_image_name", (void *)hook_dyld_get_image_name, (void **)&orig_dyld_get_image_name},
-        {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
-        {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
-    }, hideLiveContainer ? 7: 1);
+    litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, dlsym, hook_dlsym, nil);
+    if(hideLiveContainer) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_image_count, hook_dyld_image_count, nil);
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_get_image_header, hook_dyld_get_image_header, nil);
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_get_image_vmaddr_slide, hook_dyld_get_image_vmaddr_slide, nil);
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_get_image_name, hook_dyld_get_image_name, nil);
+        rebind_symbols((struct rebinding[2]){
+            {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
+            {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
+        }, 2);
+    }
     
     appExecutableFileTypeOverwritten = !hideLiveContainer;
     
@@ -748,10 +725,9 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         }
     }
     
-    if(access("/Users", F_OK) != -1) {
-        // not running on macOS, skip this
-        do_hook_loadableIntoProcess();
-    }
+#if TARGET_OS_MACCATALYST || TARGET_OS_SIMULATOR
+    DyldHookLoadableIntoProcess();
+#endif
 }
 
 void* getGuestAppHeader(void) {

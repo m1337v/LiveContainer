@@ -24,6 +24,10 @@
 		E1292C0A2DCA43540065E12D /* utils.m in Sources */ = {isa = PBXBuildFile; fileRef = 172CA85E2D9D721700CF6989 /* utils.m */; };
 		E1292C0B2DCA43560065E12D /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 172CA85A2D9D721700CF6989 /* main.m */; };
 		E1292C132DCA46070065E12D /* empty.m in Sources */ = {isa = PBXBuildFile; fileRef = E1292C032DCA3C160065E12D /* empty.m */; };
+		E16D95712E1CC8F60068EB63 /* litehook_internal.h in Headers */ = {isa = PBXBuildFile; fileRef = E16D95702E1CC8F20068EB63 /* litehook_internal.h */; };
+		E16D95742E1CD2980068EB63 /* LCMachOUtils.m in Sources */ = {isa = PBXBuildFile; fileRef = E16D94DE2E1CC8200068EB63 /* LCMachOUtils.m */; };
+		E16D95752E1CD2B90068EB63 /* LiveContainerShared.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1292BD62DCA3B660065E12D /* LiveContainerShared.framework */; };
+		E16D95772E1CD4A30068EB63 /* LCMachOUtils.h in Headers */ = {isa = PBXBuildFile; fileRef = E16D95762E1CD49E0068EB63 /* LCMachOUtils.h */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -127,21 +131,12 @@
 		E1292AE52DCA3A660065E12D /* LiveProcess.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LiveProcess.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E1292BD62DCA3B660065E12D /* LiveContainerShared.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = LiveContainerShared.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		E1292C032DCA3C160065E12D /* empty.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = empty.m; sourceTree = "<group>"; };
+		E16D94DE2E1CC8200068EB63 /* LCMachOUtils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LCMachOUtils.m; sourceTree = "<group>"; };
+		E16D95702E1CC8F20068EB63 /* litehook_internal.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = litehook_internal.h; sourceTree = "<group>"; };
+		E16D95762E1CD49E0068EB63 /* LCMachOUtils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LCMachOUtils.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		172CA8B42D9D74A700CF6989 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				CODE_OF_CONDUCT.md,
-				CONTRIBUTING.md,
-				fishhook.c,
-				fishhook.podspec,
-				LICENSE,
-				README.md,
-			);
-			target = 17DCE99C2C7067EC00731D42 /* LiveContainer */;
-		};
 		172CA8BD2D9D74B700CF6989 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -182,13 +177,6 @@
 				Info.plist,
 			);
 			target = E1292AE42DCA3A660065E12D /* LiveProcess */;
-		};
-		E1292C122DCA43D50065E12D /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				fishhook.c,
-			);
-			target = E1292BD52DCA3B660065E12D /* LiveContainerShared */;
 		};
 		E1292C202DCA48F00065E12D /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -241,7 +229,6 @@
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		172CA8992D9D72C300CF6989 /* Resources */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (172CA8BD2D9D74B700CF6989 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, 172CA8C32D9D76AD00CF6989 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Resources; sourceTree = "<group>"; };
-		172CA8AD2D9D741F00CF6989 /* fishhook */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (172CA8B42D9D74A700CF6989 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, E1292C122DCA43D50065E12D /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = fishhook; sourceTree = "<group>"; };
 		17413FB62D9C0BAE00F3F928 /* LiveContainerSwiftUI */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = LiveContainerSwiftUI; sourceTree = "<group>"; };
 		174140162D9C0C1B00F3F928 /* TweakLoader */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (174140F52D9C1C9B00F3F928 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, 174140F62D9C1C9B00F3F928 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = TweakLoader; sourceTree = "<group>"; };
 		174140552D9C0D6D00F3F928 /* ZSign */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = ZSign; sourceTree = "<group>"; };
@@ -258,6 +245,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E16D95752E1CD2B90068EB63 /* LiveContainerShared.framework in Frameworks */,
 				174140D62D9C176F00F3F928 /* libarchive.tbd in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -313,10 +301,13 @@
 		172CA85F2D9D721700CF6989 /* LiveContainer */ = {
 			isa = PBXGroup;
 			children = (
+				E16D95762E1CD49E0068EB63 /* LCMachOUtils.h */,
+				E16D95702E1CC8F20068EB63 /* litehook_internal.h */,
 				E1292C032DCA3C160065E12D /* empty.m */,
 				E1292C1A2DCA48F00065E12D /* Tweaks */,
 				172CA8542D9D721700CF6989 /* dyld_bypass_validation.m */,
 				172CA8552D9D721700CF6989 /* FoundationPrivate.h */,
+				E16D94DE2E1CC8200068EB63 /* LCMachOUtils.m */,
 				172CA8562D9D721700CF6989 /* LCSharedUtils.h */,
 				172CA8572D9D721700CF6989 /* LCSharedUtils.m */,
 				172CA8582D9D721700CF6989 /* Localization.h */,
@@ -344,7 +335,6 @@
 			children = (
 				17B0F8452DE16FE4008110EA /* xcconfigs */,
 				E1292C242DCA4E6F0065E12D /* MultitaskSupport */,
-				172CA8AD2D9D741F00CF6989 /* fishhook */,
 				172CA8992D9D72C300CF6989 /* Resources */,
 				172CA8652D9D723200CF6989 /* entitlements.xml */,
 				172CA85F2D9D721700CF6989 /* LiveContainer */,
@@ -520,9 +510,6 @@
 				174141002D9C1EDA00F3F928 /* PBXTargetDependency */,
 				E1292AF22DCA3A660065E12D /* PBXTargetDependency */,
 				E1292BEA2DCA3B670065E12D /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				172CA8AD2D9D741F00CF6989 /* fishhook */,
 			);
 			name = LiveContainer;
 			productName = jump;
@@ -774,6 +761,7 @@
 			files = (
 				E1292C072DCA434C0065E12D /* dyld_bypass_validation.m in Sources */,
 				E1292C092DCA43510065E12D /* Localization.m in Sources */,
+				E16D95742E1CD2980068EB63 /* LCMachOUtils.m in Sources */,
 				E1292C082DCA434F0065E12D /* LCSharedUtils.m in Sources */,
 				E1292C0B2DCA43560065E12D /* main.m in Sources */,
 				E1292C0A2DCA43540065E12D /* utils.m in Sources */,

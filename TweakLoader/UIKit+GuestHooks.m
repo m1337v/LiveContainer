@@ -359,10 +359,10 @@ BOOL canAppOpenItself(NSURL* url) {
 }
 
 - (void)hook__connectUISceneFromFBSScene:(id)scene transitionContext:(UIApplicationSceneTransitionContext*)context {
-    if (access("/Users", F_OK) != 0) {
-        context.payload = nil;
-        context.actions = nil;
-    }
+#if !TARGET_OS_MACCATALYST
+    context.payload = nil;
+    context.actions = nil;
+#endif
     [self hook__connectUISceneFromFBSScene:scene transitionContext:context];
 }
 

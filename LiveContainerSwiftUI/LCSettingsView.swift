@@ -354,6 +354,11 @@ struct LCSettingsView: View {
                         } label: {
                             Text("Export Main Executable")
                         }
+                        Button {
+                            resetSymbolOffsets()
+                        } label: {
+                            Text("Reset Symbol Offsets")
+                        }
                         HStack {
                             Text("LiveExec32 .app path")
                             Spacer()
@@ -541,6 +546,10 @@ struct LCSettingsView: View {
         } catch {
             print("Error copying main executable \(error)")
         }
+    }
+    
+    func resetSymbolOffsets() {
+        UserDefaults.lcShared().removeObject(forKey: "symbolOffsetCache")
     }
     
     func importCertificate() async {

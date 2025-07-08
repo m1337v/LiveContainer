@@ -1,6 +1,5 @@
 #import <Foundation/Foundation.h>
-
-typedef void (^LCParseMachOCallback)(const char *path, struct mach_header_64 *header, int fd, void* filePtr);
+#import "LCMachOUtils.h"
 
 typedef NS_ENUM(NSInteger, Store){
     SideStore = 0,
@@ -9,16 +8,6 @@ typedef NS_ENUM(NSInteger, Store){
     Unknown = -1
 };
 
-#define PATCH_EXEC_RESULT_NO_SPACE_FOR_TWEAKLOADER 1
-
-void LCPatchAppBundleFixupARM64eSlice(NSURL *bundleURL);
-NSString *LCParseMachO(const char *path, bool readOnly, LCParseMachOCallback callback);
-void LCPatchAddRPath(const char *path, struct mach_header_64 *header);
-int LCPatchExecSlice(const char *path, struct mach_header_64 *header, bool doInject);
-void LCChangeExecUUID(struct mach_header_64 *header);
-NSString* getEntitlementXML(struct mach_header_64* header, void** entitlementXMLPtrOut);
-NSString* getLCEntitlementXML(void);
-bool checkCodeSignature(const char* path);
 void refreshFile(NSString* execPath);
 int dyld_get_program_sdk_version(void);
 

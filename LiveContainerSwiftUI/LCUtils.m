@@ -398,7 +398,7 @@ Class LCSharedUtilsClass = nil;
     
     // We have to change executable's UUID so iOS won't consider 2 executables the same
     NSString* errorChangeUUID = LCParseMachO([execFromPath.path UTF8String], false, ^(const char *path, struct mach_header_64 *header, int fd, void* filePtr) {
-        LCChangeExecUUID(header);
+        LCChangeMachOUUID(header);
     });
     if (errorChangeUUID) {
         NSMutableDictionary* details = [NSMutableDictionary dictionary];

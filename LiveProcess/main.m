@@ -8,7 +8,6 @@
 #import <dlfcn.h>
 #import <UIKit/UIKit.h>
 #import "../LiveContainer/utils.h"
-#import "../fishhook/fishhook.h"
 #import <mach-o/dyld.h>
 #import "../LiveContainer/Tweaks/Tweaks.h"
 

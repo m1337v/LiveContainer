@@ -6,11 +6,10 @@
 //
 
 #import "FoundationPrivate.h"
+#import "LCMachOUtils.h"
 #import "LCSharedUtils.h"
 #import "utils.h"
-#import "LCSharedUtils.h"
-#import "../../fishhook/fishhook.h"
-#import "../../litehook/src/litehook.h"
+#import "litehook_internal.h"
 #include "Tweaks.h"
 @import ObjectiveC;
 @import MachO;
@@ -39,11 +38,10 @@ void NUDGuestHooksInit(void) {
     #pragma clang diagnostic push
     #pragma clang diagnostic ignored "-Wundeclared-selector"
     
+#if TARGET_OS_MACCATALYST || TARGET_OS_SIMULATOR
     // fix for macOS host
-    if(access("/Users", F_OK) == 0) {
-        method_setImplementation(class_getInstanceMethod(NSClassFromString(@"CFPrefsPlistSource"), @selector(_isSharedInTheiOSSimulator)), (IMP)hook_return_false);
-    }
-    
+    method_setImplementation(class_getInstanceMethod(NSClassFromString(@"CFPrefsPlistSource"), @selector(_isSharedInTheiOSSimulator)), (IMP)hook_return_false);
+#endif
 
     Class CFPrefsPlistSourceClass = NSClassFromString(@"CFPrefsPlistSource");
 
@@ -58,22 +56,21 @@ void NUDGuestHooksInit(void) {
     
     // replace _CFPrefsCurrentAppIdentifierCache so kCFPreferencesCurrentApplication refers to the guest app
     int dyldImageCount = _dyld_image_count();
-    mach_header_u* coreFoundationHeader = 0;
-    for(int i = 2; i < dyldImageCount; ++i) {
-        const char* imageName = _dyld_get_image_name(i);
-        if(strcmp(imageName, "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation") == 0) {
-            coreFoundationHeader = (struct mach_header_64 *)_dyld_get_image_header(i);
-        }
-    }
+    const char* coreFoundationPath = "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";
+    mach_header_u* coreFoundationHeader = LCGetLoadedImageHeader(2, coreFoundationPath);
     
+#if !TARGET_OS_SIMULATOR
     CFStringRef* _CFPrefsCurrentAppIdentifierCache = getCachedSymbol(@"__CFPrefsCurrentAppIdentifierCache", coreFoundationHeader);
     if(!_CFPrefsCurrentAppIdentifierCache) {
-        _CFPrefsCurrentAppIdentifierCache = litehook_find_dsc_symbol("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", "__CFPrefsCurrentAppIdentifierCache");
+        _CFPrefsCurrentAppIdentifierCache = litehook_find_dsc_symbol(coreFoundationPath, "__CFPrefsCurrentAppIdentifierCache");
         uint64_t offset = (uint64_t)((void*)_CFPrefsCurrentAppIdentifierCache - (void*)coreFoundationHeader);
         saveCachedSymbol(@"__CFPrefsCurrentAppIdentifierCache", coreFoundationHeader, offset);
     }
     [NSUserDefaults.lcUserDefaults _setIdentifier:(__bridge NSString*)CFStringCreateCopy(nil, *_CFPrefsCurrentAppIdentifierCache)];
     *_CFPrefsCurrentAppIdentifierCache = (__bridge CFStringRef)NSUserDefaults.lcGuestAppId;
+#else
+    // FIXME: for now we skip overwriting _CFPrefsCurrentAppIdentifierCache on simulator, since there is no way to find private symbol
+#endif
     
     NSUserDefaults* newStandardUserDefaults = [[NSUserDefaults alloc] initWithSuiteName:@"whatever"];
     [newStandardUserDefaults _setIdentifier:NSUserDefaults.lcGuestAppId];

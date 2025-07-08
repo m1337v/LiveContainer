@@ -14,6 +14,7 @@ extern NSBundle *lcMainBundle;
     static NSString* ans = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
+#if !TARGET_OS_SIMULATOR
         void* taskSelf = SecTaskCreateFromSelf(NULL);
         CFErrorRef error = NULL;
         CFTypeRef cfans = SecTaskCopyValueForEntitlement(taskSelf, CFSTR("com.apple.developer.team-identifier"), &error);
@@ -21,6 +22,7 @@ extern NSBundle *lcMainBundle;
             ans = (__bridge NSString*)cfans;
         }
         CFRelease(taskSelf);
+#endif
         if(!ans) {
             // the above seems not to work if the device is jailbroken by Palera1n, so we use the public api one as backup
             // https://stackoverflow.com/a/11841898

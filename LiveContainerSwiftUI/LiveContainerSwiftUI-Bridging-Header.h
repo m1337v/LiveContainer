@@ -15,5 +15,6 @@
 #include "../LiveContainer/FoundationPrivate.h"
 #include "../TweakLoader/CoreLocation+GuestHooks.h"
 #include "../TweakLoader/AVFoundation+GuestHooks.h"
+#include "../LiveContainer/utils.h"
 
 #endif /* LiveContainerSwiftUI_Bridging_Header_h_h */
