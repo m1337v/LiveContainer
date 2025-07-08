@@ -11,7 +11,9 @@
 #import "LCSharedUtils.h"
 #import "../../fishhook/fishhook.h"
 #import "../../litehook/src/litehook.h"
+#include "Tweaks.h"
 @import ObjectiveC;
+@import MachO;
 
 BOOL hook_return_false(void) {
     return NO;
@@ -45,8 +47,6 @@ void NUDGuestHooksInit(void) {
 
     Class CFPrefsPlistSourceClass = NSClassFromString(@"CFPrefsPlistSource");
 
-
-    
     swizzle2(CFPrefsPlistSourceClass, @selector(initWithDomain:user:byHost:containerPath:containingPreferences:), CFPrefsPlistSource2.class, @selector(hook_initWithDomain:user:byHost:containerPath:containingPreferences:));
     #pragma clang diagnostic pop
     
@@ -57,8 +57,21 @@ void NUDGuestHooksInit(void) {
     [sources removeObjectForKey:@"C/C//*/L"];
     
     // replace _CFPrefsCurrentAppIdentifierCache so kCFPreferencesCurrentApplication refers to the guest app
-    CFStringRef* _CFPrefsCurrentAppIdentifierCache = litehook_find_dsc_symbol("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", "__CFPrefsCurrentAppIdentifierCache");
-//    NSLog(@"[LC] _CFPrefsCurrentAppIdentifierCache = %@ ,time = %lf", *_CFPrefsCurrentAppIdentifierCache, [d1 timeIntervalSinceNow]);
+    int dyldImageCount = _dyld_image_count();
+    mach_header_u* coreFoundationHeader = 0;
+    for(int i = 2; i < dyldImageCount; ++i) {
+        const char* imageName = _dyld_get_image_name(i);
+        if(strcmp(imageName, "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation") == 0) {
+            coreFoundationHeader = (struct mach_header_64 *)_dyld_get_image_header(i);
+        }
+    }
+    
+    CFStringRef* _CFPrefsCurrentAppIdentifierCache = getCachedSymbol(@"__CFPrefsCurrentAppIdentifierCache", coreFoundationHeader);
+    if(!_CFPrefsCurrentAppIdentifierCache) {
+        _CFPrefsCurrentAppIdentifierCache = litehook_find_dsc_symbol("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", "__CFPrefsCurrentAppIdentifierCache");
+        uint64_t offset = (uint64_t)((void*)_CFPrefsCurrentAppIdentifierCache - (void*)coreFoundationHeader);
+        saveCachedSymbol(@"__CFPrefsCurrentAppIdentifierCache", coreFoundationHeader, offset);
+    }
     [NSUserDefaults.lcUserDefaults _setIdentifier:(__bridge NSString*)CFStringCreateCopy(nil, *_CFPrefsCurrentAppIdentifierCache)];
     *_CFPrefsCurrentAppIdentifierCache = (__bridge CFStringRef)NSUserDefaults.lcGuestAppId;
     
@@ -109,7 +122,6 @@ bool isAppleIdentifier(NSString* identifier) {
 
 @implementation CFPrefsPlistSource2
 -(id)hook_initWithDomain:(CFStringRef)domain user:(CFStringRef)user byHost:(bool)host containerPath:(CFStringRef)containerPath containingPreferences:(id)arg5 {
-    NSLog(@"domain = %@", domain);
     if(isAppleIdentifier((__bridge NSString*)domain)) {
         return [self hook_initWithDomain:domain user:user byHost:host containerPath:containerPath containingPreferences:arg5];
     }

@@ -2,6 +2,7 @@
 #import "FoundationPrivate.h"
 #import "UIKitPrivate.h"
 #import "utils.h"
+@import MachO;
 
 extern NSUserDefaults *lcUserDefaults;
 extern NSString *lcAppUrlScheme;

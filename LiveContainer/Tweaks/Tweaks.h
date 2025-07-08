@@ -23,3 +23,5 @@ extern uint32_t appMainImageIndex;
 extern void* appExecutableHandle;
 extern bool tweakLoaderLoaded;
 void* getGuestAppHeader(void);
+void* getCachedSymbol(NSString* symbolName, struct mach_header_64* header);
+void saveCachedSymbol(NSString* symbolName, struct mach_header_64* header, uint64_t offset);

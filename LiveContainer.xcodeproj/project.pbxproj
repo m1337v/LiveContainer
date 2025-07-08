@@ -112,7 +112,6 @@
 		172CA8582D9D721700CF6989 /* Localization.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Localization.h; sourceTree = "<group>"; };
 		172CA8592D9D721700CF6989 /* Localization.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Localization.m; sourceTree = "<group>"; };
 		172CA85A2D9D721700CF6989 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
-		172CA85B2D9D721700CF6989 /* TPRO.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TPRO.h; sourceTree = "<group>"; };
 		172CA85C2D9D721700CF6989 /* UIKitPrivate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UIKitPrivate.h; sourceTree = "<group>"; };
 		172CA85D2D9D721700CF6989 /* utils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = utils.h; sourceTree = "<group>"; };
 		172CA85E2D9D721700CF6989 /* utils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = utils.m; sourceTree = "<group>"; };
@@ -323,7 +322,6 @@
 				172CA8582D9D721700CF6989 /* Localization.h */,
 				172CA8592D9D721700CF6989 /* Localization.m */,
 				172CA85A2D9D721700CF6989 /* main.m */,
-				172CA85B2D9D721700CF6989 /* TPRO.h */,
 				172CA85C2D9D721700CF6989 /* UIKitPrivate.h */,
 				172CA85D2D9D721700CF6989 /* utils.h */,
 				172CA85E2D9D721700CF6989 /* utils.m */,

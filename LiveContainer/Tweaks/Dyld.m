@@ -410,6 +410,53 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
 >>>>>>> 31dddf0 (nudhookv3)
 }
 
+const uint8_t* getUUID(struct mach_header_64* mh) {
+    if (!mh) return NULL;
+
+    // Find load commands
+    const struct load_command* lc = (const struct load_command*)(mh + 1);
+    const struct uuid_command* uuidCmd = NULL;
+
+    // Iterate through load commands to find LC_SYMTAB
+    for (uint32_t i = 0; i < mh->ncmds; ++i) {
+        if (lc->cmd == LC_UUID) {
+            uuidCmd = (const struct uuid_command*)lc;
+            break;
+        }
+        lc = (const struct load_command*)((const uint8_t*)lc + lc->cmdsize);
+    }
+
+    return uuidCmd->uuid;
+}
+
+void* getCachedSymbol(NSString* symbolName, mach_header_u* header) {
+    NSDictionary* symbolOffsetDict = [NSUserDefaults.lcUserDefaults objectForKey:@"symbolOffsetCache"][symbolName];
+    if(!symbolOffsetDict) {
+        return NULL;
+    }
+    NSData* cachedSymbolUUID = symbolOffsetDict[@"uuid"];
+    if(!cachedSymbolUUID) {
+        return NULL;
+    }
+    const uint8_t* uuid = getUUID(header);
+    if(!uuid || memcmp(uuid, [cachedSymbolUUID bytes], 16)) {
+        return NULL;
+    }
+    return (void*)header + [symbolOffsetDict[@"offset"] unsignedLongLongValue];
+}
+
+void saveCachedSymbol(NSString* symbolName, mach_header_u* header, uint64_t offset) {
+    NSMutableDictionary* allSymbolOffsetDict = [[NSUserDefaults.lcUserDefaults objectForKey:@"symbolOffsetCache"] mutableCopy];
+    if(!allSymbolOffsetDict) {
+        allSymbolOffsetDict = [[NSMutableDictionary alloc] init];
+    }
+    allSymbolOffsetDict[symbolName] = @{
+        @"uuid": [NSData dataWithBytes:getUUID(header) length:16],
+        @"offset": @(offset)
+    };
+    [NSUserDefaults.lcUserDefaults setObject:allSymbolOffsetDict forKey:@"symbolOffsetCache"];
+}
+
 bool hook_dyld_program_sdk_at_least(void* dyldApiInstancePtr, dyld_build_version_t version) {
     // we are targeting ios, so we hard code 2
     if(version.platform == 0xffffffff){
@@ -595,11 +642,26 @@ bool performHookDyldApi(const char* functionName, uint32_t adrpOffset, void** or
 }
 
 bool initGuestSDKVersionInfo(void) {
+    void* dyldBase = getDyldBase();
     // it seems Apple is constantly changing findVersionSetEquivalent's signature so we directly search sVersionMap instead
-    // however sVersionMap's struct size is also unknown, but we can figure it out
-    uint32_t* versionMapPtr = litehook_find_dsc_symbol("/usr/lib/dyld", "__ZN5dyld3L11sVersionMapE");
-    assert(versionMapPtr);
+    uint32_t* versionMapPtr = getCachedSymbol(@"__ZN5dyld3L11sVersionMapE", dyldBase);
+    if(!versionMapPtr) {
+        int fd = open("/usr/lib/dyld", O_RDONLY, 0400);
+        struct stat s;
+        fstat(fd, &s);
+        void *map = mmap(NULL, s.st_size, PROT_READ , MAP_PRIVATE, fd, 0);
+        
 
+        versionMapPtr = litehook_find_symbol(map, "__ZN5dyld3L11sVersionMapE");
+        uint64_t offset = (uint64_t)((void*)versionMapPtr - map);
+        versionMapPtr = dyldBase + offset;
+        saveCachedSymbol(@"__ZN5dyld3L11sVersionMapE", dyldBase, offset);
+        munmap(map, s.st_size);
+        close(fd);
+    }
+    
+    assert(versionMapPtr);
+    // however sVersionMap's struct size is also unknown, but we can figure it out
     // we assume the size is 10K so we won't need to change this line until maybe iOS 40
     uint32_t* versionMapEnd = versionMapPtr + 2560;
     // ensure the first is versionSet and the third is iOS version (5.0.0)
@@ -640,7 +702,7 @@ bool initGuestSDKVersionInfo(void) {
 
 void do_hook_loadableIntoProcess(void) {
 
-    uint32_t *patchAddr = (uint32_t *)litehook_find_dsc_symbol("/usr/lib/dyld", "__ZNK6mach_o6Header19loadableIntoProcessENS_8PlatformE7CStringb");
+    uint32_t *patchAddr = (uint32_t *)litehook_find_symbol(getDyldBase(), "__ZNK6mach_o6Header19loadableIntoProcessENS_8PlatformE7CStringb");
     size_t patchSize = sizeof(uint32_t[2]);
 
     kern_return_t kret;
