@@ -25,7 +25,6 @@
     self.dataUUID = dataUUID;
     self.pid = pid;
     self->identifier = identifier;
-    self.isAppRunning = true;
     isNativeWindow = [[[NSUserDefaults alloc] initWithSuiteName:[LCUtils appGroupID]] integerForKey:@"LCMultitaskMode" ] == 1;
     RBSProcessPredicate* predicate = [PrivClass(RBSProcessPredicate) predicateMatchingIdentifier:@(pid)];
     
@@ -137,7 +136,7 @@
         [self.presenter invalidate];
         self.presenter = nil;
     }
-    if(self.isAppRunning && [self.extension pidForRequestIdentifier:self->identifier]) {
+    if(self.isAppRunning) {
         [self.extension _kill:SIGTERM];
         NSLog(@"sent sigterm");
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -150,16 +149,14 @@
         
         MultitaskDockManager *dock = [MultitaskDockManager shared];
         [dock removeRunningApp:self.dataUUID];
-        
-        self.isAppRunning = false;
     }
 }
 
 - (void)_performActionsForUIScene:(UIScene *)scene withUpdatedFBSScene:(id)fbsScene settingsDiff:(FBSSceneSettingsDiff *)diff fromSettings:(UIApplicationSceneSettings *)settings transitionContext:(id)context lifecycleActionType:(uint32_t)actionType {
     [self displayAppTerminatedTextIfNeeded];
     if(!diff) return;
-    UIMutableApplicationSceneSettings *baseSettings = [diff settingsByApplyingToMutableCopyOfSettings:settings];
     
+    UIMutableApplicationSceneSettings *baseSettings = [diff settingsByApplyingToMutableCopyOfSettings:settings];
     UIApplicationSceneTransitionContext *newContext = [context copy];
     newContext.actions = nil;
     if(isNativeWindow) {
@@ -184,9 +181,8 @@
 }
 
 - (void)displayAppTerminatedTextIfNeeded {
-    if(self.isAppRunning && [self.extension pidForRequestIdentifier:self->identifier] == 0) {
+    if(!self.isAppRunning) {
         [MultitaskManager unregisterMultitaskContainerWithContainer:self.dataUUID];
-        self.isAppRunning = false;
         if(!isNativeWindow) {
             UILabel *label = [[UILabel alloc] initWithFrame:self.view.bounds];
             label.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
@@ -208,6 +204,10 @@
     [super viewWillAppear:animated];
     [self displayAppTerminatedTextIfNeeded];
     [self.view.window.windowScene _registerSettingsDiffActionArray:@[self] forKey:self.sceneID];
+}
+
+- (BOOL)isAppRunning {
+    return _pid > 0 && getpgid(_pid) > 0;
 }
 
 @end

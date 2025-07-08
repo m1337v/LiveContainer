@@ -99,3 +99,7 @@
 @interface UISceneActivationRequestOptions(private)
 -(void)_setRequestFullscreen:(BOOL)arg1;
 @end
+
+@interface _UIButtonBarStackView : UIView
+- (void)setSpacing:(CGFloat)spacing;
+@end

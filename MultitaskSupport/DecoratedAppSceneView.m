@@ -201,22 +201,8 @@ void UIKitFixesInit(void) {
     } else {
         self.originalFrame = self.frame;
         
-        CGRect screenBounds = [UIScreen mainScreen].bounds;
-        UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
-        UIEdgeInsets safeAreaInsets = UIEdgeInsetsZero;
-        
-        if (@available(iOS 11.0, *)) {
-            if (keyWindow) {
-                safeAreaInsets = keyWindow.safeAreaInsets;
-            }
-        }
-        
-        CGRect maxFrame = CGRectMake(
-            safeAreaInsets.left,
-            safeAreaInsets.top,
-            screenBounds.size.width - safeAreaInsets.left - safeAreaInsets.right,
-            screenBounds.size.height - safeAreaInsets.top - safeAreaInsets.bottom
-        );
+        UIEdgeInsets safeAreaInsets = UIApplication.sharedApplication.keyWindow.safeAreaInsets;
+        CGRect maxFrame = UIEdgeInsetsInsetRect(UIScreen.mainScreen.bounds, safeAreaInsets);
         
         [UIView animateWithDuration:0.3 
                               delay:0 
@@ -261,16 +247,9 @@ void UIKitFixesInit(void) {
 
 - (void)findAndAdjustButtonBarStackView:(UIView *)view withSpacing:(CGFloat)spacing rightMargin:(CGFloat)margin {
     for (UIView *subview in view.subviews) {
-        NSString *className = NSStringFromClass([subview class]);
-        
-        if ([className isEqualToString:@"_UIButtonBarStackView"]) {
+        if ([subview isKindOfClass:NSClassFromString(@"_UIButtonBarStackView")]) {
             if ([subview respondsToSelector:@selector(setSpacing:)]) {
-                NSMethodSignature *methodSignature = [subview methodSignatureForSelector:@selector(setSpacing:)];
-                NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:methodSignature];
-                [invocation setTarget:subview];
-                [invocation setSelector:@selector(setSpacing:)];
-                [invocation setArgument:&spacing atIndex:2];
-                [invocation invoke];
+                [(_UIButtonBarStackView *)subview setSpacing:spacing];
             }
             
             if (subview.superview) {
