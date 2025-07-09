@@ -1,4 +1,5 @@
 #import "FoundationPrivate.h"
+#import "LCMachOUtils.h"
 #import "LCSharedUtils.h"
 #import "UIKitPrivate.h"
 #import "utils.h"
@@ -400,11 +401,6 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     SecItemGuestHooksInit();
     NSFMGuestHooksInit();
     initDead10ccFix();
-
-    if([guestAppInfo[@"fixBlackScreen"] boolValue]) {
-        dlopen("/System/Library/Frameworks/UIKit.framework/UIKit", RTLD_GLOBAL);
-        NSLog(@"[LC] Fix BlackScreen2 %@", [NSClassFromString(@"UIScreen") mainScreen]);
-    }
     
     // Preload executable to bypass RT_NOLOAD
     uint32_t appIndex = _dyld_image_count();
@@ -440,7 +436,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         tweakLoaderLoaded = true;
     }
     
-    void *appHandle = dlopen(appExecPath, RTLD_LAZY|RTLD_GLOBAL|RTLD_FIRST);
+    void *appHandle = dlopenBypassingLock(appExecPath, RTLD_LAZY|RTLD_GLOBAL|RTLD_FIRST);
     appExecutableHandle = appHandle;
     const char *dlerr = dlerror();
     

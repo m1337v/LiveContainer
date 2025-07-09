@@ -952,15 +952,6 @@ struct LCAppSettingsView : View{
                 Text("lc.appSettings.useLCBundleIdDesc".loc)
             }
             
-            Section {
-                Toggle(isOn: $model.uiFixBlackScreen) {
-                    Text("lc.appSettings.fixBlackScreen".loc)
-                }
-            } footer: {
-                Text("lc.appSettings.fixBlackScreenDesc".loc)
-            }
-
-            
             if sharedModel.isPhone {
                 Section {
                     Picker(selection: $model.uiOrientationLock) {

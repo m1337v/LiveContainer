@@ -55,7 +55,6 @@ void NUDGuestHooksInit(void) {
     [sources removeObjectForKey:@"C/C//*/L"];
     
     // replace _CFPrefsCurrentAppIdentifierCache so kCFPreferencesCurrentApplication refers to the guest app
-    int dyldImageCount = _dyld_image_count();
     const char* coreFoundationPath = "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";
     mach_header_u* coreFoundationHeader = LCGetLoadedImageHeader(2, coreFoundationPath);
     

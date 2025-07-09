@@ -4435,172 +4435,6 @@
         }
       }
     },
-    "lc.appSettings.fixBlackScreen" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "أصلح الشاشة السوداء"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "\"Schwarzer Bildschirm\" beheben"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fix Black Screen"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Corriger l'écran noir"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aggiusta schermata nera"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "黒い画面を修正"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Napraw Pusty Ekran"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Corrigir Tela Preta"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fixa svart skärm"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Siyah Ekran Sorununu Gider"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fix Màn hình Đen"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修复黑屏"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修復黑屏"
-          }
-        }
-      }
-    },
-    "lc.appSettings.fixBlackScreenDesc" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "أذا التطبيق يظهر شاشة سوداء عند التشغيل و يتوقف عن العمل بعد حوالي 10 ثواني، فعل هذا الخِيار."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wenn die App beim Starten einen schwarzen Bildschirm zeigt und nach etwa 10 Sekunden abstürzt, aktivieren Sie diese Option."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "If app shows a black screen when launching and crash after about 10s, enable this option."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Si l'application affiche un écran noir au lancement et se bloque au bout d'une dizaine de secondes, activez cette option."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Se l'app mostra una schermata nera durante l'avvio ed un crash dopo 10s, attiva quest'opzione."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アプリを起動時に黒い画面を表示し、約10秒後にクラッシュする場合は、この設定をオンにしてください。"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jeśli aplikacja ma pusty ekran po załadowanium oraz zawiesza się po 10 sekundach, Włącz tą opcje."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Se o aplicativo mostrar uma tela preta ao iniciar e crashar após cerca de 10 segundos, ative esta opção."
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Om appen visar en svart skärm när du startar och kraschar efter ungefär 10-talet, aktivera det här alternativet."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uygulama başlatıldığında siyah ekran gösteriyor ve yaklaşık 10 saniye sonra çöküyorsa, bu seçeneği etkinleştirin."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nếu app hiện màn hình đen và văng sau 10s thì bật tuỳ chọn này."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "如果App启动时黑屏，并在10秒后崩溃，启用这个选项。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "如應用程式黑屏並在10秒後崩潰，請啟用此選項。"
-          }
-        }
-      }
-    },
     "lc.appSettings.fixes" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13724,17 +13558,6 @@
         }
       }
     },
-    "lc.settings.dockWidth" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dock Width"
-          }
-        }
-      }
-    },
     "lc.settings.bundleIdMismatch %@ %@" : {
       "comment" : "lc.settings.bundleIdMismatch",
       "extractionState" : "stale",
@@ -14421,6 +14244,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "默认签名工具"
+          }
+        }
+      }
+    },
+    "lc.settings.dockWidth" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dock Width"
           }
         }
       }

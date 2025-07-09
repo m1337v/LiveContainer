@@ -52,11 +52,6 @@ class LCAppModel: ObservableObject, Hashable {
             appInfo.hideLiveContainer = uiHideLiveContainer
         }
     }
-    @Published var uiFixBlackScreen : Bool {
-        didSet {
-            appInfo.fixBlackScreen = uiFixBlackScreen
-        }
-    }
     @Published var uiTweakLoaderInjectFailed : Bool
     @Published var uiDontInjectTweakLoader : Bool {
         didSet {
@@ -232,7 +227,6 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiOrientationLock = appInfo.orientationLock
         self.uiUseLCBundleId = appInfo.doUseLCBundleId
         self.uiHideLiveContainer = appInfo.hideLiveContainer
-        self.uiFixBlackScreen = appInfo.fixBlackScreen
         self.uiDontInjectTweakLoader = appInfo.dontInjectTweakLoader
         self.uiTweakLoaderInjectFailed = appInfo.info()["LCTweakLoaderCantInject"] as? Bool ?? false
         self.uiDontLoadTweakLoader = appInfo.dontLoadTweakLoader

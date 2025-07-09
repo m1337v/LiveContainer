@@ -669,7 +669,6 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
             finalNewApp.dontInjectTweakLoader = appToReplace.appInfo.dontInjectTweakLoader
             finalNewApp.hideLiveContainer = appToReplace.appInfo.hideLiveContainer
             finalNewApp.dontLoadTweakLoader = appToReplace.appInfo.dontLoadTweakLoader
-            finalNewApp.fixBlackScreen = appToReplace.appInfo.fixBlackScreen
             finalNewApp.doUseLCBundleId = appToReplace.appInfo.doUseLCBundleId
             finalNewApp.lastLaunched = appToReplace.appInfo.lastLaunched
             finalNewApp.autoSaveDisabled = false

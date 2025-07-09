@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #include <mach-o/loader.h>
 #include <objc/runtime.h>
+#include <os/lock.h>
 
 const char **_CFGetProgname(void);
 const char **_CFGetProcessPath(void);
@@ -8,6 +9,8 @@ int _NSGetExecutablePath(char* buf, uint32_t* bufsize);
 int csops_audittoken(pid_t pid, unsigned int ops, void * useraddr, size_t usersize, audit_token_t * token);
 #define CS_DEBUGGED 0x10000000
 int csops(pid_t pid, unsigned int ops, void *useraddr, size_t usersize);
+void os_unfair_recursive_lock_lock_with_options(void* lock, uint32_t options);
+void os_unfair_recursive_lock_unlock(void* lock);
 
 void *getDyldBase(void);
 void init_bypassDyldLibValidation(void);
