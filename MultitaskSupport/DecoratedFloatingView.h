@@ -1,6 +1,6 @@
 #import <UIKit/UIKit.h>
 
-@interface DecoratedFloatingView : UIView
+@interface DecoratedFloatingView : UIStackView
 
 @property(nonatomic) UINavigationBar *navigationBar;
 @property(nonatomic) UINavigationItem *navigationItem;

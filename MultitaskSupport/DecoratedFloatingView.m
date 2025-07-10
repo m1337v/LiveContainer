@@ -1,5 +1,6 @@
 #import "DecoratedFloatingView.h"
 #import "ResizeHandleView.h"
+#import "utils.h"
 
 @implementation DecoratedFloatingView
 
@@ -14,6 +15,7 @@
 
 - (instancetype)initWithFrame:(CGRect)frame navigationBar:(UINavigationBar *)navigationBar {
     self = [super initWithFrame:frame];
+    self.axis = UILayoutConstraintAxisVertical;
     self.backgroundColor = UIColor.systemBackgroundColor;
     self.layer.cornerRadius = 10;
     self.layer.masksToBounds = YES;
@@ -21,19 +23,25 @@
     self.navigationBar = navigationBar;
     self.navigationItem = navigationBar.items.firstObject;
     if (!self.navigationBar.superview) {
-        [self addSubview:self.navigationBar];
+        [self addArrangedSubview:self.navigationBar];
     }
     
     CGFloat navBarHeight = self.navigationBar.frame.size.height;
-    CGRect contentFrame = CGRectMake(0, navBarHeight, self.frame.size.width, self.frame.size.height - navBarHeight);
-
-    UIView *contentView = [[UIView alloc] initWithFrame:contentFrame];
-    contentView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    contentView.layer.anchorPoint = CGPointMake(0, 0);
-    contentView.layer.position = CGPointMake(0, self.navigationBar.frame.size.height);
-    self.contentView = contentView;
-    [self addSubview:contentView];
-
+    CGRect contentFrame = CGRectMake(0, 0, self.frame.size.width, self.frame.size.height - navBarHeight);
+    UIView *fixedPositionContentView = [[UIView alloc] initWithFrame:contentFrame];
+    self.contentView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    if([NSUserDefaults.lcSharedDefaults boolForKey:@"LCMultitaskBottomWindowBar"]) {
+        [self insertArrangedSubview:fixedPositionContentView atIndex:0];
+    } else {
+        [self addArrangedSubview:fixedPositionContentView];
+    }
+    [self sendSubviewToBack:fixedPositionContentView];
+    
+    self.contentView = [[UIView alloc] initWithFrame:contentFrame];
+    self.contentView.layer.anchorPoint = self.contentView.layer.position = CGPointMake(0, 0);
+    self.contentView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [fixedPositionContentView addSubview:self.contentView];
+    
     UIPanGestureRecognizer *moveGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(moveWindow:)];
     moveGesture.minimumNumberOfTouches = 1;
     moveGesture.maximumNumberOfTouches = 1;
@@ -43,7 +51,7 @@
     UIPanGestureRecognizer *resizeGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(resizeWindow:)];
     resizeGesture.minimumNumberOfTouches = 1;
     resizeGesture.maximumNumberOfTouches = 1;
-    self.resizeHandle = [[ResizeHandleView alloc] initWithFrame:CGRectMake(self.frame.size.width - 60, self.frame.size.height - 60, 60, 60)];
+    self.resizeHandle = [[ResizeHandleView alloc] initWithFrame:CGRectMake(self.frame.size.width - navBarHeight, self.frame.size.height - navBarHeight, navBarHeight, navBarHeight)];
     [self.resizeHandle addGestureRecognizer:resizeGesture];
     [self addSubview:self.resizeHandle];
     

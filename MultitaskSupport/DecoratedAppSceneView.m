@@ -4,6 +4,7 @@
 #import "UIKitPrivate+MultitaskSupport.h"
 #import "PiPManager.h"
 #import "../LiveContainer/Localization.h"
+#import "utils.h"
 
 @implementation RBSTarget(hook)
 + (instancetype)hook_targetWithPid:(pid_t)pid environmentIdentifier:(NSString *)environmentIdentifier {
@@ -102,7 +103,13 @@ void UIKitFixesInit(void) {
     UIBarButtonItem *closeButton = [[UIBarButtonItem alloc] initWithImage:closeImage style:UIBarButtonItemStylePlain target:self action:@selector(closeWindow)];
     closeButton.tintColor = [UIColor systemRedColor];
     
-    self.navigationItem.rightBarButtonItems = @[closeButton, self.maximizeButton, minimizeButton];
+    NSArray *barButtonItems = @[closeButton, self.maximizeButton, minimizeButton];
+    if([NSUserDefaults.lcSharedDefaults boolForKey:@"LCMultitaskBottomWindowBar"]) {
+        // resize handle overlaps the close button, so put the buttons on the left
+        self.navigationItem.leftBarButtonItems = barButtonItems;
+    } else {
+        self.navigationItem.rightBarButtonItems = barButtonItems;
+    }
     
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         [self adjustNavigationBarButtonSpacingWithNegativeSpacing:-8.0 rightMargin:-4.0];
@@ -270,5 +277,31 @@ void UIKitFixesInit(void) {
         
         [self findAndAdjustButtonBarStackView:subview withSpacing:spacing rightMargin:margin];
     }
+}
+
+- (void)willMoveToSuperview:(UIView *)newSuperview {
+    [super willMoveToSuperview:newSuperview];
+    NSUserDefaults *defaults = NSUserDefaults.lcSharedDefaults;
+    if(newSuperview) {
+        [defaults addObserver:self forKeyPath:@"LCMultitaskBottomWindowBar" options:NSKeyValueObservingOptionNew context:NULL];
+    } else {
+        [defaults removeObserver:self forKeyPath:@"LCMultitaskBottomWindowBar"];
+    }
+}
+
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
+    BOOL bottomWindowBar = [change[NSKeyValueChangeNewKey] boolValue];
+    [UIView animateWithDuration:0.3 animations:^{
+        if(bottomWindowBar) {
+            self.navigationItem.leftBarButtonItems = self.navigationItem.rightBarButtonItems;
+            self.navigationItem.rightBarButtonItems = nil;
+            [self addArrangedSubview:self.navigationBar];
+        } else {
+            self.navigationItem.rightBarButtonItems = self.navigationItem.leftBarButtonItems;
+            self.navigationItem.leftBarButtonItems = nil;
+            [self insertArrangedSubview:self.navigationBar atIndex:0];
+        }
+        [self adjustNavigationBarButtonSpacingWithNegativeSpacing:-8.0 rightMargin:-4.0];
+    }];
 }
 @end
