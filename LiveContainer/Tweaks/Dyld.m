@@ -709,8 +709,8 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_get_image_vmaddr_slide, hook_dyld_get_image_vmaddr_slide, nil);
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_get_image_name, hook_dyld_get_image_name, nil);
         // Use litehook_hook_function for framework/libc functions instead of rebind_symbols
-        // litehook_hook_function(CFNetworkCopySystemProxySettings, hook_CFNetworkCopySystemProxySettings);
-        // litehook_hook_function(sigaction, hook_sigaction);
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, CFNetworkCopySystemProxySettings, hook_CFNetworkCopySystemProxySettings, (void**)&orig_CFNetworkCopySystemProxySettings);
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, sigaction, hook_sigaction, (void**)&orig_sigaction);
     }
     
     appExecutableFileTypeOverwritten = !hideLiveContainer;
