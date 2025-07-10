@@ -287,22 +287,6 @@ uint32_t hook_dyld_image_count(void) {
 //     __attribute__((musttail)) return orig_dyld_get_image_header(translateImageIndex(image_index));
 // }
 const struct mach_header* hook_dyld_get_image_header(uint32_t image_index) {
-    // ALWAYS handle LiveContainer replacement first
-    if(image_index == lcImageIndex) {
-        ensureAppMainIndexIsSet();
-        if(!appExecutableFileTypeOverwritten) {
-            overwriteAppExecutableFileType();
-            appExecutableFileTypeOverwritten = true;
-        }
-        return orig_dyld_get_image_header(appMainImageIndex);
-    }
-    
-    // Before we're ready to hide libraries, use simple passthrough
-    // if(!appExecutableFileTypeOverwritten) {
-    //     return orig_dyld_get_image_header(image_index);
-    // }
-    
-    // After we're ready, use the hiding logic
     uint32_t realCount = orig_dyld_image_count();
     uint32_t visibleIndex = 0;
     
@@ -314,34 +298,29 @@ const struct mach_header* hook_dyld_get_image_header(uint32_t image_index) {
         }
         
         if(visibleIndex == image_index) {
+            // Handle LiveContainer replacement at the REAL index level
+            if(i == lcImageIndex) {
+                ensureAppMainIndexIsSet();
+                if(!appExecutableFileTypeOverwritten) {
+                    overwriteAppExecutableFileType();
+                    appExecutableFileTypeOverwritten = true;
+                }
+                return orig_dyld_get_image_header(appMainImageIndex);
+            }
+            
             return orig_dyld_get_image_header(i);
         }
         
         visibleIndex++;
     }
     
-    return NULL; // ← Don't return fallback, return NULL like stock iOS
+    return NULL; // Out of bounds - this is correct behavior
 }
 
 // intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
 //     __attribute__((musttail)) return orig_dyld_get_image_vmaddr_slide(translateImageIndex(image_index));
 // }
 intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
-    // ALWAYS handle LiveContainer replacement first
-    if(image_index == lcImageIndex) {
-        if(!appExecutableFileTypeOverwritten) {
-            overwriteAppExecutableFileType();
-            appExecutableFileTypeOverwritten = true;
-        }
-        return orig_dyld_get_image_vmaddr_slide(appMainImageIndex);
-    }
-    
-    // Before we're ready to hide libraries, use simple passthrough
-    if(!appExecutableFileTypeOverwritten) {
-        return orig_dyld_get_image_vmaddr_slide(image_index);
-    }
-    
-    // After we're ready, use the hiding logic
     uint32_t realCount = orig_dyld_image_count();
     uint32_t visibleIndex = 0;
     
@@ -353,6 +332,15 @@ intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
         }
         
         if(visibleIndex == image_index) {
+            // Handle LiveContainer replacement at the REAL index level
+            if(i == lcImageIndex) {
+                if(!appExecutableFileTypeOverwritten) {
+                    overwriteAppExecutableFileType();
+                    appExecutableFileTypeOverwritten = true;
+                }
+                return orig_dyld_get_image_vmaddr_slide(appMainImageIndex);
+            }
+            
             return orig_dyld_get_image_vmaddr_slide(i);
         }
         
@@ -366,22 +354,6 @@ intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
 //     __attribute__((musttail)) return orig_dyld_get_image_name(translateImageIndex(image_index));
 // }
 const char* hook_dyld_get_image_name(uint32_t image_index) {
-    // ALWAYS handle LiveContainer replacement first
-    if(image_index == lcImageIndex) {
-        ensureAppMainIndexIsSet();
-        if(!appExecutableFileTypeOverwritten) {
-            overwriteAppExecutableFileType();
-            appExecutableFileTypeOverwritten = true;
-        }
-        return orig_dyld_get_image_name(appMainImageIndex);
-    }
-    
-    // Before we're ready to hide libraries, use simple passthrough
-    if(!appExecutableFileTypeOverwritten) {
-        return orig_dyld_get_image_name(image_index);
-    }
-    
-    // Use EXACT SAME logic as hook_dyld_image_count
     uint32_t realCount = orig_dyld_image_count();
     uint32_t visibleIndex = 0;
     
@@ -393,13 +365,22 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
         }
         
         if(visibleIndex == image_index) {
-            return imageName;  // ← Remove the special LC handling here
+            // Handle LiveContainer replacement at the REAL index level
+            if(i == lcImageIndex) {
+                ensureAppMainIndexIsSet();
+                if(!appExecutableFileTypeOverwritten) {
+                    overwriteAppExecutableFileType();
+                    appExecutableFileTypeOverwritten = true;
+                }
+                return orig_dyld_get_image_name(appMainImageIndex);
+            }
+            
+            return imageName;
         }
         
         visibleIndex++;
     }
     
-    // Out of bounds - return NULL
     return NULL;
 }
 
