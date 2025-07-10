@@ -6,4 +6,4 @@
 	url = https://github.com/krzyzanowskim/OpenSSL
 [submodule "litehook"]
 	path = litehook
-	url = https://github.com/LiveContainer/litehook.git
+	url = https://github.com/LiveContainer/litehook
