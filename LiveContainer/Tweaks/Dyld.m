@@ -369,7 +369,6 @@ intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
 //     __attribute__((musttail)) return orig_dyld_get_image_name(translateImageIndex(image_index));
 // }
 const char* hook_dyld_get_image_name(uint32_t image_index) {
-<<<<<<< HEAD
     // ALWAYS handle LiveContainer replacement first
     if(image_index == lcImageIndex) {
         ensureAppMainIndexIsSet();
@@ -405,9 +404,6 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
     
     // Out of bounds - return NULL
     return NULL;
-=======
-    __attribute__((musttail)) return orig_dyld_get_image_name(translateImageIndex(image_index));
->>>>>>> 31dddf0 (nudhookv3)
 }
 
 const uint8_t* getUUID(struct mach_header_64* mh) {
