@@ -342,6 +342,7 @@
 				E16D9BA02E1D48DE0068EB63 /* README.md */,
 				17B0F8452DE16FE4008110EA /* xcconfigs */,
 				E1292C242DCA4E6F0065E12D /* MultitaskSupport */,
+				172CA8AD2D9D741F00CF6989 /* fishhook */,
 				172CA8992D9D72C300CF6989 /* Resources */,
 				172CA8652D9D723200CF6989 /* entitlements.xml */,
 				172CA85F2D9D721700CF6989 /* LiveContainer */,
@@ -517,6 +518,9 @@
 				174141002D9C1EDA00F3F928 /* PBXTargetDependency */,
 				E1292AF22DCA3A660065E12D /* PBXTargetDependency */,
 				E1292BEA2DCA3B670065E12D /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				172CA8AD2D9D741F00CF6989 /* fishhook */,
 			);
 			name = LiveContainer;
 			productName = jump;
