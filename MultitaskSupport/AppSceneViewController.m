@@ -5,6 +5,7 @@
 //  Created by s s on 2025/5/17.
 //
 #import "AppSceneViewController.h"
+#import "DecoratedAppSceneView.h"
 #import "LiveContainerSwiftUI-Swift.h"
 #import "../LiveContainerSwiftUI/LCUtils.h"
 #import "PiPManager.h"
@@ -12,6 +13,7 @@
 @implementation AppSceneViewController {
     int resizeDebounceToken;
     CGRect currentFrame;
+    CGPoint normalizedOrigin;
     bool isNativeWindow;
     NSUUID* identifier;
 }
@@ -171,10 +173,20 @@
         newSettings.interfaceOrientation = baseSettings.interfaceOrientation;
         newSettings.deviceOrientation = baseSettings.deviceOrientation;
         newSettings.foreground = YES;
+        
+        DecoratedAppSceneView *sceneView = (id)self.delegate;
+        CGRect windowFrame = self.view.window.frame;
+        CGRect newFrame = currentFrame;
+        if(sceneView.isMaximized) {
+            UIEdgeInsets safeAreaInsets = self.view.window.safeAreaInsets;
+            CGRect maxFrame = UIEdgeInsetsInsetRect(windowFrame, safeAreaInsets);
+            sceneView.frame = maxFrame;
+            newFrame = CGRectMake(0, 0, maxFrame.size.width/sceneView.scaleRatio, (maxFrame.size.height - sceneView.navigationBar.frame.size.height)/sceneView.scaleRatio);
+        }
         if(UIInterfaceOrientationIsLandscape(baseSettings.interfaceOrientation)) {
-            newSettings.frame = CGRectMake(0, 0, currentFrame.size.height, currentFrame.size.width);
+            newSettings.frame = CGRectMake(0, 0, newFrame.size.height, newFrame.size.width);
         } else {
-            newSettings.frame = CGRectMake(0, 0, currentFrame.size.width, currentFrame.size.height);
+            newSettings.frame = CGRectMake(0, 0, newFrame.size.width, newFrame.size.height);
         }
         [self.presenter.scene updateSettings:newSettings withTransitionContext:newContext completion:nil];
     }

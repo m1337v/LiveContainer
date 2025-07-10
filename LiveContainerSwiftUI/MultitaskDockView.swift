@@ -273,13 +273,14 @@ class AppInfoProvider {
             .environmentObject(self))
         
         hostingController = UIHostingController(rootView: dockView)
+        hostingController?.view.autoresizingMask = [.flexibleTopMargin, .flexibleLeftMargin, .flexibleRightMargin, .flexibleBottomMargin]
         hostingController?.view.backgroundColor = .clear
     }
 
     private func updateDockFrame(animated: Bool = true) {
         guard isVisible, let hostingController = hostingController else { return }
 
-        let screenBounds = UIScreen.main.bounds
+        let screenBounds = keyWindow!.bounds
         let currentDockWidth = self.dockWidth
         
         let dockHeight = calculateTargetDockHeight(forWidth: currentDockWidth)

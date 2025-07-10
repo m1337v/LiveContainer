@@ -13558,6 +13558,17 @@
         }
       }
     },
+    "lc.settings.bottomWindowBar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bottom Window Bar"
+          }
+        }
+      }
+    },
     "lc.settings.bundleIdMismatch %@ %@" : {
       "comment" : "lc.settings.bundleIdMismatch",
       "extractionState" : "stale",

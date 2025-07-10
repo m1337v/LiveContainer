@@ -36,8 +36,6 @@ void UIKitFixesInit(void) {
 @property(nonatomic) NSString* dataUUID;
 @property(nonatomic) NSString* windowName;
 @property(nonatomic) int pid;
-@property(nonatomic) CGFloat scaleRatio;
-@property(nonatomic) BOOL isMaximized;
 @property(nonatomic) CGRect originalFrame;
 @property(nonatomic) UIBarButtonItem *maximizeButton;
 
@@ -117,6 +115,7 @@ void UIKitFixesInit(void) {
     
     self.windowName = windowName;
     self.navigationItem.title = windowName;
+    self.autoresizingMask = UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleRightMargin;
     
     [self.contentView insertSubview:appSceneView.view atIndex:0];
 
@@ -195,8 +194,9 @@ void UIKitFixesInit(void) {
                               delay:0 
                             options:UIViewAnimationOptionCurveEaseInOut 
                          animations:^{
-                             self.frame = self.originalFrame;
-                         } 
+                             CGSize windowSize = self.window.frame.size;
+                             self.frame = CGRectMake(windowSize.width * self.originalFrame.origin.x, windowSize.height * self.originalFrame.origin.y, self.originalFrame.size.width, self.originalFrame.size.height);
+                         }
                          completion:^(BOOL finished) {
                              self.isMaximized = NO;
                              UIImage *maximizeImage = [UIImage systemImageNamed:@"arrow.up.left.and.arrow.down.right.circle"];
@@ -206,10 +206,12 @@ void UIKitFixesInit(void) {
                              [self.appSceneView resizeWindowWithFrame:CGRectMake(0, 0, size.width / self.scaleRatio, size.height / self.scaleRatio)];
                          }];
     } else {
-        self.originalFrame = self.frame;
+        // save origin as normalized coordinates
+        CGSize windowSize = self.window.frame.size;
+        self.originalFrame = CGRectMake(self.frame.origin.x/windowSize.width, self.frame.origin.y/windowSize.height, self.frame.size.width, self.frame.size.height);
         
-        UIEdgeInsets safeAreaInsets = UIApplication.sharedApplication.keyWindow.safeAreaInsets;
-        CGRect maxFrame = UIEdgeInsetsInsetRect(UIScreen.mainScreen.bounds, safeAreaInsets);
+        UIEdgeInsets safeAreaInsets = self.window.safeAreaInsets;
+        CGRect maxFrame = UIEdgeInsetsInsetRect(self.window.frame, safeAreaInsets);
         
         [UIView animateWithDuration:0.3 
                               delay:0 
