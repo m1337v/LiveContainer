@@ -14,7 +14,7 @@
 #include <netdb.h>
 #include <SystemConfiguration/SystemConfiguration.h>
 #include <CFNetwork/CFNetwork.h>
- #import "../../fishhook/fishhook.h"
+#import "../../fishhook/fishhook.h"
 #import "litehook_internal.h"
 #import "LCMachOUtils.h"
 #import "../utils.h"
@@ -298,9 +298,9 @@ const struct mach_header* hook_dyld_get_image_header(uint32_t image_index) {
     }
     
     // Before we're ready to hide libraries, use simple passthrough
-    if(!appExecutableFileTypeOverwritten) {
-        return orig_dyld_get_image_header(image_index);
-    }
+    // if(!appExecutableFileTypeOverwritten) {
+    //     return orig_dyld_get_image_header(image_index);
+    // }
     
     // After we're ready, use the hiding logic
     uint32_t realCount = orig_dyld_image_count();
