@@ -533,6 +533,7 @@ class AppInfoProvider {
         let isHidden = view.isHidden || view.alpha < 0.1
         
         if isHidden {
+            view.transform = CGAffineTransform(scaleX: 0.1, y: 0.1)
             view.isHidden = false
             UIView.animate(
                 withDuration: Constants.standardAnimationDuration,

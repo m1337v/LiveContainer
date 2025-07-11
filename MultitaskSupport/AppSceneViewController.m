@@ -175,14 +175,25 @@
         newSettings.foreground = YES;
         
         DecoratedAppSceneView *sceneView = (id)self.delegate;
-        CGRect windowFrame = self.view.window.frame;
+        UIEdgeInsets safeAreaInsets = self.view.window.safeAreaInsets;
+        CGRect maxFrame = UIEdgeInsetsInsetRect(self.view.window.frame, safeAreaInsets);
         CGRect newFrame = currentFrame;
         if(sceneView.isMaximized) {
-            UIEdgeInsets safeAreaInsets = self.view.window.safeAreaInsets;
-            CGRect maxFrame = UIEdgeInsetsInsetRect(windowFrame, safeAreaInsets);
             sceneView.frame = maxFrame;
-            newFrame = CGRectMake(0, 0, maxFrame.size.width/sceneView.scaleRatio, (maxFrame.size.height - sceneView.navigationBar.frame.size.height)/sceneView.scaleRatio);
+        } else {
+            CGPoint center = sceneView.center;
+            CGRect frame = CGRectZero;
+            frame.size.width = MIN(currentFrame.size.width*sceneView.scaleRatio, maxFrame.size.width);
+            frame.size.height = MIN(currentFrame.size.height*sceneView.scaleRatio, maxFrame.size.height);
+            CGFloat oobOffset = MAX(30, frame.size.width - 30);
+            frame.origin.x = MAX(maxFrame.origin.x - oobOffset, MIN(CGRectGetMaxX(maxFrame) - frame.size.width + oobOffset, center.x - frame.size.width / 2));
+            frame.origin.y = MAX(maxFrame.origin.y, MIN(center.y - frame.size.height / 2, CGRectGetMaxY(maxFrame) - frame.size.height));
+            [UIView animateWithDuration:0.3 animations:^{
+                sceneView.frame = frame;
+            }];
         }
+        newFrame = CGRectMake(0, 0, sceneView.frame.size.width/sceneView.scaleRatio, (sceneView.frame.size.height - sceneView.navigationBar.frame.size.height)/sceneView.scaleRatio);
+        
         if(UIInterfaceOrientationIsLandscape(baseSettings.interfaceOrientation)) {
             newSettings.frame = CGRectMake(0, 0, newFrame.size.height, newFrame.size.width);
         } else {

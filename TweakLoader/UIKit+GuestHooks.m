@@ -60,6 +60,15 @@ NSString* findDefaultContainerWithBundleId(NSString* bundleId) {
 
 
 void LCShowSwitchAppConfirmation(NSURL *url, NSString* bundleId) {
+    NSURLComponents* newUrlComp = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO];
+    newUrlComp.scheme = @"livecontainer2";
+    
+    BOOL canOpenInLC2 = [NSUserDefaults.lcAppUrlScheme isEqualToString:@"livecontainer"] && [UIApplication.sharedApplication canOpenURL:[NSURL URLWithString: @"livecontainer2://"]];
+    if(canOpenInLC2 && ![NSClassFromString(@"LCSharedUtils") isLCSchemeInUse:@"livecontainer2"]) {
+        [UIApplication.sharedApplication openURL:newUrlComp.URL options:@{} completionHandler:nil];
+        return;
+    }
+    
     if ([NSUserDefaults.lcUserDefaults boolForKey:@"LCSwitchAppWithoutAsking"]) {
         [NSClassFromString(@"LCSharedUtils") launchToGuestAppWithURL:url];
         return;
@@ -75,9 +84,7 @@ void LCShowSwitchAppConfirmation(NSURL *url, NSString* bundleId) {
     [alert addAction:okAction];
     if([NSUserDefaults.lcAppUrlScheme isEqualToString:@"livecontainer"] && [UIApplication.sharedApplication canOpenURL:[NSURL URLWithString: @"livecontainer2://"]]) {
         UIAlertAction* openlc2Action = [UIAlertAction actionWithTitle:@"lc.guestTweak.openInLc2".loc style:UIAlertActionStyleDefault handler:^(UIAlertAction * action) {
-            NSURLComponents* newUrlComp = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO];
-            [newUrlComp setScheme:@"livecontainer2"];
-            [UIApplication.sharedApplication openURL:[newUrlComp URL] options:@{} completionHandler:nil];
+            [UIApplication.sharedApplication openURL:newUrlComp.URL options:@{} completionHandler:nil];
             window.windowScene = nil;
         }];
         [alert addAction:openlc2Action];
@@ -150,6 +157,15 @@ void LCOpenWebPage(NSString* webPageUrlString, NSString* originalUrl) {
         return;
     }
     
+    NSURLComponents* newUrlComp = [NSURLComponents componentsWithString:originalUrl];
+    newUrlComp.scheme = @"livecontainer2";
+    
+    BOOL canOpenInLC2 = [NSUserDefaults.lcAppUrlScheme isEqualToString:@"livecontainer"] && [UIApplication.sharedApplication canOpenURL:[NSURL URLWithString: @"livecontainer2://"]];
+    if(canOpenInLC2 && ![NSClassFromString(@"LCSharedUtils") isLCSchemeInUse:@"livecontainer2"]) {
+        [UIApplication.sharedApplication openURL:newUrlComp.URL options:@{} completionHandler:nil];
+        return;
+    }
+    
     NSString *message = @"lc.guestTweak.openWebPageTip".loc;
     UIWindow *window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"LiveContainer" message:message preferredStyle:UIAlertControllerStyleAlert];
@@ -162,11 +178,9 @@ void LCOpenWebPage(NSString* webPageUrlString, NSString* originalUrl) {
         openUniversalLink(webPageUrlString);
         window.windowScene = nil;
     }];
-    if([NSUserDefaults.lcAppUrlScheme isEqualToString:@"livecontainer"] && [UIApplication.sharedApplication canOpenURL:[NSURL URLWithString: @"livecontainer2://"]]) {
+    if(canOpenInLC2) {
         UIAlertAction* openlc2Action = [UIAlertAction actionWithTitle:@"lc.guestTweak.openInLc2".loc style:UIAlertActionStyleDefault handler:^(UIAlertAction * action) {
-            NSURLComponents* newUrlComp = [NSURLComponents componentsWithString:originalUrl];
-            [newUrlComp setScheme:@"livecontainer2"];
-            [UIApplication.sharedApplication openURL:[newUrlComp URL] options:@{} completionHandler:nil];
+            [UIApplication.sharedApplication openURL:newUrlComp.URL options:@{} completionHandler:nil];
             window.windowScene = nil;
         }];
         [alert addAction:openlc2Action];

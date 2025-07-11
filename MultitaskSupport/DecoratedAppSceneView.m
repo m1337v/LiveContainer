@@ -43,7 +43,11 @@ void UIKitFixesInit(void) {
 
 @implementation DecoratedAppSceneView
 - (instancetype)initWithExtension:(NSExtension *)extension identifier:(NSUUID *)identifier windowName:(NSString*)windowName dataUUID:(NSString*)dataUUID {
-    self = [super initWithFrame:CGRectMake(0, 100, 320, 480 + 44)];
+    if(UIInterfaceOrientationIsLandscape(UIApplication.sharedApplication.statusBarOrientation)) {
+        self = [super initWithFrame:CGRectMake(0, 0, 480, 320 + 44)];
+    } else {
+        self = [super initWithFrame:CGRectMake(0, 0, 320, 480 + 44)];
+    }
     AppSceneViewController* appSceneView = [[AppSceneViewController alloc] initWithExtension:extension frame:CGRectMake(0, 0, self.contentView.bounds.size.width, self.contentView.bounds.size.height) identifier:identifier dataUUID:dataUUID delegate:self];
     appSceneView.view.layer.anchorPoint = CGPointMake(0, 0);
     appSceneView.view.layer.position = CGPointMake(0, 0);
@@ -115,7 +119,7 @@ void UIKitFixesInit(void) {
     
     self.windowName = windowName;
     self.navigationItem.title = windowName;
-    self.autoresizingMask = UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleRightMargin;
+    self.autoresizingMask = UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     
     [self.contentView insertSubview:appSceneView.view atIndex:0];
 
@@ -185,6 +189,7 @@ void UIKitFixesInit(void) {
                      } 
                      completion:^(BOOL finished) {
                          self.hidden = YES;
+                         self.transform = CGAffineTransformIdentity;
                      }];
 }
 
