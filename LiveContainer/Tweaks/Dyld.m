@@ -736,13 +736,22 @@ void* getGuestAppHeader(void) {
 
 #pragma mark - Fix black screen
 #if !TARGET_OS_SIMULATOR
-void hook_libdyld_os_unfair_recursive_lock_lock_with_options(void* ptr, void* lock, uint32_t options) {
-    os_unfair_recursive_lock_trylock(lock);
-}
-void hook_libdyld_os_unfair_recursive_lock_unlock(void* ptr, void* lock) {
-    os_unfair_recursive_lock_tryunlock4objc(lock);
-}
+#define HOOK_LOCK_1ST_ARG void *ptr,
+#else
+#define HOOK_LOCK_1ST_ARG
 #endif
+static void *lockPtrToIgnore;
+void hook_libdyld_os_unfair_recursive_lock_lock_with_options(HOOK_LOCK_1ST_ARG void* lock, uint32_t options) {
+    if(!lockPtrToIgnore) lockPtrToIgnore = lock;
+    if(lock != lockPtrToIgnore) {
+        os_unfair_recursive_lock_lock_with_options(lock, options);
+    }
+}
+void hook_libdyld_os_unfair_recursive_lock_unlock(HOOK_LOCK_1ST_ARG void* lock) {
+    if(lock != lockPtrToIgnore) {
+        os_unfair_recursive_lock_unlock(lock);
+    }
+}
 
 void *dlopenBypassingLock(const char *path, int mode) {
     const char *libdyldPath = "/usr/lib/system/libdyld.dylib";
@@ -772,14 +781,24 @@ void *dlopenBypassingLock(const char *path, int mode) {
     kern_return_t ret;
     ret = builtin_vm_protect(mach_task_self(), (mach_vm_address_t)lockUnlockPtr, sizeof(uintptr_t[2]), false, PROT_READ | PROT_WRITE | VM_PROT_COPY);
     assert(ret == KERN_SUCCESS);
+    void *origLockPtr = lockUnlockPtr[0], *origUnlockPtr = lockUnlockPtr[1];
     lockUnlockPtr[0] = hook_libdyld_os_unfair_recursive_lock_lock_with_options;
     lockUnlockPtr[1] = hook_libdyld_os_unfair_recursive_lock_unlock;
     void *result = dlopen(path, mode);
-    // dlopen will internally vm_protect to ro, so we don't need to do it here
+    
+    ret = builtin_vm_protect(mach_task_self(), (mach_vm_address_t)lockUnlockPtr, sizeof(uintptr_t[2]), false, PROT_READ | PROT_WRITE);
+    assert(ret == KERN_SUCCESS);
+    lockUnlockPtr[0] = origLockPtr;
+    lockUnlockPtr[1] = origUnlockPtr;
+    
+    ret = builtin_vm_protect(mach_task_self(), (mach_vm_address_t)lockUnlockPtr, sizeof(uintptr_t[2]), false, PROT_READ);
+    assert(ret == KERN_SUCCESS);
 #else
-    litehook_rebind_symbol(libdyldHeader, os_unfair_recursive_lock_lock_with_options, os_unfair_recursive_lock_trylock, nil);
-    litehook_rebind_symbol(libdyldHeader, os_unfair_recursive_lock_unlock, os_unfair_recursive_lock_tryunlock4objc, nil);
+    litehook_rebind_symbol(libdyldHeader, os_unfair_recursive_lock_lock_with_options, hook_libdyld_os_unfair_recursive_lock_lock_with_options, nil);
+    litehook_rebind_symbol(libdyldHeader, os_unfair_recursive_lock_unlock, hook_libdyld_os_unfair_recursive_lock_unlock, nil);
     void *result = dlopen(path, mode);
+    litehook_rebind_symbol(libdyldHeader, hook_libdyld_os_unfair_recursive_lock_lock_with_options, os_unfair_recursive_lock_lock_with_options, nil);
+    litehook_rebind_symbol(libdyldHeader, hook_libdyld_os_unfair_recursive_lock_unlock, os_unfair_recursive_lock_unlock, nil);
 #endif
     return result;
 }
