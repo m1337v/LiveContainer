@@ -478,14 +478,10 @@ bool checkCodeSignature(const char* path) {
 }
 
 NSString* getLCEntitlementXML(void) {
-#if DEBUG
     __block NSString* ans = @"Failed to find main executable?";
     // it seems the debug build messes the code signature region up, so we search the executable file on the disk instead.
     LCParseMachO(NSBundle.mainBundle.executablePath.UTF8String, true, ^(const char *path, struct mach_header_64 *header, int fd, void *filePtr) {
         ans = getEntitlementXML(header, 0);
     });
     return ans;
-#else
-    return getEntitlementXML(dlsym(RTLD_MAIN_ONLY, MH_EXECUTE_SYM), 0);
-#endif
 }

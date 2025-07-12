@@ -333,6 +333,10 @@ Class LCSharedUtilsClass = nil;
     infoDict[@"CFBundleName"] = newBundleName;
     infoDict[@"CFBundleIdentifier"] = [NSString stringWithFormat:@"com.kdt.%@", newBundleName];
     infoDict[@"CFBundleURLTypes"][0][@"CFBundleURLSchemes"][0] = [newBundleName lowercaseString];
+    if([infoDict[@"CFBundleURLTypes"] count] > 1) {
+        [infoDict[@"CFBundleURLTypes"] removeLastObject];
+    }
+    [infoDict removeObjectForKey:@"UTExportedTypeDeclarations"];
     infoDict[@"CFBundleIconName"] = @"AppIconGrey";
     if (infoDict[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"]) {
         infoDict[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"] = @"AppIconGrey";
