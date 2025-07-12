@@ -736,24 +736,18 @@ void* getGuestAppHeader(void) {
 
 #pragma mark - Fix black screen
 #if !TARGET_OS_SIMULATOR
-void hook_do_nothing(void) {}
-#else
-BOOL hook_libdyld_skip_lock = NO;
-void hook_libdyld_os_unfair_recursive_lock_lock_with_options(void* lock, uint32_t options) {
-    if(!hook_libdyld_skip_lock) {
-        os_unfair_recursive_lock_lock_with_options(lock, options);
-    }
+void hook_libdyld_os_unfair_recursive_lock_lock_with_options(void* ptr, void* lock, uint32_t options) {
+    os_unfair_recursive_lock_trylock(lock);
 }
-void hook_libdyld_os_unfair_recursive_lock_unlock(void* lock) {
-    if(!hook_libdyld_skip_lock) {
-        os_unfair_recursive_lock_unlock(lock);
-    }
+void hook_libdyld_os_unfair_recursive_lock_unlock(void* ptr, void* lock) {
+    os_unfair_recursive_lock_tryunlock4objc(lock);
 }
 #endif
 
 void *dlopenBypassingLock(const char *path, int mode) {
     const char *libdyldPath = "/usr/lib/system/libdyld.dylib";
     mach_header_u *libdyldHeader = LCGetLoadedImageHeader(0, libdyldPath);
+    assert(libdyldHeader != NULL);
 #if !TARGET_OS_SIMULATOR
     NSString *lockUnlockPtrName = @"dyld4::LibSystemHelpers::os_unfair_recursive_lock_lock_with_options";
     void **lockUnlockPtr = getCachedSymbol(lockUnlockPtrName, libdyldHeader);
@@ -778,23 +772,14 @@ void *dlopenBypassingLock(const char *path, int mode) {
     kern_return_t ret;
     ret = builtin_vm_protect(mach_task_self(), (mach_vm_address_t)lockUnlockPtr, sizeof(uintptr_t[2]), false, PROT_READ | PROT_WRITE | VM_PROT_COPY);
     assert(ret == KERN_SUCCESS);
-    void *origLockPtr = lockUnlockPtr[0], *origUnlockPtr = lockUnlockPtr[1];
-    lockUnlockPtr[0] = lockUnlockPtr[1] = hook_do_nothing;
+    lockUnlockPtr[0] = hook_libdyld_os_unfair_recursive_lock_lock_with_options;
+    lockUnlockPtr[1] = hook_libdyld_os_unfair_recursive_lock_unlock;
     void *result = dlopen(path, mode);
-    
-    ret = builtin_vm_protect(mach_task_self(), (mach_vm_address_t)lockUnlockPtr, sizeof(uintptr_t[2]), false, PROT_READ | PROT_WRITE);
-    assert(ret == KERN_SUCCESS);
-    lockUnlockPtr[0] = origLockPtr;
-    lockUnlockPtr[1] = origUnlockPtr;
-    
-    ret = builtin_vm_protect(mach_task_self(), (mach_vm_address_t)lockUnlockPtr, sizeof(uintptr_t[2]), false, PROT_READ);
-    assert(ret == KERN_SUCCESS);
+    // dlopen will internally vm_protect to ro, so we don't need to do it here
 #else
-    litehook_rebind_symbol(libdyldHeader, os_unfair_recursive_lock_lock_with_options, hook_libdyld_os_unfair_recursive_lock_lock_with_options, nil);
-    litehook_rebind_symbol(libdyldHeader, os_unfair_recursive_lock_unlock, hook_libdyld_os_unfair_recursive_lock_unlock, nil);
-    hook_libdyld_skip_lock = YES;
+    litehook_rebind_symbol(libdyldHeader, os_unfair_recursive_lock_lock_with_options, os_unfair_recursive_lock_trylock, nil);
+    litehook_rebind_symbol(libdyldHeader, os_unfair_recursive_lock_unlock, os_unfair_recursive_lock_tryunlock4objc, nil);
     void *result = dlopen(path, mode);
-    hook_libdyld_skip_lock = NO;
 #endif
     return result;
 }

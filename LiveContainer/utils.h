@@ -11,6 +11,8 @@ int csops_audittoken(pid_t pid, unsigned int ops, void * useraddr, size_t usersi
 int csops(pid_t pid, unsigned int ops, void *useraddr, size_t usersize);
 void os_unfair_recursive_lock_lock_with_options(void* lock, uint32_t options);
 void os_unfair_recursive_lock_unlock(void* lock);
+bool os_unfair_recursive_lock_trylock(void* lock);
+bool os_unfair_recursive_lock_tryunlock4objc(void* lock);
 
 void *getDyldBase(void);
 void init_bypassDyldLibValidation(void);
