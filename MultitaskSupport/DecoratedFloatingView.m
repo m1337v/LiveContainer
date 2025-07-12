@@ -8,6 +8,7 @@
     // Navigation bar
     UINavigationBar *navigationBar = [[UINavigationBar alloc] initWithFrame:CGRectMake(0, 0, frame.size.width, 44)];
     navigationBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [[navigationBar.heightAnchor constraintEqualToConstant:44] setActive:true];
     UINavigationItem *navigationItem = [[UINavigationItem alloc] initWithTitle:@"Unnamed window"];
     navigationBar.items = @[navigationItem];
     return [self initWithFrame:frame navigationBar:navigationBar];

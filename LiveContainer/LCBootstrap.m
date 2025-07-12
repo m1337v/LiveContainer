@@ -707,14 +707,9 @@ int LiveContainerMain(int argc, char *argv[]) {
 
 }
 
-// fake main() used for dlsym(RTLD_DEFAULT, main)
-int main(int argc, char *argv[]) {
 #ifdef DEBUG
-    if(appMain == NULL) {
-        return LiveContainerMain(argc, argv);
-    }
-#else
+int callAppMain(int argc, char *argv[]) {
     assert(appMain != NULL);
-#endif
-    return appMain(argc, argv);
+    __attribute__((musttail)) return appMain(argc, argv);
 }
+#endif

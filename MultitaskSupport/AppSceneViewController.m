@@ -184,7 +184,7 @@
             CGPoint center = sceneView.center;
             CGRect frame = CGRectZero;
             frame.size.width = MIN(currentFrame.size.width*sceneView.scaleRatio, maxFrame.size.width);
-            frame.size.height = MIN(currentFrame.size.height*sceneView.scaleRatio, maxFrame.size.height);
+            frame.size.height = MIN(currentFrame.size.height*sceneView.scaleRatio + sceneView.navigationBar.frame.size.height, maxFrame.size.height);
             CGFloat oobOffset = MAX(30, frame.size.width - 30);
             frame.origin.x = MAX(maxFrame.origin.x - oobOffset, MIN(CGRectGetMaxX(maxFrame) - frame.size.width + oobOffset, center.x - frame.size.width / 2));
             frame.origin.y = MAX(maxFrame.origin.y, MIN(center.y - frame.size.height / 2, CGRectGetMaxY(maxFrame) - frame.size.height));

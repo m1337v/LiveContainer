@@ -15,15 +15,14 @@
 		17554B732DA16988004C6D90 /* OpenSSL.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 17554B712DA16988004C6D90 /* OpenSSL.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		17554B742DA169AA004C6D90 /* OpenSSL.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 17554B712DA16988004C6D90 /* OpenSSL.xcframework */; };
 		E1292AF32DCA3A660065E12D /* LiveProcess.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E1292AE52DCA3A660065E12D /* LiveProcess.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		E1292BEB2DCA3B670065E12D /* LiveContainerShared.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1292BD62DCA3B660065E12D /* LiveContainerShared.framework */; };
 		E1292BEC2DCA3B670065E12D /* LiveContainerShared.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E1292BD62DCA3B660065E12D /* LiveContainerShared.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		E1292C052DCA3EF00065E12D /* LiveContainerShared.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1292BD62DCA3B660065E12D /* LiveContainerShared.framework */; };
 		E1292C072DCA434C0065E12D /* dyld_bypass_validation.m in Sources */ = {isa = PBXBuildFile; fileRef = 172CA8542D9D721700CF6989 /* dyld_bypass_validation.m */; };
 		E1292C082DCA434F0065E12D /* LCSharedUtils.m in Sources */ = {isa = PBXBuildFile; fileRef = 172CA8572D9D721700CF6989 /* LCSharedUtils.m */; };
 		E1292C092DCA43510065E12D /* Localization.m in Sources */ = {isa = PBXBuildFile; fileRef = 172CA8592D9D721700CF6989 /* Localization.m */; };
 		E1292C0A2DCA43540065E12D /* utils.m in Sources */ = {isa = PBXBuildFile; fileRef = 172CA85E2D9D721700CF6989 /* utils.m */; };
-		E1292C0B2DCA43560065E12D /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 172CA85A2D9D721700CF6989 /* main.m */; };
-		E1292C132DCA46070065E12D /* empty.m in Sources */ = {isa = PBXBuildFile; fileRef = E1292C032DCA3C160065E12D /* empty.m */; };
+		E1292C0B2DCA43560065E12D /* LCBootstrap.m in Sources */ = {isa = PBXBuildFile; fileRef = 172CA85A2D9D721700CF6989 /* LCBootstrap.m */; };
+		E1292C132DCA46070065E12D /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = E1292C032DCA3C160065E12D /* main.c */; };
 		E16D95742E1CD2980068EB63 /* LCMachOUtils.m in Sources */ = {isa = PBXBuildFile; fileRef = E16D94DE2E1CC8200068EB63 /* LCMachOUtils.m */; };
 		E16D95752E1CD2B90068EB63 /* LiveContainerShared.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1292BD62DCA3B660065E12D /* LiveContainerShared.framework */; };
 /* End PBXBuildFile section */
@@ -113,7 +112,7 @@
 		172CA8572D9D721700CF6989 /* LCSharedUtils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LCSharedUtils.m; sourceTree = "<group>"; };
 		172CA8582D9D721700CF6989 /* Localization.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Localization.h; sourceTree = "<group>"; };
 		172CA8592D9D721700CF6989 /* Localization.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Localization.m; sourceTree = "<group>"; };
-		172CA85A2D9D721700CF6989 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		172CA85A2D9D721700CF6989 /* LCBootstrap.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LCBootstrap.m; sourceTree = "<group>"; };
 		172CA85C2D9D721700CF6989 /* UIKitPrivate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UIKitPrivate.h; sourceTree = "<group>"; };
 		172CA85D2D9D721700CF6989 /* utils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = utils.h; sourceTree = "<group>"; };
 		172CA85E2D9D721700CF6989 /* utils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = utils.m; sourceTree = "<group>"; };
@@ -128,7 +127,7 @@
 		E12928C92DCA38380065E12D /* UniformTypeIdentifiers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UniformTypeIdentifiers.framework; path = System/Library/Frameworks/UniformTypeIdentifiers.framework; sourceTree = SDKROOT; };
 		E1292AE52DCA3A660065E12D /* LiveProcess.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LiveProcess.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E1292BD62DCA3B660065E12D /* LiveContainerShared.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = LiveContainerShared.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		E1292C032DCA3C160065E12D /* empty.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = empty.m; sourceTree = "<group>"; };
+		E1292C032DCA3C160065E12D /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
 		E16D94DE2E1CC8200068EB63 /* LCMachOUtils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LCMachOUtils.m; sourceTree = "<group>"; };
 		E16D95702E1CC8F20068EB63 /* litehook_internal.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = litehook_internal.h; sourceTree = "<group>"; };
 		E16D95762E1CD49E0068EB63 /* LCMachOUtils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LCMachOUtils.h; sourceTree = "<group>"; };
@@ -282,7 +281,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E1292BEB2DCA3B670065E12D /* LiveContainerShared.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -309,7 +307,7 @@
 			children = (
 				E16D95762E1CD49E0068EB63 /* LCMachOUtils.h */,
 				E16D95702E1CC8F20068EB63 /* litehook_internal.h */,
-				E1292C032DCA3C160065E12D /* empty.m */,
+				E1292C032DCA3C160065E12D /* main.c */,
 				E1292C1A2DCA48F00065E12D /* Tweaks */,
 				172CA8542D9D721700CF6989 /* dyld_bypass_validation.m */,
 				172CA8552D9D721700CF6989 /* FoundationPrivate.h */,
@@ -318,7 +316,7 @@
 				172CA8572D9D721700CF6989 /* LCSharedUtils.m */,
 				172CA8582D9D721700CF6989 /* Localization.h */,
 				172CA8592D9D721700CF6989 /* Localization.m */,
-				172CA85A2D9D721700CF6989 /* main.m */,
+				172CA85A2D9D721700CF6989 /* LCBootstrap.m */,
 				172CA85C2D9D721700CF6989 /* UIKitPrivate.h */,
 				172CA85D2D9D721700CF6989 /* utils.h */,
 				172CA85E2D9D721700CF6989 /* utils.m */,
@@ -755,7 +753,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E1292C132DCA46070065E12D /* empty.m in Sources */,
+				E1292C132DCA46070065E12D /* main.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -774,7 +772,7 @@
 				E1292C092DCA43510065E12D /* Localization.m in Sources */,
 				E16D95742E1CD2980068EB63 /* LCMachOUtils.m in Sources */,
 				E1292C082DCA434F0065E12D /* LCSharedUtils.m in Sources */,
-				E1292C0B2DCA43560065E12D /* main.m in Sources */,
+				E1292C0B2DCA43560065E12D /* LCBootstrap.m in Sources */,
 				E1292C0A2DCA43540065E12D /* utils.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1174,6 +1172,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
+				ENABLE_DEBUG_DYLIB = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/Resources/Frameworks",
@@ -1194,10 +1193,7 @@
 				);
 				MARKETING_VERSION = 3.3.55;
 				NEW_SETTING = "";
-				OTHER_LDFLAGS = (
-					"-e",
-					_LiveContainerMain,
-				);
+				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(PRODUCT_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = LiveContainer;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1243,7 +1239,7 @@
 				NEW_SETTING = "";
 				OTHER_LDFLAGS = (
 					"-e",
-					_LiveContainerMain,
+					_LiveContainerMainC,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "$(PRODUCT_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = LiveContainer;
