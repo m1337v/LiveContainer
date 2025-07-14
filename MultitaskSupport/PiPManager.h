@@ -8,12 +8,14 @@
 @import AVKit;
 @import UIKit;
 #import "FoundationPrivate.h"
+#import "AppSceneViewController.h"
 
+API_AVAILABLE(ios(16.0))
 @interface PiPManager : NSObject<AVPictureInPictureControllerDelegate>
 @property (class, nonatomic, readonly) PiPManager *shared;
 @property (nonatomic, readonly) bool isPiP;
-- (BOOL)isPiPWithView:(UIView*)view;
+- (BOOL)isPiPWithVC:(AppSceneViewController*)vc;
 - (void)stopPiP;
-- (void)startPiPWithView:(UIView*)view contentView:(UIView*)contentView extension:(NSExtension*)extension;
+- (void)startPiPWithVC:(AppSceneViewController*)vc;
 
 @end

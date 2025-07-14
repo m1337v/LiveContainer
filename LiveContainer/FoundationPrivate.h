@@ -18,6 +18,7 @@
 - (void)beginExtensionRequestWithInputItems:(NSArray *)items completion:(void(^)(NSUUID *))callback;
 - (int)pidForRequestIdentifier:(NSUUID *)identifier;
 - (void)_kill:(int)arg1;
+- (void)setRequestCancellationBlock:(void(^)(NSUUID *uuid, NSError *error))callback;
 - (void)setRequestInterruptionBlock:(void(^)(NSUUID *))callback;
 - (void)_hostDidEnterBackgroundNote:(NSNotification *)note;
 @end

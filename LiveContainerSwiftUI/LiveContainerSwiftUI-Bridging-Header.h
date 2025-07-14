@@ -11,7 +11,7 @@
 #include "unarchive.h"
 #include <CoreLocation/CoreLocation.h>
 #include "../MultitaskSupport/AppSceneViewController.h"
-#include "../MultitaskSupport/DecoratedAppSceneView.h"
+#include "../MultitaskSupport/DecoratedAppSceneViewController.h"
 #include "../LiveContainer/FoundationPrivate.h"
 #include "../TweakLoader/CoreLocation+GuestHooks.h"
 #include "../TweakLoader/AVFoundation+GuestHooks.h"

@@ -5,7 +5,7 @@
 
 #import "LCUtils.h"
 #import "LCAppInfo.h"
-#import "../MultitaskSupport/DecoratedAppSceneView.h"
+#import "../MultitaskSupport/DecoratedAppSceneViewController.h"
 #import "../ZSign/zsigner.h"
 #import "LiveContainerSwiftUI-Swift.h"
 
@@ -77,56 +77,36 @@ Class LCSharedUtilsClass = nil;
         return;
     }
     
-    NSError *error;
-    NSExtension *extension = [NSExtension extensionWithIdentifier:liveProcessBundle.bundleIdentifier error:&error];
-    if(error) {
-        completionHandler(error);
-        return;
-    }
-    
     NSUserDefaults *lcUserDefaults = NSUserDefaults.standardUserDefaults;
-    NSExtensionItem *item = [NSExtensionItem new];
-    NSString* selectedContainer = [lcUserDefaults stringForKey:@"selectedContainer"];
-    item.userInfo = @{
-        @"selected": [lcUserDefaults stringForKey:@"selected"],
-        @"selectedContainer": [lcUserDefaults stringForKey:@"selectedContainer"]
-    };
+    NSString* bundleId = [lcUserDefaults stringForKey:@"selected"];
+    NSString* dataUUID = [lcUserDefaults stringForKey:@"selectedContainer"];
+    
     [lcUserDefaults removeObjectForKey:@"selected"];
     [lcUserDefaults removeObjectForKey:@"selectedContainer"];
     
-    [extension beginExtensionRequestWithInputItems:@[item] completion:^(NSUUID *identifier) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if(identifier) {
-                // TODO: show windows elsewhere
-                if (@available(iOS 16.1, *)) {
-                    if(UIApplication.sharedApplication.supportsMultipleScenes && [[[NSUserDefaults alloc] initWithSuiteName:[LCUtils appGroupID]] integerForKey:@"LCMultitaskMode" ] == 1) {
-                        [MultitaskWindowManager openAppWindowWithId:identifier ext:extension displayName:displayName dataUUID:selectedContainer];
-                        
-                        MultitaskDockManager *dock = [MultitaskDockManager shared];
-                        [dock addRunningApp:displayName appUUID:selectedContainer];
-                        
-                        completionHandler(nil);
-                        return;
-                    }
-                }
-                
-                
-                UIView *view = ((UIWindowScene *)UIApplication.sharedApplication.connectedScenes.anyObject).keyWindow.rootViewController.view;
-                
-                DecoratedAppSceneView *launcherView = [[DecoratedAppSceneView alloc] initWithExtension:extension identifier:identifier windowName:displayName dataUUID:selectedContainer];
-                launcherView.center = view.center;
-                [view addSubview:launcherView];
-                
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (@available(iOS 16.1, *)) {
+            if(UIApplication.sharedApplication.supportsMultipleScenes && [[[NSUserDefaults alloc] initWithSuiteName:[LCUtils appGroupID]] integerForKey:@"LCMultitaskMode" ] == 1) {
+                [MultitaskWindowManager openAppWindowWithDisplayName:displayName dataUUID:dataUUID bundleId:bundleId];
                 MultitaskDockManager *dock = [MultitaskDockManager shared];
-                [dock addRunningApp:displayName appUUID:selectedContainer];
+                [dock addRunningApp:displayName appUUID:dataUUID view:nil];
                 
                 completionHandler(nil);
-            } else {
-                NSError *error = [NSError errorWithDomain:displayName code:2 userInfo:@{NSLocalizedDescriptionKey: @"Failed to start app. Child process has unexpectedly crashed"}];
-                completionHandler(error);
+                return;
             }
-        });
-    }];
+        }
+        
+        UIViewController *rootVC = ((UIWindowScene *)UIApplication.sharedApplication.connectedScenes.anyObject).keyWindow.rootViewController;
+        
+
+        DecoratedAppSceneViewController *launcherView = [[DecoratedAppSceneViewController alloc] initWindowName:displayName bundleId:bundleId dataUUID:dataUUID];
+        launcherView.view.center = rootVC.view.center;
+        [rootVC addChildViewController:launcherView];
+        [rootVC.view addSubview:launcherView.view];
+        completionHandler(nil);
+        
+    });
+    
 }
 
 #pragma mark Code signing

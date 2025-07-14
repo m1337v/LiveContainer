@@ -48,6 +48,7 @@ struct LCSettingsView: View {
     @AppStorage("LCMultitaskMode", store: LCUtils.appGroupUserDefault) var multitaskMode: MultitaskMode = .virtualWindow
     @AppStorage("LCLaunchInMultitaskMode") var launchInMultitaskMode = false
     @AppStorage("LCMultitaskBottomWindowBar", store: LCUtils.appGroupUserDefault) var bottomWindowBar = false
+    @AppStorage("LCAutoEndPiP", store: LCUtils.appGroupUserDefault) var autoEndPiP = false
     @AppStorage("LCDockWidth", store: LCUtils.appGroupUserDefault) var dockWidth: Double = 80
     
     @State var store : Store = .Unknown
@@ -250,11 +251,13 @@ struct LCSettingsView: View {
                         Text("lc.settings.autoLaunchInMultitaskMode".loc)
                     }
                     
-                    Toggle(isOn: $bottomWindowBar) {
-                        Text("lc.settings.bottomWindowBar".loc)
-                    }
-                    
                     if multitaskMode == .virtualWindow {
+                        Toggle(isOn: $autoEndPiP) {
+                            Text("lc.settings.autoEndPiP".loc)
+                        }
+                        Toggle(isOn: $bottomWindowBar) {
+                            Text("lc.settings.bottomWindowBar".loc)
+                        }
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Text("lc.settings.dockWidth".loc)

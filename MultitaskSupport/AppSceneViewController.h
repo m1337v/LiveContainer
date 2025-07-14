@@ -9,25 +9,32 @@
 @import UIKit;
 @import Foundation;
 
-@protocol AppSceneViewDelegate <NSObject>
-- (void)appDidExit;
+
+@class AppSceneViewController;
+
+API_AVAILABLE(ios(16.0))
+@protocol AppSceneViewControllerDelegate <NSObject>
+- (void)appSceneVCAppDidExit:(AppSceneViewController*)vc;
+- (void)appSceneVC:(AppSceneViewController*)vc didInitializeWithError:(NSError*)error;
+@optional
+- (void)appSceneVC:(AppSceneViewController*)vc didUpdateFromSettings:(UIMutableApplicationSceneSettings *)settings transitionContext:(id)context;
 @end
 
 API_AVAILABLE(ios(16.0))
 @interface AppSceneViewController : UIViewController<_UISceneSettingsDiffAction>
-@property(nonatomic) UIWindowScene *hostScene;
-@property(nonatomic) _UIScenePresenter *presenter;
-@property(nonatomic) UIMutableApplicationSceneSettings *settings;
-@property(nonatomic) NSString *sceneID;
-@property(nonatomic) NSExtension* extension;
+
+@property(nonatomic) NSString* bundleId;
 @property(nonatomic) NSString* dataUUID;
 @property(nonatomic) int pid;
-@property(nonatomic) id<AppSceneViewDelegate> delegate;
+@property(nonatomic) id<AppSceneViewControllerDelegate> delegate;
 @property(nonatomic) BOOL isAppRunning;
-
-- (instancetype)initWithExtension:(NSExtension *)extension  frame:(CGRect)frame identifier:(NSUUID *)identifier dataUUID:(NSString*)dataUUID delegate:(id<AppSceneViewDelegate>)delegate;
-
-- (void)resizeWindowWithFrame:(CGRect)frame;
-- (void)closeWindow;
+@property(nonatomic) CGFloat scaleRatio;
+@property(nonatomic) UIView* contentView;
+@property(nonatomic) _UIScenePresenter *presenter;
+- (instancetype)initWithBundleId:(NSString*)bundleId dataUUID:(NSString*)dataUUID delegate:(id<AppSceneViewControllerDelegate>)delegate;
+- (void)setScale:(float)scale;
+- (void)setBackgroundNotificationEnabled:(bool)enabled;
+- (void)appTerminationCleanUp;
+- (void)terminate;
 @end
 

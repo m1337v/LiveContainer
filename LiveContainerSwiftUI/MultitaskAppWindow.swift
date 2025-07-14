@@ -6,40 +6,28 @@
 //
 import SwiftUI
 
+@available(iOS 16.1, *)
 struct MultitaskAppInfo {
-    var ext: NSExtension
     var displayName: String
     var dataUUID: String
-    var id: UUID
+    var bundleId: String
     
-    func getWindowTitle() -> String {
-        return "\(displayName) - \(ext.pid(forRequestIdentifier: id))"
-    }
-    
-    func getPid() -> Int {
-        return Int(ext.pid(forRequestIdentifier: id))
-    }
-    
-    func closeApp() {
-        ext.setRequestInterruptionBlock { uuid in
-            MultitaskManager.unregisterMultitaskContainer(container: dataUUID)
-        }
-        ext._kill(SIGTERM)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-            ext._kill(SIGKILL)
-        }
+    init(displayName: String, dataUUID: String, bundleId: String) {
+        self.displayName = displayName
+        self.dataUUID = dataUUID
+        self.bundleId = bundleId
     }
 }
 
 @available(iOS 16.1, *)
 @objc class MultitaskWindowManager : NSObject {
     @Environment(\.openWindow) static var openWindow
-    static var appDict: [UUID:MultitaskAppInfo] = [:]
+    static var appDict: [String:MultitaskAppInfo] = [:]
     
-    @objc class func openAppWindow(id: UUID, ext:NSExtension, displayName: String, dataUUID: String) {
+    @objc class func openAppWindow(displayName: String, dataUUID: String, bundleId: String) {
         DataManager.shared.model.enableMultipleWindow = true
-        appDict[id] = MultitaskAppInfo(ext: ext, displayName: displayName, dataUUID: dataUUID, id: id)
-        openWindow(id: "appView", value: id)
+        appDict[dataUUID] = MultitaskAppInfo(displayName: displayName, dataUUID: dataUUID, bundleId: bundleId)
+        openWindow(id: "appView", value: dataUUID)
     }
     
     @objc class func openExistingAppWindow(dataUUID: String) -> Bool {
@@ -57,51 +45,57 @@ struct MultitaskAppInfo {
 struct AppSceneViewSwiftUI : UIViewControllerRepresentable {
     
     @Binding var show : Bool
-    var initSize: CGSize
-
-    var ext: NSExtension
-    var identifier: UUID
-    var dataUUID: String
+    let bundleId: String
+    let dataUUID: String
+    let initSize: CGSize
+    let onAppInitialize : (Int32, Error?) -> Void
     
-    class Coordinator: NSObject, AppSceneViewDelegate {
+    class Coordinator: NSObject, AppSceneViewControllerDelegate {
         let onExit : () -> Void
-        init(onExit: @escaping () -> Void) {
+        let onAppInitialize : (Int32, Error?) -> Void
+        init(onAppInitialize : @escaping (Int32, Error?) -> Void, onExit: @escaping () -> Void) {
+            self.onAppInitialize = onAppInitialize
             self.onExit = onExit
         }
         
-        func appDidExit() {
+        func appSceneVCAppDidExit(_ vc: AppSceneViewController!) {
             onExit()
         }
-        
+
+        func appSceneVC(_ vc: AppSceneViewController!, didInitializeWithError error: (any Error)!) {
+            onAppInitialize(vc.pid, error)
+        }
     }
     
     func makeCoordinator() -> Coordinator {
-        Coordinator {
+        Coordinator(onAppInitialize: onAppInitialize, onExit: {
             show = false
-        }
+        })
     }
 
-    func makeUIViewController(context: Context) -> AppSceneViewController {
-        return AppSceneViewController(with: ext, frame: CGRect(x: 0,y: 0,width: initSize.width,height: initSize.height), identifier: identifier, dataUUID: dataUUID, delegate: context.coordinator)
+    func makeUIViewController(context: Context) -> UIViewController {
+        return AppSceneViewController(bundleId: bundleId, dataUUID: dataUUID, delegate: context.coordinator)
     }
     
-    func updateUIViewController(_ vc: AppSceneViewController, context: Context) {
-
+    func updateUIViewController(_ vc: UIViewController, context: Context) {
+        if let vc = vc as? AppSceneViewController {
+            if !show {
+                vc.terminate()
+            }
+        }
     }
 }
 
 @available(iOS 16.1, *)
 struct MultitaskAppWindow : View {
-    @State var id: UUID
     @State var show = true
+    @State var pid = 0
     @State var appInfo : MultitaskAppInfo? = nil
     @EnvironmentObject var sceneDelegate: SceneDelegate
     @Environment(\.openWindow) var openWindow
     @Environment(\.scenePhase) var scenePhase
     let pub = NotificationCenter.default.publisher(for: UIScene.didDisconnectNotification)
-    var appSceneView : AppSceneViewSwiftUI? = nil
-    init(id: UUID) {
-        self._id = State(initialValue: id)
+    init(id: String) {
         guard let appInfo = MultitaskWindowManager.appDict[id] else {
             return
         }
@@ -112,15 +106,22 @@ struct MultitaskAppWindow : View {
     var body: some View {
         if show, let appInfo {
             GeometryReader { geometry in
-                AppSceneViewSwiftUI(show: $show, initSize:geometry.size, ext: appInfo.ext, identifier: appInfo.id, dataUUID: appInfo.dataUUID)
-                    .background(.gray)
+                AppSceneViewSwiftUI(show: $show, bundleId: appInfo.bundleId, dataUUID: appInfo.dataUUID, initSize:geometry.size,
+                                    onAppInitialize: { pid, error in
+                    if(error == nil) {
+                        DispatchQueue.main.async {
+                            self.pid = Int(pid)
+                        }
+                    }
+                })
+                    .background(.black)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .ignoresSafeArea(.all, edges: .all)
-            .navigationTitle(appInfo.getWindowTitle())
+            .navigationTitle(Text("\(appInfo.displayName) - \(String(pid))"))
             .onReceive(pub) { out in
                 if let scene1 = sceneDelegate.window?.windowScene, let scene2 = out.object as? UIWindowScene, scene1 == scene2 {
-                    appInfo.closeApp()
+                    show = false
                 }
             }
             
@@ -138,12 +139,7 @@ struct MultitaskAppWindow : View {
                 // appInfo == nil indicates this is the first scene opened in this launch. We don't want this so we open lc's main scene and close this view
                 // however lc's main view may already be starting in another scene so we wait a bit before opening the main view
                 // also we have to keep the view open for a little bit otherwise lc will be killed by iOS
-                if let appInfo {
-                    if appInfo.getPid() == 0 {
-                        MultitaskManager.unregisterMultitaskContainer(container: appInfo.dataUUID)
-                        show = false
-                    }
-                } else {
+                if appInfo == nil {
                     if DataManager.shared.model.mainWindowOpened {
                         if let session = sceneDelegate.window?.windowScene?.session {
                             UIApplication.shared.requestSceneSessionDestruction(session, options: nil) { e in

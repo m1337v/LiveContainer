@@ -5,17 +5,19 @@
 //  Created by s s on 2025/6/3.
 //
 #include "PiPManager.h"
+#include "AppSceneViewController.h"
+#include "../LiveContainer/utils.h"
 
+API_AVAILABLE(ios(16.0))
 @interface PiPManager()
 @property(nonatomic, strong) AVPictureInPictureVideoCallViewController *pipVideoCallViewController;
 @property(nonatomic, strong) AVPictureInPictureController *pipController;
-@property(nonatomic) UIView* displayingView;
-@property(nonatomic) UIView* contentView;
-@property(nonatomic) NSExtension* extension;
+@property(nonatomic) AppSceneViewController* displayingVC;
 @end
 
 
 @implementation PiPManager
+API_AVAILABLE(ios(16.0))
 static PiPManager* sharedInstance = nil;
 
 + (instancetype)shared {
@@ -28,39 +30,33 @@ static PiPManager* sharedInstance = nil;
     return self.pipController.isPictureInPictureActive;
 }
 
-- (BOOL)isPiPWithView:(UIView*)view {
-    return self.pipController.isPictureInPictureActive && self.displayingView == view;
+- (BOOL)isPiPWithVC:(AppSceneViewController*)vc {
+    return self.pipController.isPictureInPictureActive && self.displayingVC == vc;
 }
 
 - (instancetype)init {
     NSError* error = nil;
     [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback error:&error];
     [[AVAudioSession sharedInstance] setActive:YES withOptions:1 error:&error];
-    
-
-    
     return self;
 }
 
-- (void)startPiPWithView:(UIView*)view contentView:(UIView*)contentView extension:(NSExtension*)extension {
+- (void)startPiPWithVC:(AppSceneViewController*)vc {
     [self.pipController stopPictureInPicture];
-    if(self.contentView) {
-        [self.contentView insertSubview:self.displayingView atIndex:0];
-        self.displayingView.transform = CGAffineTransformIdentity;
-        self.contentView = nil;
-        self.displayingView = nil;
+    if(self.displayingVC) {
+        [self.displayingVC.view insertSubview:self.displayingVC.contentView atIndex:0];
+        self.displayingVC.contentView.transform = CGAffineTransformIdentity;
+        self.displayingVC = nil;
     }
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)([self.pipController isPictureInPictureActive] * 0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         self.pipVideoCallViewController = [AVPictureInPictureVideoCallViewController new];
-        self.pipVideoCallViewController.preferredContentSize = view.bounds.size;
-        AVPictureInPictureControllerContentSource* contentSource =  [[AVPictureInPictureControllerContentSource alloc] initWithActiveVideoCallSourceView:contentView contentViewController:self.pipVideoCallViewController];
+        self.pipVideoCallViewController.preferredContentSize = vc.view.bounds.size;
+        AVPictureInPictureControllerContentSource* contentSource =  [[AVPictureInPictureControllerContentSource alloc] initWithActiveVideoCallSourceView:vc.view contentViewController:self.pipVideoCallViewController];
         self.pipController = [[AVPictureInPictureController alloc] initWithContentSource:contentSource];
         self.pipController.canStartPictureInPictureAutomaticallyFromInline = YES;
         self.pipController.delegate = self;
         [self.pipController setValue:@1 forKey:@"controlsStyle"];
-        self.displayingView = view;
-        self.contentView = contentView;
-        self.extension = extension;
+        self.displayingVC = vc;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [self.pipController startPictureInPicture];
         });
@@ -75,14 +71,14 @@ static PiPManager* sharedInstance = nil;
 // PIP delegate
 - (void)pictureInPictureControllerWillStartPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
     UIWindow *firstWindow = [UIApplication sharedApplication].windows.firstObject;
-    [firstWindow addSubview:self.displayingView];
+    self.displayingVC.contentView.frame = CGRectMake(0, 0, self.displayingVC.view.bounds.size.width, self.displayingVC.view.bounds.size.height);
+    [firstWindow addSubview:self.displayingVC.contentView];
     [firstWindow.layer addObserver:self
                                 forKeyPath:@"bounds"
                                    options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld
                                    context:NULL];
-    self.pipVideoCallViewController.preferredContentSize = self.displayingView.bounds.size;
-    // Remove UIApplicationDidEnterBackgroundNotification so apps like YouTube can continue playing video
-    [NSNotificationCenter.defaultCenter removeObserver:self.extension name:UIApplicationDidEnterBackgroundNotification object:UIApplication.sharedApplication];
+    self.pipVideoCallViewController.preferredContentSize = self.displayingVC.view.bounds.size;
+    [self.displayingVC setBackgroundNotificationEnabled:false];
 }
 
 
@@ -92,10 +88,13 @@ static PiPManager* sharedInstance = nil;
 }
 
 - (void)pictureInPictureControllerDidStopPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
-    [self.contentView insertSubview:self.displayingView atIndex:0];
-    self.displayingView.transform = CGAffineTransformIdentity;
-    // Re-add UIApplicationDidEnterBackgroundNotification
-    [NSNotificationCenter.defaultCenter addObserver:self.extension selector:@selector(_hostDidEnterBackgroundNote:) name:UIApplicationDidEnterBackgroundNotification object:UIApplication.sharedApplication];
+    [self.displayingVC.view insertSubview:self.displayingVC.contentView atIndex:0];
+    self.displayingVC.contentView.transform = CGAffineTransformIdentity;
+    [self.displayingVC setBackgroundNotificationEnabled:true];
+    if([NSUserDefaults.lcSharedDefaults boolForKey:@"LCAutoEndPiP"]) {
+        self.pipController = nil;
+        self.pipVideoCallViewController = nil;
+    }
 }
 
 - (void)pictureInPictureController:(AVPictureInPictureController *)pictureInPictureController failedToStartPictureInPictureWithError:(NSError *)error {
@@ -104,8 +103,8 @@ static PiPManager* sharedInstance = nil;
 
 - (void)observeValueForKeyPath:(NSString*)keyPath ofObject:(NSObject*)object change:(NSDictionary<NSString *,id> *) change context:(void *) context {
     CGRect rect = [change[@"new"] CGRectValue];
-    CGAffineTransform transform1 = CGAffineTransformScale(CGAffineTransformIdentity, rect.size.width / self.displayingView.bounds.size.width,rect.size.height / self.displayingView.bounds.size.height);
-    self.displayingView.transform = transform1;
+    CGAffineTransform transform1 = CGAffineTransformScale(CGAffineTransformIdentity, rect.size.width / self.displayingVC.contentView.bounds.size.width,rect.size.height /self.displayingVC.contentView.bounds.size.height);
+    self.displayingVC.contentView.transform = transform1;
 }
 
 @end

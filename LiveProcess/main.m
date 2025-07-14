@@ -7,21 +7,26 @@
 
 #import <dlfcn.h>
 #import <UIKit/UIKit.h>
-#import "../LiveContainer/utils.h"
 #import <mach-o/dyld.h>
+#import "../LiveContainer/utils.h"
 #import "../LiveContainer/Tweaks/Tweaks.h"
 
 @interface LiveProcessHandler : NSObject<NSExtensionRequestHandling>
 @end
 @implementation LiveProcessHandler
+static NSExtensionContext *extensionContext;
 static NSDictionary *retrievedAppInfo;
++ (NSExtensionContext *)extensionContext {
+    return extensionContext;
+}
+
 + (NSDictionary *)retrievedAppInfo {
     return retrievedAppInfo;
 }
 
 - (void)beginRequestWithExtensionContext:(NSExtensionContext *)context {
-    NSExtensionItem *item = context.inputItems.firstObject;
-    retrievedAppInfo = item.userInfo;
+    extensionContext = context;
+    retrievedAppInfo = [context.inputItems.firstObject userInfo];
     // Return control to LiveContainerMain
     CFRunLoopStop(CFRunLoopGetMain());
 }

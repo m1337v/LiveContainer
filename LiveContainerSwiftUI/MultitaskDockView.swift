@@ -114,11 +114,13 @@ class AppInfoProvider {
     @objc let appName: String
     @objc let appUUID: String
     let appInfo: LCAppInfo?
+    let view: UIView?
     
-    @objc init(appName: String, appUUID: String, appInfo: LCAppInfo? = nil) {
+    @objc init(appName: String, appUUID: String, appInfo: LCAppInfo? = nil, view: UIView?) {
         self.appName = appName
         self.appUUID = appUUID
         self.appInfo = appInfo
+        self.view = view
         super.init()
     }
 }
@@ -352,9 +354,9 @@ class AppInfoProvider {
         }
     }
     
-    @objc public func addRunningApp(_ appName: String, appUUID: String) {
+    @objc public func addRunningApp(_ appName: String, appUUID: String, view: UIView?) {
         let appInfo = AppInfoProvider.shared.findAppInfo(appName: appName, dataUUID: appUUID)
-        addRunningAppWithInfo(appInfo, appUUID: appUUID)
+        addRunningAppWithInfo(appInfo, appUUID: appUUID, view: view)
     }
     
     @objc public func removeRunningApp(_ appUUID: String) {
@@ -572,17 +574,9 @@ class AppInfoProvider {
     
     // Recursively find multitask view
     private func findMultitaskView(in view: UIView, withUUID uuid: String) -> UIView? {
-        let className = NSStringFromClass(type(of: view))
-        
-        if className.contains("DecoratedAppSceneView") || className.contains("DecoratedFloatingView") {
-            if let dataUUID = getDataUUID(from: view), dataUUID == uuid {
-                return view
-            }
-        }
-        
-        for subview in view.subviews {
-            if let foundView = findMultitaskView(in: subview, withUUID: uuid) {
-                return foundView
+        for app in apps {
+            if app.appUUID == uuid {
+                return app.view
             }
         }
         
@@ -606,7 +600,7 @@ class AppInfoProvider {
         return nil
     }
     
-    @objc public func addRunningAppWithInfo(_ appInfo: LCAppInfo?, appUUID: String) {
+    @objc public func addRunningAppWithInfo(_ appInfo: LCAppInfo?, appUUID: String, view: UIView?) {
         guard isDockEnabled() else { return }
         
         if apps.contains(where: { $0.appUUID == appUUID }) {
@@ -614,7 +608,7 @@ class AppInfoProvider {
         }
         
         let appName = appInfo?.displayName() ?? "Unknown App"
-        let appModel = DockAppModel(appName: appName, appUUID: appUUID, appInfo: appInfo)
+        let appModel = DockAppModel(appName: appName, appUUID: appUUID, appInfo: appInfo, view: view)
         
         DispatchQueue.main.async {
             self.apps.append(appModel)
@@ -733,8 +727,7 @@ public struct MultitaskDockSwiftView: View {
                             dockManager.toggleDockCollapse()
                         }
                     
-                    ForEach(dockManager.apps.indices, id: \.self) { index in
-                        let app = dockManager.apps[index]
+                    ForEach(dockManager.apps) { app in
                         AppIconView(app: app, showTooltip: $showTooltip, tooltipApp: $tooltipApp)
 
                     }

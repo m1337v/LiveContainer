@@ -136,6 +136,8 @@ static void overwriteMainNSBundle(NSBundle *newBundle) {
     assert(![NSBundle.mainBundle.executablePath isEqualToString:oldPath]);
 }
 
+void hook_do_nothing(void) {}
+
 int hook__NSGetExecutablePath_overwriteExecPath(char*** dyldApiInstancePtr, char* newPath, uint32_t* bufsize) {
     assert(dyldApiInstancePtr != 0);
     char** dyldConfig = dyldApiInstancePtr[1];
@@ -401,6 +403,8 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     SecItemGuestHooksInit();
     NSFMGuestHooksInit();
     initDead10ccFix();
+    // ignore setting handler from guest app
+    litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, NSSetUncaughtExceptionHandler, hook_do_nothing, nil);
     
     // Preload executable to bypass RT_NOLOAD
     uint32_t appIndex = _dyld_image_count();
@@ -548,7 +552,12 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
 
 static void exceptionHandler(NSException *exception) {
     NSString *error = [NSString stringWithFormat:@"%@\nCall stack: %@", exception.reason, exception.callStackSymbols];
-    [lcUserDefaults setObject:error forKey:@"error"];
+    if(isLiveProcess) {
+        NSExtensionContext *context = [NSClassFromString(@"LiveProcessHandler") extensionContext];
+        [context cancelRequestWithError:[NSError errorWithDomain:@"LiveProcess" code:1 userInfo:@{NSLocalizedDescriptionKey: error}]];
+    } else {
+        [lcUserDefaults setObject:error forKey:@"error"];
+    }
 }
 
 int LiveContainerMain(int argc, char *argv[]) {
@@ -672,9 +681,19 @@ int LiveContainerMain(int argc, char *argv[]) {
         setenv("LC_HOME_PATH", getenv("HOME"), 1);
         NSString *appError = invokeAppMain(selectedApp, selectedContainer, argc, argv);
         if (appError) {
-            [lcUserDefaults setObject:appError forKey:@"error"];
-            // potentially unrecovable state, exit now
-            return 1;
+            if(isLiveProcess) {
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(100 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+                    NSExtensionContext *context = [NSClassFromString(@"LiveProcessHandler") extensionContext];
+                    [context cancelRequestWithError:[NSError errorWithDomain:@"LiveProcess" code:1 userInfo:@{NSLocalizedDescriptionKey: appError}]];
+                    exit(1);
+                });
+                // spin and wait for iOS to terminate
+                CFRunLoopRun();
+            } else {
+                [lcUserDefaults setObject:appError forKey:@"error"];
+                // potentially unrecovable state, exit now
+                return 1;
+            }
         }
     }
     

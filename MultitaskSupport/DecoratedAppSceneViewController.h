@@ -1,0 +1,16 @@
+#import "FoundationPrivate.h"
+#import "AppSceneViewController.h"
+
+API_AVAILABLE(ios(16.0))
+@interface DecoratedAppSceneViewController : UIViewController<AppSceneViewControllerDelegate>
+@property(nonatomic) UIStackView *view;
+@property(nonatomic) UINavigationBar *navigationBar;
+@property(nonatomic) UINavigationItem *navigationItem;
+@property(nonatomic) UIView *resizeHandle;
+@property(nonatomic) UIView* contentView;
+
+@property(nonatomic) BOOL isMaximized;
+@property(nonatomic) CGFloat scaleRatio;
+- (instancetype)initWindowName:(NSString*)windowName bundleId:(NSString*)bundleId dataUUID:(NSString*)dataUUID;
+@end
+
