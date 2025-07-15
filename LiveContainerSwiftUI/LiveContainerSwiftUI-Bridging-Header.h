@@ -12,6 +12,7 @@
 #include <CoreLocation/CoreLocation.h>
 #include "../MultitaskSupport/AppSceneViewController.h"
 #include "../MultitaskSupport/DecoratedAppSceneViewController.h"
+#include "../MultitaskSupport/PiPManager.h"
 #include "../LiveContainer/FoundationPrivate.h"
 #include "../TweakLoader/CoreLocation+GuestHooks.h"
 #include "../TweakLoader/AVFoundation+GuestHooks.h"

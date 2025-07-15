@@ -872,7 +872,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         }
 
         do {
-            if launchInMultitaskMode && appFound.uiIsShared {
+            if #available(iOS 16.0, *), launchInMultitaskMode && appFound.uiIsShared {
                 if let currentDataFolder = container != nil ? container : appFound.uiSelectedContainer?.folderName,
                    MultitaskManager.isUsing(container: currentDataFolder) {
                     var found = false

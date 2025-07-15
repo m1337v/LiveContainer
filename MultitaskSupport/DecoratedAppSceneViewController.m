@@ -32,7 +32,6 @@ void UIKitFixesInit(void) {
 }
 
 @interface DecoratedAppSceneViewController()
-@property(nonatomic) AppSceneViewController* appSceneVC;
 @property(nonatomic) NSArray* activatedVerticalConstraints;
 @property(nonatomic) NSString* dataUUID;
 @property(nonatomic) NSString* windowName;
@@ -247,7 +246,11 @@ void UIKitFixesInit(void) {
 
 - (void)scaleSliderChanged:(_UIPrototypingMenuSlider *)slider {
     self.scaleRatio = slider.value;
-    [_appSceneVC setScale:slider.value];
+    self.appSceneVC.scaleRatio = _scaleRatio;
+    self.appSceneVC.contentView.layer.sublayerTransform = CATransform3DMakeScale(_scaleRatio, _scaleRatio, 1.0);
+    [self.appSceneVC updateFrameWithSettingsBlock:^(UIMutableApplicationSceneSettings *settings) {
+        [self updateMaximizedSafeAreaWithSettings:settings];
+    }];
 }
 
 - (void)closeWindow {
@@ -269,31 +272,51 @@ void UIKitFixesInit(void) {
     }];
 }
 
+- (void)minimizeWindowPiP {
+    [UIView animateWithDuration:0.3 delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
+        self.view.alpha = 0;
+    } completion:^(BOOL finished) {
+        self.view.hidden = YES;
+    }];
+}
+
+- (void)unminimizeWindowPiP {
+    [UIView animateWithDuration:0.3 delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
+        self.view.hidden = NO;
+        self.view.alpha = 1;
+    } completion:nil];
+}
+
 - (void)maximizeWindow {
-    CGRect maxFrame = UIEdgeInsetsInsetRect(self.view.window.frame, self.view.window.safeAreaInsets);
-    
     if (self.isMaximized) {
+        CGRect maxFrame = UIEdgeInsetsInsetRect(self.view.window.frame, self.view.window.safeAreaInsets);
         CGRect newFrame = CGRectMake(self.originalFrame.origin.x * maxFrame.size.width, self.originalFrame.origin.y * maxFrame.size.height, self.originalFrame.size.width, self.originalFrame.size.height);
         [UIView animateWithDuration:0.3 delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
             self.view.frame = newFrame;
+            self.view.layer.borderWidth = 1;
+            self.resizeHandle.alpha = 1;
+            [self.appSceneVC.presenter.scene updateSettingsWithBlock:^(UIMutableApplicationSceneSettings *settings) {
+                [self updateWindowedFrameWithSettings:settings];
+            }];
         } completion:^(BOOL finished) {
             self.isMaximized = NO;
             UIImage *maximizeImage = [UIImage systemImageNamed:@"arrow.up.left.and.arrow.down.right.circle"];
             UIImageConfiguration *maximizeConfig = [UIImageSymbolConfiguration configurationWithPointSize:16.0 weight:UIImageSymbolWeightMedium];
             self.maximizeButton.image = [maximizeImage imageWithConfiguration:maximizeConfig];
-            self.view.frame = newFrame;
         }];
     } else {
         [self updateOriginalFrame];
         [UIView animateWithDuration:0.3 delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
-            self.view.frame = maxFrame;
+            self.view.layer.borderWidth = 0;
+            self.resizeHandle.alpha = 0;
+            [self.appSceneVC.presenter.scene updateSettingsWithBlock:^(UIMutableApplicationSceneSettings *settings) {
+                [self updateMaximizedFrameWithSettings:settings];
+            }];
         } completion:^(BOOL finished) {
             self.isMaximized = YES;
             UIImage *restoreImage = [UIImage systemImageNamed:@"arrow.down.right.and.arrow.up.left.circle"];
             UIImageConfiguration *restoreConfig = [UIImageSymbolConfiguration configurationWithPointSize:16.0 weight:UIImageSymbolWeightMedium];
             self.maximizeButton.image = [restoreImage imageWithConfiguration:restoreConfig];
-            //                             [self.appSceneView resizeWindowWithFrame:CGRectMake(0, 0, size.width / self.scaleRatio, size.height / self.scaleRatio)];
-            self.view.frame = maxFrame;
         }];
     }
 }
@@ -345,24 +368,12 @@ void UIKitFixesInit(void) {
     newSettings.deviceOrientation = baseSettings.deviceOrientation;
     newSettings.foreground = YES;
     
-    CGRect maxFrame = UIEdgeInsetsInsetRect(self.view.window.frame, self.view.window.safeAreaInsets);
-    CGRect newFrame;
     if(self.isMaximized) {
-        self.view.frame = maxFrame;
+        [self updateMaximizedFrameWithSettings:newSettings];
     } else {
-        newFrame = CGRectMake(self.originalFrame.origin.x * maxFrame.size.width, self.originalFrame.origin.y * maxFrame.size.height, self.originalFrame.size.width, self.originalFrame.size.height);
-        CGPoint center = self.view.center;
-        CGRect frame = CGRectZero;
-        frame.size.width = MIN(newFrame.size.width*self.scaleRatio, maxFrame.size.width);
-        frame.size.height = MIN(newFrame.size.height*self.scaleRatio + self.navigationBar.frame.size.height, maxFrame.size.height);
-        CGFloat oobOffset = MAX(30, frame.size.width - 30);
-        frame.origin.x = MAX(maxFrame.origin.x - oobOffset, MIN(CGRectGetMaxX(maxFrame) - frame.size.width + oobOffset, center.x - frame.size.width / 2));
-        frame.origin.y = MAX(maxFrame.origin.y, MIN(center.y - frame.size.height / 2, CGRectGetMaxY(maxFrame) - frame.size.height));
-        [UIView animateWithDuration:0.3 animations:^{
-            self.view.frame = frame;
-        }];
+        [self updateWindowedFrameWithSettings:newSettings];
     }
-    newFrame = CGRectMake(0, 0, self.view.frame.size.width/self.scaleRatio, (self.view.frame.size.height - self.navigationBar.frame.size.height)/self.scaleRatio);
+    CGRect newFrame = CGRectMake(0, 0, self.view.frame.size.width/self.scaleRatio, (self.view.frame.size.height - self.navigationBar.frame.size.height)/self.scaleRatio);
     
     if(UIInterfaceOrientationIsLandscape(baseSettings.interfaceOrientation)) {
         newSettings.frame = CGRectMake(0, 0, newFrame.size.height, newFrame.size.width);
@@ -407,6 +418,12 @@ void UIKitFixesInit(void) {
 
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
+    if(_isMaximized) {
+        [self.appSceneVC.presenter.scene updateSettingsWithBlock:^(UIMutableApplicationSceneSettings *settings) {
+            [self updateMaximizedFrameWithSettings:settings];
+        }];
+    }
+    
     BOOL bottomWindowBar = [change[NSKeyValueChangeNewKey] boolValue];
     [UIView animateWithDuration:0.3 animations:^{
         if(bottomWindowBar) {
@@ -438,6 +455,8 @@ void UIKitFixesInit(void) {
 }
 
 - (void)moveWindow:(UIPanGestureRecognizer*)sender {
+    if(_isMaximized) return;
+    
     CGPoint point = [sender translationInView:self.view];
     [sender setTranslation:CGPointZero inView:self.view];
 
@@ -446,6 +465,8 @@ void UIKitFixesInit(void) {
 }
 
 - (void)resizeWindow:(UIPanGestureRecognizer*)sender {
+    if(_isMaximized) return;
+    
     CGPoint point = [sender translationInView:self.view];
     [sender setTranslation:CGPointZero inView:self.view];
 
@@ -460,6 +481,70 @@ void UIKitFixesInit(void) {
     [super touchesBegan:touches withEvent:event];
     // FIXME: how to bring view to front when touching the passthrough view?
     [self.view.superview bringSubviewToFront:self.view];
+}
+
+- (UIEdgeInsets)updateMaximizedSafeAreaWithSettings:(UIMutableApplicationSceneSettings *)settings {
+    BOOL bottomWindowBar = [NSUserDefaults.lcSharedDefaults boolForKey:@"LCMultitaskBottomWindowBar"];
+    UIEdgeInsets safeAreaInsets = self.view.window.safeAreaInsets;
+    if(bottomWindowBar) {
+        // allow the control bar to overlap the bottom safe area
+        safeAreaInsets.bottom = 0;
+        settings.peripheryInsets = safeAreaInsets;
+        safeAreaInsets.top = safeAreaInsets.left = safeAreaInsets.right = 0;
+    } else {
+        settings.peripheryInsets = UIEdgeInsetsMake(0, safeAreaInsets.left, safeAreaInsets.bottom, safeAreaInsets.right);
+        safeAreaInsets.bottom = safeAreaInsets.left = safeAreaInsets.right = 0;
+    }
+    
+    // scale peripheryInsets to match the scale ratio
+    settings.peripheryInsets = UIEdgeInsetsMake(settings.peripheryInsets.top/_scaleRatio, settings.peripheryInsets.left/_scaleRatio, settings.peripheryInsets.bottom/_scaleRatio, settings.peripheryInsets.right/_scaleRatio);
+    if(UIDevice.currentDevice.userInterfaceIdiom != UIUserInterfaceIdiomPad) {
+        UIInterfaceOrientation currentOrientation = UIApplication.sharedApplication.statusBarOrientation;
+        if(UIInterfaceOrientationIsLandscape(currentOrientation)) {
+            safeAreaInsets.top = 0;
+        }
+        switch(currentOrientation) {
+            case UIInterfaceOrientationLandscapeLeft:
+                settings.safeAreaInsetsPortrait = UIEdgeInsetsMake(settings.peripheryInsets.left, 0, settings.peripheryInsets.right, settings.peripheryInsets.bottom);
+                break;
+            case UIInterfaceOrientationLandscapeRight:
+                settings.safeAreaInsetsPortrait = UIEdgeInsetsMake(settings.peripheryInsets.left, settings.peripheryInsets.bottom, settings.peripheryInsets.right, 0);
+                break;
+            default:
+                settings.safeAreaInsetsPortrait = UIEdgeInsetsMake(settings.peripheryInsets.top, settings.peripheryInsets.left, settings.peripheryInsets.bottom, settings.peripheryInsets.right);
+                break;
+        }
+
+    } else {
+        settings.safeAreaInsetsPortrait = UIEdgeInsetsMake(settings.peripheryInsets.top, settings.peripheryInsets.left, settings.peripheryInsets.bottom, settings.peripheryInsets.right);
+    }
+    
+    safeAreaInsets.bottom = 0;
+    return safeAreaInsets;
+}
+
+- (void)updateMaximizedFrameWithSettings:(UIMutableApplicationSceneSettings *)settings {
+    CGRect maxFrame = UIEdgeInsetsInsetRect(self.view.window.frame, [self updateMaximizedSafeAreaWithSettings:settings]);
+    self.view.frame = maxFrame;
+}
+
+- (void)updateWindowedFrameWithSettings:(UIMutableApplicationSceneSettings *)settings {
+    UIEdgeInsets safeAreaInsets = self.view.window.safeAreaInsets;
+    CGRect maxFrame = UIEdgeInsetsInsetRect(self.view.window.frame, safeAreaInsets);
+    settings.peripheryInsets = UIEdgeInsetsZero;
+    settings.safeAreaInsetsPortrait = UIEdgeInsetsZero;
+    
+    CGRect newFrame = CGRectMake(self.originalFrame.origin.x * maxFrame.size.width, self.originalFrame.origin.y * maxFrame.size.height, self.originalFrame.size.width, self.originalFrame.size.height);
+    CGPoint center = self.view.center;
+    CGRect frame = CGRectZero;
+    frame.size.width = MIN(newFrame.size.width, maxFrame.size.width);
+    frame.size.height = MIN(newFrame.size.height, maxFrame.size.height);
+    CGFloat oobOffset = MAX(30, frame.size.width - 30);
+    frame.origin.x = MAX(maxFrame.origin.x - oobOffset, MIN(CGRectGetMaxX(maxFrame) - frame.size.width + oobOffset, center.x - frame.size.width / 2));
+    frame.origin.y = MAX(maxFrame.origin.y, MIN(center.y - frame.size.height / 2, CGRectGetMaxY(maxFrame) - frame.size.height));
+    [UIView animateWithDuration:0.3 animations:^{
+        self.view.frame = frame;
+    }];
 }
 
 - (void)updateOriginalFrame {

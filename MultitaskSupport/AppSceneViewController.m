@@ -13,7 +13,6 @@
 
 @interface AppSceneViewController()
 @property int resizeDebounceToken;
-@property CGRect currentFrame;
 @property CGPoint normalizedOrigin;
 @property bool isNativeWindow;
 @property NSUUID* identifier;
@@ -89,9 +88,6 @@
 }
 
 - (void)setUpAppPresenter {
-    //NSAssert(self.view.window, @"AppSceneViewController must be added to a window before setting up the presenter");
-    self.currentFrame = self.view.frame;
-    
     RBSProcessPredicate* predicate = [PrivClass(RBSProcessPredicate) predicateMatchingIdentifier:@(self.pid)];
     
     FBProcessManager *manager = [PrivClass(FBProcessManager) sharedInstance];
@@ -173,12 +169,6 @@
     }    
 }
 
-- (void)setScale:(float)scale {
-    self.scaleRatio = scale;
-    self.contentView.layer.sublayerTransform = CATransform3DMakeScale(scale, scale, 1.0);
-    [self viewWillLayoutSubviews];
-}
-
 - (void)_performActionsForUIScene:(UIScene *)scene withUpdatedFBSScene:(id)fbsScene settingsDiff:(FBSSceneSettingsDiff *)diff fromSettings:(UIApplicationSceneSettings *)settings transitionContext:(id)context lifecycleActionType:(uint32_t)actionType {
     if(!self.isAppRunning) {
         [self appTerminationCleanUp];
@@ -191,21 +181,17 @@
     if(self.isNativeWindow) {
         // directly update the settings
         baseSettings.interruptionPolicy = 0;
-        baseSettings.safeAreaInsetsPortrait = self.view.window.safeAreaInsets;
         baseSettings.peripheryInsets = self.view.window.safeAreaInsets;
         [self.presenter.scene updateSettings:baseSettings withTransitionContext:newContext completion:nil];
     } else {
-        [self.delegate appSceneVC:self didUpdateFromSettings:baseSettings transitionContext:context];
+        [self.delegate appSceneVC:self didUpdateFromSettings:baseSettings transitionContext:newContext];
     }
 }
 
-- (void)viewDidAppear:(BOOL)animated {
-    [super viewDidAppear:animated];
-//    [self.view.window.windowScene _registerSettingsDiffActionArray:@[self] forKey:self.sceneID];
-}
-
-
 - (void)viewWillLayoutSubviews {
+    [self updateFrameWithSettingsBlock:nil];
+}
+- (void)updateFrameWithSettingsBlock:(void (^)(UIMutableApplicationSceneSettings *settings))block {
     __block int currentDebounceToken = self.resizeDebounceToken + 1;
     _resizeDebounceToken = currentDebounceToken;
     dispatch_time_t delay = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.05 * NSEC_PER_SEC));
@@ -214,7 +200,6 @@
             return;
         }
         CGRect frame = CGRectMake(self.view.frame.origin.x, self.view.frame.origin.y, self.view.frame.size.width / self.scaleRatio, self.view.frame.size.height / self.scaleRatio);
-        self.currentFrame = frame;
         [self.presenter.scene updateSettingsWithBlock:^(UIMutableApplicationSceneSettings *settings) {
             settings.deviceOrientation = UIDevice.currentDevice.orientation;
             settings.interfaceOrientation = self.view.window.windowScene.interfaceOrientation;
@@ -223,6 +208,9 @@
                 settings.frame = frame2;
             } else {
                 settings.frame = frame;
+            }
+            if(block) {
+                block(settings);
             }
         }];
     });

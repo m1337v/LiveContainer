@@ -126,6 +126,7 @@ class AppInfoProvider {
 }
 
 // MARK: - MultitaskDockView Manager
+@available(iOS 16.0, *)
 @objc public class MultitaskDockManager: NSObject, ObservableObject {
     @objc public static let shared = MultitaskDockManager()
     
@@ -160,14 +161,23 @@ class AppInfoProvider {
         static let maxHeightRatioOfAvailableArea: CGFloat = 0.85
         
         // MARK: - Animation & Interaction
-        static let dockHiddenOffset: CGFloat = 25.0
+        static var dockHiddenOffset: CGFloat {
+            get {
+                let ans = LCUtils.appGroupUserDefault.double(forKey: "LCDockWidth")
+                if ans != 0 {
+                    return ans * 2 / 3
+                } else {
+                    return 50
+                }
+            }
+        }
         static var hideGestureThreshold: CGFloat {
             get {
                 let ans = LCUtils.appGroupUserDefault.double(forKey: "LCDockWidth")
                 if ans != 0 {
-                    return ans / 2
+                    return ans / 3
                 } else {
-                    return 40
+                    return 30
                 }
             }
         }
@@ -255,10 +265,25 @@ class AppInfoProvider {
             name: UserDefaults.didChangeNotification,
             object: LCUtils.appGroupUserDefault
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(deviceOrientationDidChange),
+            name: UIDevice.orientationDidChangeNotification,
+            object: nil
+        )
     }
     
     deinit {
         NotificationCenter.default.removeObserver(self)
+        NotificationCenter.default.removeObserver(self, name: UIDevice.orientationDidChangeNotification, object: nil)
+    }
+
+    @objc private func deviceOrientationDidChange() {
+        DispatchQueue.main.async {
+            if self.isVisible {
+                self.updateDockFrame()
+            }
+        }
     }
     
     @objc private func userDefaultsDidChange() {
@@ -280,7 +305,7 @@ class AppInfoProvider {
     }
 
     private func updateDockFrame(animated: Bool = true) {
-        guard isVisible, let hostingController = hostingController else { return }
+        guard let hostingController = hostingController else { return }
 
         let screenBounds = keyWindow!.bounds
         let currentDockWidth = self.dockWidth
@@ -317,12 +342,31 @@ class AppInfoProvider {
         }
     }
 
-    private func calculateTargetX(isDockHidden: Bool, isOnRightSide: Bool, dockWidth: CGFloat, screenWidth: CGFloat) -> CGFloat {
-        if isDockHidden {
-            return isOnRightSide ? screenWidth - Constants.dockHiddenOffset : -dockWidth + Constants.dockHiddenOffset
+    func calculateTargetX(isDockHidden: Bool, isOnRightSide: Bool, dockWidth: CGFloat, screenWidth: CGFloat) -> CGFloat {
+
+        let safeInsets = self.safeAreaInsets
+        var ans : CGFloat
+        if isOnRightSide {
+            ans = screenWidth - dockWidth
+            if self.hostingController?.view.window?.windowScene?.interfaceOrientation == UIInterfaceOrientation.landscapeLeft {
+                ans -= safeInsets.right
+            }
+            
+            if isDockHidden {
+                ans += Constants.dockHiddenOffset
+            }
         } else {
-            return isOnRightSide ? screenWidth - dockWidth : 0
+            ans = 0
+            if self.hostingController?.view.window?.windowScene?.interfaceOrientation == UIInterfaceOrientation.landscapeRight {
+                ans += safeInsets.left
+            }
+            if isDockHidden {
+                ans -= Constants.dockHiddenOffset
+            }
         }
+        
+        return ans;
+
     }
 
     private func calculateTargetY(for currentFrame: CGRect, dockHeight: CGFloat, screenHeight: CGFloat) -> CGFloat {
@@ -386,16 +430,18 @@ class AppInfoProvider {
             let currentDockWidth = self.dockWidth
             let initialHeight = Constants.initialDockShowHeight
             
-            hostingController.view.frame = CGRect(
-                x: screenBounds.width - currentDockWidth,
-                y: (screenBounds.height - initialHeight) / 2,
-                width: currentDockWidth,
-                height: initialHeight
-            )
+            // If not already in view hierarchy, add it
+            if hostingController.view.superview == nil {
+                keyWindow.addSubview(hostingController.view)
+                hostingController.view.frame = CGRect(
+                    x: screenBounds.width - currentDockWidth,
+                    y: (screenBounds.height - initialHeight) / 2,
+                    width: currentDockWidth,
+                    height: initialHeight
+                )
+            }
             
             self.updateDockFrame(animated: false) 
-            
-            keyWindow.addSubview(hostingController.view)
             
             self.setupEdgeGestureRecognizers()
             
@@ -430,10 +476,14 @@ class AppInfoProvider {
                 hostingController.view.alpha = 0
                 let finalScale = Constants.initialScale
                 hostingController.view.transform = CGAffineTransform(scaleX: finalScale, y: finalScale)
+                // Move off-screen to hide, but keep in view hierarchy
+                let screenBounds = UIScreen.main.bounds
+                let currentDockWidth = self.dockWidth
+                let targetX = self.calculateTargetX(isDockHidden: true, isOnRightSide: hostingController.view.frame.midX > screenBounds.width / 2, dockWidth: currentDockWidth, screenWidth: screenBounds.width)
+                let targetY = hostingController.view.frame.origin.y // Keep current Y
+                hostingController.view.frame.origin = CGPoint(x: targetX, y: targetY)
             } completion: { _ in
-                hostingController.view.removeFromSuperview()
                 self.isVisible = false
-
                 hostingController.view.transform = .identity
             }
         }
@@ -493,7 +543,7 @@ class AppInfoProvider {
         let horizontalDistance = abs(translation.width)
         let verticalDistance = abs(translation.height)
         
-        guard horizontalDistance > verticalDistance, horizontalDistance > Constants.hideGestureThreshold else {
+        guard !self.isDockHidden, horizontalDistance > verticalDistance, horizontalDistance > Constants.hideGestureThreshold else {
             return false
         }
         
@@ -535,6 +585,11 @@ class AppInfoProvider {
         let isHidden = view.isHidden || view.alpha < 0.1
         
         if isHidden {
+            let pipManager = PiPManager.shared!
+            if let decoratedVC = view._viewControllerForAncestor(), pipManager.isPiP(withDecoratedVC: decoratedVC) {
+                pipManager.stopPiP()
+            }
+            
             view.transform = CGAffineTransform(scaleX: 0.1, y: 0.1)
             view.isHidden = false
             UIView.animate(
@@ -699,6 +754,7 @@ class AppInfoProvider {
 }
 
 // MARK: - SwiftUI Dock View
+@available(iOS 16.0, *)
 public struct MultitaskDockSwiftView: View {
     @EnvironmentObject var dockManager: MultitaskDockManager
     @State private var dragOffset = CGSize.zero
@@ -714,40 +770,47 @@ public struct MultitaskDockSwiftView: View {
     }
     
     public var body: some View {
-        VStack(spacing: 8) {
-            if dockManager.isCollapsed {
-                CollapsedDockView(isHidden: dockManager.isDockHidden)
-                    .onTapGesture {
-                        dockManager.toggleDockCollapse()
-                    }
-            } else {
-                VStack(spacing: 8) {
-                    CollapseButtonView()
+        GeometryReader { g in
+            VStack(spacing: 8) {
+                if dockManager.isCollapsed {
+                    CollapsedDockView(isHidden: dockManager.isDockHidden)
                         .onTapGesture {
                             dockManager.toggleDockCollapse()
                         }
-                    
-                    ForEach(dockManager.apps) { app in
-                        AppIconView(app: app, showTooltip: $showTooltip, tooltipApp: $tooltipApp)
+                } else {
+                    VStack(spacing: 8) {
+                        CollapseButtonView()
+                            .onTapGesture {
+                                dockManager.toggleDockCollapse()
+                            }
+                        
+                        ForEach(dockManager.apps) { app in
+                            AppIconView(app: app, showTooltip: $showTooltip, tooltipApp: $tooltipApp)
 
+                        }
                     }
                 }
             }
+            .padding(.vertical, 15)
+            .padding(.horizontal, dynamicPadding)
+            .frame(width: dockManager.dockWidth)
+            .background(
+                RoundedRectangle(cornerRadius: 15)
+                    .fill(Color.black.opacity(dockManager.isDockHidden ? 0.3 : 0.7))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 15)
+                            .stroke(Color.white.opacity(dockManager.isDockHidden ? 0.1 : 0.3), lineWidth: 1)
+                    )
+            )
+            .scaleEffect(dockManager.isVisible ? 1.0 : 0.8)
+            .opacity(dockManager.isDockHidden ? 0.4 : 1.0)
+            .offset(dragOffset)
+            .position(x: g.size.width / 2, y: g.size.height / 2)
         }
-        .padding(.vertical, 15)  
-        .padding(.horizontal, dynamicPadding)
-        .frame(width: dockManager.dockWidth)
-        .background(
-            RoundedRectangle(cornerRadius: 15)
-                .fill(Color.black.opacity(dockManager.isDockHidden ? 0.3 : 0.7))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 15)
-                        .stroke(Color.white.opacity(dockManager.isDockHidden ? 0.1 : 0.3), lineWidth: 1)
-                )
-        )
-        .scaleEffect(dockManager.isVisible ? 1.0 : 0.8)
-        .opacity(dockManager.isDockHidden ? 0.4 : 1.0)
-        .offset(dragOffset)
+
+
+
+        .ignoresSafeArea()
         .gesture(
             DragGesture(minimumDistance: 5)
             .onChanged { value in
@@ -763,7 +826,7 @@ public struct MultitaskDockSwiftView: View {
                 
                 if dockManager.isPositionChangeGesture(for: hcFrame, translation: value.translation) {
                     let screenBounds = UIScreen.main.bounds
-                    let targetX = currentPhysicalFrame.midX < screenBounds.width / 2 ? 0 : screenBounds.width - currentPhysicalFrame.width
+                    let targetX = dockManager.calculateTargetX(isDockHidden: false, isOnRightSide: currentPhysicalFrame.midX > screenBounds.width / 2, dockWidth: dockManager.dockWidth, screenWidth: screenBounds.width)
                     
                     let safeAreaInsets = dockManager.safeAreaInsets
                     let dockVerticalMargin = MultitaskDockManager.Constants.dockVerticalMargin
@@ -812,14 +875,9 @@ public struct MultitaskDockSwiftView: View {
                 let targetY = max(minY, min(maxY, currentPhysicalFrame.origin.y))
                 
                 let targetX: CGFloat
-                if dockManager.isDockHidden {
-                    let isOnRightSide = hcFrame.origin.x > screenBounds.width / 2
-                    targetX = isOnRightSide ? 
-                        screenBounds.width - MultitaskDockManager.Constants.dockHiddenOffset : 
-                        -currentPhysicalFrame.width + MultitaskDockManager.Constants.dockHiddenOffset
-                } else {
-                    targetX = currentPhysicalFrame.midX < screenBounds.width / 2 ? 0 : screenBounds.width - currentPhysicalFrame.width
-                }
+
+                let isOnRightSide = hcFrame.origin.x > screenBounds.width / 2
+                targetX = dockManager.calculateTargetX(isDockHidden: true, isOnRightSide: isOnRightSide, dockWidth: currentPhysicalFrame.width, screenWidth: screenBounds.width)
                 
                 let finalPhysicalPosition = CGPoint(x: targetX, y: targetY)
                 
@@ -861,6 +919,7 @@ public struct MultitaskDockSwiftView: View {
 }
 
 // MARK: - Collapsed Dock View
+@available(iOS 16.0, *)
 struct CollapsedDockView: View {
     let isHidden: Bool
     @EnvironmentObject var dockManager: MultitaskDockManager
@@ -905,6 +964,7 @@ struct CollapsedDockView: View {
 }
 
 // MARK: - Collapse Button View
+@available(iOS 16.0, *)
 struct CollapseButtonView: View {
     @EnvironmentObject var dockManager: MultitaskDockManager
     
@@ -953,6 +1013,7 @@ class IconCacheManager {
     }
 }
 // MARK: - App Icon View
+@available(iOS 16.0, *)
 struct AppIconView: View {
     let app: DockAppModel
     @Binding var showTooltip: Bool

@@ -6,6 +6,7 @@
 //
 #include "PiPManager.h"
 #include "AppSceneViewController.h"
+#include "DecoratedAppSceneViewController.h"
 #include "../LiveContainer/utils.h"
 
 API_AVAILABLE(ios(16.0))
@@ -26,12 +27,20 @@ static PiPManager* sharedInstance = nil;
     return sharedInstance;
 }
 
+- (DecoratedAppSceneViewController *)displayingDecoratedVC {
+    return (id)self.displayingVC.delegate;
+}
+
 - (BOOL)isPiP {
     return self.pipController.isPictureInPictureActive;
 }
 
 - (BOOL)isPiPWithVC:(AppSceneViewController*)vc {
     return self.pipController.isPictureInPictureActive && self.displayingVC == vc;
+}
+
+- (BOOL)isPiPWithDecoratedVC:(UIViewController*)vc {
+    return self.pipController.isPictureInPictureActive && self.displayingDecoratedVC == vc;
 }
 
 - (instancetype)init {
@@ -70,6 +79,7 @@ static PiPManager* sharedInstance = nil;
 
 // PIP delegate
 - (void)pictureInPictureControllerWillStartPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
+    [self.displayingDecoratedVC minimizeWindowPiP];
     UIWindow *firstWindow = [UIApplication sharedApplication].windows.firstObject;
     self.displayingVC.contentView.frame = CGRectMake(0, 0, self.displayingVC.view.bounds.size.width, self.displayingVC.view.bounds.size.height);
     [firstWindow addSubview:self.displayingVC.contentView];
@@ -85,6 +95,10 @@ static PiPManager* sharedInstance = nil;
 
 - (void)pictureInPictureControllerDidStartPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
     
+}
+
+- (void)pictureInPictureControllerWillStopPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
+    [self.displayingDecoratedVC unminimizeWindowPiP];
 }
 
 - (void)pictureInPictureControllerDidStopPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {

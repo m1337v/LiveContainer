@@ -15,6 +15,7 @@ API_AVAILABLE(ios(16.0))
 @property (class, nonatomic, readonly) PiPManager *shared;
 @property (nonatomic, readonly) bool isPiP;
 - (BOOL)isPiPWithVC:(AppSceneViewController*)vc;
+- (BOOL)isPiPWithDecoratedVC:(UIViewController*)vc;
 - (void)stopPiP;
 - (void)startPiPWithVC:(AppSceneViewController*)vc;
 

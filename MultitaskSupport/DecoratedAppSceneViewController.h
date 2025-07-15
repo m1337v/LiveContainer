@@ -3,6 +3,7 @@
 
 API_AVAILABLE(ios(16.0))
 @interface DecoratedAppSceneViewController : UIViewController<AppSceneViewControllerDelegate>
+@property(nonatomic) AppSceneViewController* appSceneVC;
 @property(nonatomic) UIStackView *view;
 @property(nonatomic) UINavigationBar *navigationBar;
 @property(nonatomic) UINavigationItem *navigationItem;
@@ -12,5 +13,7 @@ API_AVAILABLE(ios(16.0))
 @property(nonatomic) BOOL isMaximized;
 @property(nonatomic) CGFloat scaleRatio;
 - (instancetype)initWindowName:(NSString*)windowName bundleId:(NSString*)bundleId dataUUID:(NSString*)dataUUID;
+- (void)minimizeWindowPiP;
+- (void)unminimizeWindowPiP;
 @end
 

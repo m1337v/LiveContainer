@@ -35,8 +35,8 @@ void NUDGuestHooksInit(void) {
     appContainerPath = [NSString stringWithUTF8String:getenv("HOME")];
     appContainerURL = [NSURL URLWithString:appContainerPath];
     
-    #pragma clang diagnostic push
-    #pragma clang diagnostic ignored "-Wundeclared-selector"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wundeclared-selector"
     
 #if TARGET_OS_MACCATALYST || TARGET_OS_SIMULATOR
     // fix for macOS host
@@ -46,7 +46,7 @@ void NUDGuestHooksInit(void) {
     Class CFPrefsPlistSourceClass = NSClassFromString(@"CFPrefsPlistSource");
 
     swizzle2(CFPrefsPlistSourceClass, @selector(initWithDomain:user:byHost:containerPath:containingPreferences:), CFPrefsPlistSource2.class, @selector(hook_initWithDomain:user:byHost:containerPath:containingPreferences:));
-    #pragma clang diagnostic pop
+#pragma clang diagnostic pop
     
     Class CFXPreferencesClass = NSClassFromString(@"_CFXPreferences");
     NSMutableDictionary* sources = object_getIvar([CFXPreferencesClass copyDefaultPreferences], class_getInstanceVariable(CFXPreferencesClass, "_sources"));

@@ -103,3 +103,7 @@
 @interface _UIButtonBarStackView : UIView
 - (void)setSpacing:(CGFloat)spacing;
 @end
+
+@interface UIView(private)
+- (UIViewController *)_viewControllerForAncestor;
+@end
