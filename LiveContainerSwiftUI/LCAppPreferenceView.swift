@@ -199,13 +199,13 @@ struct PSChildPane: View {
     let rootPlistUrl : URL
     let bundleId : String
     let settingsBundle : Bundle
-    let userDefaultsURL : URL
+    let containerURL : URL
     
     let delegate : LCAppPreferencesDelegate
     
     var body: some View {
         NavigationLink {
-            AppPreferencePageView(preferencePlistURL: rootPlistUrl, bundleId: bundleId, userDefaultsURL : userDefaultsURL, settingsBundle: settingsBundle)
+            AppPreferencePageView(preferencePlistURL: rootPlistUrl, bundleId: bundleId, containerURL: containerURL, settingsBundle: settingsBundle)
                 .navigationTitle(delegate.localize(title))
         } label: {
             Text(delegate.localize(title))
@@ -239,7 +239,7 @@ struct AppPreferencePageView : View {
     @State var children : [AnyView] = []
     @State var errorInfo : String?
 
-    init(preferencePlistURL : URL, bundleId : String, userDefaultsURL : URL, settingsBundle: Bundle) {
+    init(preferencePlistURL : URL, bundleId : String, containerURL : URL, settingsBundle: Bundle) {
         var children : [AnyView] = []
         self.preferencePlistURL = preferencePlistURL
         guard let dict = NSMutableDictionary(contentsOf: preferencePlistURL) else {
@@ -253,8 +253,8 @@ struct AppPreferencePageView : View {
         let suiteName = dict["ApplicationGroupContainerIdentifier"] as? String ?? bundleId
         let stringTable = dict["StringsTable"] as? String ?? nil
         
-        let userDefaultPath = userDefaultsURL.appendingPathComponent(suiteName).appendingPathExtension("plist").path
-        let delegate = AppPreferenceModel(settingsBundle: settingsBundle, userDefaultsPath:userDefaultPath , table: stringTable)
+        let userDefaults = UserDefaults()._init(withSuiteName: suiteName, container: containerURL)!
+        let delegate = AppPreferenceModel(settingsBundle: settingsBundle, userDefaults:userDefaults, table: stringTable)
         
         var currGroup : [String:Any]? = nil
         var currGroupChildren : [AnyView] = []
@@ -293,7 +293,7 @@ struct AppPreferencePageView : View {
                     continue
                 }
                 let fileURL = preferencePlistURL.deletingLastPathComponent().appendingPathComponent(file).appendingPathExtension("plist")
-                currView = PSChildPane(title: title, rootPlistUrl: fileURL, bundleId: bundleId, settingsBundle: settingsBundle, userDefaultsURL: userDefaultsURL, delegate: delegate)
+                currView = PSChildPane(title: title, rootPlistUrl: fileURL, bundleId: bundleId, settingsBundle: settingsBundle, containerURL: containerURL, delegate: delegate)
                 
             } else if type == "PSGroupSpecifier" {
 
@@ -331,7 +331,7 @@ struct AppPreferencePageView : View {
 
 class AppPreferenceModel: LCAppPreferencesDelegate {
     let settingsBundle : Bundle
-    let userDefaultsPath : String
+    let userDefaults : UserDefaults
     let table : String?
     private static var _enBundle : Bundle?
     private static var _enBundleFound = false
@@ -346,22 +346,19 @@ class AppPreferenceModel: LCAppPreferencesDelegate {
         AppPreferenceModel._enBundleFound = true
         return bundle
     }
-    var appUserDefaultDict : [String:Any]
     
-    init(settingsBundle: Bundle, userDefaultsPath: String, table: String?) {
+    init(settingsBundle: Bundle, userDefaults: UserDefaults, table: String?) {
         self.settingsBundle = settingsBundle
-        self.userDefaultsPath = userDefaultsPath
+        self.userDefaults = userDefaults
         self.table = table
-        appUserDefaultDict = NSMutableDictionary(contentsOfFile: userDefaultsPath) as? [String:Any] ?? [String:Any]()
     }
     
     func get(key: String) -> AnyHashable? {
-        return appUserDefaultDict[key] as? AnyHashable? ?? nil
+        return self.userDefaults.object(forKey: key) as? AnyHashable ?? nil
     }
     
     func set(key: String, val: AnyHashable?) {
-        appUserDefaultDict[key] = val
-        (appUserDefaultDict as NSDictionary).write(toFile: userDefaultsPath, atomically: true)
+        self.userDefaults.set(val, forKey: key)
     }
     
     func localize(_ key: String) -> String {
@@ -387,17 +384,17 @@ struct AppPreferenceView: View {
     let rootPlistUrl : URL
     let bundleId : String
     let settingsBundle : Bundle
-    let userDefaultsURL : URL
+    let containerURL : URL
     
-    init(bundleId: String, settingsBundle: Bundle, userDefaultsURL: URL) {
+    init(bundleId: String, settingsBundle: Bundle, containerURL: URL) {
         self.bundleId = bundleId
         self.settingsBundle = settingsBundle
-        self.userDefaultsURL = userDefaultsURL
+        self.containerURL = containerURL
         self.rootPlistUrl = settingsBundle.bundleURL.appendingPathComponent("Root.plist")
 
     }
 
     var body: some View {
-        AppPreferencePageView(preferencePlistURL: rootPlistUrl, bundleId: bundleId, userDefaultsURL : userDefaultsURL, settingsBundle: settingsBundle)
+        AppPreferencePageView(preferencePlistURL: rootPlistUrl, bundleId: bundleId, containerURL : containerURL, settingsBundle: settingsBundle)
     }
 }

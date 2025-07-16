@@ -353,13 +353,7 @@ class LCAppModel: ObservableObject, Hashable {
         
         UserDefaults.standard.set(self.appInfo.relativeBundlePath, forKey: "selected")
         UserDefaults.standard.set(uiSelectedContainer?.folderName, forKey: "selectedContainer")
-        if let selectedLanguage = self.appInfo.selectedLanguage {
-            // save livecontainer's own language
-            UserDefaults.standard.set(UserDefaults.standard.object(forKey: "AppleLanguages"), forKey:"LCLastLanguages")
-            // set user selected language
-            UserDefaults.standard.set([selectedLanguage], forKey: "AppleLanguages")
-        }
-        
+
         if appInfo.isJITNeeded || appInfo.is32bit {
             await delegate?.jitLaunch()
         } else if multitask, #available(iOS 16.0, *) {

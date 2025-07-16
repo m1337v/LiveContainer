@@ -13,7 +13,7 @@ protocol LCContainerViewDelegate {
     func saveContainer(container: LCContainer)
     
     func getSettingsBundle() -> Bundle?
-    func getUserDefaultsURL(container: LCContainer) -> URL
+    func getContainerURL(container: LCContainer) -> URL
     func getBundleId() -> String
 }
 
@@ -72,7 +72,7 @@ struct LCContainerView : View {
                 
                 if let settingsBundle {
                     NavigationLink {
-                        AppPreferenceView(bundleId: delegate.getBundleId(), settingsBundle: settingsBundle, userDefaultsURL: delegate.getUserDefaultsURL(container: container))
+                        AppPreferenceView(bundleId: delegate.getBundleId(), settingsBundle: settingsBundle, containerURL: delegate.getContainerURL(container: container))
                     } label: {
                         Text("lc.container.preferences".loc)
                     }

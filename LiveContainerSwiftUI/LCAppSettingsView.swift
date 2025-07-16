@@ -1505,7 +1505,7 @@ extension LCAppSettingsView : LCContainerViewDelegate {
         return Bundle(url: URL(fileURLWithPath: appInfo.bundlePath()).appendingPathComponent("Settings.bundle"))
     }
     
-    func getUserDefaultsURL(container: LCContainer) -> URL {
+    func getContainerURL(container: LCContainer) -> URL {
         let preferencesFolderUrl = container.containerURL.appendingPathComponent("Library/Preferences")
         let fm = FileManager.default
         do {
@@ -1518,7 +1518,7 @@ extension LCAppSettingsView : LCContainerViewDelegate {
             errorInfo = "Cannot create Library/Preferences folder!".loc
             errorShow = true
         }
-        return preferencesFolderUrl
+        return container.containerURL
     }
     
 }

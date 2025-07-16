@@ -697,13 +697,6 @@ int LiveContainerMain(int argc, char *argv[]) {
         }
     }
     
-    // recover language before reaching UI
-    NSArray* savedLaunguage = [lcUserDefaults objectForKey:@"LCLastLanguages"];
-    if(savedLaunguage) {
-        [lcUserDefaults setObject:savedLaunguage forKey:@"AppleLanguages"];
-        [lcUserDefaults removeObjectForKey:@"LCLastLanguages"];
-        [lcUserDefaults synchronize];
-    }
     void *LiveContainerSwiftUIHandle = dlopen("@executable_path/Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI", RTLD_LAZY);
     assert(LiveContainerSwiftUIHandle);
 

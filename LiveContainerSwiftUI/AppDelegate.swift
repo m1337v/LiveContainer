@@ -13,12 +13,6 @@ import SwiftUI
                 UserDefaults.standard.removeObject(forKey: "selected")
                 UserDefaults.standard.removeObject(forKey: "selectedContainer")
             }
-            
-            if (UserDefaults.standard.object(forKey: "LCLastLanguages") != nil) {
-                // recover livecontainer's own language
-                UserDefaults.standard.set(UserDefaults.standard.object(forKey: "LCLastLanguages"), forKey: "AppleLanguages")
-                UserDefaults.standard.removeObject(forKey: "LCLastLanguages")
-            }
         }
         method_exchangeImplementations(
             class_getInstanceMethod(UIApplication.self, #selector(UIApplication.requestSceneSessionActivation(_ :userActivity:options:errorHandler:)))!,

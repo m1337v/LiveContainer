@@ -74,10 +74,25 @@ void NUDGuestHooksInit(void) {
     NSUserDefaults* newStandardUserDefaults = [[NSUserDefaults alloc] initWithSuiteName:@"whatever"];
     [newStandardUserDefaults _setIdentifier:NSUserDefaults.lcGuestAppId];
     NSUserDefaults.standardUserDefaults = newStandardUserDefaults;
-    
 
+#if !TARGET_OS_SIMULATOR
+    NSString* selectedLanguage = NSUserDefaults.guestAppInfo[@"LCSelectedLanguage"];
+    if(selectedLanguage) {
+        [newStandardUserDefaults setObject:@[selectedLanguage] forKey:@"AppleLanguages"];
+        CFMutableArrayRef* _CFBundleUserLanguages = getCachedSymbol(@"__CFBundleUserLanguages", coreFoundationHeader);
+        if(!_CFBundleUserLanguages) {
+            _CFBundleUserLanguages = litehook_find_dsc_symbol(coreFoundationPath, "__CFBundleUserLanguages");
+            uint64_t offset = (uint64_t)((void*)_CFBundleUserLanguages - (void*)coreFoundationHeader);
+            saveCachedSymbol(@"__CFBundleUserLanguages", coreFoundationHeader, offset);
+        }
+        // set _CFBundleUserLanguages to selected languages
+        NSMutableArray* newUserLanguages = [NSMutableArray arrayWithObjects:selectedLanguage, nil];
+        *_CFBundleUserLanguages = (__bridge CFMutableArrayRef)newUserLanguages;
+    } else {
+        [newStandardUserDefaults removeObjectForKey:@"AppleLanguages"];
+    }
+#endif
     
-
     // Create Library/Preferences folder in app's data folder in case it does not exist
     NSFileManager* fm = NSFileManager.defaultManager;
     NSURL* libraryPath = [fm URLsForDirectory:NSLibraryDirectory inDomains:NSUserDomainMask].lastObject;
@@ -87,17 +102,6 @@ void NUDGuestHooksInit(void) {
         [fm createDirectoryAtPath:preferenceFolderPath.path withIntermediateDirectories:YES attributes:@{} error:&error];
     }
     
-    // Recover language when app is about to quit
-    [[NSNotificationCenter defaultCenter] addObserverForName:@"UIApplicationWillTerminateNotification"
-                                                      object:nil
-                                                       queue:[NSOperationQueue mainQueue]
-                                                  usingBlock:^(NSNotification * _Nonnull notification) {
-        // restore language if needed
-        NSArray* savedLaunguage = [NSUserDefaults.lcUserDefaults objectForKey:@"LCLastLanguages"];
-        if(savedLaunguage) {
-            [NSUserDefaults.lcUserDefaults setObject:savedLaunguage forKey:@"AppleLanguages"];
-        }
-    }];
 }
 
 NSArray* appleIdentifierPrefixes = @[
