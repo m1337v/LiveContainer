@@ -14,6 +14,7 @@
 @end
 
 @interface NSExtension : NSObject
+@property (nonatomic, strong, readwrite) NSArray *preferredLanguages;
 + (instancetype)extensionWithIdentifier:(NSString *)identifier error:(NSError **)error;
 - (void)beginExtensionRequestWithInputItems:(NSArray *)items completion:(void(^)(NSUUID *))callback;
 - (int)pidForRequestIdentifier:(NSUUID *)identifier;

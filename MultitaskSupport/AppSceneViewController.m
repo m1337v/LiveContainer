@@ -52,7 +52,7 @@
         [delegate appSceneVC:self didInitializeWithError:error];
         return nil;
     }
-
+    _extension.preferredLanguages = @[];
     NSExtensionItem *item = [NSExtensionItem new];
     item.userInfo = @{
         @"selected": _bundleId,
