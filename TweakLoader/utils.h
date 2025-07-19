@@ -15,4 +15,5 @@ void swizzleClassMethod(Class class, SEL originalAction, SEL swizzledAction);
 + (bool)isLiveProcess;
 + (bool)isSharedApp;
 + (NSString*)lcGuestAppId;
++ (bool)isSideStore;
 @end

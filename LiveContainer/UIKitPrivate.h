@@ -107,3 +107,8 @@
 @interface UIView(private)
 - (UIViewController *)_viewControllerForAncestor;
 @end
+
+
+@interface DOCConfiguration : NSObject
+- (void)setHostIdentifier:(NSString *)ignored;
+@end

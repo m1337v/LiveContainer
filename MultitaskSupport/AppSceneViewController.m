@@ -53,10 +53,15 @@
         return nil;
     }
     _extension.preferredLanguages = @[];
+    
+    NSURL* homeURL = [[NSURL fileURLWithPath:@((char*)getenv("HOME"))] URLByAppendingPathComponent:@"Documents/SideStore"];
+    NSData* bookmark = [homeURL bookmarkDataWithOptions:(1<<11) includingResourceValuesForKeys:0 relativeToURL:0 error:0];
+    
     NSExtensionItem *item = [NSExtensionItem new];
     item.userInfo = @{
         @"selected": _bundleId,
-        @"selectedContainer": _dataUUID
+        @"selectedContainer": _dataUUID,
+        @"bookmark": bookmark
     };
     
     __weak typeof(self) weakSelf = self;
@@ -81,6 +86,8 @@
             [delegate appSceneVC:self didInitializeWithError:error];
         }
     }];
+    
+    
 
     _isNativeWindow = [[[NSUserDefaults alloc] initWithSuiteName:[LCUtils appGroupID]] integerForKey:@"LCMultitaskMode" ] == 1;
 

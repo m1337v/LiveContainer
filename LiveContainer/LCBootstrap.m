@@ -28,6 +28,7 @@ NSDictionary* guestAppInfo;
 NSString* lcGuestAppId;
 bool isLiveProcess = false;
 bool isSharedBundle = false;
+bool isSideStore = false;
 
 @implementation NSUserDefaults(LiveContainer)
 + (instancetype)lcUserDefaults {
@@ -54,6 +55,9 @@ bool isSharedBundle = false;
 }
 + (bool)isSharedApp {
     return isSharedBundle;
+}
++ (bool)isSideStore {
+    return isSideStore;
 }
 + (NSString*)lcGuestAppId {
     return lcGuestAppId;
@@ -88,7 +92,7 @@ static uint64_t rnd64(uint64_t v, uint64_t r) {
     return (v + r) & ~r;
 }
 
-static void overwriteMainCFBundle() {
+void overwriteMainCFBundle(void) {
     // Overwrite CFBundleGetMainBundle
     uint32_t *pc = (uint32_t *)CFBundleGetMainBundle;
     void **mainBundleAddr = 0;
@@ -108,7 +112,7 @@ static void overwriteMainCFBundle() {
     *mainBundleAddr = (__bridge void *)NSBundle.mainBundle._cfBundle;
 }
 
-static void overwriteMainNSBundle(NSBundle *newBundle) {
+void overwriteMainNSBundle(NSBundle *newBundle) {
     // Overwrite NSBundle.mainBundle
     // iOS 16: x19 is _MergedGlobals
     // iOS 17: x19 is _MergedGlobals+4
@@ -166,7 +170,7 @@ int hook__NSGetExecutablePath_overwriteExecPath(char*** dyldApiInstancePtr, char
     return 0;
 }
 
-static void overwriteExecPath(const char *newExecPath) {
+void overwriteExecPath(const char *newExecPath) {
     // dyld4 stores executable path in a different place (iOS 15.0 +)
     // https://github.com/apple-oss-distributions/dyld/blob/ce1cc2088ef390df1c48a1648075bbd51c5bbc6a/dyld/DyldAPIs.cpp#L802
     int (*orig__NSGetExecutablePath)(void* dyldPtr, char* buf, uint32_t* bufsize);
@@ -199,7 +203,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     if([[lcUserDefaults objectForKey:@"LCWaitForDebugger"] boolValue]) {
         sleep(100);
     }
-    if (!LCSharedUtils.certificatePassword) {
+    if (!LCSharedUtils.certificatePassword && !isSideStore) {
         // First of all, let's check if we have JIT
         for (int i = 0; i < 10 && !checkJITEnabled(); i++) {
             usleep(1000*100);
@@ -216,7 +220,16 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     
     NSURL *appGroupFolder = nil;
     
-    NSString *bundlePath = [NSString stringWithFormat:@"%@/Applications/%@", docPath, selectedApp];
+    NSString *bundlePath = 0;
+    if(!isSideStore) {
+        bundlePath = [NSString stringWithFormat:@"%@/Applications/%@", docPath, selectedApp];
+    } else if (isLiveProcess) {
+        bundlePath = [[NSBundle.mainBundle.bundleURL.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent URLByAppendingPathComponent:@"SideStore"] path];
+    } else {
+        bundlePath = [[NSBundle.mainBundle.bundleURL URLByAppendingPathComponent:@"Frameworks/SideStore.framework"] path];
+    }
+    
+
     guestAppInfo = [NSDictionary dictionaryWithContentsOfFile:[NSString stringWithFormat:@"%@/LCAppInfo.plist", bundlePath]];
 
     // not found locally, let's look for the app in shared folder
@@ -321,7 +334,15 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
 
     // Overwrite home and tmp path
     NSString *newHomePath = nil;
-    if(isSharedBundle) {
+    NSString* specifiedContainerPath = [lcUserDefaults stringForKey:@"specifiedContainerPath"];
+    if(isSideStore) {
+        specifiedContainerPath = [docPath stringByAppendingPathComponent:@"SideStore"];
+    }
+    
+    if(specifiedContainerPath) {
+        newHomePath = specifiedContainerPath;
+        [lcUserDefaults removeObjectForKey:@"selectedContainer"];
+    } else if(isSharedBundle) {
         newHomePath = [NSString stringWithFormat:@"%@/Data/Application/%@", appGroupFolder.path, dataUUID];
         
     } else {
@@ -400,9 +421,11 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     
     // hook NSUserDefault before running libraries' initializers
     NUDGuestHooksInit();
-    SecItemGuestHooksInit();
-    NSFMGuestHooksInit();
-    initDead10ccFix();
+    if(!isSideStore) {
+        SecItemGuestHooksInit();
+        NSFMGuestHooksInit();
+        initDead10ccFix();
+    }
     // ignore setting handler from guest app
     litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, NSSetUncaughtExceptionHandler, hook_do_nothing, nil);
     
@@ -514,7 +537,12 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     } else {
         NSLog(@"[LC] TweakLoader loading disabled for %@", lcGuestAppId ?: @"unknown");
     }
-
+    
+    if(isSideStore) {
+        tweakLoaderLoaded = true;
+        dlopen([lcMainBundle.bundlePath stringByAppendingPathComponent:@"Frameworks/TweakLoader.dylib"].UTF8String, RTLD_LAZY|RTLD_GLOBAL);
+    }
+    
     // Fix dynamic properties of some apps
     [NSUserDefaults performSelector:@selector(initialize)];
 
@@ -607,7 +635,12 @@ int LiveContainerMain(int argc, char *argv[]) {
         [lcUserDefaults removeObjectForKey:@"selectedContainer"];
     }
     
-    if(selectedApp && !selectedContainer) {
+
+    if([lcUserDefaults boolForKey:@"LCOpenSideStore"]) {
+        isSideStore = true;
+    }
+    
+    if(selectedApp && !isSideStore && !selectedContainer) {
         selectedContainer = [LCSharedUtils findDefaultContainerWithBundleId:selectedApp];
     }
     NSString* runningLC = [LCSharedUtils getContainerUsingLCSchemeWithFolderName:selectedContainer];
@@ -657,7 +690,7 @@ int LiveContainerMain(int argc, char *argv[]) {
 
     }
     
-    if (selectedApp) {
+    if (selectedApp || isSideStore) {
         
         NSString *launchUrl = [lcUserDefaults stringForKey:@"launchAppUrlScheme"];
         [lcUserDefaults removeObjectForKey:@"selected"];

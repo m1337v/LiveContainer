@@ -44,6 +44,19 @@ int LiveProcessMain(int argc, char *argv[]) {
     NSUserDefaults *lcUserDefaults = NSUserDefaults.standardUserDefaults;
     [lcUserDefaults setObject:appInfo[@"selected"] forKey:@"selected"];
     [lcUserDefaults setObject:appInfo[@"selectedContainer"] forKey:@"selectedContainer"];
+    
+//    NSData* bookmark = appInfo[@"bookmark"];
+//    if(bookmark) {
+//        bool isStale = false;
+//        NSError* error = nil;
+//        NSURL* url = [NSURL URLByResolvingBookmarkData:bookmark options:(1 << 10) relativeToURL:nil bookmarkDataIsStale:&isStale error:&error];
+//        bool access = [url startAccessingSecurityScopedResource];
+//        if(access) {
+//            [lcUserDefaults setObject:url.path forKey:@"specifiedContainerPath"];
+//        }
+//        NSLog(@"bookMarkURL = %@", url);
+//    }
+    
     return LiveContainerMain(argc, argv);
 }
 
