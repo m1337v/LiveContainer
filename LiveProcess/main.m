@@ -10,6 +10,7 @@
 #import <mach-o/dyld.h>
 #import "../LiveContainer/utils.h"
 #import "../LiveContainer/Tweaks/Tweaks.h"
+#import "../SideStore/XPCServer.h"
 
 @interface LiveProcessHandler : NSObject<NSExtensionRequestHandling>
 @end
@@ -32,6 +33,18 @@ static NSDictionary *retrievedAppInfo;
 }
 @end
 
+@interface NSXPCDecoder : NSObject
+
+@end
+
+@implementation NSXPCDecoder(lp)
+
+- (void)_validateAllowedClass:(Class)arg1 forKey:(id)arg2 allowingInvocations:(bool)arg3 {
+    return;
+}
+
+@end
+
 extern int LiveContainerMain(int argc, char *argv[]);
 int LiveProcessMain(int argc, char *argv[]) {
     // Let NSExtensionContext initialize, once it's done it will call CFRunLoopStop
@@ -45,17 +58,40 @@ int LiveProcessMain(int argc, char *argv[]) {
     [lcUserDefaults setObject:appInfo[@"selected"] forKey:@"selected"];
     [lcUserDefaults setObject:appInfo[@"selectedContainer"] forKey:@"selectedContainer"];
     
-//    NSData* bookmark = appInfo[@"bookmark"];
-//    if(bookmark) {
-//        bool isStale = false;
-//        NSError* error = nil;
-//        NSURL* url = [NSURL URLByResolvingBookmarkData:bookmark options:(1 << 10) relativeToURL:nil bookmarkDataIsStale:&isStale error:&error];
-//        bool access = [url startAccessingSecurityScopedResource];
-//        if(access) {
-//            [lcUserDefaults setObject:url.path forKey:@"specifiedContainerPath"];
+    
+    if ([appInfo[@"selected"] isEqualToString:@"builtinSideStore"]) {
+        NSData* bookmark = appInfo[@"bookmark"];
+        if(bookmark) {
+            bool isStale = false;
+            NSError* error = nil;
+            NSURL* url = [NSURL URLByResolvingBookmarkData:bookmark options:(1 << 10) relativeToURL:nil bookmarkDataIsStale:&isStale error:&error];
+            bool access = [url startAccessingSecurityScopedResource];
+            if(access) {
+                [lcUserDefaults setObject:url.path forKey:@"specifiedContainerPath"];
+            }
+            NSLog(@"bookMarkURL = %@", url);
+        }
+        NSXPCListenerEndpoint* endpoint = appInfo[@"endpoint"];
+//        NSError* error = 0;
+//        NSXPCListenerEndpoint *endpoint = [NSKeyedUnarchiver unarchivedObjectOfClass:[NSXPCListenerEndpoint class] fromData:endpointData error:&error];
+//        if(error) {
+//            NSLog(@"failed to deserialize endpoint %@", error.localizedDescription);
 //        }
-//        NSLog(@"bookMarkURL = %@", url);
-//    }
+        NSLog(@"Connecting");
+        NSXPCConnection* connection = [[NSXPCConnection alloc] initWithListenerEndpoint:endpoint];
+        connection.remoteObjectInterface = [NSXPCInterface interfaceWithProtocol:@protocol(RefreshProgressReporting)];
+        connection.interruptionHandler = ^{
+            NSLog(@"interrupted!!!");
+        };
+        
+        [connection activate];
+        NSLog(@"Connection = %@", connection);
+        
+        id<RefreshProgressReporting> proxy = [connection remoteObjectProxy];
+        [proxy updateProgress:0.5];
+        
+    }
+
     
     return LiveContainerMain(argc, argv);
 }

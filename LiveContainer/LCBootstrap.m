@@ -226,7 +226,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     } else if (isLiveProcess) {
         bundlePath = [[NSBundle.mainBundle.bundleURL.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent URLByAppendingPathComponent:@"SideStore"] path];
     } else {
-        bundlePath = [[NSBundle.mainBundle.bundleURL URLByAppendingPathComponent:@"Frameworks/SideStore.framework"] path];
+        bundlePath = [[NSBundle.mainBundle.bundleURL URLByAppendingPathComponent:@"Frameworks/SideStoreApp.framework"] path];
     }
     
 
@@ -596,7 +596,7 @@ int LiveContainerMain(int argc, char *argv[]) {
     lcAppUrlScheme = NSBundle.mainBundle.infoDictionary[@"CFBundleURLTypes"][0][@"CFBundleURLSchemes"][0];
     lcAppGroupPath = [[NSFileManager.defaultManager containerURLForSecurityApplicationGroupIdentifier:[NSClassFromString(@"LCSharedUtils") appGroupID]] path];
     isLiveProcess = [lcAppUrlScheme isEqualToString:@"liveprocess"];
-    
+    setenv("LC_HOME_PATH", getenv("HOME"), 1);
 
     NSString *selectedApp = [lcUserDefaults stringForKey:@"selected"];
     NSString *selectedContainer = [lcUserDefaults stringForKey:@"selectedContainer"];
@@ -711,7 +711,6 @@ int LiveContainerMain(int argc, char *argv[]) {
             });
         }
         NSSetUncaughtExceptionHandler(&exceptionHandler);
-        setenv("LC_HOME_PATH", getenv("HOME"), 1);
         NSString *appError = invokeAppMain(selectedApp, selectedContainer, argc, argv);
         if (appError) {
             if(isLiveProcess) {

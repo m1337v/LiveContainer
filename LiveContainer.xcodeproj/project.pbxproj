@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		173545AF2E2C7913001B3B4C /* SideStore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 173545A82E2C7913001B3B4C /* SideStore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		173545C72E2C7AB4001B3B4C /* SideStore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 173545A82E2C7913001B3B4C /* SideStore.framework */; };
 		17413FBC2D9C0BAE00F3F928 /* LiveContainerSwiftUI.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 17413FB52D9C0BAE00F3F928 /* LiveContainerSwiftUI.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		174140902D9C0E8200F3F928 /* TweakLoader.dylib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 1741403A2D9C0D0000F3F928 /* TweakLoader.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		174140942D9C0E8200F3F928 /* ZSign.dylib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 174140542D9C0D6D00F3F928 /* ZSign.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -28,6 +30,20 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		173545AC2E2C7913001B3B4C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 17DCE9952C7067EC00731D42 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 173545A72E2C7913001B3B4C;
+			remoteInfo = SideStore;
+		};
+		173545C92E2C7AB4001B3B4C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 17DCE9952C7067EC00731D42 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 173545A72E2C7913001B3B4C;
+			remoteInfo = SideStore;
+		};
 		174140F92D9C1EDA00F3F928 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 17DCE9952C7067EC00731D42 /* Project object */;
@@ -73,6 +89,7 @@
 			dstSubfolderSpec = 10;
 			files = (
 				174140902D9C0E8200F3F928 /* TweakLoader.dylib in Embed Frameworks */,
+				173545AF2E2C7913001B3B4C /* SideStore.framework in Embed Frameworks */,
 				174140BA2D9C0F9100F3F928 /* TestJITLess.dylib in Embed Frameworks */,
 				17554B732DA16988004C6D90 /* OpenSSL.xcframework in Embed Frameworks */,
 				E1292BEC2DCA3B670065E12D /* LiveContainerShared.framework in Embed Frameworks */,
@@ -117,6 +134,7 @@
 		172CA85D2D9D721700CF6989 /* utils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = utils.h; sourceTree = "<group>"; };
 		172CA85E2D9D721700CF6989 /* utils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = utils.m; sourceTree = "<group>"; };
 		172CA8652D9D723200CF6989 /* entitlements.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = entitlements.xml; sourceTree = "<group>"; };
+		173545A82E2C7913001B3B4C /* SideStore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = SideStore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		17413FB52D9C0BAE00F3F928 /* LiveContainerSwiftUI.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = LiveContainerSwiftUI.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		1741403A2D9C0D0000F3F928 /* TweakLoader.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = TweakLoader.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		174140542D9C0D6D00F3F928 /* ZSign.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = ZSign.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -147,6 +165,14 @@
 				Settings.bundle,
 			);
 			target = 17DCE99C2C7067EC00731D42 /* LiveContainer */;
+		};
+		173546D32E2C82AE001B3B4C /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"SideStore-Bridging-Header.h",
+				XPCServer.h,
+			);
+			target = 173545A72E2C7913001B3B4C /* SideStore */;
 		};
 		174140F52D9C1C9B00F3F928 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -220,6 +246,13 @@
 				Frameworks/CydiaSubstrate.framework,
 			);
 		};
+		173546D42E2C82AE001B3B4C /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = 173545A62E2C7913001B3B4C /* Resources */;
+			membershipExceptions = (
+				"SideStore-Bridging-Header.h",
+			);
+		};
 		174140F62D9C1C9B00F3F928 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
 			buildPhase = 174140372D9C0D0000F3F928 /* Sources */;
@@ -227,11 +260,19 @@
 				utils.h,
 			);
 		};
+		176614FC2E2C851800B1F478 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = 173545A42E2C7913001B3B4C /* Sources */;
+			membershipExceptions = (
+				XPCServer.h,
+			);
+		};
 /* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		172CA8992D9D72C300CF6989 /* Resources */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (172CA8BD2D9D74B700CF6989 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, 172CA8C32D9D76AD00CF6989 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Resources; sourceTree = "<group>"; };
 		172CA8AD2D9D741F00CF6989 /* fishhook */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (5822D4F32E206BF2004F7F58 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = fishhook; sourceTree = "<group>"; };
+		173545A92E2C7913001B3B4C /* SideStore */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (173546D32E2C82AE001B3B4C /* PBXFileSystemSynchronizedBuildFileExceptionSet */, 176614FC2E2C851800B1F478 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */, 173546D42E2C82AE001B3B4C /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = SideStore; sourceTree = "<group>"; };
 		17413FB62D9C0BAE00F3F928 /* LiveContainerSwiftUI */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = LiveContainerSwiftUI; sourceTree = "<group>"; };
 		174140162D9C0C1B00F3F928 /* TweakLoader */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (174140F52D9C1C9B00F3F928 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, 174140F62D9C1C9B00F3F928 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = TweakLoader; sourceTree = "<group>"; };
 		174140552D9C0D6D00F3F928 /* ZSign */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = ZSign; sourceTree = "<group>"; };
@@ -244,12 +285,20 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		173545A52E2C7913001B3B4C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		17413FB22D9C0BAE00F3F928 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				E16D95752E1CD2B90068EB63 /* LiveContainerShared.framework in Frameworks */,
 				174140D62D9C176F00F3F928 /* libarchive.tbd in Frameworks */,
+				173545C72E2C7AB4001B3B4C /* SideStore.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -347,6 +396,7 @@
 				174140552D9C0D6D00F3F928 /* ZSign */,
 				174140AE2D9C0F4100F3F928 /* TestJITLess */,
 				E1292AE72DCA3A660065E12D /* LiveProcess */,
+				173545A92E2C7913001B3B4C /* SideStore */,
 				174140B82D9C0F9100F3F928 /* Frameworks */,
 				17DCE99E2C7067EC00731D42 /* Products */,
 				17780D3B2E1C02420077E636 /* litehook */,
@@ -363,6 +413,7 @@
 				174140AD2D9C0F4100F3F928 /* TestJITLess.dylib */,
 				E1292AE52DCA3A660065E12D /* LiveProcess.appex */,
 				E1292BD62DCA3B660065E12D /* LiveContainerShared.framework */,
+				173545A82E2C7913001B3B4C /* SideStore.framework */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -370,6 +421,13 @@
 /* End PBXGroup section */
 
 /* Begin PBXHeadersBuildPhase section */
+		173545A32E2C7913001B3B4C /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		17413FB02D9C0BAE00F3F928 /* Headers */ = {
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
@@ -408,6 +466,29 @@
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
+		173545A72E2C7913001B3B4C /* SideStore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 173545B02E2C7913001B3B4C /* Build configuration list for PBXNativeTarget "SideStore" */;
+			buildPhases = (
+				173545A32E2C7913001B3B4C /* Headers */,
+				173545A42E2C7913001B3B4C /* Sources */,
+				173545A52E2C7913001B3B4C /* Frameworks */,
+				173545A62E2C7913001B3B4C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				173545A92E2C7913001B3B4C /* SideStore */,
+			);
+			name = SideStore;
+			packageProductDependencies = (
+			);
+			productName = SideStore;
+			productReference = 173545A82E2C7913001B3B4C /* SideStore.framework */;
+			productType = "com.apple.product-type.framework";
+		};
 		17413FB42D9C0BAE00F3F928 /* LiveContainerSwiftUI */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 17413FBE2D9C0BAE00F3F928 /* Build configuration list for PBXNativeTarget "LiveContainerSwiftUI" */;
@@ -420,6 +501,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				173545CA2E2C7AB4001B3B4C /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				17413FB62D9C0BAE00F3F928 /* LiveContainerSwiftUI */,
@@ -514,6 +596,7 @@
 				174141002D9C1EDA00F3F928 /* PBXTargetDependency */,
 				E1292AF22DCA3A660065E12D /* PBXTargetDependency */,
 				E1292BEA2DCA3B670065E12D /* PBXTargetDependency */,
+				173545AD2E2C7913001B3B4C /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				172CA8AD2D9D741F00CF6989 /* fishhook */,
@@ -575,9 +658,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1620;
+				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 1540;
 				TargetAttributes = {
+					173545A72E2C7913001B3B4C = {
+						CreatedOnToolsVersion = 26.0;
+					};
 					17413FB42D9C0BAE00F3F928 = {
 						CreatedOnToolsVersion = 16.2;
 					};
@@ -662,11 +748,19 @@
 				174140AC2D9C0F4100F3F928 /* TestJITLess */,
 				E1292AE42DCA3A660065E12D /* LiveProcess */,
 				E1292BD52DCA3B660065E12D /* LiveContainerShared */,
+				173545A72E2C7913001B3B4C /* SideStore */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		173545A62E2C7913001B3B4C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		17413FB32D9C0BAE00F3F928 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -719,6 +813,13 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		173545A42E2C7913001B3B4C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		17413FB12D9C0BAE00F3F928 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -778,6 +879,16 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		173545AD2E2C7913001B3B4C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 173545A72E2C7913001B3B4C /* SideStore */;
+			targetProxy = 173545AC2E2C7913001B3B4C /* PBXContainerItemProxy */;
+		};
+		173545CA2E2C7AB4001B3B4C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 173545A72E2C7913001B3B4C /* SideStore */;
+			targetProxy = 173545C92E2C7AB4001B3B4C /* PBXContainerItemProxy */;
+		};
 		174140FA2D9C1EDA00F3F928 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 17413FB42D9C0BAE00F3F928 /* LiveContainerSwiftUI */;
@@ -806,6 +917,90 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		173545B12E2C7913001B3B4C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUILD_LIBRARY_FOR_DISTRIBUTION = NO;
+				CODE_SIGN_IDENTITY = "$(inherited)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+				PRODUCT_BUNDLE_IDENTIFIER = com.kdt.livecontainer.SideStore;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INSTALL_MODULE = YES;
+				SWIFT_INSTALL_OBJC_HEADER = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "SideStore/SideStore-Bridging-Header.h";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Debug;
+		};
+		173545B22E2C7913001B3B4C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUILD_LIBRARY_FOR_DISTRIBUTION = NO;
+				CODE_SIGN_IDENTITY = "$(inherited)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+				PRODUCT_BUNDLE_IDENTIFIER = com.kdt.livecontainer.SideStore;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INSTALL_MODULE = YES;
+				SWIFT_INSTALL_OBJC_HEADER = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "SideStore/SideStore-Bridging-Header.h";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Release;
+		};
 		17413FBF2D9C0BAE00F3F928 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1465,6 +1660,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		173545B02E2C7913001B3B4C /* Build configuration list for PBXNativeTarget "SideStore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				173545B12E2C7913001B3B4C /* Debug */,
+				173545B22E2C7913001B3B4C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		17413FBE2D9C0BAE00F3F928 /* Build configuration list for PBXNativeTarget "LiveContainerSwiftUI" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

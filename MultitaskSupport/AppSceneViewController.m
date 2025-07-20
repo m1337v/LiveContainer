@@ -54,14 +54,10 @@
     }
     _extension.preferredLanguages = @[];
     
-    NSURL* homeURL = [[NSURL fileURLWithPath:@((char*)getenv("HOME"))] URLByAppendingPathComponent:@"Documents/SideStore"];
-    NSData* bookmark = [homeURL bookmarkDataWithOptions:(1<<11) includingResourceValuesForKeys:0 relativeToURL:0 error:0];
-    
     NSExtensionItem *item = [NSExtensionItem new];
     item.userInfo = @{
         @"selected": _bundleId,
         @"selectedContainer": _dataUUID,
-        @"bookmark": bookmark
     };
     
     __weak typeof(self) weakSelf = self;
