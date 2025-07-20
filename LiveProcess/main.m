@@ -69,26 +69,20 @@ int LiveProcessMain(int argc, char *argv[]) {
             if(access) {
                 [lcUserDefaults setObject:url.path forKey:@"specifiedContainerPath"];
             }
-            NSLog(@"bookMarkURL = %@", url);
         }
         NSXPCListenerEndpoint* endpoint = appInfo[@"endpoint"];
-//        NSError* error = 0;
-//        NSXPCListenerEndpoint *endpoint = [NSKeyedUnarchiver unarchivedObjectOfClass:[NSXPCListenerEndpoint class] fromData:endpointData error:&error];
-//        if(error) {
-//            NSLog(@"failed to deserialize endpoint %@", error.localizedDescription);
-//        }
-        NSLog(@"Connecting");
+
         NSXPCConnection* connection = [[NSXPCConnection alloc] initWithListenerEndpoint:endpoint];
-        connection.remoteObjectInterface = [NSXPCInterface interfaceWithProtocol:@protocol(RefreshProgressReporting)];
+        connection.remoteObjectInterface = [NSXPCInterface interfaceWithProtocol:@protocol(RefreshServer)];
         connection.interruptionHandler = ^{
             NSLog(@"interrupted!!!");
         };
         
         [connection activate];
-        NSLog(@"Connection = %@", connection);
         
-        id<RefreshProgressReporting> proxy = [connection remoteObjectProxy];
-        [proxy updateProgress:0.5];
+        NSObject<RefreshServer>* proxy = [connection remoteObjectProxy];
+        LiveProcessSideStoreHandler.shared.server = proxy;
+        LiveProcessSideStoreHandler.shared.connection = connection;
         
     }
 

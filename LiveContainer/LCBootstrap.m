@@ -29,6 +29,7 @@ NSString* lcGuestAppId;
 bool isLiveProcess = false;
 bool isSharedBundle = false;
 bool isSideStore = false;
+bool sideStoreExist = false;
 
 @implementation NSUserDefaults(LiveContainer)
 + (instancetype)lcUserDefaults {
@@ -59,6 +60,10 @@ bool isSideStore = false;
 + (bool)isSideStore {
     return isSideStore;
 }
++ (bool)sideStoreExist {
+    return sideStoreExist;
+}
+
 + (NSString*)lcGuestAppId {
     return lcGuestAppId;
 }
@@ -224,7 +229,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     if(!isSideStore) {
         bundlePath = [NSString stringWithFormat:@"%@/Applications/%@", docPath, selectedApp];
     } else if (isLiveProcess) {
-        bundlePath = [[NSBundle.mainBundle.bundleURL.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent URLByAppendingPathComponent:@"SideStore"] path];
+        bundlePath = [[NSBundle.mainBundle.bundleURL.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent URLByAppendingPathComponent:@"Frameworks/SideStoreApp.framework"] path];
     } else {
         bundlePath = [[NSBundle.mainBundle.bundleURL URLByAppendingPathComponent:@"Frameworks/SideStoreApp.framework"] path];
     }
@@ -335,7 +340,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     // Overwrite home and tmp path
     NSString *newHomePath = nil;
     NSString* specifiedContainerPath = [lcUserDefaults stringForKey:@"specifiedContainerPath"];
-    if(isSideStore) {
+    if(isSideStore && !specifiedContainerPath) {
         specifiedContainerPath = [docPath stringByAppendingPathComponent:@"SideStore"];
     }
     
@@ -543,6 +548,10 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         dlopen([lcMainBundle.bundlePath stringByAppendingPathComponent:@"Frameworks/TweakLoader.dylib"].UTF8String, RTLD_LAZY|RTLD_GLOBAL);
     }
     
+    if(!isSideStore && sideStoreExist && ![guestAppInfo[@"dontInjectTweakLoader"] boolValue]) {
+        dlopen([lcMainBundle.bundlePath stringByAppendingPathComponent:@"Frameworks/SideStore.framework/SideStore"].UTF8String, RTLD_LAZY);
+    }
+    
     // Fix dynamic properties of some apps
     [NSUserDefaults performSelector:@selector(initialize)];
 
@@ -635,9 +644,18 @@ int LiveContainerMain(int argc, char *argv[]) {
         [lcUserDefaults removeObjectForKey:@"selectedContainer"];
     }
     
+    if(isLiveProcess) {
+        sideStoreExist = [NSFileManager.defaultManager fileExistsAtPath:[lcMainBundle.bundlePath stringByAppendingPathComponent:@"../../Frameworks/SideStoreApp.framework"]];
+    } else {
+        sideStoreExist = [NSFileManager.defaultManager fileExistsAtPath:[lcMainBundle.bundlePath stringByAppendingPathComponent:@"Frameworks/SideStoreApp.framework"]];
+    }
 
-    if([lcUserDefaults boolForKey:@"LCOpenSideStore"]) {
-        isSideStore = true;
+    if([lcUserDefaults boolForKey:@"LCOpenSideStore"] || [selectedApp isEqualToString:@"builtinSideStore"]) {
+        if(sideStoreExist) {
+            isSideStore = true;
+        } else {
+            [lcUserDefaults setBool:NO forKey:@"LCOpenSideStore"];
+        }
     }
     
     if(selectedApp && !isSideStore && !selectedContainer) {
@@ -731,6 +749,10 @@ int LiveContainerMain(int argc, char *argv[]) {
     
     void *LiveContainerSwiftUIHandle = dlopen("@executable_path/Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI", RTLD_LAZY);
     assert(LiveContainerSwiftUIHandle);
+    
+    if(sideStoreExist) {
+        void* sideStoreHandle = dlopen("@executable_path/Frameworks/SideStore.framework/SideStore", RTLD_LAZY);
+    }
 
     if ([lcUserDefaults boolForKey:@"LCLoadTweaksToSelf"]) {
         NSString *tweakFolder = nil;

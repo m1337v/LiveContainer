@@ -279,7 +279,7 @@ class LCAppModel: ObservableObject, Hashable {
         hasher.combine(ObjectIdentifier(self))
     }
     
-    func runApp(multitask: Bool = false, containerFolderName : String? = nil) async throws{
+    func runApp(multitask: Bool = false, containerFolderName : String? = nil, bundleIdOverride : String? = nil) async throws{
         if isAppRunning {
             return
         }
@@ -351,7 +351,13 @@ class LCAppModel: ObservableObject, Hashable {
         }
         try await signApp(force: false)
         
-        UserDefaults.standard.set(self.appInfo.relativeBundlePath, forKey: "selected")
+        if let bundleIdOverride {
+            UserDefaults.standard.set(bundleIdOverride, forKey: "selected")
+        } else {
+            UserDefaults.standard.set(self.appInfo.relativeBundlePath, forKey: "selected")
+        }
+        
+
         UserDefaults.standard.set(uiSelectedContainer?.folderName, forKey: "selectedContainer")
 
         if appInfo.isJITNeeded || appInfo.is32bit {

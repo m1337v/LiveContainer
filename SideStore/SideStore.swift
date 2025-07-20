@@ -18,7 +18,9 @@ public struct RefreshAllAppsWidgetIntent: AppIntent, ProgressReportingIntent
     
     public func perform() async throws -> some IntentResult
     {
-        try await RefreshHandler(progress: progress).startRefresh()
+        RefreshHandler.shared.progress = progress
+        progress.totalUnitCount = 100
+        try await RefreshHandler.shared.startRefresh()
         return .result()
     }
 }
@@ -48,75 +50,110 @@ public struct RefreshAllAppsIntent: AppIntent, CustomIntentMigratedAppIntent, Pr
     
     public func perform() async throws -> some IntentResult
     {
-        try await RefreshHandler(progress: progress).startRefresh()
+        RefreshHandler.shared.progress = progress
+        progress.totalUnitCount = 100
+        try await RefreshHandler.shared.startRefresh()
         return .result(dialog: "All apps have been refreshed.")
     }
 }
 
 
-class RefreshHandler: NSObject, RefreshProgressReporting {
-    func test() -> String! {
-        return "hello"
-    }
-    
+class RefreshHandler: NSObject, RefreshServer {
     var c: UnsafeContinuation<(), any Error>? = nil
-    var progress: Progress
-    static var listener: NSXPCListener? = nil
+    var launchContinuation: UnsafeContinuation<(), any Error>? = nil
+    var progress: Progress? = nil
+    var listener: NSXPCListener? = nil
+    var sideStorePid: Int32 = 0
+    var client: RefreshClient? = nil
+    var ext: NSExtension? = nil
     
-    init(progress: Progress) {
-        self.progress = progress
+    private static var _shared: RefreshHandler? = nil
+    static var shared: RefreshHandler {
+        get {
+            if let _shared {
+                return _shared
+            } else {
+                _shared = RefreshHandler()
+                return _shared!
+            }
+        }
     }
+    
     
     func startRefresh() async throws {
-        if RefreshHandler.listener == nil {
+        if sideStorePid <= 0 || getpgid(sideStorePid) <= 0, let c {
+            c.resume(throwing: NSError(domain: "SideStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Built-in SideStore quit unexpectedly"]))
+            self.c = nil
+        }
+        
+        if c != nil {
+            throw NSError(domain: "SideStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Another refresh task is in progress."])
+        }
+        
+        if listener == nil {
             guard let listener = startAnonymousListener(self) else {
                 return
             }
-            RefreshHandler.listener = listener
+            self.listener = listener
         }
-        guard let listener = RefreshHandler.listener else {
+        guard let listener = self.listener else {
             return
         }
 
-        let lcHome = String(cString:getenv("LC_HOME_PATH"))
-        let sideStoreHomeURL = URL(fileURLWithPath: lcHome).appendingPathComponent("Documents/SideStore")
-        let bookmarkData = bookmarkForURL(sideStoreHomeURL)!
+        // launch SideStore if it's not running
+        if (sideStorePid <= 0 || getpgid(sideStorePid) <= 0) && launchContinuation == nil {
+            let lcHome = String(cString:getenv("LC_HOME_PATH"))
+            let sideStoreHomeURL = URL(fileURLWithPath: lcHome).appendingPathComponent("Documents/SideStore")
+            let bookmarkData = bookmarkForURL(sideStoreHomeURL)!
 
-//        let endpointData : Data
-//        do {
-//            endpointData = try NSKeyedArchiver.archivedData(withRootObject: listener.endpoint, requiringSecureCoding: true)
-//
-//        } catch {
-//            NSLog("Unable to serialize endpoint")
-//            return
-//        }
-        
-        // start LiveProcess
-        let extensionItem = NSExtensionItem()
-        extensionItem.userInfo = [
-            "selected": "builtinSideStore",
-            "bookmark": bookmarkData,
-            "endpoint": listener.endpoint
-        ]
+            // start LiveProcess
+            let extensionItem = NSExtensionItem()
+            extensionItem.userInfo = [
+                "selected": "builtinSideStore",
+                "bookmark": bookmarkData,
+                "endpoint": listener.endpoint
+            ]
 
-        guard let liveProcessURL = UserDefaults.lcMainBundle().builtInPlugInsURL?.appendingPathComponent("LiveProcess.appex"),
-              let liveProcessBundle = Bundle(url: liveProcessURL)
-        else {
-            NSLog("Unable to locate LiveProcess bundle")
-            return
+            guard let liveProcessURL = UserDefaults.lcMainBundle().builtInPlugInsURL?.appendingPathComponent("LiveProcess.appex"),
+                  let liveProcessBundle = Bundle(url: liveProcessURL)
+            else {
+                NSLog("Unable to locate LiveProcess bundle")
+                return
+            }
+            
+            var ext : NSExtension?
+            do {
+                ext = try NSExtension(identifier: liveProcessBundle.bundleIdentifier)
+            } catch {
+                NSLog("Failed to start extension \(error)")
+            }
+            guard let ext else {
+                return
+            }
+            self.ext = ext
+            
+            ext.setRequestInterruptionBlock { uuid in
+                self.c?.resume(throwing: NSError(domain: "SideStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Built-in SideStore quit unexpectedly"]))
+                self.c = nil
+                self.sideStorePid = 0
+                self.launchContinuation = nil
+            }
+            
+            let uuid = await ext.beginRequest(withInputItems: [extensionItem])
+            sideStorePid = ext.pid(forRequestIdentifier: uuid)
+            
+            try await withUnsafeThrowingContinuation { c in
+                self.launchContinuation = c
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    if let c = self.launchContinuation {
+                        c.resume(throwing: NSError(domain: "SideStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Built-in SideStore failed to start in reasonable time"]))
+                        self.launchContinuation = nil
+                        ext._kill(9)
+                    }
+                }
+            }
         }
-        
-        var ext : NSExtension?
-        do {
-            ext = try NSExtension(identifier: liveProcessBundle.bundleIdentifier)
-        } catch {
-            NSLog("Failed to start extension \(error)")
-        }
-        guard let ext else {
-            return
-        }
-        
-        let uuid = await ext.beginRequest(withInputItems: [extensionItem])
+        self.client?.refreshAllApps()
         
         try await withUnsafeThrowingContinuation { c in
             self.c = c
@@ -124,16 +161,28 @@ class RefreshHandler: NSObject, RefreshProgressReporting {
         
     }
     
-    func updateProgress(_ value: Float) {
-        progress.completedUnitCount = Int64(value*100)
+    func updateProgress(_ value: Double) {
+        progress?.completedUnitCount = Int64(value*100)
     }
     
     func finish(_ error: String?) {
         if let error {
             c?.resume(throwing: NSError(domain: "SideStore", code: 1, userInfo: [NSLocalizedDescriptionKey: error]))
+            c = nil
         } else {
             c?.resume()
+            c = nil
         }
+    }
+    
+    func onConnection(_ connection: NSXPCConnection!) {
+        connection.remoteObjectInterface = NSXPCInterface(with: RefreshClient.self)
+        client = connection.remoteObjectProxy as? RefreshClient
+    }
+    
+    func finishedLaunching() {
+        launchContinuation?.resume()
+        launchContinuation = nil
     }
     
 }

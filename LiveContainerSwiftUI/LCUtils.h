@@ -43,3 +43,6 @@ int dyld_get_program_sdk_version(void);
 + (NSString *)getVersionInfo;
 @end
 
+@interface NSUserDefaults(LiveContainer)
++ (bool)sideStoreExist;
+@end

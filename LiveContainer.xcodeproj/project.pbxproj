@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		173545AF2E2C7913001B3B4C /* SideStore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 173545A82E2C7913001B3B4C /* SideStore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		173545C72E2C7AB4001B3B4C /* SideStore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 173545A82E2C7913001B3B4C /* SideStore.framework */; };
 		17413FBC2D9C0BAE00F3F928 /* LiveContainerSwiftUI.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 17413FB52D9C0BAE00F3F928 /* LiveContainerSwiftUI.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		174140902D9C0E8200F3F928 /* TweakLoader.dylib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 1741403A2D9C0D0000F3F928 /* TweakLoader.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		174140942D9C0E8200F3F928 /* ZSign.dylib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 174140542D9C0D6D00F3F928 /* ZSign.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -31,13 +30,6 @@
 
 /* Begin PBXContainerItemProxy section */
 		173545AC2E2C7913001B3B4C /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 17DCE9952C7067EC00731D42 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 173545A72E2C7913001B3B4C;
-			remoteInfo = SideStore;
-		};
-		173545C92E2C7AB4001B3B4C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 17DCE9952C7067EC00731D42 /* Project object */;
 			proxyType = 1;
@@ -298,7 +290,6 @@
 			files = (
 				E16D95752E1CD2B90068EB63 /* LiveContainerShared.framework in Frameworks */,
 				174140D62D9C176F00F3F928 /* libarchive.tbd in Frameworks */,
-				173545C72E2C7AB4001B3B4C /* SideStore.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -501,7 +492,6 @@
 			buildRules = (
 			);
 			dependencies = (
-				173545CA2E2C7AB4001B3B4C /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				17413FB62D9C0BAE00F3F928 /* LiveContainerSwiftUI */,
@@ -883,11 +873,6 @@
 			isa = PBXTargetDependency;
 			target = 173545A72E2C7913001B3B4C /* SideStore */;
 			targetProxy = 173545AC2E2C7913001B3B4C /* PBXContainerItemProxy */;
-		};
-		173545CA2E2C7AB4001B3B4C /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 173545A72E2C7913001B3B4C /* SideStore */;
-			targetProxy = 173545C92E2C7AB4001B3B4C /* PBXContainerItemProxy */;
 		};
 		174140FA2D9C1EDA00F3F928 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;

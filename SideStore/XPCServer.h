@@ -7,11 +7,23 @@
 
 #import <Foundation/Foundation.h>
 
-@protocol RefreshProgressReporting
-- (void)updateProgress:(float)value;
+@protocol RefreshServer
+- (void)updateProgress:(double)value;
 - (void)finish:(NSString*)error;
-- (NSString*)test;
+- (void)onConnection:(NSXPCConnection*)connection;
+- (void)finishedLaunching;
 @end
 
-NSXPCListener* startAnonymousListener(NSObject<RefreshProgressReporting>* reporter);
+@protocol RefreshClient
+- (void)refreshAllApps;
+@end
+
+@interface LiveProcessSideStoreHandler : NSObject
+@property (class, readonly, strong) LiveProcessSideStoreHandler* shared;
+@property NSXPCConnection* connection;
+@property NSObject<RefreshServer>* server;
+
+@end
+
+NSXPCListener* startAnonymousListener(NSObject<RefreshServer>* reporter);
 NSData* bookmarkForURL(NSURL* url);

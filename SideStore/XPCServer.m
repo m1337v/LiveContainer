@@ -10,22 +10,26 @@
 
 
 @interface ServerDelegate : NSObject <NSXPCListenerDelegate>
-@property NSObject<RefreshProgressReporting>* reporter;
+@property NSObject<RefreshServer>* reporter;
 @end
 
 @implementation ServerDelegate
 
 - (BOOL)listener:(NSXPCListener *)listener shouldAcceptNewConnection:(NSXPCConnection *)newConnection {
-    newConnection.exportedInterface = [NSXPCInterface interfaceWithProtocol:@protocol(RefreshProgressReporting)];
+    newConnection.exportedInterface = [NSXPCInterface interfaceWithProtocol:@protocol(RefreshServer)];
     newConnection.exportedObject = self.reporter;
+    [self.reporter onConnection:newConnection];
     [newConnection resume];
     return YES;
 }
 
 @end
 
-NSXPCListener* startAnonymousListener(NSObject<RefreshProgressReporting>* reporter) {
+ServerDelegate* staticDelegate = nil;
+
+NSXPCListener* startAnonymousListener(NSObject<RefreshServer>* reporter) {
     ServerDelegate *delegate = [ServerDelegate new];
+    staticDelegate = delegate;
     delegate.reporter = reporter;
     NSXPCListener *listener = [NSXPCListener anonymousListener];
     listener.delegate = delegate;

@@ -35,4 +35,5 @@ uint64_t aarch64_emulate_adrp_ldr(uint32_t instruction, uint32_t ldrInstruction,
 + (bool)isSharedApp;
 + (NSString*)lcGuestAppId;
 + (bool)isSideStore;
++ (bool)sideStoreExist;
 @end
