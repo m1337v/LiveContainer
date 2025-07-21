@@ -1,5 +1,6 @@
 import UIKit
 import SwiftUI
+import Intents
 
 @objc class AppDelegate: UIResponder, UIApplicationDelegate {
         
@@ -25,6 +26,14 @@ import SwiftUI
         let configuration = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
         configuration.delegateClass = SceneDelegate.self
         return configuration
+    }
+    
+    func application(_ application: UIApplication, handlerFor intent: INIntent) -> Any? {
+        switch intent {
+        case is ViewAppIntent: return ViewAppIntentHandler()
+        default:
+            return nil
+        }
     }
 }
 
@@ -54,4 +63,12 @@ class SceneDelegate: NSObject, UIWindowSceneDelegate, ObservableObject { // Make
         self.hook_requestSceneSessionActivation(sceneSession, userActivity: userActivity, options: newOptions, errorHandler: errorHandler)
     }
     
+}
+
+public class ViewAppIntentHandler: NSObject, ViewAppIntentHandling
+{
+    public func provideAppOptionsCollection(for intent: ViewAppIntent, with completion: @escaping (INObjectCollection<App>?, Error?) -> Void)
+    {
+        completion(INObjectCollection(items:[]), nil)
+    }
 }

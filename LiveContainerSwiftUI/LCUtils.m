@@ -409,12 +409,25 @@ Class LCSharedUtilsClass = nil;
         NSLog(@"[LC] %@", *error);
         return nil;
     }
+        
+    // we remove the extension
+    [manager removeItemAtURL:[appBundlePath URLByAppendingPathComponent:@"PlugIns"] error:error];
+    // remove all sidestore stuff
+    if([NSUserDefaults sideStoreExist]) {
+        [manager removeItemAtURL:[appBundlePath URLByAppendingPathComponent:@"Frameworks/SideStore.framework"] error:error];
+        [manager removeItemAtURL:[appBundlePath URLByAppendingPathComponent:@"Frameworks/SideStoreApp.framework"] error:error];
+        [manager removeItemAtURL:[appBundlePath URLByAppendingPathComponent:@"Intents.intentdefinition"] error:error];
+        [manager removeItemAtURL:[appBundlePath URLByAppendingPathComponent:@"ViewApp.intentdefinition"] error:error];
+        [manager removeItemAtURL:[appBundlePath URLByAppendingPathComponent:@"Metadata.appintents"] error:error];
+        if([infoDict[@"CFBundleURLTypes"] count] > 1) {
+            [infoDict[@"CFBundleURLTypes"] removeLastObject];
+        }
+        [infoDict removeObjectForKey:@"INIntentsSupported"];
+        [infoDict removeObjectForKey:@"NSUserActivityTypes"];
+    }
     
     [infoDict writeToURL:infoPath error:error];
     
-    // we remove the extension
-    [manager removeItemAtURL:[appBundlePath URLByAppendingPathComponent:@"PlugIns"] error:error];
-
     dlopen("/System/Library/PrivateFrameworks/PassKitCore.framework/PassKitCore", RTLD_GLOBAL);
     NSData *zipData = [[NSClassFromString(@"PKZipArchiver") new] zippedDataForURL:tmpPayloadPath.URLByDeletingLastPathComponent];
     if (!zipData) return nil;

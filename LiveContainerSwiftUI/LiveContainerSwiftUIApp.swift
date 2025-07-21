@@ -7,7 +7,7 @@
 import SwiftUI
 
 @main
-struct LiveContainerSwiftUIApp : App {
+struct LiveContainerSwiftUIApp : SwiftUI.App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     @State var appDataFolderNames: [String]
