@@ -952,7 +952,7 @@ struct LCAppSettingsView : View{
                 Text("lc.appSettings.useLCBundleIdDesc".loc)
             }
             
-            if sharedModel.isPhone {
+            if SharedModel.isPhone {
                 Section {
                     Picker(selection: $model.uiOrientationLock) {
                         Text("lc.common.disabled".loc).tag(LCOrientationLock.Disabled)

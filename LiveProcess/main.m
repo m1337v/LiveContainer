@@ -67,7 +67,7 @@ int LiveProcessMain(int argc, char *argv[]) {
             NSURL* url = [NSURL URLByResolvingBookmarkData:bookmark options:(1 << 10) relativeToURL:nil bookmarkDataIsStale:&isStale error:&error];
             bool access = [url startAccessingSecurityScopedResource];
             if(access) {
-                [lcUserDefaults setObject:url.path forKey:@"specifiedContainerPath"];
+                [lcUserDefaults setObject:url.path forKey:@"specifiedSideStoreContainerPath"];
             }
         }
         NSXPCListenerEndpoint* endpoint = appInfo[@"endpoint"];

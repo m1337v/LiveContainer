@@ -24,7 +24,7 @@ struct LCTabView: View {
     var body: some View {
         Group {
             let appListView = LCAppListView(appDataFolderNames: $appDataFolderNames, tweakFolderNames: $tweakFolderNames)
-            if #available(iOS 19.0, *), sharedModel.isLiquidGlassSearchEnabled {
+            if #available(iOS 19.0, *), SharedModel.isLiquidGlassSearchEnabled {
                 TabView {
                     Tab("lc.tabView.apps".loc, systemImage: "square.stack.3d.up.fill") {
                         appListView

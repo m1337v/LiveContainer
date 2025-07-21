@@ -339,14 +339,14 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
 
     // Overwrite home and tmp path
     NSString *newHomePath = nil;
-    NSString* specifiedContainerPath = [lcUserDefaults stringForKey:@"specifiedContainerPath"];
-    if(isSideStore && !specifiedContainerPath) {
-        specifiedContainerPath = [docPath stringByAppendingPathComponent:@"SideStore"];
-    }
-    
-    if(specifiedContainerPath) {
-        newHomePath = specifiedContainerPath;
-        [lcUserDefaults removeObjectForKey:@"selectedContainer"];
+
+    if(isSideStore) {
+        if(isLiveProcess) {
+            newHomePath = [lcUserDefaults stringForKey:@"specifiedSideStoreContainerPath"];;
+            [lcUserDefaults removeObjectForKey:@"specifiedSideStoreContainerPath"];
+        } else {
+            newHomePath = [docPath stringByAppendingPathComponent:@"SideStore"];
+        }
     } else if(isSharedBundle) {
         newHomePath = [NSString stringWithFormat:@"%@/Data/Application/%@", appGroupFolder.path, dataUUID];
         
