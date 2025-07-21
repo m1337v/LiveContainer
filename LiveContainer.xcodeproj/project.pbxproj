@@ -173,6 +173,7 @@
 				"CoreLocation+GuestHooks.m",
 				DocumentPicker.m,
 				"Network+GuestHooks.m",
+				Notification.m,
 				TweakLoader.m,
 				"UIKit+GuestHooks.m",
 				utils.m,
