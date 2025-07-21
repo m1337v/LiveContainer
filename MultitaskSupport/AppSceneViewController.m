@@ -192,7 +192,8 @@
 }
 
 - (void)viewWillLayoutSubviews {
-    [self updateFrameWithSettingsBlock:nil];
+    [self updateFrameWithSettingsBlock:self.nextUpdateSettingsBlock];
+    self.nextUpdateSettingsBlock = nil;
 }
 - (void)updateFrameWithSettingsBlock:(void (^)(UIMutableApplicationSceneSettings *settings))block {
     __block int currentDebounceToken = self.resizeDebounceToken + 1;

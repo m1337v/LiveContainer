@@ -132,7 +132,7 @@ class AppInfoProvider {
     
     @Published var apps: [DockAppModel] = []
     @Published var isVisible: Bool = false
-    @Published var isCollapsed: Bool = false
+    @Published @objc var isCollapsed: Bool = false
     @Published var isDockHidden: Bool = false
     @Published var settingsChanged: Bool = false
 
@@ -680,6 +680,17 @@ class AppInfoProvider {
         DispatchQueue.main.async {
             self.isCollapsed.toggle()
             self.updateDockFrame()
+            self.notifyDockCollapseChanged()
+        }
+    }
+    
+    @objc public func notifyDockCollapseChanged() {
+        self.updateDockFrame()
+        // find fullscreen apps and hide its UINavigationBar
+        self.apps.forEach { app in
+            if let vc = app.view?._viewControllerForAncestor() as? DecoratedAppSceneViewController, vc.isMaximized {
+                vc.updateVerticalConstraints()
+            }
         }
     }
     

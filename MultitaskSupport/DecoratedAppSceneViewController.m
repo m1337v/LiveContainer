@@ -117,17 +117,17 @@ void UIKitFixesInit(void) {
 }
 
 - (void)setupDecoratedView {
+    CGFloat navBarHeight = 44;
     self.view = [UIStackView new];
     if(UIInterfaceOrientationIsLandscape(UIApplication.sharedApplication.statusBarOrientation)) {
-        self.view.frame = CGRectMake(50, 150, 480, 320 + 44);
+        self.view.frame = CGRectMake(50, 150, 480, 320 + navBarHeight);
     } else {
-        self.view.frame = CGRectMake(50, 150, 320, 480 + 44);
+        self.view.frame = CGRectMake(50, 150, 320, 480 + navBarHeight);
     }
     
     // Navigation bar
-    UINavigationBar *navigationBar = [[UINavigationBar alloc] initWithFrame:CGRectMake(0, 0, self.view.frame.size.width, 44)];
+    UINavigationBar *navigationBar = [[UINavigationBar alloc] initWithFrame:CGRectMake(0, 0, self.view.frame.size.width, navBarHeight)];
     navigationBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    [[navigationBar.heightAnchor constraintEqualToConstant:44] setActive:true];
     UINavigationItem *navigationItem = [[UINavigationItem alloc] initWithTitle:@"Unnamed window"];
     navigationBar.items = @[navigationItem];
     
@@ -142,7 +142,6 @@ void UIKitFixesInit(void) {
         [self.view addArrangedSubview:self.navigationBar];
     }
     
-    CGFloat navBarHeight = self.navigationBar.frame.size.height;
     CGRect contentFrame = CGRectMake(0, 0, self.view.frame.size.width, self.view.frame.size.height - navBarHeight);
     UIView *fixedPositionContentView = [[UIView alloc] initWithFrame:contentFrame];
     self.contentView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
@@ -178,18 +177,7 @@ void UIKitFixesInit(void) {
     [self.view insertSubview:_appSceneVC.view atIndex:0];
     _appSceneVC.view.translatesAutoresizingMaskIntoConstraints = NO;
     
-    if([NSUserDefaults.lcSharedDefaults boolForKey:@"LCMultitaskBottomWindowBar"]) {
-        _activatedVerticalConstraints = @[
-            [_appSceneVC.view.topAnchor constraintEqualToAnchor:self.view.topAnchor],
-            [_appSceneVC.view.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-44],
-        ];
-    } else {
-        _activatedVerticalConstraints = @[
-            [_appSceneVC.view.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:44],
-            [_appSceneVC.view.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
-        ];
-    }
-    [NSLayoutConstraint activateConstraints:_activatedVerticalConstraints];
+    [self updateVerticalConstraints];
     [NSLayoutConstraint activateConstraints:@[
         [_appSceneVC.view.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [_appSceneVC.view.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor]
@@ -307,13 +295,15 @@ void UIKitFixesInit(void) {
     } else {
         [self updateOriginalFrame];
         [UIView animateWithDuration:0.3 delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
+            self.isMaximized = YES;
+            [self updateVerticalConstraints];
+            
             self.view.layer.borderWidth = 0;
             self.resizeHandle.alpha = 0;
             [self.appSceneVC.presenter.scene updateSettingsWithBlock:^(UIMutableApplicationSceneSettings *settings) {
                 [self updateMaximizedFrameWithSettings:settings];
             }];
         } completion:^(BOOL finished) {
-            self.isMaximized = YES;
             UIImage *restoreImage = [UIImage systemImageNamed:@"arrow.down.right.and.arrow.up.left.circle"];
             UIImageConfiguration *restoreConfig = [UIImageSymbolConfiguration configurationWithPointSize:16.0 weight:UIImageSymbolWeightMedium];
             self.maximizeButton.image = [restoreImage imageWithConfiguration:restoreConfig];
@@ -436,20 +426,7 @@ void UIKitFixesInit(void) {
             [self.view insertArrangedSubview:self.navigationBar atIndex:0];
         }
         
-        [NSLayoutConstraint deactivateConstraints:self.activatedVerticalConstraints];
-        if(bottomWindowBar) {
-            self.activatedVerticalConstraints = @[
-                [self.appSceneVC.view.topAnchor constraintEqualToAnchor:self.view.topAnchor],
-                [self.appSceneVC.view.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-44],
-            ];
-        } else {
-            self.activatedVerticalConstraints = @[
-                [self.appSceneVC.view.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:44],
-                [self.appSceneVC.view.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
-            ];
-        }
-        [NSLayoutConstraint activateConstraints:self.activatedVerticalConstraints];
-        
+        [self updateVerticalConstraints];
         [self adjustNavigationBarButtonSpacingWithNegativeSpacing:-8.0 rightMargin:-4.0];
     }];
 }
@@ -483,10 +460,43 @@ void UIKitFixesInit(void) {
     [self.view.superview bringSubviewToFront:self.view];
 }
 
+- (void)updateVerticalConstraints {
+    // Update safe area insets
+    if(_isMaximized) {
+        __weak typeof(self) weakSelf = self;
+        self.appSceneVC.nextUpdateSettingsBlock = ^(UIMutableApplicationSceneSettings *settings) {
+            [weakSelf updateMaximizedFrameWithSettings:settings];
+        };
+    }
+    
+    BOOL bottomWindowBar = [NSUserDefaults.lcSharedDefaults boolForKey:@"LCMultitaskBottomWindowBar"];
+    CGFloat navBarHeight = MultitaskDockManager.shared.isCollapsed ? 0 : 44;
+    self.navigationBar.hidden = MultitaskDockManager.shared.isCollapsed;
+    
+    [NSLayoutConstraint deactivateConstraints:self.activatedVerticalConstraints];
+    if(bottomWindowBar) {
+        self.activatedVerticalConstraints = @[
+            [self.appSceneVC.view.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+            [self.appSceneVC.view.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-navBarHeight],
+            [self.navigationBar.heightAnchor constraintEqualToConstant:navBarHeight]
+        ];
+    } else {
+        self.activatedVerticalConstraints = @[
+            [self.appSceneVC.view.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:navBarHeight],
+            [self.appSceneVC.view.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+            [self.navigationBar.heightAnchor constraintEqualToConstant:navBarHeight]
+        ];
+    }
+    [NSLayoutConstraint activateConstraints:self.activatedVerticalConstraints];
+}
+
 - (UIEdgeInsets)updateMaximizedSafeAreaWithSettings:(UIMutableApplicationSceneSettings *)settings {
     BOOL bottomWindowBar = [NSUserDefaults.lcSharedDefaults boolForKey:@"LCMultitaskBottomWindowBar"];
     UIEdgeInsets safeAreaInsets = self.view.window.safeAreaInsets;
-    if(bottomWindowBar) {
+    if(self.navigationBar.hidden) {
+        settings.peripheryInsets = safeAreaInsets;
+        safeAreaInsets = UIEdgeInsetsZero;
+    } else if(bottomWindowBar) {
         // allow the control bar to overlap the bottom safe area
         safeAreaInsets.bottom = 0;
         settings.peripheryInsets = safeAreaInsets;

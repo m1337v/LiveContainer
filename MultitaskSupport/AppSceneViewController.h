@@ -22,7 +22,7 @@ API_AVAILABLE(ios(16.0))
 
 API_AVAILABLE(ios(16.0))
 @interface AppSceneViewController : UIViewController<_UISceneSettingsDiffAction>
-
+@property(nonatomic) void(^nextUpdateSettingsBlock)(UIMutableApplicationSceneSettings *settings);
 @property(nonatomic) NSString* bundleId;
 @property(nonatomic) NSString* dataUUID;
 @property(nonatomic) int pid;

@@ -15,5 +15,6 @@ API_AVAILABLE(ios(16.0))
 - (instancetype)initWindowName:(NSString*)windowName bundleId:(NSString*)bundleId dataUUID:(NSString*)dataUUID;
 - (void)minimizeWindowPiP;
 - (void)unminimizeWindowPiP;
+- (void)updateVerticalConstraints;
 @end
 
