@@ -67,13 +67,19 @@ jobs:
           path: ${{ env.archive_path }}.xcarchive.tar
       - name: Create IPA
         run: |
-          mv "$archive_path.xcarchive/Products/Applications" Payload
-          zip -r "$scheme.ipa" "Payload" -x "._*" -x ".DS_Store" -x "__MACOSX"
+          sh .github/build_github.sh
+
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.scheme }}.ipa
           path: ${{ env.scheme }}.ipa
+      
+      - name: Upload LiveContainer+SideStore
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.scheme }}+SideStore.ipa
+          path: ${{ env.scheme }}+SideStore.ipa
 
   release__nightly:
     name: Nightly Release
