@@ -137,10 +137,5 @@ jobs:
             This is a nightly release [created automatically with GitHub Actions workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}).
           files: |
             ${{ needs.build.outputs.artifact }}
-<<<<<<< HEAD
-            ${{ needs.build.outputs.sidestore_artifact }}
-            apps_nightly.json
-=======
             ${{ needs.build.outputs.artifact2 }}
             apps_nightly.json
->>>>>>> upstream/main
