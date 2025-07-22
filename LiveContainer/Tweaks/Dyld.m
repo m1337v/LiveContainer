@@ -50,6 +50,8 @@ int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct siga
 // Apple Sign In
 static NSString* (*orig_NSBundle_bundleIdentifier)(id self, SEL _cmd);
 static void (*orig_ASAuthorizationController_performRequests)(id self, SEL _cmd);
+static id (*orig_ASAuthorizationAppleIDProvider_createRequest)(id self, SEL _cmd);
+static id (*orig_ASAuthorizationAppleIDCredential_initWithCoder)(id self, SEL _cmd, id coder);
 
 uint32_t guestAppSdkVersion = 0;
 uint32_t guestAppSdkVersionSet = 0;
@@ -545,56 +547,102 @@ int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigacti
 //     return result;
 // }
 
+static NSString* getGuestBundleId(void) {
+    // Try multiple sources to get the guest app's bundle ID
+    NSString *guestBundleId = nil;
+    
+    // Method 1: Check NSUserDefaults for selected app
+    NSDictionary *selectedApp = [[NSUserDefaults standardUserDefaults] objectForKey:@"selectedApp"];
+    if (selectedApp && [selectedApp isKindOfClass:[NSDictionary class]]) {
+        guestBundleId = selectedApp[@"bundleIdentifier"];
+    }
+    
+    // Method 2: Check for selectedBundleIdentifier key
+    if (!guestBundleId) {
+        guestBundleId = [[NSUserDefaults standardUserDefaults] stringForKey:@"selectedBundleIdentifier"];
+    }
+    
+    // Method 3: Check environment variable
+    if (!guestBundleId) {
+        const char *envBundleId = getenv("LC_GUEST_BUNDLE_ID");
+        if (envBundleId) {
+            guestBundleId = [NSString stringWithUTF8String:envBundleId];
+        }
+    }
+    
+    return guestBundleId;
+}
+
 // Hook NSBundle bundleIdentifier method
 static NSString* hook_NSBundle_bundleIdentifier(id self, SEL _cmd) {
-    // If Sign in with Apple is active and we have a guest app, return guest app's bundle ID
-    if (isSignInWithAppleActive) {
-        // Get guest app bundle ID using the same pattern as your existing code
-        NSString *guestBundleId = nil;
-        
-        // Try to get from guest app info (similar to your bootstrap pattern)
-        NSDictionary *guestInfo = [[NSUserDefaults standardUserDefaults] objectForKey:@"selectedApp"];
-        if (guestInfo) {
-            guestBundleId = guestInfo[@"bundleIdentifier"];
-        }
-        
-        // Fallback: try to get from current process info
-        if (!guestBundleId) {
-            // Get the guest app's original bundle ID from NSUserDefaults
-            guestBundleId = [[NSUserDefaults standardUserDefaults] stringForKey:@"selectedBundleIdentifier"];
-        }
-        
-        // Fallback: try to get from environment or other source
-        if (!guestBundleId) {
-            // Check if there's an environment variable or other source
-            const char *envBundleId = getenv("LC_GUEST_BUNDLE_ID");
-            if (envBundleId) {
-                guestBundleId = [NSString stringWithUTF8String:envBundleId];
-            }
-        }
-        
+    NSString *originalBundleId = orig_NSBundle_bundleIdentifier(self, _cmd);
+    
+    // If Sign in with Apple is active and this is the main bundle, return guest app's bundle ID
+    if (isSignInWithAppleActive && [originalBundleId isEqualToString:@"com.kdt.livecontainer"]) {
+        NSString *guestBundleId = getGuestBundleId();
         if (guestBundleId && ![guestBundleId isEqualToString:@"com.kdt.livecontainer"]) {
             NSLog(@"[LC] 🎭 Spoofing bundle ID for Sign in with Apple: %@ -> %@", 
-                  @"com.kdt.livecontainer", guestBundleId);
+                  originalBundleId, guestBundleId);
             return guestBundleId;
         }
     }
-    return orig_NSBundle_bundleIdentifier(self, _cmd);
+    
+    return originalBundleId;
 }
 
 // Hook ASAuthorizationController to detect Sign in with Apple usage
 static void hook_ASAuthorizationController_performRequests(id self, SEL _cmd) {
-    NSLog(@"[LC] 🍎 Sign in with Apple request detected");
+    NSLog(@"[LC] 🍎 ASAuthorizationController performRequests detected");
     isSignInWithAppleActive = YES;
+    
+    // Log what bundle ID we'll be using
+    NSString *guestBundleId = getGuestBundleId();
+    if (guestBundleId) {
+        NSLog(@"[LC] 🍎 Will use guest bundle ID: %@", guestBundleId);
+    } else {
+        NSLog(@"[LC] ❌ No guest bundle ID found, will use LiveContainer ID");
+    }
     
     // Call original method
     orig_ASAuthorizationController_performRequests(self, _cmd);
     
-    // Reset flag after a delay (Sign in with Apple flow is async)
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    // Reset flag after a longer delay (Sign in with Apple flow can be long)
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(30.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         isSignInWithAppleActive = NO;
         NSLog(@"[LC] 🍎 Sign in with Apple context reset");
     });
+}
+
+static id hook_ASAuthorizationAppleIDProvider_createRequest(id self, SEL _cmd) {
+    NSLog(@"[LC] 🍎 ASAuthorizationAppleIDProvider createRequest detected");
+    isSignInWithAppleActive = YES;
+    
+    // Log what bundle ID we'll be using during request creation
+    NSString *guestBundleId = getGuestBundleId();
+    if (guestBundleId) {
+        NSLog(@"[LC] 🍎 Creating request with guest bundle ID: %@", guestBundleId);
+    }
+    
+    // Call original method
+    id result = orig_ASAuthorizationAppleIDProvider_createRequest(self, _cmd);
+    
+    return result;
+}
+
+static id hook_ASAuthorizationAppleIDCredential_initWithCoder(id self, SEL _cmd, id coder) {
+    NSLog(@"[LC] 🍎 ASAuthorizationAppleIDCredential initWithCoder detected");
+    isSignInWithAppleActive = YES;
+    
+    // Call original method
+    id result = orig_ASAuthorizationAppleIDCredential_initWithCoder(self, _cmd, coder);
+    
+    // Reset flag after credential processing
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        isSignInWithAppleActive = NO;
+        NSLog(@"[LC] 🍎 Sign in with Apple credential processing complete");
+    });
+    
+    return result;
 }
 
 bool performHookDyldApi(const char* functionName, uint32_t adrpOffset, void** origFunction, void* hookFunction) {
@@ -791,6 +839,28 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
                 orig_ASAuthorizationController_performRequests = (void*)method_getImplementation(performMethod);
                 method_setImplementation(performMethod, (IMP)hook_ASAuthorizationController_performRequests);
                 NSLog(@"[LC] 🍎 ASAuthorizationController performRequests hook installed");
+            }
+        }
+        
+        // NEW: Hook ASAuthorizationAppleIDProvider
+        Class asAppleIDProviderClass = objc_getClass("ASAuthorizationAppleIDProvider");
+        if (asAppleIDProviderClass) {
+            Method createRequestMethod = class_getInstanceMethod(asAppleIDProviderClass, @selector(createRequest));
+            if (createRequestMethod) {
+                orig_ASAuthorizationAppleIDProvider_createRequest = (void*)method_getImplementation(createRequestMethod);
+                method_setImplementation(createRequestMethod, (IMP)hook_ASAuthorizationAppleIDProvider_createRequest);
+                NSLog(@"[LC] 🍎 ASAuthorizationAppleIDProvider createRequest hook installed");
+            }
+        }
+        
+        // NEW: Hook ASAuthorizationAppleIDCredential
+        Class asAppleIDCredentialClass = objc_getClass("ASAuthorizationAppleIDCredential");
+        if (asAppleIDCredentialClass) {
+            Method initWithCoderMethod = class_getInstanceMethod(asAppleIDCredentialClass, @selector(initWithCoder:));
+            if (initWithCoderMethod) {
+                orig_ASAuthorizationAppleIDCredential_initWithCoder = (void*)method_getImplementation(initWithCoderMethod);
+                method_setImplementation(initWithCoderMethod, (IMP)hook_ASAuthorizationAppleIDCredential_initWithCoder);
+                NSLog(@"[LC] 🍎 ASAuthorizationAppleIDCredential initWithCoder hook installed");
             }
         }
         
