@@ -657,19 +657,45 @@ static void hook_ASAuthorizationController_performAuthorizationWithContext(id se
 }
 
 static id hook_ASAuthorizationAppleIDProvider_createRequest(id self, SEL _cmd) {
-    NSLog(@"[LC] 🍎 ASAuthorizationAppleIDProvider createRequest detected");
-    isSignInWithAppleActive = YES;
+    NSLog(@"[LC] 🍎 ASAuthorizationAppleIDProvider createRequest detected - will modify bundle ID");
     
-    // Log what bundle ID we'll be using during request creation
+    // Call original method to create the request
+    id request = orig_ASAuthorizationAppleIDProvider_createRequest(self, _cmd);
+    
+    // Try to modify the request's bundle identifier if possible
     NSString *guestBundleId = getGuestBundleId();
-    if (guestBundleId) {
-        NSLog(@"[LC] 🍎 Creating request with guest bundle ID: %@", guestBundleId);
+    if (guestBundleId && request) {
+        NSLog(@"[LC] 🍎 Attempting to modify request bundle ID to: %@", guestBundleId);
+        
+        // Try to set bundle identifier using KVC if the property exists
+        @try {
+            if ([request respondsToSelector:@selector(setBundleIdentifier:)]) {
+                [request performSelector:@selector(setBundleIdentifier:) withObject:guestBundleId];
+                NSLog(@"[LC] 🍎 Successfully set request bundle identifier via selector");
+            } else {
+                // Try KVC as fallback
+                [request setValue:guestBundleId forKey:@"bundleIdentifier"];
+                NSLog(@"[LC] 🍎 Successfully set request bundle identifier via KVC");
+            }
+        }
+        @catch (NSException *exception) {
+            NSLog(@"[LC] ❌ Failed to modify request bundle identifier: %@", exception.reason);
+        }
     }
     
-    // Call original method
-    id result = orig_ASAuthorizationAppleIDProvider_createRequest(self, _cmd);
+    return request;
+}
+
+static NSString* hook_ASAuthorizationAppleIDRequest_bundleIdentifier(id self, SEL _cmd) {
+    NSString *guestBundleId = getGuestBundleId();
+    if (guestBundleId) {
+        NSLog(@"[LC] 🍎 ASAuthorizationAppleIDRequest bundleIdentifier called - returning guest ID: %@", guestBundleId);
+        return guestBundleId;
+    }
     
-    return result;
+    // Fallback to original if we can't get guest bundle ID
+    NSLog(@"[LC] 🍎 ASAuthorizationAppleIDRequest bundleIdentifier - no guest ID, returning LiveContainer ID");
+    return @"com.kdt.livecontainer";
 }
 
 static id hook_ASAuthorizationAppleIDCredential_initWithCoder(id self, SEL _cmd, id coder) {
@@ -894,15 +920,25 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         //         NSLog(@"[LC] 🍎 ASAuthorizationController performAuthorizationWithContext hook installed");
         //     }
         // }
-        // Class asAppleIDProviderClass = objc_getClass("ASAuthorizationAppleIDProvider");
-        // if (asAppleIDProviderClass) {
-        //     Method createRequestMethod = class_getInstanceMethod(asAppleIDProviderClass, @selector(createRequest));
-        //     if (createRequestMethod) {
-        //         orig_ASAuthorizationAppleIDProvider_createRequest = (void*)method_getImplementation(createRequestMethod);
-        //         method_setImplementation(createRequestMethod, (IMP)hook_ASAuthorizationAppleIDProvider_createRequest);
-        //         NSLog(@"[LC] 🍎 ASAuthorizationAppleIDProvider createRequest hook installed");
-        //     }
-        // }
+        Class asAppleIDProviderClass = objc_getClass("ASAuthorizationAppleIDProvider");
+        if (asAppleIDProviderClass) {
+            Method createRequestMethod = class_getInstanceMethod(asAppleIDProviderClass, @selector(createRequest));
+            if (createRequestMethod) {
+                orig_ASAuthorizationAppleIDProvider_createRequest = (void*)method_getImplementation(createRequestMethod);
+                method_setImplementation(createRequestMethod, (IMP)hook_ASAuthorizationAppleIDProvider_createRequest);
+                NSLog(@"[LC] 🍎 ASAuthorizationAppleIDProvider createRequest hook installed");
+            }
+        }
+        // Hook the request object itself to modify its bundle identifier
+        Class asAppleIDRequestClass = objc_getClass("ASAuthorizationAppleIDRequest");
+        if (asAppleIDRequestClass) {
+            // Hook any bundle identifier related methods on the request
+            Method bundleIdMethod = class_getInstanceMethod(asAppleIDRequestClass, @selector(bundleIdentifier));
+            if (bundleIdMethod) {
+                method_setImplementation(bundleIdMethod, (IMP)hook_ASAuthorizationAppleIDRequest_bundleIdentifier);
+                NSLog(@"[LC] 🍎 ASAuthorizationAppleIDRequest bundleIdentifier hook installed");
+            }
+        }
         // // NEW: Hook ASAuthorizationAppleIDCredential
         // Class asAppleIDCredentialClass = objc_getClass("ASAuthorizationAppleIDCredential");
         // if (asAppleIDCredentialClass) {
