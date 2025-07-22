@@ -50,6 +50,7 @@ int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct siga
 // Apple Sign In
 static NSString* (*orig_NSBundle_bundleIdentifier)(id self, SEL _cmd);
 static void (*orig_ASAuthorizationController_performRequests)(id self, SEL _cmd);
+static void (*orig_ASAuthorizationController_performAuthorizationWithContext)(id self, SEL _cmd, id context);
 static id (*orig_ASAuthorizationAppleIDProvider_createRequest)(id self, SEL _cmd);
 static id (*orig_ASAuthorizationAppleIDCredential_initWithCoder)(id self, SEL _cmd, id coder);
 
@@ -646,9 +647,8 @@ static void hook_ASAuthorizationController_performAuthorizationWithContext(id se
         NSLog(@"[LC] 🍎 Will use guest bundle ID: %@", guestBundleId);
     }
     
-    // Call original method - need to handle the context parameter
-    void (*orig_func)(id, SEL, id) = (void (*)(id, SEL, id))orig_ASAuthorizationController_performRequests;
-    orig_func(self, _cmd, context);
+    // Call the CORRECT original method
+    orig_ASAuthorizationController_performAuthorizationWithContext(self, _cmd, context);
     
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(60.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         isSignInWithAppleActive = NO;
@@ -887,6 +887,8 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
             // ALSO try the method we see in logs: performAuthorizationWithContext:
             Method performWithContextMethod = class_getInstanceMethod(asAuthClass, @selector(performAuthorizationWithContext:));
             if (performWithContextMethod) {
+                // Use the correct function pointer for this method
+                orig_ASAuthorizationController_performAuthorizationWithContext = (void*)method_getImplementation(performWithContextMethod);
                 method_setImplementation(performWithContextMethod, (IMP)hook_ASAuthorizationController_performAuthorizationWithContext);
                 NSLog(@"[LC] 🍎 ASAuthorizationController performAuthorizationWithContext hook installed");
             }
