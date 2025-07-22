@@ -49,10 +49,12 @@ static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
 int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact);
 // Apple Sign In
 static NSString* (*orig_NSBundle_bundleIdentifier)(id self, SEL _cmd);
+static NSDictionary* (*orig_NSBundle_infoDictionary)(id self, SEL _cmd);
 static void (*orig_ASAuthorizationController_performRequests)(id self, SEL _cmd);
 static void (*orig_ASAuthorizationController_performAuthorizationWithContext)(id self, SEL _cmd, id context);
 static id (*orig_ASAuthorizationAppleIDProvider_createRequest)(id self, SEL _cmd);
 static id (*orig_ASAuthorizationAppleIDCredential_initWithCoder)(id self, SEL _cmd, id coder);
+
 
 uint32_t guestAppSdkVersion = 0;
 uint32_t guestAppSdkVersionSet = 0;
@@ -604,6 +606,9 @@ static NSString* getGuestBundleId(void) {
 static NSString* hook_NSBundle_bundleIdentifier(id self, SEL _cmd) {
     NSString *originalBundleId = orig_NSBundle_bundleIdentifier(self, _cmd);
     
+    // Log EVERY bundle identifier call to see what's happening
+    NSLog(@"[LC] 🔍 NSBundle bundleIdentifier called: %@ (from %@)", originalBundleId, [self description]);
+    
     // ALWAYS spoof LiveContainer's bundle ID to the guest app's bundle ID
     if ([originalBundleId isEqualToString:@"com.kdt.livecontainer"]) {
         NSString *guestBundleId = getGuestBundleId();
@@ -666,6 +671,8 @@ static id hook_ASAuthorizationAppleIDProvider_createRequest(id self, SEL _cmd) {
     NSString *guestBundleId = getGuestBundleId();
     if (guestBundleId && request) {
         NSLog(@"[LC] 🍎 Attempting to modify request bundle ID to: %@", guestBundleId);
+        NSLog(@"[LC] 🍎 Request object: %@", [request description]);
+        NSLog(@"[LC] 🍎 Request class: %@", NSStringFromClass([request class]));
         
         // Try to set bundle identifier using KVC if the property exists
         @try {
@@ -673,6 +680,8 @@ static id hook_ASAuthorizationAppleIDProvider_createRequest(id self, SEL _cmd) {
                 [request performSelector:@selector(setBundleIdentifier:) withObject:guestBundleId];
                 NSLog(@"[LC] 🍎 Successfully set request bundle identifier via selector");
             } else {
+                NSLog(@"[LC] 🍎 Request does not respond to setBundleIdentifier:");
+                
                 // Try KVC as fallback
                 [request setValue:guestBundleId forKey:@"bundleIdentifier"];
                 NSLog(@"[LC] 🍎 Successfully set request bundle identifier via KVC");
@@ -680,6 +689,15 @@ static id hook_ASAuthorizationAppleIDProvider_createRequest(id self, SEL _cmd) {
         }
         @catch (NSException *exception) {
             NSLog(@"[LC] ❌ Failed to modify request bundle identifier: %@", exception.reason);
+        }
+        
+        // Try to read back what was set
+        @try {
+            id currentBundleId = [request valueForKey:@"bundleIdentifier"];
+            NSLog(@"[LC] 🍎 Request bundle identifier after modification: %@", currentBundleId);
+        }
+        @catch (NSException *exception) {
+            NSLog(@"[LC] ❌ Could not read back bundle identifier: %@", exception.reason);
         }
     }
     
@@ -712,6 +730,46 @@ static id hook_ASAuthorizationAppleIDCredential_initWithCoder(id self, SEL _cmd,
     });
     
     return result;
+}
+
+static NSString* hook_ASAuthorizationRequest_bundleIdentifier(id self, SEL _cmd) {
+    NSString *guestBundleId = getGuestBundleId();
+    if (guestBundleId) {
+        NSLog(@"[LC] 🍎 ASAuthorizationRequest bundleIdentifier called - returning guest ID: %@", guestBundleId);
+        return guestBundleId;
+    }
+    
+    NSLog(@"[LC] 🍎 ASAuthorizationRequest bundleIdentifier - no guest ID, returning LiveContainer ID");
+    return @"com.kdt.livecontainer";
+}
+
+static NSBundle* hook_NSBundle_mainBundle(id self, SEL _cmd) {
+    NSLog(@"[LC] 🔍 NSBundle mainBundle called");
+    // Return the hooked main bundle so bundleIdentifier calls go through our hook
+    return [NSBundle mainBundle];  // This will trigger our bundleIdentifier hook
+}
+
+static NSDictionary* hook_NSBundle_infoDictionary(id self, SEL _cmd) {
+    NSBundle *bundle = (NSBundle *)self;
+    NSString *bundleId = [bundle bundleIdentifier];  // This will go through our hook
+    
+    NSLog(@"[LC] 🔍 NSBundle infoDictionary called for bundle: %@", bundleId);
+    
+    // Get the original info dictionary using the stored function pointer
+    NSDictionary *origInfo = orig_NSBundle_infoDictionary(self, _cmd);
+    
+    // If this is LiveContainer's bundle, modify the CFBundleIdentifier
+    if ([bundleId isEqualToString:@"com.kdt.livecontainer"]) {
+        NSString *guestBundleId = getGuestBundleId();
+        if (guestBundleId) {
+            NSMutableDictionary *modifiedInfo = [origInfo mutableCopy];
+            modifiedInfo[@"CFBundleIdentifier"] = guestBundleId;
+            NSLog(@"[LC] 🎭 Spoofing Info.plist CFBundleIdentifier: %@ -> %@", bundleId, guestBundleId);
+            return [modifiedInfo copy];
+        }
+    }
+    
+    return origInfo;
 }
 
 bool performHookDyldApi(const char* functionName, uint32_t adrpOffset, void** origFunction, void* hookFunction) {
@@ -892,13 +950,37 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         
         // Sign in with Apple hooks using runtime method swizzling
         // Approach: ONLY hook NSBundle
-        Class nsBundleClass = objc_getClass("NSBundle");
-        if (nsBundleClass) {
-            Method bundleIdMethod = class_getInstanceMethod(nsBundleClass, @selector(bundleIdentifier));
-            if (bundleIdMethod) {
-                orig_NSBundle_bundleIdentifier = (void*)method_getImplementation(bundleIdMethod);
-                method_setImplementation(bundleIdMethod, (IMP)hook_NSBundle_bundleIdentifier);
-                NSLog(@"[LC] 🍎 NSBundle bundleIdentifier hook installed");
+        // Class nsBundleClass = objc_getClass("NSBundle");
+        // if (nsBundleClass) {
+        //     Method bundleIdMethod = class_getInstanceMethod(nsBundleClass, @selector(bundleIdentifier));
+        //     if (bundleIdMethod) {
+        //         orig_NSBundle_bundleIdentifier = (void*)method_getImplementation(bundleIdMethod);
+        //         method_setImplementation(bundleIdMethod, (IMP)hook_NSBundle_bundleIdentifier);
+        //         NSLog(@"[LC] 🍎 NSBundle bundleIdentifier hook installed");
+        //     }
+        // }
+        Class mainBundleClass = objc_getClass("NSBundle");
+        if (mainBundleClass) {
+            Method mainBundleMethod = class_getClassMethod(mainBundleClass, @selector(mainBundle));
+            if (mainBundleMethod) {
+                method_setImplementation(mainBundleMethod, (IMP)hook_NSBundle_mainBundle);
+                NSLog(@"[LC] 🍎 NSBundle mainBundle hook installed");
+            }
+            
+            // Fix the infoDictionary hook installation:
+            Method infoDictMethod = class_getInstanceMethod(mainBundleClass, @selector(infoDictionary));
+            if (infoDictMethod) {
+                orig_NSBundle_infoDictionary = (void*)method_getImplementation(infoDictMethod);
+                method_setImplementation(infoDictMethod, (IMP)hook_NSBundle_infoDictionary);
+                NSLog(@"[LC] 🍎 NSBundle infoDictionary hook installed");
+            }
+        }
+        // Hook Info.plist access
+        if (mainBundleClass) {
+            Method infoDictMethod = class_getInstanceMethod(mainBundleClass, @selector(infoDictionary));
+            if (infoDictMethod) {
+                method_setImplementation(infoDictMethod, (IMP)hook_NSBundle_infoDictionary);
+                NSLog(@"[LC] 🍎 NSBundle infoDictionary hook installed");
             }
         }
         // Class asAuthClass = objc_getClass("ASAuthorizationController");  
@@ -949,6 +1031,14 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         //         NSLog(@"[LC] 🍎 ASAuthorizationAppleIDCredential initWithCoder hook installed");
         //     }
         // }
+        Class asAuthorizationRequestClass = objc_getClass("ASAuthorizationRequest");
+        if (asAuthorizationRequestClass) {
+            Method bundleIdMethod = class_getInstanceMethod(asAuthorizationRequestClass, @selector(bundleIdentifier));
+            if (bundleIdMethod) {
+                method_setImplementation(bundleIdMethod, (IMP)hook_ASAuthorizationRequest_bundleIdentifier);
+                NSLog(@"[LC] 🍎 ASAuthorizationRequest bundleIdentifier hook installed");
+            }
+        }
     }
     
     appExecutableFileTypeOverwritten = !hideLiveContainer;
