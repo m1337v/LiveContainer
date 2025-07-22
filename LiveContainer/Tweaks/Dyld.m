@@ -20,9 +20,22 @@
 #import "../utils.h"
 #import <AuthenticationServices/AuthenticationServices.h>
 #import <objc/runtime.h>
+#import <Security/Security.h>
+#import "FoundationPrivate.h"
 @import Darwin;
 @import Foundation;
 @import MachO;
+
+typedef struct __SecCode *SecCodeRef;
+typedef uint32_t SecCSFlags;
+
+#ifndef errSecSuccess
+#define errSecSuccess 0
+#endif
+
+#ifndef kSecCSDefaultFlags
+#define kSecCSDefaultFlags 0
+#endif
 
 typedef uint32_t dyld_platform_t;
 
@@ -51,10 +64,12 @@ int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct siga
 static NSString* (*orig_NSBundle_bundleIdentifier)(id self, SEL _cmd);
 static NSDictionary* (*orig_NSBundle_infoDictionary)(id self, SEL _cmd);
 static void (*orig_ASAuthorizationController_performRequests)(id self, SEL _cmd);
-static void (*orig_ASAuthorizationController_performAuthorizationWithContext)(id self, SEL _cmd, id context);
+// static void (*orig_ASAuthorizationController_performAuthorizationWithContext)(id self, SEL _cmd, id context);
 static id (*orig_ASAuthorizationAppleIDProvider_createRequest)(id self, SEL _cmd);
 static id (*orig_ASAuthorizationAppleIDCredential_initWithCoder)(id self, SEL _cmd, id coder);
-
+// Security framework hooks
+static CFTypeRef (*orig_SecTaskCopyValueForEntitlement)(void* task, CFStringRef entitlement, CFErrorRef *error);
+static OSStatus (*orig_SecCodeCopySigningInformation)(SecCodeRef code, SecCSFlags flags, CFDictionaryRef *information);
 
 uint32_t guestAppSdkVersion = 0;
 uint32_t guestAppSdkVersionSet = 0;
@@ -458,7 +473,7 @@ uint32_t hook_dyld_get_program_sdk_version(void* dyldApiInstancePtr) {
     return guestAppSdkVersion;
 }
 
-// MARK: VPN Detection Bypass implementations
+// MARK: VPN Detection
 static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
     NSLog(@"[LC] 🎭 CFNetworkCopySystemProxySettings called");
     
@@ -550,6 +565,8 @@ int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigacti
 //     return result;
 // }
 
+// MARK: Apple Sign In
+
 static NSString* getGuestBundleId(void) {
     // Method 1: Use LiveContainer's built-in function (most reliable)
     NSString *guestBundleId = [NSUserDefaults lcGuestAppId];
@@ -631,17 +648,17 @@ static void hook_ASAuthorizationController_performRequests(id self, SEL _cmd) {
     orig_ASAuthorizationController_performRequests(self, _cmd);
 }
 
-static void hook_ASAuthorizationController_performAuthorizationWithContext(id self, SEL _cmd, id context) {
-    NSLog(@"[LC] 🍎 ASAuthorizationController performAuthorizationWithContext detected");
+// static void hook_ASAuthorizationController_performAuthorizationWithContext(id self, SEL _cmd, id context) {
+//     NSLog(@"[LC] 🍎 ASAuthorizationController performAuthorizationWithContext detected");
     
-    NSString *guestBundleId = getGuestBundleId();
-    if (guestBundleId) {
-        NSLog(@"[LC] 🍎 Will use guest bundle ID: %@", guestBundleId);
-    }
+//     NSString *guestBundleId = getGuestBundleId();
+//     if (guestBundleId) {
+//         NSLog(@"[LC] 🍎 Will use guest bundle ID: %@", guestBundleId);
+//     }
     
-    // Call original method
-    orig_ASAuthorizationController_performAuthorizationWithContext(self, _cmd, context);
-}
+//     // Call original method
+//     orig_ASAuthorizationController_performAuthorizationWithContext(self, _cmd, context);
+// }
 
 static id hook_ASAuthorizationAppleIDProvider_createRequest(id self, SEL _cmd) {
     NSLog(@"[LC] 🍎 ASAuthorizationAppleIDProvider createRequest detected");
@@ -674,6 +691,85 @@ static NSString* hook_ASAuthorizationAppleIDRequest_bundleIdentifier(id self, SE
     
     NSLog(@"[LC] 🍎 ASAuthorizationAppleIDRequest bundleIdentifier - no guest ID, returning LiveContainer ID");
     return @"com.kdt.livecontainer";
+}
+
+static CFTypeRef hook_SecTaskCopyValueForEntitlement(void* task, CFStringRef entitlement, CFErrorRef *error) {
+    CFTypeRef result = orig_SecTaskCopyValueForEntitlement(task, entitlement, error);
+    
+    NSString *entitlementName = (__bridge NSString *)entitlement;
+    NSLog(@"[LC] 🔍 SecTaskCopyValueForEntitlement called for: %@", entitlementName);
+    
+    // Specifically handle Sign in with Apple entitlement
+    if ([entitlementName isEqualToString:@"com.apple.developer.applesignin"]) {
+        NSLog(@"[LC] 🍎 Sign in with Apple entitlement requested");
+        
+        // Always provide the entitlement (even if LiveContainer doesn't have it)
+        if (!result) {
+            NSLog(@"[LC] 🍎 Providing Sign in with Apple entitlement (was missing)");
+            NSArray *appleSignInEntitlement = @[@"Default"];
+            return CFBridgingRetain(appleSignInEntitlement);
+        } else {
+            NSLog(@"[LC] 🍎 Sign in with Apple entitlement already exists");
+        }
+    }
+    
+    // Also handle bundle ID related entitlements
+    if ([entitlementName containsString:@"bundle"] || [entitlementName containsString:@"identifier"]) {
+        NSLog(@"[LC] 🔍 Bundle-related entitlement requested: %@", entitlementName);
+    }
+    
+    return result;
+}
+
+static OSStatus hook_SecCodeCopySigningInformation(SecCodeRef code, SecCSFlags flags, CFDictionaryRef *information) {
+    OSStatus result = orig_SecCodeCopySigningInformation(code, flags, information);
+    
+    NSLog(@"[LC] 🔍 SecCodeCopySigningInformation called with flags: 0x%x", flags);
+    
+    if (result == errSecSuccess && information && *information) {
+        NSMutableDictionary *modifiedInfo = [(__bridge NSDictionary *)*information mutableCopy];
+        BOOL modified = NO;
+        
+        // Check if this contains bundle identifier information
+        if (modifiedInfo[@"CFBundleIdentifier"]) {
+            NSString *originalBundleId = modifiedInfo[@"CFBundleIdentifier"];
+            NSLog(@"[LC] 🔍 Found bundle ID in signing info: %@", originalBundleId);
+            
+            if ([originalBundleId isEqualToString:@"com.kdt.livecontainer"]) {
+                NSString *guestBundleId = getGuestBundleId();
+                if (guestBundleId) {
+                    modifiedInfo[@"CFBundleIdentifier"] = guestBundleId;
+                    NSLog(@"[LC] 🎭 Spoofing bundle ID in signing info: %@ -> %@", originalBundleId, guestBundleId);
+                    modified = YES;
+                }
+            }
+        }
+        
+        // Check for other bundle ID keys in signing information
+        if (modifiedInfo[@"application-identifier"]) {
+            NSString *originalAppId = modifiedInfo[@"application-identifier"];
+            NSLog(@"[LC] 🔍 Found application-identifier in signing info: %@", originalAppId);
+            
+            if ([originalAppId containsString:@"com.kdt.livecontainer"]) {
+                NSString *guestBundleId = getGuestBundleId();
+                if (guestBundleId) {
+                    // Replace the bundle ID part while keeping team ID prefix
+                    NSString *modifiedAppId = [originalAppId stringByReplacingOccurrencesOfString:@"com.kdt.livecontainer" withString:guestBundleId];
+                    modifiedInfo[@"application-identifier"] = modifiedAppId;
+                    NSLog(@"[LC] 🎭 Spoofing application-identifier in signing info: %@ -> %@", originalAppId, modifiedAppId);
+                    modified = YES;
+                }
+            }
+        }
+        
+        // Update the information if we modified it
+        if (modified) {
+            CFRelease(*information);
+            *information = CFBridgingRetain([modifiedInfo copy]);
+        }
+    }
+    
+    return result;
 }
 
 bool performHookDyldApi(const char* functionName, uint32_t adrpOffset, void** origFunction, void* hookFunction) {
@@ -847,10 +943,12 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_get_image_vmaddr_slide, hook_dyld_get_image_vmaddr_slide, nil);
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_get_image_name, hook_dyld_get_image_name, nil);
         // Use litehook_hook_function for framework/libc functions instead of rebind_symbols
-        rebind_symbols((struct rebinding[2]){
+        rebind_symbols((struct rebinding[4]){
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
-        }, 2);
+                    {"SecTaskCopyValueForEntitlement", (void *)hook_SecTaskCopyValueForEntitlement, (void **)&orig_SecTaskCopyValueForEntitlement},
+                    {"SecCodeCopySigningInformation", (void *)hook_SecCodeCopySigningInformation, (void **)&orig_SecCodeCopySigningInformation},
+        }, 4);
         
         // Sign in with Apple hooks using runtime method swizzling
         Class nsBundleClass = objc_getClass("NSBundle");
@@ -873,12 +971,12 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
                 NSLog(@"[LC] 🍎 ASAuthorizationController performRequests hook installed");
             }
             
-            Method performWithContextMethod = class_getInstanceMethod(asAuthClass, @selector(performAuthorizationWithContext:));
-            if (performWithContextMethod) {
-                orig_ASAuthorizationController_performAuthorizationWithContext = (void*)method_getImplementation(performWithContextMethod);
-                method_setImplementation(performWithContextMethod, (IMP)hook_ASAuthorizationController_performAuthorizationWithContext);
-                NSLog(@"[LC] 🍎 ASAuthorizationController performAuthorizationWithContext hook installed");
-            }
+            // Method performWithContextMethod = class_getInstanceMethod(asAuthClass, @selector(performAuthorizationWithContext:));
+            // if (performWithContextMethod) {
+            //     orig_ASAuthorizationController_performAuthorizationWithContext = (void*)method_getImplementation(performWithContextMethod);
+            //     method_setImplementation(performWithContextMethod, (IMP)hook_ASAuthorizationController_performAuthorizationWithContext);
+            //     NSLog(@"[LC] 🍎 ASAuthorizationController performAuthorizationWithContext hook installed");
+            // }
         }
         
         Class asAppleIDProviderClass = objc_getClass("ASAuthorizationAppleIDProvider");
