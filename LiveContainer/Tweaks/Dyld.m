@@ -18,6 +18,8 @@
 #import "litehook_internal.h"
 #import "LCMachOUtils.h"
 #import "../utils.h"
+#import <AuthenticationServices/AuthenticationServices.h>
+#import <objc/runtime.h>
 @import Darwin;
 @import Foundation;
 @import MachO;
@@ -45,11 +47,17 @@ const char* (*orig_dyld_get_image_name)(uint32_t image_index) = _dyld_get_image_
 static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
 // Signal handlers
 int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact);
+// Apple Sign In
+static NSString* (*orig_NSBundle_bundleIdentifier)(id self, SEL _cmd);
+static void (*orig_ASAuthorizationController_performRequests)(id self, SEL _cmd);
 
 uint32_t guestAppSdkVersion = 0;
 uint32_t guestAppSdkVersionSet = 0;
 bool (*orig_dyld_program_sdk_at_least)(void* dyldPtr, dyld_build_version_t version);
 uint32_t (*orig_dyld_get_program_sdk_version)(void* dyldPtr);
+
+// Global variable to track Sign in with Apple context  
+static BOOL isSignInWithAppleActive = NO;
 
 static void overwriteAppExecutableFileType(void) {
     struct mach_header_64* appImageMachOHeader = (struct mach_header_64*) orig_dyld_get_image_header(appMainImageIndex);
@@ -537,6 +545,58 @@ int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigacti
 //     return result;
 // }
 
+// Hook NSBundle bundleIdentifier method
+static NSString* hook_NSBundle_bundleIdentifier(id self, SEL _cmd) {
+    // If Sign in with Apple is active and we have a guest app, return guest app's bundle ID
+    if (isSignInWithAppleActive) {
+        // Get guest app bundle ID using the same pattern as your existing code
+        NSString *guestBundleId = nil;
+        
+        // Try to get from guest app info (similar to your bootstrap pattern)
+        NSDictionary *guestInfo = [[NSUserDefaults standardUserDefaults] objectForKey:@"selectedApp"];
+        if (guestInfo) {
+            guestBundleId = guestInfo[@"bundleIdentifier"];
+        }
+        
+        // Fallback: try to get from current process info
+        if (!guestBundleId) {
+            // Get the guest app's original bundle ID from NSUserDefaults
+            guestBundleId = [[NSUserDefaults standardUserDefaults] stringForKey:@"selectedBundleIdentifier"];
+        }
+        
+        // Fallback: try to get from environment or other source
+        if (!guestBundleId) {
+            // Check if there's an environment variable or other source
+            const char *envBundleId = getenv("LC_GUEST_BUNDLE_ID");
+            if (envBundleId) {
+                guestBundleId = [NSString stringWithUTF8String:envBundleId];
+            }
+        }
+        
+        if (guestBundleId && ![guestBundleId isEqualToString:@"com.kdt.livecontainer"]) {
+            NSLog(@"[LC] 🎭 Spoofing bundle ID for Sign in with Apple: %@ -> %@", 
+                  @"com.kdt.livecontainer", guestBundleId);
+            return guestBundleId;
+        }
+    }
+    return orig_NSBundle_bundleIdentifier(self, _cmd);
+}
+
+// Hook ASAuthorizationController to detect Sign in with Apple usage
+static void hook_ASAuthorizationController_performRequests(id self, SEL _cmd) {
+    NSLog(@"[LC] 🍎 Sign in with Apple request detected");
+    isSignInWithAppleActive = YES;
+    
+    // Call original method
+    orig_ASAuthorizationController_performRequests(self, _cmd);
+    
+    // Reset flag after a delay (Sign in with Apple flow is async)
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        isSignInWithAppleActive = NO;
+        NSLog(@"[LC] 🍎 Sign in with Apple context reset");
+    });
+}
+
 bool performHookDyldApi(const char* functionName, uint32_t adrpOffset, void** origFunction, void* hookFunction) {
     
     uint32_t* baseAddr = dlsym(RTLD_DEFAULT, functionName);
@@ -712,6 +772,29 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
         }, 2);
+        
+        // Sign in with Apple hooks using runtime method swizzling
+        Class nsBundleClass = objc_getClass("NSBundle");
+        if (nsBundleClass) {
+            Method bundleIdMethod = class_getInstanceMethod(nsBundleClass, @selector(bundleIdentifier));
+            if (bundleIdMethod) {
+                orig_NSBundle_bundleIdentifier = (void*)method_getImplementation(bundleIdMethod);
+                method_setImplementation(bundleIdMethod, (IMP)hook_NSBundle_bundleIdentifier);
+                NSLog(@"[LC] 🍎 NSBundle bundleIdentifier hook installed");
+            }
+        }
+        
+        Class asAuthClass = objc_getClass("ASAuthorizationController");  
+        if (asAuthClass) {
+            Method performMethod = class_getInstanceMethod(asAuthClass, @selector(performRequests));
+            if (performMethod) {
+                orig_ASAuthorizationController_performRequests = (void*)method_getImplementation(performMethod);
+                method_setImplementation(performMethod, (IMP)hook_ASAuthorizationController_performRequests);
+                NSLog(@"[LC] 🍎 ASAuthorizationController performRequests hook installed");
+            }
+        }
+        
+        NSLog(@"[LC] 🍎 Sign in with Apple bundle ID spoofing hooks installed");
     }
     
     appExecutableFileTypeOverwritten = !hideLiveContainer;
