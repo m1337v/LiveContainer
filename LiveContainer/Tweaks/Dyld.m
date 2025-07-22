@@ -600,15 +600,15 @@ static NSString* getGuestBundleId(void) {
 }
 
 // Hook NSBundle bundleIdentifier method
+// Approach: Don't rely on isSignInWithAppleActive flag here, just always spoof
 static NSString* hook_NSBundle_bundleIdentifier(id self, SEL _cmd) {
     NSString *originalBundleId = orig_NSBundle_bundleIdentifier(self, _cmd);
     
-    // If Sign in with Apple is active and this is the main bundle, return guest app's bundle ID
-    if (isSignInWithAppleActive && [originalBundleId isEqualToString:@"com.kdt.livecontainer"]) {
+    // ALWAYS spoof LiveContainer's bundle ID to the guest app's bundle ID
+    if ([originalBundleId isEqualToString:@"com.kdt.livecontainer"]) {
         NSString *guestBundleId = getGuestBundleId();
         if (guestBundleId && ![guestBundleId isEqualToString:@"com.kdt.livecontainer"]) {
-            NSLog(@"[LC] 🎭 Spoofing bundle ID for Sign in with Apple: %@ -> %@", 
-                  originalBundleId, guestBundleId);
+            NSLog(@"[LC] 🎭 Spoofing bundle ID: %@ -> %@", originalBundleId, guestBundleId);
             return guestBundleId;
         }
     }
@@ -865,6 +865,7 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         }, 2);
         
         // Sign in with Apple hooks using runtime method swizzling
+        // Approach: ONLY hook NSBundle
         Class nsBundleClass = objc_getClass("NSBundle");
         if (nsBundleClass) {
             Method bundleIdMethod = class_getInstanceMethod(nsBundleClass, @selector(bundleIdentifier));
@@ -874,44 +875,44 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
                 NSLog(@"[LC] 🍎 NSBundle bundleIdentifier hook installed");
             }
         }
-        Class asAuthClass = objc_getClass("ASAuthorizationController");  
-        if (asAuthClass) {
-            // Try the standard performRequests method
-            Method performMethod = class_getInstanceMethod(asAuthClass, @selector(performRequests));
-            if (performMethod) {
-                orig_ASAuthorizationController_performRequests = (void*)method_getImplementation(performMethod);
-                method_setImplementation(performMethod, (IMP)hook_ASAuthorizationController_performRequests);
-                NSLog(@"[LC] 🍎 ASAuthorizationController performRequests hook installed");
-            }
+        // Class asAuthClass = objc_getClass("ASAuthorizationController");  
+        // if (asAuthClass) {
+        //     // Try the standard performRequests method
+        //     Method performMethod = class_getInstanceMethod(asAuthClass, @selector(performRequests));
+        //     if (performMethod) {
+        //         orig_ASAuthorizationController_performRequests = (void*)method_getImplementation(performMethod);
+        //         method_setImplementation(performMethod, (IMP)hook_ASAuthorizationController_performRequests);
+        //         NSLog(@"[LC] 🍎 ASAuthorizationController performRequests hook installed");
+        //     }
             
-            // ALSO try the method we see in logs: performAuthorizationWithContext:
-            Method performWithContextMethod = class_getInstanceMethod(asAuthClass, @selector(performAuthorizationWithContext:));
-            if (performWithContextMethod) {
-                // Use the correct function pointer for this method
-                orig_ASAuthorizationController_performAuthorizationWithContext = (void*)method_getImplementation(performWithContextMethod);
-                method_setImplementation(performWithContextMethod, (IMP)hook_ASAuthorizationController_performAuthorizationWithContext);
-                NSLog(@"[LC] 🍎 ASAuthorizationController performAuthorizationWithContext hook installed");
-            }
-        }
-        Class asAppleIDProviderClass = objc_getClass("ASAuthorizationAppleIDProvider");
-        if (asAppleIDProviderClass) {
-            Method createRequestMethod = class_getInstanceMethod(asAppleIDProviderClass, @selector(createRequest));
-            if (createRequestMethod) {
-                orig_ASAuthorizationAppleIDProvider_createRequest = (void*)method_getImplementation(createRequestMethod);
-                method_setImplementation(createRequestMethod, (IMP)hook_ASAuthorizationAppleIDProvider_createRequest);
-                NSLog(@"[LC] 🍎 ASAuthorizationAppleIDProvider createRequest hook installed");
-            }
-        }
-        // NEW: Hook ASAuthorizationAppleIDCredential
-        Class asAppleIDCredentialClass = objc_getClass("ASAuthorizationAppleIDCredential");
-        if (asAppleIDCredentialClass) {
-            Method initWithCoderMethod = class_getInstanceMethod(asAppleIDCredentialClass, @selector(initWithCoder:));
-            if (initWithCoderMethod) {
-                orig_ASAuthorizationAppleIDCredential_initWithCoder = (void*)method_getImplementation(initWithCoderMethod);
-                method_setImplementation(initWithCoderMethod, (IMP)hook_ASAuthorizationAppleIDCredential_initWithCoder);
-                NSLog(@"[LC] 🍎 ASAuthorizationAppleIDCredential initWithCoder hook installed");
-            }
-        }
+        //     // ALSO try the method we see in logs: performAuthorizationWithContext:
+        //     Method performWithContextMethod = class_getInstanceMethod(asAuthClass, @selector(performAuthorizationWithContext:));
+        //     if (performWithContextMethod) {
+        //         // Use the correct function pointer for this method
+        //         orig_ASAuthorizationController_performAuthorizationWithContext = (void*)method_getImplementation(performWithContextMethod);
+        //         method_setImplementation(performWithContextMethod, (IMP)hook_ASAuthorizationController_performAuthorizationWithContext);
+        //         NSLog(@"[LC] 🍎 ASAuthorizationController performAuthorizationWithContext hook installed");
+        //     }
+        // }
+        // Class asAppleIDProviderClass = objc_getClass("ASAuthorizationAppleIDProvider");
+        // if (asAppleIDProviderClass) {
+        //     Method createRequestMethod = class_getInstanceMethod(asAppleIDProviderClass, @selector(createRequest));
+        //     if (createRequestMethod) {
+        //         orig_ASAuthorizationAppleIDProvider_createRequest = (void*)method_getImplementation(createRequestMethod);
+        //         method_setImplementation(createRequestMethod, (IMP)hook_ASAuthorizationAppleIDProvider_createRequest);
+        //         NSLog(@"[LC] 🍎 ASAuthorizationAppleIDProvider createRequest hook installed");
+        //     }
+        // }
+        // // NEW: Hook ASAuthorizationAppleIDCredential
+        // Class asAppleIDCredentialClass = objc_getClass("ASAuthorizationAppleIDCredential");
+        // if (asAppleIDCredentialClass) {
+        //     Method initWithCoderMethod = class_getInstanceMethod(asAppleIDCredentialClass, @selector(initWithCoder:));
+        //     if (initWithCoderMethod) {
+        //         orig_ASAuthorizationAppleIDCredential_initWithCoder = (void*)method_getImplementation(initWithCoderMethod);
+        //         method_setImplementation(initWithCoderMethod, (IMP)hook_ASAuthorizationAppleIDCredential_initWithCoder);
+        //         NSLog(@"[LC] 🍎 ASAuthorizationAppleIDCredential initWithCoder hook installed");
+        //     }
+        // }
     }
     
     appExecutableFileTypeOverwritten = !hideLiveContainer;
