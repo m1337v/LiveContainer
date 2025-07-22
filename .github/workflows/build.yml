@@ -21,7 +21,7 @@ jobs:
       scheme: ${{ steps.scheme.outputs.scheme }}
       archive_path: ${{ env.archive_path }}
       artifact: ${{ env.scheme }}.ipa
-      sidestore_artifact: ${{ env.scheme }}+SideStore.ipa
+      artifact2: ${{ env.scheme }}+SideStore.ipa
     steps:
       - uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -101,12 +101,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ${{ needs.build.outputs.artifact }}
-      
-      - name: Download LiveContainer+SideStore Build Artifact
+      - name: Download a Build Artifact2
         uses: actions/download-artifact@v4
         with:
-          name: ${{ needs.build.outputs.sidestore_artifact }}
-          
+          name: ${{ needs.build.outputs.artifact2 }}
       - name: Get Commit Info
         id: commit_info
         run: |
@@ -139,5 +137,10 @@ jobs:
             This is a nightly release [created automatically with GitHub Actions workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}).
           files: |
             ${{ needs.build.outputs.artifact }}
+<<<<<<< HEAD
             ${{ needs.build.outputs.sidestore_artifact }}
             apps_nightly.json
+=======
+            ${{ needs.build.outputs.artifact2 }}
+            apps_nightly.json
+>>>>>>> upstream/main

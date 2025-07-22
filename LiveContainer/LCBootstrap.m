@@ -552,6 +552,15 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         dlopen([lcMainBundle.bundlePath stringByAppendingPathComponent:@"Frameworks/SideStore.framework/SideStore"].UTF8String, RTLD_LAZY);
     }
     
+    if(isSideStore) {
+        tweakLoaderLoaded = true;
+        dlopen([lcMainBundle.bundlePath stringByAppendingPathComponent:@"Frameworks/TweakLoader.dylib"].UTF8String, RTLD_LAZY|RTLD_GLOBAL);
+    }
+    
+    if(!isSideStore && sideStoreExist && ![guestAppInfo[@"dontInjectTweakLoader"] boolValue]) {
+        dlopen([lcMainBundle.bundlePath stringByAppendingPathComponent:@"Frameworks/SideStore.framework/SideStore"].UTF8String, RTLD_LAZY);
+    }
+    
     // Fix dynamic properties of some apps
     [NSUserDefaults performSelector:@selector(initialize)];
 

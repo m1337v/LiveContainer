@@ -589,9 +589,6 @@
 				E1292BEA2DCA3B670065E12D /* PBXTargetDependency */,
 				173545AD2E2C7913001B3B4C /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				172CA8AD2D9D741F00CF6989 /* fishhook */,
-			);
 			name = LiveContainer;
 			productName = jump;
 			productReference = 17DCE99D2C7067EC00731D42 /* LiveContainer.app */;
