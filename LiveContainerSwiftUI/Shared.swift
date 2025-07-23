@@ -933,6 +933,14 @@ extension LCUtils {
         return false
     }
 
+    
+    static func openSideStore(delegate: LCAppModelDelegate? = nil) {
+        let sideStoreApp = LCAppModel(appInfo: LCAppInfo(bundlePath: Bundle.main.bundleURL.appendingPathComponent("Frameworks/SideStoreApp.framework").path), delegate: delegate)
+        
+        Task {
+            try await sideStoreApp.runApp(bundleIdOverride: "builtinSideStore")
+        }
+    }
 }
 
 struct JITStreamerEBLaunchAppResponse : Codable {

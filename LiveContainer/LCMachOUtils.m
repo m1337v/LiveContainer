@@ -9,7 +9,7 @@ static uint32_t rnd32(uint32_t v, uint32_t r) {
     return (v + r) & ~r;
 }
 
-static struct dyld_all_image_infos *_alt_dyld_get_all_image_infos(void) {
+struct dyld_all_image_infos *_alt_dyld_get_all_image_infos(void) {
     static struct dyld_all_image_infos *result;
     if (result) {
         return result;

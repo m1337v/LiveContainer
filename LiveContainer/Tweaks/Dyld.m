@@ -45,11 +45,11 @@ typedef struct {
 } dyld_build_version_t;
 
 uint32_t lcImageIndex = 0;
-uint32_t tweakLoaderIndex = 0;
 uint32_t appMainImageIndex = 0;
 void* appExecutableHandle = 0;
 bool tweakLoaderLoaded = false;
 bool appExecutableFileTypeOverwritten = false;
+const char* lcMainBundlePath = NULL;
 
 void* (*orig_dlsym)(void * __handle, const char * __symbol) = dlsym;
 uint32_t (*orig_dyld_image_count)(void) = _dyld_image_count;
@@ -428,6 +428,23 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
     }
     
     return NULL;
+}
+
+void hideLiveContainerImageCallback(const struct mach_header* header, intptr_t vmaddr_slide) {
+    Dl_info info;
+    dladdr(header, &info);
+    if(!strncmp(info.dli_fname, lcMainBundlePath, strlen(lcMainBundlePath)) || strstr(info.dli_fname, "/procursus/") != 0) {
+        char fakePath[PATH_MAX];
+        snprintf(fakePath, sizeof(fakePath), "/usr/lib/%p.dylib", header);
+        kern_return_t ret = vm_protect(mach_task_self(), (vm_address_t)info.dli_fname, PATH_MAX, false, PROT_READ | PROT_WRITE);
+        if(ret != KERN_SUCCESS) {
+            os_thread_self_restrict_tpro_to_rw();
+        }
+        strcpy((char *)info.dli_fname, fakePath);
+        if(ret != KERN_SUCCESS) {
+            os_thread_self_restrict_tpro_to_ro();
+        }
+    }
 }
 
 void* getCachedSymbol(NSString* symbolName, mach_header_u* header) {
@@ -934,6 +951,11 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         }
     }
     
+    if(NSUserDefaults.isLiveProcess) {
+        lcMainBundlePath = NSUserDefaults.lcMainBundle.bundlePath.stringByDeletingLastPathComponent.stringByDeletingLastPathComponent.fileSystemRepresentation;
+    } else {
+        lcMainBundlePath = NSUserDefaults.lcMainBundle.bundlePath.fileSystemRepresentation;
+    }
     orig_dyld_get_image_header = _dyld_get_image_header;
     
     // hook dlopen and dlsym to solve RTLD_MAIN_ONLY, hook other functions to hide LiveContainer itself
@@ -944,6 +966,8 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_get_image_vmaddr_slide, hook_dyld_get_image_vmaddr_slide, nil);
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_get_image_name, hook_dyld_get_image_name, nil);
         // Use litehook_hook_function for framework/libc functions instead of rebind_symbols
+        _dyld_register_func_for_add_image((void (*)(const struct mach_header *, intptr_t))hideLiveContainerImageCallback);
+        
         rebind_symbols((struct rebinding[4]){
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
@@ -998,6 +1022,7 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
                 NSLog(@"[LC] 🍎 ASAuthorizationAppleIDRequest bundleIdentifier hook installed");
             }
         }
+        
     }
     
     appExecutableFileTypeOverwritten = !hideLiveContainer;

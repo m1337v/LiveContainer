@@ -33,18 +33,6 @@ static NSDictionary *retrievedAppInfo;
 }
 @end
 
-@interface NSXPCDecoder : NSObject
-
-@end
-
-@implementation NSXPCDecoder(lp)
-
-- (void)_validateAllowedClass:(Class)arg1 forKey:(id)arg2 allowingInvocations:(bool)arg3 {
-    return;
-}
-
-@end
-
 extern int LiveContainerMain(int argc, char *argv[]);
 int LiveProcessMain(int argc, char *argv[]) {
     // Let NSExtensionContext initialize, once it's done it will call CFRunLoopStop
@@ -112,6 +100,10 @@ static void* hook_dlopen(void* dyldApiInstancePtr, const char* path, int mode) {
 
 // Extension entry point
 int NSExtensionMain(int argc, char * argv[]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wundeclared-selector"
+    method_setImplementation(class_getInstanceMethod(NSClassFromString(@"NSXPCDecoder"), @selector(_validateAllowedClass:forKey:allowingInvocations:)), (IMP)hook_do_nothing);
+#pragma clang diagnostic pop
     // hook dlopen UIKit
     performHookDyldApi("dlopen", 2, (void**)&orig_dlopen, hook_dlopen);
     // call the real one

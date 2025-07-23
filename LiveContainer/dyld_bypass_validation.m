@@ -130,7 +130,7 @@ void init_bypassDyldLibValidation() {
     //signal(SIGBUS, SIG_IGN);
     
     orig_fcntl = __fcntl;
-    char *dyldBase = getDyldBase();
+    char *dyldBase = (char *)_alt_dyld_get_all_image_infos()->dyldImageLoadAddress;
     //redirectFunction("mmap", mmap, hooked_mmap);
     //redirectFunction("fcntl", fcntl, hooked_fcntl);
     searchAndPatch("dyld_mmap", dyldBase, mmapSig, sizeof(mmapSig), hooked_mmap);

@@ -26,3 +26,5 @@ void* getGuestAppHeader(void);
 void* getCachedSymbol(NSString* symbolName, struct mach_header_64* header);
 void saveCachedSymbol(NSString* symbolName, struct mach_header_64* header, uint64_t offset);
 void* dlopenBypassingLock(const char *path, int mode);
+
+static void hook_do_nothing(void) {}

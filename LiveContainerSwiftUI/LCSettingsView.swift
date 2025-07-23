@@ -24,7 +24,7 @@ struct LCSettingsView: View {
     
     @Binding var appDataFolderNames: [String]
 
-    @StateObject private var installLC2Alert = YesNoHelper()
+    @StateObject private var installLC2Alert = AlertHelper<Int>()
     @State private var certificateDataFound = false
     
     @StateObject private var certificateImportAlert = YesNoHelper()
@@ -397,14 +397,22 @@ struct LCSettingsView: View {
                 Text(successInfo)
             }
             .alert("lc.settings.multiLCInstall".loc, isPresented: $installLC2Alert.show) {
+                if(UserDefaults.sideStoreExist()) {
+                    Button {
+                        installLC2Alert.close(result: 2)
+                    } label: {
+                        Text("lc.settings.multiLCInstall.installWithBuiltInSideStore".loc)
+                    }
+                }
+                
                 Button {
-                    installLC2Alert.close(result: true)
+                    installLC2Alert.close(result: 1)
                 } label: {
                     Text("lc.common.continue".loc)
                 }
 
                 Button("lc.common.cancel".loc, role: .cancel) {
-                    installLC2Alert.close(result: false)
+                    installLC2Alert.close(result: 0)
                 }
             } message: {
                 Text("lc.settings.multiLCInstallAlertDesc %@".localizeWithFormat(storeName))
@@ -482,7 +490,7 @@ struct LCSettingsView: View {
             return;
         }
         
-        guard let result = await installLC2Alert.open(), result else {
+        guard let result = await installLC2Alert.open(), result != 0 else {
             return
         }
         
@@ -490,6 +498,14 @@ struct LCSettingsView: View {
             let packedIpaUrl = try LCUtils.archiveIPA(withBundleName: "LiveContainer2")
             
             shareURL = packedIpaUrl
+            
+            if(result == 2) {
+                let launchURLStr = packedIpaUrl.absoluteString
+                UserDefaults.standard.setValue(launchURLStr, forKey: "launchAppUrlScheme")
+                LCUtils.openSideStore()
+                return
+            }
+            
             showShareSheet = true
             
         } catch {

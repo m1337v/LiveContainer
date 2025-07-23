@@ -239,7 +239,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
                 ToolbarItem(placement: .topBarLeading) {
                     if(UserDefaults.sideStoreExist()) {
                         Button {
-                            openSideStore()
+                            LCUtils.openSideStore(delegate: self)
                         } label: {
                             Image("SideStoreBadge")
                                 .resizable()
@@ -1025,12 +1025,6 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         }
     }
     
-    func openSideStore() {
-        let sideStoreApp = LCAppModel(appInfo: LCAppInfo(bundlePath: Bundle.main.bundleURL.appendingPathComponent("Frameworks/SideStoreApp.framework").path))
-        Task {
-            try await sideStoreApp.runApp(bundleIdOverride: "builtinSideStore")
-        }
-    }
 }
 
 extension View {
