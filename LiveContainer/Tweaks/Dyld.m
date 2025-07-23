@@ -922,6 +922,7 @@ void DyldHookLoadableIntoProcess(void) {
 }
 #endif
 
+// MARK: Init
 void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
     // iterate through loaded images and find LiveContainer it self
     int imageCount = _dyld_image_count();
