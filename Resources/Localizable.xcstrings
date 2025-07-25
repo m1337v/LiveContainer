@@ -998,89 +998,6 @@
         }
       }
     },
-    "lc.appBanner.retrieveDataFromLiveProcess" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "أسترجع البيانات من العملية-المباشرة"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Daten aus dem LiveProcess abrufen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Retrieve Data From LiveProcess"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Récupérer les données depuis LiveProcess"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recupera I Dati Da LiveProcess"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "LiveProcessからデータを取得する"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Odbierz Dane z LiveProcess"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recuperar Dados Do 'LiveProcess'"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hämta data från LiveProcess"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "LiveProcess'ten veri al"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nhận Dữ Liệu Từ LiveProcess"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "从LiveProcess中取回数据"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "從 LiveProcess 獲取數據"
-          }
-        }
-      }
-    },
     "lc.appBanner.run" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1891,6 +1808,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AppInfo başlatılamadı!"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể Khởi tạo AppInfo!"
           }
         },
         "zh-Hans" : {
@@ -3570,10 +3493,40 @@
     "lc.appList.sort.alphabetical" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إسم (A-Z)"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name (A bis Z)"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Name (A–Z)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nom (A-Z)"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nazwa (A–Z)"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tên (A–Z)"
           }
         },
         "zh-Hans" : {
@@ -3587,10 +3540,40 @@
     "lc.appList.sort.custom" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "خاص"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benutzerdefiniert"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Custom"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personnalisé"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Własne"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tuỳ chỉnh"
           }
         },
         "zh-Hans" : {
@@ -3605,10 +3588,40 @@
       "comment" : "use this button to access custom order managing view",
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إعادة ترتيب"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neuanordnen"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rearrange"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réarranger"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zmień kolejność"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sắp xếp lại"
           }
         },
         "zh-Hans" : {
@@ -3622,10 +3635,40 @@
     "lc.appList.sort.customSortResetTip" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "سيؤدي ذلك إلى إعادة تعيين ترتيب الفرز المخصص إلى الترتيب الأبجدي."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die benutzerdefinierte Reihenfolge wird auf alphabetische Anordnung zurückgesetzt."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "This will reset the custom sort order to alphabetical order."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cela réinitialisera l'ordre de tri personnalisé à l'ordre alphabétique."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zmieni kolejność sortowania na kolejność alfabetyczną."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cái này sẽ đặt lại thứ tự sắp xếp tuỳ chỉnh thành thứ tự bảng chữ cái."
           }
         },
         "zh-Hans" : {
@@ -3639,10 +3682,40 @@
     "lc.appList.sort.installationDate" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاريخ التثبيت"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installationsdatum"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Installation Date"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Date d'installation"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data zainstalowania"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ngày Cài đặt"
           }
         },
         "zh-Hans" : {
@@ -3656,10 +3729,40 @@
     "lc.appList.sort.lastLaunched" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "أخر فتح"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuletzt geöffnet"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Last Opened"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dernier ouvert"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ostatnio otwarte"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lần mở Cuối"
           }
         },
         "zh-Hans" : {
@@ -3674,10 +3777,40 @@
       "comment" : "lc.appList.sort.reverseAlphabetical",
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إسم (Z-A)"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name (A bis Z)"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Name (Z–A)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nom (Z-A)"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nazwa (Z–A)"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tên (Z–A)"
           }
         },
         "zh-Hans" : {
@@ -7141,10 +7274,40 @@
     "lc.common.default" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "افتراضي"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Default"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Par défaut"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Domyślne"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mặc định"
           }
         },
         "zh-Hans" : {
@@ -8320,10 +8483,40 @@
     "lc.common.reset" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إعادة تشغيل"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zurücksetzen"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reset"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réinitialiser"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wyzeruj"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đặt lại"
           }
         },
         "zh-Hans" : {
@@ -8337,10 +8530,40 @@
     "lc.common.statistics" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الإحصائيات"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Statistiken"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Statistics"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Statistiques"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Statystyki"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thống kê"
           }
         },
         "zh-Hans" : {
@@ -10173,89 +10396,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不能增加超過3個容器。"
-          }
-        }
-      }
-    },
-    "lc.container.unableToMoveContainerFromLiveProcess" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "فشل استرجاع ملف البيانات من العملية-المباشرة."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Der Datenordner vom \"LiveProcess\" konnte nicht abgerufen werden."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed to retrieve the data folder from LiveProcess."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Impossible de récupérer le dossier de données depuis LiveProcess."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Impossibile recuperare la cartella dati da LiveProcess."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "LiveProcessからデータフォルダの取得に失敗しました。"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Błąd z odbieraniem katalogu danych od LiveProcess."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Falha ao recuperar a pasta de dados do 'LiveProcess'."
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Det gick inte att hämta datamappen från LiveProcess."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "LiveProcess'ten veri klasörünü alamadı."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Không thể nhận thư mục dữ liệu từ LiveProcess."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法从LiveProcess取回数据。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "從 LiveProcess 獲取資料夾失敗。"
           }
         }
       }
@@ -13102,7 +13242,7 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Przenoszenie zakończone z powodzeniem."
+            "value" : "Przenoszenie zakończone powodzeniem."
           }
         },
         "pt-BR" : {
@@ -13475,6 +13615,23 @@
         }
       }
     },
+    "lc.settings.autoEndPiP" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatically End PiP Mode"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动结束画中画模式"
+          }
+        }
+      }
+    },
     "lc.settings.autoLaunchInMultitaskMode" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -13559,12 +13716,18 @@
       }
     },
     "lc.settings.bottomWindowBar" : {
-      "extractionState" : "manual",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bottom Window Bar"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "底部窗口栏"
           }
         }
       }
@@ -14267,6 +14430,12 @@
             "state" : "translated",
             "value" : "Dock Width"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快捷栏宽度"
+          }
         }
       }
     },
@@ -14847,6 +15016,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在App圖示外加上LiveContainer圖示邊框。"
+          }
+        }
+      }
+    },
+    "lc.settings.importCertFromBuiltinSideStore" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Certificate From Built-in SideStore"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从内置SideStore导入证书"
+          }
+        }
+      }
+    },
+    "lc.settings.importCertFromBuiltinSideStore.certNotFounndErr" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificate not found. Did you log into built-in SideStore?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未检测到证书，你在内置SideStore中登录了吗？"
+          }
+        }
+      }
+    },
+    "lc.settings.importCertFromBuiltinSideStoreDesc" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Built-in SideStore detected. Would you like to import certificate from it?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检测到内置SideStore，你想从中导入证书吗？"
           }
         }
       }
@@ -17110,6 +17330,23 @@
         }
       }
     },
+    "lc.settings.multiLCInstall.installWithBuiltInSideStore" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install with Built-in SideStore"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用内置SideStore安装"
+          }
+        }
+      }
+    },
     "lc.settings.multiLCInstallAlertDesc %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -17694,10 +17931,40 @@
     "lc.settings.notDevCert" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer غير موقع بشهادة مطورين لذاLiveContainer لا يعمل على الإطلاق. الرجاء توقيع LiveContainer بشهادة التطويير"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer ist nicht mit einem Entwicklungszertifikat signiert, daher wird LiveContainer nicht funktionieren. Bitte signiert Sie LiveContainer mit einem Entwicklungszertifikat."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "LiveContainer is not signed with a development certificate so LiveContainer won't work at all. Please sign LiveContainer with a development certificate."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer n'est pas signé avec un certificat de développement, donc LiveContainer ne fonctionnera pas du tout. Veuillez signer LiveContainer avec un certificat de développement."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer nie jest podpisany certyfikatem deweloperskim, więc w ogóle nie będzie działać. Proszę podpisać certyfikatem deweloperskim."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer không được ký với chứng chỉ phát triển nên LiveContainer không thể hoạt động. Vui lòng ký lại LiveContainer với chứng chỉ phát triển."
           }
         },
         "zh-Hans" : {

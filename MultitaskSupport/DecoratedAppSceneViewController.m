@@ -470,8 +470,9 @@ void UIKitFixesInit(void) {
     }
     
     BOOL bottomWindowBar = [NSUserDefaults.lcSharedDefaults boolForKey:@"LCMultitaskBottomWindowBar"];
-    CGFloat navBarHeight = MultitaskDockManager.shared.isCollapsed ? 0 : 44;
-    self.navigationBar.hidden = MultitaskDockManager.shared.isCollapsed;
+    BOOL hideWindowBar = MultitaskDockManager.shared.isCollapsed && _isMaximized;
+    CGFloat navBarHeight = hideWindowBar ? 0 : 44;
+    self.navigationBar.hidden = hideWindowBar;
     
     [NSLayoutConstraint deactivateConstraints:self.activatedVerticalConstraints];
     if(bottomWindowBar) {

@@ -440,6 +440,8 @@ struct LCSettingsView: View {
                 Button("lc.common.cancel".loc, role: .cancel) {
                     certificateRemoveAlert.close(result: false)
                 }
+            } message: {
+                Text("lc.settings.removeCertificateDesc".loc)
             }
             .alert("lc.settings.importCertFromBuiltinSideStore".loc, isPresented: $certificateImportFromBuiltInSideStoreAlert.show) {
                 Button {

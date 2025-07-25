@@ -248,7 +248,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
                                     if SharedModel.isLiquidGlassEnabled {
                                         return Color.primary
                                     } else {
-                                        return Color.blue
+                                        return Color.accentColor
                                     }
                                 }())
                                 .frame(width: UIFont.preferredFont(forTextStyle: .body).lineHeight, height: UIFont.preferredFont(forTextStyle: .body).lineHeight)
@@ -981,6 +981,12 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     func handleURL(url : URL) {
         if url.isFileURL {
             Task { await installFromUrl(urlStr: url.absoluteString) }
+            return
+        }
+        
+        if url.scheme == "sidestore" && UserDefaults.sideStoreExist() {
+            UserDefaults.standard.setValue(url.absoluteString, forKey: "launchAppUrlScheme")
+            LCUtils.openSideStore(delegate: self)
             return
         }
         

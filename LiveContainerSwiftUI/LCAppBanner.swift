@@ -334,7 +334,7 @@ struct LCAppBanner : View {
                 appFolderRemovalAlert.close(result: false)
             }
         } message: {
-            Text("lc.appBanner.deleteDataMsg \(appInfo.displayName()!)")
+            Text("lc.appBanner.deleteDataMsg %@".localizeWithFormat(appInfo.displayName()!))
         }
         
         .alert("lc.common.error".loc, isPresented: $errorShow){
