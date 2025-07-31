@@ -58,6 +58,9 @@ intptr_t (*orig_dyld_get_image_vmaddr_slide)(uint32_t image_index) = _dyld_get_i
 const char* (*orig_dyld_get_image_name)(uint32_t image_index) = _dyld_get_image_name;
 // VPN Detection Bypass hooks
 static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
+static int (*orig_getifaddrs)(struct ifaddrs **ifap);
+static SCDynamicStoreRef (*orig_SCDynamicStoreCreate)(CFAllocatorRef allocator, CFStringRef name, SCDynamicStoreCallBack callout, SCDynamicStoreContext *context);
+static CFDictionaryRef (*orig_SCDynamicStoreCopyProxies)(SCDynamicStoreRef store, CFArrayRef targetHosts);
 // Signal handlers
 int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact);
 // Apple Sign In
@@ -483,40 +486,110 @@ uint32_t hook_dyld_get_program_sdk_version(void* dyldApiInstancePtr) {
 
 // MARK: VPN Detection
 static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
-    NSLog(@"[LC] 🎭 CFNetworkCopySystemProxySettings called");
+    NSLog(@"[LC] 🎭 CFNetworkCopySystemProxySettings called - enhanced spoofing");
     
-    // Safety check: if original function wasn't found or hooked properly
-    if (!orig_CFNetworkCopySystemProxySettings) {
-        NSLog(@"[LC] ⚠️ Original CFNetworkCopySystemProxySettings not available - returning clean settings");
-        
-        // Return minimal clean settings without calling original
-        NSDictionary *safeSettings = @{
-            @"HTTPEnable": @0,
-            @"HTTPSEnable": @0,
-            @"SOCKSEnable": @0,
-            @"ProxyAutoConfigEnable": @0,
-            @"__SCOPED__": @{}
-        };
-        
-        return CFBridgingRetain(safeSettings);
-    }
-    
-    // Original function is available - proceed with normal spoofing
-    NSLog(@"[LC] 🎭 Spoofing system proxy settings (hiding proxy/VPN detection)");
-    
+    // Return comprehensive clean settings that block all VPN detection methods
     NSDictionary *cleanProxySettings = @{
         @"HTTPEnable": @0,
+        @"HTTPProxy": @"",
         @"HTTPPort": @0,
         @"HTTPSEnable": @0,
+        @"HTTPSProxy": @"",
         @"HTTPSPort": @0,
         @"ProxyAutoConfigEnable": @0,
+        @"ProxyAutoConfigURLString": @"",
         @"SOCKSEnable": @0,
+        @"SOCKSProxy": @"",
         @"SOCKSPort": @0,
+        @"SOCKSVersion": @5,
         @"ExceptionsList": @[],
-        @"__SCOPED__": @{}        // ✅ Blocks VPN detection (empty = no VPN interfaces)
+        @"FTPEnable": @0,
+        @"FTPPassive": @1,
+        @"FTPProxy": @"",
+        @"FTPPort": @0,
+        @"__SCOPED__": @{},  // ✅ Critical: Empty - blocks the main detection method
+        
+        // Additional anti-detection keys
+        @"ProxyType": @"None",
+        @"ConnectionProxyDictionary": @{},
+        @"SystemProxySettings": @{},
     };
     
     return CFBridgingRetain(cleanProxySettings);
+}
+
+// Hook getifaddrs to hide VPN interfaces
+int hook_getifaddrs(struct ifaddrs **ifap) {
+    int result = orig_getifaddrs(ifap);
+    if (result != 0 || !ifap || !*ifap) {
+        return result;
+    }
+    
+    NSLog(@"[LC] 🎭 Filtering VPN interfaces from getifaddrs");
+    
+    // Filter out VPN-related interfaces
+    struct ifaddrs *current = *ifap;
+    struct ifaddrs *prev = NULL;
+    
+    while (current != NULL) {
+        BOOL shouldRemove = NO;
+        
+        if (current->ifa_name) {
+            NSString *interfaceName = [NSString stringWithUTF8String:current->ifa_name];
+            NSArray *vpnPrefixes = @[@"utun", @"tap", @"tun", @"ppp", @"ipsec", @"l2tp", @"pptp"];
+            
+            for (NSString *prefix in vpnPrefixes) {
+                if ([interfaceName hasPrefix:prefix]) {
+                    shouldRemove = YES;
+                    NSLog(@"[LC] 🎭 Hiding VPN interface: %@", interfaceName);
+                    break;
+                }
+            }
+        }
+        
+        if (shouldRemove) {
+            if (prev) {
+                prev->ifa_next = current->ifa_next;
+            } else {
+                *ifap = current->ifa_next;
+            }
+            struct ifaddrs *toRemove = current;
+            current = current->ifa_next;
+            free(toRemove);
+        } else {
+            prev = current;
+            current = current->ifa_next;
+        }
+    }
+    
+    return result;
+}
+
+static CFDictionaryRef hook_SCDynamicStoreCopyProxies(SCDynamicStoreRef store, CFArrayRef targetHosts) {
+    NSLog(@"[LC] 🎭 SCDynamicStoreCopyProxies called - spoofing clean proxy settings");
+    
+    // Return clean proxy settings
+    NSDictionary *cleanSettings = @{
+        @"HTTPEnable": @0,
+        @"HTTPProxy": @"",
+        @"HTTPPort": @0,
+        @"HTTPSEnable": @0,
+        @"HTTPSProxy": @"",
+        @"HTTPSPort": @0,
+        @"ProxyAutoConfigEnable": @0,
+        @"ProxyAutoConfigURLString": @"",
+        @"SOCKSEnable": @0,
+        @"SOCKSProxy": @"",
+        @"SOCKSPort": @0,
+        @"ExceptionsList": @[],
+        @"FTPEnable": @0,
+        @"FTPPassive": @1,
+        @"FTPProxy": @"",
+        @"FTPPort": @0,
+        @"__SCOPED__": @{} // ✅ Critical: Empty scoped settings (no VPN interfaces)
+    };
+    
+    return CFBridgingRetain(cleanSettings);
 }
 
 int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact) {
@@ -752,10 +825,12 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         // Use litehook_hook_function for framework/libc functions instead of rebind_symbols
         // _dyld_register_func_for_add_image((void (*)(const struct mach_header *, intptr_t))hideLiveContainerImageCallback);
 
-        rebind_symbols((struct rebinding[2]){
+        rebind_symbols((struct rebinding[4]){
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
-        }, 2);
+                    {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
+                    {"SCDynamicStoreCopyProxies", (void *)hook_SCDynamicStoreCopyProxies, (void **)&orig_SCDynamicStoreCopyProxies},
+        }, 4);
         
     }
     
