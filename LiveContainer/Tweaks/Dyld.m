@@ -486,33 +486,68 @@ uint32_t hook_dyld_get_program_sdk_version(void* dyldApiInstancePtr) {
 
 // MARK: VPN Detection
 static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
-    NSLog(@"[LC] 🎭 CFNetworkCopySystemProxySettings called - enhanced spoofing");
+    NSLog(@"[LC] 🎭 CFNetworkCopySystemProxySettings called - comprehensive VPN blocking");
     
-    // Return comprehensive clean settings that block all VPN detection methods
+    // Return ultra-comprehensive clean settings to block VPN detection
     NSDictionary *cleanProxySettings = @{
+        // HTTP Proxy settings
         @"HTTPEnable": @0,
         @"HTTPProxy": @"",
         @"HTTPPort": @0,
+        
+        // HTTPS Proxy settings  
         @"HTTPSEnable": @0,
         @"HTTPSProxy": @"",
         @"HTTPSPort": @0,
-        @"ProxyAutoConfigEnable": @0,
-        @"ProxyAutoConfigURLString": @"",
+        
+        // SOCKS Proxy settings
         @"SOCKSEnable": @0,
-        @"SOCKSProxy": @"",
+        @"SOCKSProxy": @"", 
         @"SOCKSPort": @0,
         @"SOCKSVersion": @5,
-        @"ExceptionsList": @[],
+        
+        // FTP Proxy settings
         @"FTPEnable": @0,
-        @"FTPPassive": @1,
         @"FTPProxy": @"",
         @"FTPPort": @0,
-        @"__SCOPED__": @{},  // ✅ Critical: Empty - blocks the main detection method
+        @"FTPPassive": @1,
         
-        // Additional anti-detection keys
+        // Auto-config settings
+        @"ProxyAutoConfigEnable": @0,
+        @"ProxyAutoConfigURLString": @"",
+        
+        // Exception lists
+        @"ExceptionsList": @[],
+        
+        // ✅ CRITICAL: Empty scoped settings (this is what VPN detection looks for)
+        @"__SCOPED__": @{},
+        
+        // Additional comprehensive anti-detection keys
         @"ProxyType": @"None",
         @"ConnectionProxyDictionary": @{},
         @"SystemProxySettings": @{},
+        
+        // Network interface related (block VPN interface detection)
+        @"NetworkInterfaces": @{},
+        @"InterfaceProxies": @{},
+        
+        // VPN-specific keys to spoof as empty
+        @"VPNInterfaces": @{},
+        @"TunnelInterfaces": @{},
+        @"PPPInterfaces": @{},
+        @"IPSecInterfaces": @{},
+        
+        // Additional system proxy keys
+        @"GlobalHTTPProxy": @"",
+        @"GlobalHTTPSProxy": @"", 
+        @"GlobalSOCKSProxy": @"",
+        @"BypassList": @[],
+        @"ProxyBypassList": @[],
+        
+        // Network configuration spoofing
+        @"NetworkConfiguration": @{},
+        @"ActiveNetworkConfiguration": @{},
+        @"CurrentNetworkConfiguration": @{}
     };
     
     return CFBridgingRetain(cleanProxySettings);
@@ -825,12 +860,12 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         // Use litehook_hook_function for framework/libc functions instead of rebind_symbols
         // _dyld_register_func_for_add_image((void (*)(const struct mach_header *, intptr_t))hideLiveContainerImageCallback);
 
-        rebind_symbols((struct rebinding[4]){
+        rebind_symbols((struct rebinding[2]){
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
-                    {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
-                    {"SCDynamicStoreCopyProxies", (void *)hook_SCDynamicStoreCopyProxies, (void **)&orig_SCDynamicStoreCopyProxies},
-        }, 4);
+                    // {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
+                    // {"SCDynamicStoreCopyProxies", (void *)hook_SCDynamicStoreCopyProxies, (void **)&orig_SCDynamicStoreCopyProxies},
+        }, 2);
         
     }
     
