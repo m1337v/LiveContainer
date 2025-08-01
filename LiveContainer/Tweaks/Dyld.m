@@ -848,9 +848,9 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         rebind_symbols((struct rebinding[5]){
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
-                    {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
-                    {"freeifaddrs", (void *)hook_freeifaddrs, (void **)&orig_freeifaddrs},
-                    {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
+                    // {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
+                    // {"freeifaddrs", (void *)hook_freeifaddrs, (void **)&orig_freeifaddrs},
+                    // {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
         }, 5);
         
     }
