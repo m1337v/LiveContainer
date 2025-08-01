@@ -556,100 +556,60 @@ void hook_freeifaddrs(struct ifaddrs *ifa) {
 }
 
 // Hook getifaddrs to hide VPN interfaces
-int hook_getifaddrs(struct ifaddrs **ifap) {
+static int hook_getifaddrs(struct ifaddrs **ifap) {
     int result = orig_getifaddrs(ifap);
     if (result != 0 || !ifap || !*ifap) {
         return result;
     }
     
-    NSLog(@"[LC] 🎭 Advanced VPN interface filtering (StosVPN compatible)");
-    
-    // Create a completely new interface list excluding VPN interfaces
-    struct ifaddrs *cleanList = NULL;
-    struct ifaddrs *cleanTail = NULL;
     struct ifaddrs *current = *ifap;
+    struct ifaddrs *prev = NULL;
     
     while (current != NULL) {
-        BOOL isVPNInterface = NO;
+        BOOL shouldFilter = NO;
         
-        if (current->ifa_name) {
-            NSString *interfaceName = [NSString stringWithUTF8String:current->ifa_name];
-            
-            // Enhanced VPN prefixes (covers StosVPN)
-            NSArray *vpnPrefixes = @[
-                @"utun",    // StosVPN, most packet tunnel VPNs
-                @"ppp",     // PPP connections
-                @"tap",     // TAP interfaces
-                @"tun",     // TUN interfaces
-                @"ipsec",   // IPSec VPNs
-                @"vtun",    // Virtual tunnel
-                @"wg",      // WireGuard
-                @"ne",      // Network Extension framework
-                @"ipsec0",  // Specific IPSec
-                @"pptp"     // PPTP VPNs
-            ];
-            
-            for (NSString *prefix in vpnPrefixes) {
-                if ([interfaceName hasPrefix:prefix]) {
-                    isVPNInterface = YES;
-                    NSLog(@"[LC] 🎭 Filtering VPN interface: %@", interfaceName);
-                    break;
-                }
+        if (current->ifa_name && current->ifa_addr) {
+            // Only filter utun interfaces with IPv4 addresses (VPN)
+            if (strncmp(current->ifa_name, "utun", 4) == 0 && 
+                current->ifa_addr->sa_family == AF_INET) {
+                
+                shouldFilter = YES;
+                NSLog(@"[LC] 🎭 getifaddrs - filtering VPN interface: %s", current->ifa_name);
+            }
+            // Also filter non-utun VPN interfaces entirely
+            else if (strncmp(current->ifa_name, "tap", 3) == 0 ||
+                     strncmp(current->ifa_name, "tun", 3) == 0 ||
+                     strncmp(current->ifa_name, "ppp", 3) == 0) {
+                
+                shouldFilter = YES;
+                NSLog(@"[LC] 🎭 getifaddrs - filtering VPN interface: %s", current->ifa_name);
             }
         }
         
-        if (!isVPNInterface) {
-            // Copy this interface to clean list
-            struct ifaddrs *cleanIfa = malloc(sizeof(struct ifaddrs));
-            memcpy(cleanIfa, current, sizeof(struct ifaddrs));
-            
-            // Duplicate the name string
-            if (current->ifa_name) {
-                cleanIfa->ifa_name = strdup(current->ifa_name);
-            }
-            
-            // Copy addresses if they exist
-            if (current->ifa_addr) {
-                size_t addrLen = 0;
-                if (current->ifa_addr->sa_family == AF_INET) {
-                    addrLen = sizeof(struct sockaddr_in);
-                } else if (current->ifa_addr->sa_family == AF_INET6) {
-                    addrLen = sizeof(struct sockaddr_in6);
-                } else {
-                    addrLen = sizeof(struct sockaddr);
-                }
-                cleanIfa->ifa_addr = malloc(addrLen);
-                memcpy(cleanIfa->ifa_addr, current->ifa_addr, addrLen);
-            }
-            
-            if (current->ifa_netmask) {
-                size_t maskLen = current->ifa_netmask->sa_family == AF_INET ? 
-                    sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6);
-                cleanIfa->ifa_netmask = malloc(maskLen);
-                memcpy(cleanIfa->ifa_netmask, current->ifa_netmask, maskLen);
-            }
-            
-            cleanIfa->ifa_next = NULL;
-            
-            if (cleanList == NULL) {
-                cleanList = cleanIfa;
-                cleanTail = cleanIfa;
+        if (shouldFilter) {
+            // Remove this interface from the linked list
+            if (prev) {
+                prev->ifa_next = current->ifa_next;
             } else {
-                cleanTail->ifa_next = cleanIfa;
-                cleanTail = cleanIfa;
+                *ifap = current->ifa_next;
             }
+            
+            struct ifaddrs *toFree = current;
+            current = current->ifa_next;
+            
+            // Free the filtered interface
+            if (toFree->ifa_name) free(toFree->ifa_name);
+            if (toFree->ifa_addr) free(toFree->ifa_addr);
+            if (toFree->ifa_netmask) free(toFree->ifa_netmask);
+            if (toFree->ifa_broadaddr) free(toFree->ifa_broadaddr);
+            free(toFree);
+        } else {
+            prev = current;
+            current = current->ifa_next;
         }
-        
-        current = current->ifa_next;
     }
     
-    // Free the original list
-    orig_freeifaddrs(*ifap);
-    
-    // Return our clean list
-    *ifap = cleanList;
-    
-    return 0;
+    return result;
 }
 
 unsigned int hook_if_nametoindex(const char *ifname) {
@@ -903,13 +863,13 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         // Use litehook_hook_function for framework/libc functions instead of rebind_symbols
         // _dyld_register_func_for_add_image((void (*)(const struct mach_header *, intptr_t))hideLiveContainerImageCallback);
 
-        rebind_symbols((struct rebinding[2]){
+        rebind_symbols((struct rebinding[3]){
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
-                    // {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
+                    {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
                     // {"freeifaddrs", (void *)hook_freeifaddrs, (void **)&orig_freeifaddrs},
                     // {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
-        }, 2);
+        }, 3);
         
     }
     
