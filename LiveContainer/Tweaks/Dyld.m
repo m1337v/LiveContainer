@@ -60,6 +60,7 @@ const char* (*orig_dyld_get_image_name)(uint32_t image_index) = _dyld_get_image_
 static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
 static int (*orig_getifaddrs)(struct ifaddrs **ifap);
 static int (*orig_if_nametoindex)(const char *ifname);
+static void (*orig_freeifaddrs)(struct ifaddrs *ifa);
 // Signal handlers
 int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact);
 // Apple Sign In
@@ -485,73 +486,113 @@ uint32_t hook_dyld_get_program_sdk_version(void* dyldApiInstancePtr) {
 
 // MARK: VPN Detection
 static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
-    NSLog(@"[LC] 🎭 CFNetworkCopySystemProxySettings called - surgical VPN hiding");
+    NSLog(@"[LC] 🎭 CFNetworkCopySystemProxySettings called - returning fabricated clean settings");
     
-    // Call the original function first to get real system settings
-    CFDictionaryRef originalResult = NULL;
-    if (orig_CFNetworkCopySystemProxySettings) {
-        originalResult = orig_CFNetworkCopySystemProxySettings();
-    }
+    // Don't call original - VPN software modifies those settings!
+    // Return comprehensive clean settings that match what a real clean system would have
+    NSDictionary *cleanProxySettings = @{
+        // Basic proxy settings (disabled)
+        @"HTTPEnable": @0,
+        @"HTTPProxy": @"",
+        @"HTTPPort": @0,
+        @"HTTPSEnable": @0,
+        @"HTTPSProxy": @"", 
+        @"HTTPSPort": @0,
+        @"SOCKSEnable": @0,
+        @"SOCKSProxy": @"",
+        @"SOCKSPort": @0,
+        @"FTPEnable": @0,
+        @"FTPProxy": @"",
+        @"FTPPort": @0,
+        @"FTPPassive": @1,
+        
+        // Auto-config settings (disabled)
+        @"ProxyAutoConfigEnable": @0,
+        @"ProxyAutoConfigURLString": @"",
+        
+        // Exception lists (empty)
+        @"ExceptionsList": @[],
+        
+        // ✅ CRITICAL: Empty scoped settings (this is what VPN detection looks for)
+        @"__SCOPED__": @{},
+        
+        // Additional keys that real iOS systems have (prevents false positives)
+        @"HTTPSProxyUsername": @"",
+        @"HTTPSProxyPassword": @"",
+        @"HTTPProxyUsername": @"", 
+        @"HTTPProxyPassword": @"",
+        @"SOCKSProxyUsername": @"",
+        @"SOCKSProxyPassword": @"",
+        
+        // Version/system keys (prevents detection of fabricated settings)
+        @"ProxyType": @"None"
+    };
     
-    if (!originalResult) {
-        NSLog(@"[LC] ⚠️ Original CFNetworkCopySystemProxySettings returned NULL");
-        return NULL;
-    }
+    return CFBridgingRetain(cleanProxySettings);
+}
+
+void hook_freeifaddrs(struct ifaddrs *ifa) {
+    NSLog(@"[LC] 🎭 freeifaddrs called - cleaning up fabricated interface list");
     
-    // Convert to mutable dictionary for surgical modifications
-    NSMutableDictionary *modifiedSettings = [(__bridge NSDictionary *)originalResult mutableCopy];
-    
-    // SURGICAL MODIFICATION: Only touch the VPN detection keys
-    // 1. Clear the __SCOPED__ dictionary (main VPN detection method)
-    if (modifiedSettings[@"__SCOPED__"]) {
-        NSLog(@"[LC] 🎭 Clearing __SCOPED__ interfaces (was: %@)", modifiedSettings[@"__SCOPED__"]);
-        modifiedSettings[@"__SCOPED__"] = @{};
-    }
-    
-    // 2. Optionally clear other VPN-specific keys if they exist
-    NSArray *vpnKeys = @[@"VPNInterfaces", @"TunnelInterfaces", @"PPPInterfaces", @"IPSecInterfaces"];
-    for (NSString *key in vpnKeys) {
-        if (modifiedSettings[key]) {
-            NSLog(@"[LC] 🎭 Clearing VPN key: %@", key);
-            modifiedSettings[key] = @{};
+    // Free our fabricated interface list properly
+    struct ifaddrs *current = ifa;
+    while (current) {
+        struct ifaddrs *next = current->ifa_next;
+        if (current->ifa_name) {
+            free(current->ifa_name);
         }
+        free(current);
+        current = next;
     }
     
-    // Release original and return modified
-    CFRelease(originalResult);
-    return CFBridgingRetain([modifiedSettings copy]);
+    // Don't call original since we're managing our own memory
 }
 
 // Hook getifaddrs to hide VPN interfaces
 int hook_getifaddrs(struct ifaddrs **ifap) {
-    int result = orig_getifaddrs(ifap);
-    if (result != 0 || !ifap || !*ifap) {
-        return result;
+    NSLog(@"[LC] 🎭 getifaddrs called - returning fabricated clean interface list");
+    
+    if (!ifap) {
+        return -1;
     }
     
-    NSLog(@"[LC] 🎭 Filtering getifaddrs results");
+    // Don't call original - VPN software adds interfaces to the real list!
+    // Create a completely fabricated clean interface list with only standard interfaces
     
-    // Instead of modifying the linked list (dangerous), mark VPN interfaces as down
-    struct ifaddrs *current = *ifap;
-    while (current != NULL) {
-        if (current->ifa_name) {
-            NSString *interfaceName = [NSString stringWithUTF8String:current->ifa_name];
-            NSArray *vpnPrefixes = @[@"utun", @"tap", @"tun", @"ppp", @"ipsec"];
-            
-            for (NSString *prefix in vpnPrefixes) {
-                if ([interfaceName hasPrefix:prefix]) {
-                    NSLog(@"[LC] 🎭 Marking VPN interface as down: %@", interfaceName);
-                    // Mark as down instead of removing (safer)
-                    current->ifa_flags &= ~IFF_UP;
-                    current->ifa_flags &= ~IFF_RUNNING;
-                    break;
-                }
-            }
-        }
-        current = current->ifa_next;
+    // Allocate memory for fake interface chain
+    struct ifaddrs *lo0 = malloc(sizeof(struct ifaddrs));
+    struct ifaddrs *en0 = malloc(sizeof(struct ifaddrs));
+    struct ifaddrs *en1 = malloc(sizeof(struct ifaddrs));
+    
+    if (!lo0 || !en0 || !en1) {
+        if (lo0) free(lo0);
+        if (en0) free(en0);
+        if (en1) free(en1);
+        return -1;
     }
     
-    return result;
+    // Clear all structures
+    memset(lo0, 0, sizeof(struct ifaddrs));
+    memset(en0, 0, sizeof(struct ifaddrs));
+    memset(en1, 0, sizeof(struct ifaddrs));
+    
+    // Create fake lo0 (loopback)
+    lo0->ifa_next = en0;
+    lo0->ifa_name = strdup("lo0");
+    lo0->ifa_flags = IFF_UP | IFF_LOOPBACK | IFF_RUNNING;
+    
+    // Create fake en0 (wifi)
+    en0->ifa_next = en1;
+    en0->ifa_name = strdup("en0");
+    en0->ifa_flags = IFF_UP | IFF_BROADCAST | IFF_RUNNING;
+    
+    // Create fake en1 (cellular, but down)
+    en1->ifa_next = NULL;
+    en1->ifa_name = strdup("en1");
+    en1->ifa_flags = IFF_BROADCAST; // Not up or running
+    
+    *ifap = lo0;
+    return 0;
 }
 
 // Hook if_nametoindex to hide VPN interfaces
@@ -804,12 +845,13 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         // Use litehook_hook_function for framework/libc functions instead of rebind_symbols
         // _dyld_register_func_for_add_image((void (*)(const struct mach_header *, intptr_t))hideLiveContainerImageCallback);
 
-        rebind_symbols((struct rebinding[4]){
+        rebind_symbols((struct rebinding[5]){
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
                     {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
+                    {"freeifaddrs", (void *)hook_freeifaddrs, (void **)&orig_freeifaddrs},
                     {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
-        }, 4);
+        }, 5);
         
     }
     
