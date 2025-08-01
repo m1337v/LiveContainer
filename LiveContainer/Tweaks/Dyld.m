@@ -59,11 +59,6 @@ const char* (*orig_dyld_get_image_name)(uint32_t image_index) = _dyld_get_image_
 // VPN Detection Bypass hooks
 static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
 static int (*orig_getifaddrs)(struct ifaddrs **ifap);
-static void (*orig_freeifaddrs)(struct ifaddrs *ifa);
-static unsigned int (*orig_if_nametoindex)(const char *ifname);
-static void (*orig_freeifaddrs)(struct ifaddrs *ifa);
-static void* (*orig_nw_path_monitor_create)(void);
-static void* (*orig_nw_path_get_available_interfaces)(void* path);
 // Signal handlers
 int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact);
 // Apple Sign In
@@ -533,28 +528,6 @@ static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
     return CFBridgingRetain(emptySettings);
 }
 
-void hook_freeifaddrs(struct ifaddrs *ifa) {
-    NSLog(@"[LC] 🎭 Cleaning up filtered interface list");
-    
-    struct ifaddrs *current = ifa;
-    while (current) {
-        struct ifaddrs *next = current->ifa_next;
-        
-        if (current->ifa_name) {
-            free(current->ifa_name);
-        }
-        if (current->ifa_addr) {
-            free(current->ifa_addr);
-        }
-        if (current->ifa_netmask) {
-            free(current->ifa_netmask);
-        }
-        
-        free(current);
-        current = next;
-    }
-}
-
 // Hook getifaddrs to hide VPN interfaces
 static int hook_getifaddrs(struct ifaddrs **ifap) {
     int result = orig_getifaddrs(ifap);
@@ -597,12 +570,10 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
             struct ifaddrs *toFree = current;
             current = current->ifa_next;
             
-            // Free the filtered interface
-            if (toFree->ifa_name) free(toFree->ifa_name);
-            if (toFree->ifa_addr) free(toFree->ifa_addr);
-            if (toFree->ifa_netmask) free(toFree->ifa_netmask);
-            if (toFree->ifa_broadaddr) free(toFree->ifa_broadaddr);
-            free(toFree);
+            // DON'T manually free - let the system handle it with freeifaddrs()
+            // The system will clean up when freeifaddrs() is called
+            // Just null out the pointers to be safe
+            toFree->ifa_next = NULL;
         } else {
             prev = current;
             current = current->ifa_next;
@@ -610,24 +581,6 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
     }
     
     return result;
-}
-
-unsigned int hook_if_nametoindex(const char *ifname) {
-    if (!ifname) return orig_if_nametoindex(ifname);
-    
-    NSString *interfaceName = [NSString stringWithUTF8String:ifname];
-    
-    // Block all VPN interface name lookups
-    NSArray *vpnPrefixes = @[@"utun", @"tap", @"tun", @"ppp", @"ipsec", @"vtun", @"wg", @"ne"];
-    
-    for (NSString *prefix in vpnPrefixes) {
-        if ([interfaceName hasPrefix:prefix]) {
-            NSLog(@"[LC] 🎭 Blocking VPN interface lookup: %@", interfaceName);
-            return 0; // Interface not found
-        }
-    }
-    
-    return orig_if_nametoindex(ifname);
 }
 
 int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact) {
@@ -867,8 +820,6 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
                     {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
-                    // {"freeifaddrs", (void *)hook_freeifaddrs, (void **)&orig_freeifaddrs},
-                    // {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
         }, 3);
         
     }
