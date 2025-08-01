@@ -59,8 +59,7 @@ const char* (*orig_dyld_get_image_name)(uint32_t image_index) = _dyld_get_image_
 // VPN Detection Bypass hooks
 static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
 static int (*orig_getifaddrs)(struct ifaddrs **ifap);
-static SCDynamicStoreRef (*orig_SCDynamicStoreCreate)(CFAllocatorRef allocator, CFStringRef name, SCDynamicStoreCallBack callout, SCDynamicStoreContext *context);
-static CFDictionaryRef (*orig_SCDynamicStoreCopyProxies)(SCDynamicStoreRef store, CFArrayRef targetHosts);
+static int (*orig_if_nametoindex)(const char *ifname);
 // Signal handlers
 int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact);
 // Apple Sign In
@@ -486,71 +485,41 @@ uint32_t hook_dyld_get_program_sdk_version(void* dyldApiInstancePtr) {
 
 // MARK: VPN Detection
 static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
-    NSLog(@"[LC] 🎭 CFNetworkCopySystemProxySettings called - comprehensive VPN blocking");
+    NSLog(@"[LC] 🎭 CFNetworkCopySystemProxySettings called - surgical VPN hiding");
     
-    // Return ultra-comprehensive clean settings to block VPN detection
-    NSDictionary *cleanProxySettings = @{
-        // HTTP Proxy settings
-        @"HTTPEnable": @0,
-        @"HTTPProxy": @"",
-        @"HTTPPort": @0,
-        
-        // HTTPS Proxy settings  
-        @"HTTPSEnable": @0,
-        @"HTTPSProxy": @"",
-        @"HTTPSPort": @0,
-        
-        // SOCKS Proxy settings
-        @"SOCKSEnable": @0,
-        @"SOCKSProxy": @"", 
-        @"SOCKSPort": @0,
-        @"SOCKSVersion": @5,
-        
-        // FTP Proxy settings
-        @"FTPEnable": @0,
-        @"FTPProxy": @"",
-        @"FTPPort": @0,
-        @"FTPPassive": @1,
-        
-        // Auto-config settings
-        @"ProxyAutoConfigEnable": @0,
-        @"ProxyAutoConfigURLString": @"",
-        
-        // Exception lists
-        @"ExceptionsList": @[],
-        
-        // ✅ CRITICAL: Empty scoped settings (this is what VPN detection looks for)
-        @"__SCOPED__": @{},
-        
-        // Additional comprehensive anti-detection keys
-        @"ProxyType": @"None",
-        @"ConnectionProxyDictionary": @{},
-        @"SystemProxySettings": @{},
-        
-        // Network interface related (block VPN interface detection)
-        @"NetworkInterfaces": @{},
-        @"InterfaceProxies": @{},
-        
-        // VPN-specific keys to spoof as empty
-        @"VPNInterfaces": @{},
-        @"TunnelInterfaces": @{},
-        @"PPPInterfaces": @{},
-        @"IPSecInterfaces": @{},
-        
-        // Additional system proxy keys
-        @"GlobalHTTPProxy": @"",
-        @"GlobalHTTPSProxy": @"", 
-        @"GlobalSOCKSProxy": @"",
-        @"BypassList": @[],
-        @"ProxyBypassList": @[],
-        
-        // Network configuration spoofing
-        @"NetworkConfiguration": @{},
-        @"ActiveNetworkConfiguration": @{},
-        @"CurrentNetworkConfiguration": @{}
-    };
+    // Call the original function first to get real system settings
+    CFDictionaryRef originalResult = NULL;
+    if (orig_CFNetworkCopySystemProxySettings) {
+        originalResult = orig_CFNetworkCopySystemProxySettings();
+    }
     
-    return CFBridgingRetain(cleanProxySettings);
+    if (!originalResult) {
+        NSLog(@"[LC] ⚠️ Original CFNetworkCopySystemProxySettings returned NULL");
+        return NULL;
+    }
+    
+    // Convert to mutable dictionary for surgical modifications
+    NSMutableDictionary *modifiedSettings = [(__bridge NSDictionary *)originalResult mutableCopy];
+    
+    // SURGICAL MODIFICATION: Only touch the VPN detection keys
+    // 1. Clear the __SCOPED__ dictionary (main VPN detection method)
+    if (modifiedSettings[@"__SCOPED__"]) {
+        NSLog(@"[LC] 🎭 Clearing __SCOPED__ interfaces (was: %@)", modifiedSettings[@"__SCOPED__"]);
+        modifiedSettings[@"__SCOPED__"] = @{};
+    }
+    
+    // 2. Optionally clear other VPN-specific keys if they exist
+    NSArray *vpnKeys = @[@"VPNInterfaces", @"TunnelInterfaces", @"PPPInterfaces", @"IPSecInterfaces"];
+    for (NSString *key in vpnKeys) {
+        if (modifiedSettings[key]) {
+            NSLog(@"[LC] 🎭 Clearing VPN key: %@", key);
+            modifiedSettings[key] = @{};
+        }
+    }
+    
+    // Release original and return modified
+    CFRelease(originalResult);
+    return CFBridgingRetain([modifiedSettings copy]);
 }
 
 // Hook getifaddrs to hide VPN interfaces
@@ -560,71 +529,46 @@ int hook_getifaddrs(struct ifaddrs **ifap) {
         return result;
     }
     
-    NSLog(@"[LC] 🎭 Filtering VPN interfaces from getifaddrs");
+    NSLog(@"[LC] 🎭 Filtering getifaddrs results");
     
-    // Filter out VPN-related interfaces
+    // Instead of modifying the linked list (dangerous), mark VPN interfaces as down
     struct ifaddrs *current = *ifap;
-    struct ifaddrs *prev = NULL;
-    
     while (current != NULL) {
-        BOOL shouldRemove = NO;
-        
         if (current->ifa_name) {
             NSString *interfaceName = [NSString stringWithUTF8String:current->ifa_name];
-            NSArray *vpnPrefixes = @[@"utun", @"tap", @"tun", @"ppp", @"ipsec", @"l2tp", @"pptp"];
+            NSArray *vpnPrefixes = @[@"utun", @"tap", @"tun", @"ppp", @"ipsec"];
             
             for (NSString *prefix in vpnPrefixes) {
                 if ([interfaceName hasPrefix:prefix]) {
-                    shouldRemove = YES;
-                    NSLog(@"[LC] 🎭 Hiding VPN interface: %@", interfaceName);
+                    NSLog(@"[LC] 🎭 Marking VPN interface as down: %@", interfaceName);
+                    // Mark as down instead of removing (safer)
+                    current->ifa_flags &= ~IFF_UP;
+                    current->ifa_flags &= ~IFF_RUNNING;
                     break;
                 }
             }
         }
-        
-        if (shouldRemove) {
-            if (prev) {
-                prev->ifa_next = current->ifa_next;
-            } else {
-                *ifap = current->ifa_next;
-            }
-            struct ifaddrs *toRemove = current;
-            current = current->ifa_next;
-            free(toRemove);
-        } else {
-            prev = current;
-            current = current->ifa_next;
-        }
+        current = current->ifa_next;
     }
     
     return result;
 }
 
-static CFDictionaryRef hook_SCDynamicStoreCopyProxies(SCDynamicStoreRef store, CFArrayRef targetHosts) {
-    NSLog(@"[LC] 🎭 SCDynamicStoreCopyProxies called - spoofing clean proxy settings");
+// Hook if_nametoindex to hide VPN interfaces
+int hook_if_nametoindex(const char *ifname) {
+    if (!ifname) return orig_if_nametoindex(ifname);
     
-    // Return clean proxy settings
-    NSDictionary *cleanSettings = @{
-        @"HTTPEnable": @0,
-        @"HTTPProxy": @"",
-        @"HTTPPort": @0,
-        @"HTTPSEnable": @0,
-        @"HTTPSProxy": @"",
-        @"HTTPSPort": @0,
-        @"ProxyAutoConfigEnable": @0,
-        @"ProxyAutoConfigURLString": @"",
-        @"SOCKSEnable": @0,
-        @"SOCKSProxy": @"",
-        @"SOCKSPort": @0,
-        @"ExceptionsList": @[],
-        @"FTPEnable": @0,
-        @"FTPPassive": @1,
-        @"FTPProxy": @"",
-        @"FTPPort": @0,
-        @"__SCOPED__": @{} // ✅ Critical: Empty scoped settings (no VPN interfaces)
-    };
+    NSString *interfaceName = [NSString stringWithUTF8String:ifname];
+    NSArray *vpnPrefixes = @[@"utun", @"tap", @"tun", @"ppp", @"ipsec"];
     
-    return CFBridgingRetain(cleanSettings);
+    for (NSString *prefix in vpnPrefixes) {
+        if ([interfaceName hasPrefix:prefix]) {
+            NSLog(@"[LC] 🎭 Hiding VPN interface from if_nametoindex: %@", interfaceName);
+            return 0; // Interface doesn't exist
+        }
+    }
+    
+    return orig_if_nametoindex(ifname);
 }
 
 int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact) {
@@ -860,12 +804,12 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         // Use litehook_hook_function for framework/libc functions instead of rebind_symbols
         // _dyld_register_func_for_add_image((void (*)(const struct mach_header *, intptr_t))hideLiveContainerImageCallback);
 
-        rebind_symbols((struct rebinding[2]){
+        rebind_symbols((struct rebinding[4]){
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
-                    // {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
-                    // {"SCDynamicStoreCopyProxies", (void *)hook_SCDynamicStoreCopyProxies, (void **)&orig_SCDynamicStoreCopyProxies},
-        }, 2);
+                    {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
+                    {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
+        }, 4);
         
     }
     
