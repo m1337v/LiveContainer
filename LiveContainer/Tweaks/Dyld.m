@@ -845,13 +845,13 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         // Use litehook_hook_function for framework/libc functions instead of rebind_symbols
         // _dyld_register_func_for_add_image((void (*)(const struct mach_header *, intptr_t))hideLiveContainerImageCallback);
 
-        rebind_symbols((struct rebinding[5]){
+        rebind_symbols((struct rebinding[2]){
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
                     // {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
                     // {"freeifaddrs", (void *)hook_freeifaddrs, (void **)&orig_freeifaddrs},
                     // {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
-        }, 5);
+        }, 2);
         
     }
     
