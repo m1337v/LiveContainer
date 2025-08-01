@@ -62,6 +62,8 @@ static int (*orig_getifaddrs)(struct ifaddrs **ifap);
 static void (*orig_freeifaddrs)(struct ifaddrs *ifa);
 static unsigned int (*orig_if_nametoindex)(const char *ifname);
 static void (*orig_freeifaddrs)(struct ifaddrs *ifa);
+static void* (*orig_nw_path_monitor_create)(void);
+static void* (*orig_nw_path_get_available_interfaces)(void* path);
 // Signal handlers
 int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact);
 // Apple Sign In
@@ -486,41 +488,49 @@ uint32_t hook_dyld_get_program_sdk_version(void* dyldApiInstancePtr) {
 }
 
 // MARK: VPN Detection
+// static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
+//     NSLog(@"[LC] 🎭 CFNetworkCopySystemProxySettings called");
+    
+//     // Safety check: if original function wasn't found or hooked properly
+//     if (!orig_CFNetworkCopySystemProxySettings) {
+//         NSLog(@"[LC] ⚠️ Original CFNetworkCopySystemProxySettings not available - returning clean settings");
+        
+//         // Return minimal clean settings without calling original
+//         NSDictionary *safeSettings = @{
+//             @"HTTPEnable": @0,
+//             @"HTTPSEnable": @0,
+//             @"SOCKSEnable": @0,
+//             @"ProxyAutoConfigEnable": @0,
+//             @"__SCOPED__": @{}
+//         };
+        
+//         return CFBridgingRetain(safeSettings);
+//     }
+    
+//     // Original function is available - proceed with normal spoofing
+//     NSLog(@"[LC] 🎭 Spoofing system proxy settings (hiding proxy/VPN detection)");
+    
+//     NSDictionary *cleanProxySettings = @{
+//         @"HTTPEnable": @0,
+//         @"HTTPPort": @0,
+//         @"HTTPSEnable": @0,
+//         @"HTTPSPort": @0,
+//         @"ProxyAutoConfigEnable": @0,
+//         @"SOCKSEnable": @0,
+//         @"SOCKSPort": @0,
+//         @"ExceptionsList": @[],
+//         @"__SCOPED__": @{}        // ✅ Blocks VPN detection (empty = no VPN interfaces)
+//     };
+    
+//     return CFBridgingRetain(cleanProxySettings);
+// }
 static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
-    NSLog(@"[LC] 🎭 CFNetworkCopySystemProxySettings called");
+    NSLog(@"[LC] 🎭 CFNetworkCopySystemProxySettings - returning truly empty settings (cellular behavior)");
     
-    // Safety check: if original function wasn't found or hooked properly
-    if (!orig_CFNetworkCopySystemProxySettings) {
-        NSLog(@"[LC] ⚠️ Original CFNetworkCopySystemProxySettings not available - returning clean settings");
-        
-        // Return minimal clean settings without calling original
-        NSDictionary *safeSettings = @{
-            @"HTTPEnable": @0,
-            @"HTTPSEnable": @0,
-            @"SOCKSEnable": @0,
-            @"ProxyAutoConfigEnable": @0,
-            @"__SCOPED__": @{}
-        };
-        
-        return CFBridgingRetain(safeSettings);
-    }
+    // Return completely empty dictionary - exactly like cellular connection
+    NSDictionary *emptySettings = @{};
     
-    // Original function is available - proceed with normal spoofing
-    NSLog(@"[LC] 🎭 Spoofing system proxy settings (hiding proxy/VPN detection)");
-    
-    NSDictionary *cleanProxySettings = @{
-        @"HTTPEnable": @0,
-        @"HTTPPort": @0,
-        @"HTTPSEnable": @0,
-        @"HTTPSPort": @0,
-        @"ProxyAutoConfigEnable": @0,
-        @"SOCKSEnable": @0,
-        @"SOCKSPort": @0,
-        @"ExceptionsList": @[],
-        @"__SCOPED__": @{}        // ✅ Blocks VPN detection (empty = no VPN interfaces)
-    };
-    
-    return CFBridgingRetain(cleanProxySettings);
+    return CFBridgingRetain(emptySettings);
 }
 
 void hook_freeifaddrs(struct ifaddrs *ifa) {
@@ -893,13 +903,13 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         // Use litehook_hook_function for framework/libc functions instead of rebind_symbols
         // _dyld_register_func_for_add_image((void (*)(const struct mach_header *, intptr_t))hideLiveContainerImageCallback);
 
-        rebind_symbols((struct rebinding[5]){
+        rebind_symbols((struct rebinding[2]){
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
-                    {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
-                    {"freeifaddrs", (void *)hook_freeifaddrs, (void **)&orig_freeifaddrs},
-                    {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
-        }, 5);
+                    // {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
+                    // {"freeifaddrs", (void *)hook_freeifaddrs, (void **)&orig_freeifaddrs},
+                    // {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
+        }, 2);
         
     }
     
