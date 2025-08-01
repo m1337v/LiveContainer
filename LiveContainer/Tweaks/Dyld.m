@@ -486,46 +486,37 @@ uint32_t hook_dyld_get_program_sdk_version(void* dyldApiInstancePtr) {
 
 // MARK: VPN Detection
 static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
-    NSLog(@"[LC] 🎭 CFNetworkCopySystemProxySettings called - returning fabricated clean settings");
+    NSLog(@"[LC] 🎭 CFNetworkCopySystemProxySettings called");
     
-    // Don't call original - VPN software modifies those settings!
-    // Return comprehensive clean settings that match what a real clean system would have
+    // Safety check: if original function wasn't found or hooked properly
+    if (!orig_CFNetworkCopySystemProxySettings) {
+        NSLog(@"[LC] ⚠️ Original CFNetworkCopySystemProxySettings not available - returning clean settings");
+        
+        // Return minimal clean settings without calling original
+        NSDictionary *safeSettings = @{
+            @"HTTPEnable": @0,
+            @"HTTPSEnable": @0,
+            @"SOCKSEnable": @0,
+            @"ProxyAutoConfigEnable": @0,
+            @"__SCOPED__": @{}
+        };
+        
+        return CFBridgingRetain(safeSettings);
+    }
+    
+    // Original function is available - proceed with normal spoofing
+    NSLog(@"[LC] 🎭 Spoofing system proxy settings (hiding proxy/VPN detection)");
+    
     NSDictionary *cleanProxySettings = @{
-        // Basic proxy settings (disabled)
         @"HTTPEnable": @0,
-        @"HTTPProxy": @"",
         @"HTTPPort": @0,
         @"HTTPSEnable": @0,
-        @"HTTPSProxy": @"", 
         @"HTTPSPort": @0,
-        @"SOCKSEnable": @0,
-        @"SOCKSProxy": @"",
-        @"SOCKSPort": @0,
-        @"FTPEnable": @0,
-        @"FTPProxy": @"",
-        @"FTPPort": @0,
-        @"FTPPassive": @1,
-        
-        // Auto-config settings (disabled)
         @"ProxyAutoConfigEnable": @0,
-        @"ProxyAutoConfigURLString": @"",
-        
-        // Exception lists (empty)
+        @"SOCKSEnable": @0,
+        @"SOCKSPort": @0,
         @"ExceptionsList": @[],
-        
-        // ✅ CRITICAL: Empty scoped settings (this is what VPN detection looks for)
-        @"__SCOPED__": @{},
-        
-        // Additional keys that real iOS systems have (prevents false positives)
-        @"HTTPSProxyUsername": @"",
-        @"HTTPSProxyPassword": @"",
-        @"HTTPProxyUsername": @"", 
-        @"HTTPProxyPassword": @"",
-        @"SOCKSProxyUsername": @"",
-        @"SOCKSProxyPassword": @"",
-        
-        // Version/system keys (prevents detection of fabricated settings)
-        @"ProxyType": @"None"
+        @"__SCOPED__": @{}        // ✅ Blocks VPN detection (empty = no VPN interfaces)
     };
     
     return CFBridgingRetain(cleanProxySettings);
