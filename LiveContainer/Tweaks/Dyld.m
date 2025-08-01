@@ -541,49 +541,36 @@ void hook_freeifaddrs(struct ifaddrs *ifa) {
 
 // Hook getifaddrs to hide VPN interfaces
 int hook_getifaddrs(struct ifaddrs **ifap) {
-    NSLog(@"[LC] 🎭 getifaddrs called - returning fabricated clean interface list");
-    
-    if (!ifap) {
-        return -1;
+    int result = orig_getifaddrs(ifap);
+    if (result != 0 || !ifap || !*ifap) {
+        return result;
     }
     
-    // Don't call original - VPN software adds interfaces to the real list!
-    // Create a completely fabricated clean interface list with only standard interfaces
+    NSLog(@"[LC] 🎭 Filtering VPN interfaces from getifaddrs");
     
-    // Allocate memory for fake interface chain
-    struct ifaddrs *lo0 = malloc(sizeof(struct ifaddrs));
-    struct ifaddrs *en0 = malloc(sizeof(struct ifaddrs));
-    struct ifaddrs *en1 = malloc(sizeof(struct ifaddrs));
-    
-    if (!lo0 || !en0 || !en1) {
-        if (lo0) free(lo0);
-        if (en0) free(en0);
-        if (en1) free(en1);
-        return -1;
+    // Mark VPN interfaces as down instead of removing them (safer)
+    struct ifaddrs *current = *ifap;
+    while (current != NULL) {
+        if (current->ifa_name) {
+            NSString *interfaceName = [NSString stringWithUTF8String:current->ifa_name];
+            
+            // Match your detection prefixes exactly
+            NSArray *vpnPrefixes = @[@"utun", @"tap", @"tun", @"ppp", @"ipsec", @"vtun", @"wg", @"ne"];
+            
+            for (NSString *prefix in vpnPrefixes) {
+                if ([interfaceName hasPrefix:prefix]) {
+                    NSLog(@"[LC] 🎭 Marking VPN interface as down: %@", interfaceName);
+                    // Mark as down and not running (will fail the IFF_UP | IFF_RUNNING check)
+                    current->ifa_flags &= ~IFF_UP;
+                    current->ifa_flags &= ~IFF_RUNNING;
+                    break;
+                }
+            }
+        }
+        current = current->ifa_next;
     }
     
-    // Clear all structures
-    memset(lo0, 0, sizeof(struct ifaddrs));
-    memset(en0, 0, sizeof(struct ifaddrs));
-    memset(en1, 0, sizeof(struct ifaddrs));
-    
-    // Create fake lo0 (loopback)
-    lo0->ifa_next = en0;
-    lo0->ifa_name = strdup("lo0");
-    lo0->ifa_flags = IFF_UP | IFF_LOOPBACK | IFF_RUNNING;
-    
-    // Create fake en0 (wifi)
-    en0->ifa_next = en1;
-    en0->ifa_name = strdup("en0");
-    en0->ifa_flags = IFF_UP | IFF_BROADCAST | IFF_RUNNING;
-    
-    // Create fake en1 (cellular, but down)
-    en1->ifa_next = NULL;
-    en1->ifa_name = strdup("en1");
-    en1->ifa_flags = IFF_BROADCAST; // Not up or running
-    
-    *ifap = lo0;
-    return 0;
+    return result;
 }
 
 // Hook if_nametoindex to hide VPN interfaces
@@ -591,11 +578,11 @@ int hook_if_nametoindex(const char *ifname) {
     if (!ifname) return orig_if_nametoindex(ifname);
     
     NSString *interfaceName = [NSString stringWithUTF8String:ifname];
-    NSArray *vpnPrefixes = @[@"utun", @"tap", @"tun", @"ppp", @"ipsec"];
+    NSArray *vpnPrefixes = @[@"utun", @"tap", @"tun", @"ppp", @"ipsec", @"vtun", @"wg", @"ne"];
     
     for (NSString *prefix in vpnPrefixes) {
         if ([interfaceName hasPrefix:prefix]) {
-            NSLog(@"[LC] 🎭 Hiding VPN interface from if_nametoindex: %@", interfaceName);
+            NSLog(@"[LC] 🎭 Hiding VPN interface: %@", interfaceName);
             return 0; // Interface doesn't exist
         }
     }
@@ -836,13 +823,13 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         // Use litehook_hook_function for framework/libc functions instead of rebind_symbols
         // _dyld_register_func_for_add_image((void (*)(const struct mach_header *, intptr_t))hideLiveContainerImageCallback);
 
-        rebind_symbols((struct rebinding[2]){
+        rebind_symbols((struct rebinding[4]){
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
-                    // {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
+                    {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
                     // {"freeifaddrs", (void *)hook_freeifaddrs, (void **)&orig_freeifaddrs},
-                    // {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
-        }, 2);
+                    {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
+        }, 4);
         
     }
     
