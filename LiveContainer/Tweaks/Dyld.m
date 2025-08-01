@@ -59,7 +59,8 @@ const char* (*orig_dyld_get_image_name)(uint32_t image_index) = _dyld_get_image_
 // VPN Detection Bypass hooks
 static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
 static int (*orig_getifaddrs)(struct ifaddrs **ifap);
-static int (*orig_if_nametoindex)(const char *ifname);
+static void (*orig_freeifaddrs)(struct ifaddrs *ifa);
+static unsigned int (*orig_if_nametoindex)(const char *ifname);
 static void (*orig_freeifaddrs)(struct ifaddrs *ifa);
 // Signal handlers
 int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact);
@@ -523,20 +524,25 @@ static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
 }
 
 void hook_freeifaddrs(struct ifaddrs *ifa) {
-    NSLog(@"[LC] 🎭 freeifaddrs called - cleaning up fabricated interface list");
+    NSLog(@"[LC] 🎭 Cleaning up filtered interface list");
     
-    // Free our fabricated interface list properly
     struct ifaddrs *current = ifa;
     while (current) {
         struct ifaddrs *next = current->ifa_next;
+        
         if (current->ifa_name) {
             free(current->ifa_name);
         }
+        if (current->ifa_addr) {
+            free(current->ifa_addr);
+        }
+        if (current->ifa_netmask) {
+            free(current->ifa_netmask);
+        }
+        
         free(current);
         current = next;
     }
-    
-    // Don't call original since we're managing our own memory
 }
 
 // Hook getifaddrs to hide VPN interfaces
@@ -546,44 +552,108 @@ int hook_getifaddrs(struct ifaddrs **ifap) {
         return result;
     }
     
-    NSLog(@"[LC] 🎭 Filtering VPN interfaces from getifaddrs");
+    NSLog(@"[LC] 🎭 Advanced VPN interface filtering (StosVPN compatible)");
     
-    // Mark VPN interfaces as down instead of removing them (safer)
+    // Create a completely new interface list excluding VPN interfaces
+    struct ifaddrs *cleanList = NULL;
+    struct ifaddrs *cleanTail = NULL;
     struct ifaddrs *current = *ifap;
+    
     while (current != NULL) {
+        BOOL isVPNInterface = NO;
+        
         if (current->ifa_name) {
             NSString *interfaceName = [NSString stringWithUTF8String:current->ifa_name];
             
-            // Match your detection prefixes exactly
-            NSArray *vpnPrefixes = @[@"utun", @"tap", @"tun", @"ppp", @"ipsec", @"vtun", @"wg", @"ne"];
+            // Enhanced VPN prefixes (covers StosVPN)
+            NSArray *vpnPrefixes = @[
+                @"utun",    // StosVPN, most packet tunnel VPNs
+                @"ppp",     // PPP connections
+                @"tap",     // TAP interfaces
+                @"tun",     // TUN interfaces
+                @"ipsec",   // IPSec VPNs
+                @"vtun",    // Virtual tunnel
+                @"wg",      // WireGuard
+                @"ne",      // Network Extension framework
+                @"ipsec0",  // Specific IPSec
+                @"pptp"     // PPTP VPNs
+            ];
             
             for (NSString *prefix in vpnPrefixes) {
                 if ([interfaceName hasPrefix:prefix]) {
-                    NSLog(@"[LC] 🎭 Marking VPN interface as down: %@", interfaceName);
-                    // Mark as down and not running (will fail the IFF_UP | IFF_RUNNING check)
-                    current->ifa_flags &= ~IFF_UP;
-                    current->ifa_flags &= ~IFF_RUNNING;
+                    isVPNInterface = YES;
+                    NSLog(@"[LC] 🎭 Filtering VPN interface: %@", interfaceName);
                     break;
                 }
             }
         }
+        
+        if (!isVPNInterface) {
+            // Copy this interface to clean list
+            struct ifaddrs *cleanIfa = malloc(sizeof(struct ifaddrs));
+            memcpy(cleanIfa, current, sizeof(struct ifaddrs));
+            
+            // Duplicate the name string
+            if (current->ifa_name) {
+                cleanIfa->ifa_name = strdup(current->ifa_name);
+            }
+            
+            // Copy addresses if they exist
+            if (current->ifa_addr) {
+                size_t addrLen = 0;
+                if (current->ifa_addr->sa_family == AF_INET) {
+                    addrLen = sizeof(struct sockaddr_in);
+                } else if (current->ifa_addr->sa_family == AF_INET6) {
+                    addrLen = sizeof(struct sockaddr_in6);
+                } else {
+                    addrLen = sizeof(struct sockaddr);
+                }
+                cleanIfa->ifa_addr = malloc(addrLen);
+                memcpy(cleanIfa->ifa_addr, current->ifa_addr, addrLen);
+            }
+            
+            if (current->ifa_netmask) {
+                size_t maskLen = current->ifa_netmask->sa_family == AF_INET ? 
+                    sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6);
+                cleanIfa->ifa_netmask = malloc(maskLen);
+                memcpy(cleanIfa->ifa_netmask, current->ifa_netmask, maskLen);
+            }
+            
+            cleanIfa->ifa_next = NULL;
+            
+            if (cleanList == NULL) {
+                cleanList = cleanIfa;
+                cleanTail = cleanIfa;
+            } else {
+                cleanTail->ifa_next = cleanIfa;
+                cleanTail = cleanIfa;
+            }
+        }
+        
         current = current->ifa_next;
     }
     
-    return result;
+    // Free the original list
+    orig_freeifaddrs(*ifap);
+    
+    // Return our clean list
+    *ifap = cleanList;
+    
+    return 0;
 }
 
-// Hook if_nametoindex to hide VPN interfaces
-int hook_if_nametoindex(const char *ifname) {
+unsigned int hook_if_nametoindex(const char *ifname) {
     if (!ifname) return orig_if_nametoindex(ifname);
     
     NSString *interfaceName = [NSString stringWithUTF8String:ifname];
+    
+    // Block all VPN interface name lookups
     NSArray *vpnPrefixes = @[@"utun", @"tap", @"tun", @"ppp", @"ipsec", @"vtun", @"wg", @"ne"];
     
     for (NSString *prefix in vpnPrefixes) {
         if ([interfaceName hasPrefix:prefix]) {
-            NSLog(@"[LC] 🎭 Hiding VPN interface: %@", interfaceName);
-            return 0; // Interface doesn't exist
+            NSLog(@"[LC] 🎭 Blocking VPN interface lookup: %@", interfaceName);
+            return 0; // Interface not found
         }
     }
     
@@ -823,13 +893,13 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         // Use litehook_hook_function for framework/libc functions instead of rebind_symbols
         // _dyld_register_func_for_add_image((void (*)(const struct mach_header *, intptr_t))hideLiveContainerImageCallback);
 
-        rebind_symbols((struct rebinding[4]){
+        rebind_symbols((struct rebinding[5]){
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
                     {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
-                    // {"freeifaddrs", (void *)hook_freeifaddrs, (void **)&orig_freeifaddrs},
+                    {"freeifaddrs", (void *)hook_freeifaddrs, (void **)&orig_freeifaddrs},
                     {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
-        }, 4);
+        }, 5);
         
     }
     
