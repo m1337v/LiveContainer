@@ -62,10 +62,10 @@ const char* (*orig_dyld_get_image_name)(uint32_t image_index) = _dyld_get_image_
 // VPN Detection Bypass hooks
 static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
 static int (*orig_getifaddrs)(struct ifaddrs **ifap);
-// NWPath
-static void (*orig_nw_path_enumerate_interfaces)(void* path, void* enumerate_block);
-static const char* (*orig_nw_interface_get_name)(void* interface);
-static int (*orig_nw_interface_get_type)(void* interface);
+// NWPath C-level
+// static void (*orig_nw_path_enumerate_interfaces)(void* path, void* enumerate_block);
+// static const char* (*orig_nw_interface_get_name)(void* interface);
+// static int (*orig_nw_interface_get_type)(void* interface);
 // Signal handlers
 int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact);
 // Apple Sign In
@@ -633,118 +633,153 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
 
 // MARK: TODO Filter NWPath Interfaces
 // Hook NWPath availableInterfaces to filter out VPN interfaces
-// filter out utun8 and other VPN interfaces
 
+// MARK: Swift Network Framework Swizzling (C Functions)
 
-
-// Update your hook implementations:
-static void hook_nw_path_enumerate_interfaces(void* path, void* enumerate_block) {
-    NSLog(@"[LC] 🎯 === NW_PATH_ENUMERATE_INTERFACES HOOK CALLED ===");
+static void swizzleNWPathAvailableInterfaces(void) {
+    // Get the NWPath class
+    Class nwPathClass = NSClassFromString(@"Network.NWPath");
+    if (!nwPathClass) {
+        nwPathClass = NSClassFromString(@"NWPath");
+    }
     
-    if (!orig_nw_path_enumerate_interfaces) {
-        NSLog(@"[LC] ❌ Original function pointer is NULL!");
+    if (!nwPathClass) {
+        NSLog(@"[LC] ❌ NWPath class not found for swizzling");
         return;
     }
     
-    // Create a wrapper block that filters interfaces
-    void (^filteringBlock)(void* interface, bool* stop) = ^(void* interface, bool* stop) {
-        // Get interface name
-        const char* namePtr = orig_nw_interface_get_name(interface);
-        if (namePtr) {
-            BOOL shouldFilter = NO;
+    NSLog(@"[LC] 🎯 Found NWPath class: %@", nwPathClass);
+    
+    // Try to find the availableInterfaces property getter
+    SEL availableInterfacesSel = NSSelectorFromString(@"availableInterfaces");
+    
+    Method originalMethod = class_getInstanceMethod(nwPathClass, availableInterfacesSel);
+    if (!originalMethod) {
+        NSLog(@"[LC] ❌ availableInterfaces method not found");
+        return;
+    }
+    
+    // Get the original implementation
+    IMP originalImp = method_getImplementation(originalMethod);
+    
+    // Create our swizzled implementation
+    IMP swizzledImp = imp_implementationWithBlock(^NSArray*(id self) {
+        NSLog(@"[LC] 🎯 availableInterfaces called - filtering VPN interfaces");
+        
+        // Call original method
+        NSArray* (*originalFunc)(id, SEL) = (NSArray* (*)(id, SEL))originalImp;
+        NSArray *originalInterfaces = originalFunc(self, availableInterfacesSel);
+        
+        if (!originalInterfaces) {
+            return originalInterfaces;
+        }
+        
+        // Filter out VPN interfaces
+        NSMutableArray *filteredInterfaces = [NSMutableArray array];
+        
+        for (id interface in originalInterfaces) {
+            NSString *interfaceName = [interface performSelector:@selector(name)];
             
-            // Filter utun6+ (VPN interfaces)
-            if (strncmp(namePtr, "utun", 4) == 0) {
-                int utunNumber = atoi(namePtr + 4);
-                if (utunNumber >= 6) {
+            if (interfaceName) {
+                BOOL shouldFilter = NO;
+                
+                // Filter utun6+ (VPN interfaces)
+                if ([interfaceName hasPrefix:@"utun"]) {
+                    NSString *numberPart = [interfaceName substringFromIndex:4];
+                    int utunNumber = [numberPart intValue];
+                    if (utunNumber >= 6) {
+                        shouldFilter = YES;
+                        NSLog(@"[LC] 🎭 Swift swizzle filtering VPN utun interface: %@", interfaceName);
+                    }
+                }
+                // Filter other VPN patterns
+                else if ([interfaceName hasPrefix:@"tap"] ||
+                         [interfaceName hasPrefix:@"tun"] ||
+                         [interfaceName hasPrefix:@"ppp"] ||
+                         [interfaceName hasPrefix:@"ipsec"] ||
+                         [interfaceName hasPrefix:@"vtun"] ||
+                         [interfaceName hasPrefix:@"wg"]) {
                     shouldFilter = YES;
-                    NSLog(@"[LC] 🎭 NWPath filtering VPN interface: %s", namePtr);
+                    NSLog(@"[LC] 🎭 Swift swizzle filtering VPN interface: %@", interfaceName);
                 }
+                
+                if (!shouldFilter) {
+                    [filteredInterfaces addObject:interface];
+                }
+            } else {
+                // Keep interfaces without names
+                [filteredInterfaces addObject:interface];
             }
-            // Filter other VPN patterns
-            else if (strncmp(namePtr, "tap", 3) == 0 ||
-                     strncmp(namePtr, "tun", 3) == 0 ||
-                     strncmp(namePtr, "ppp", 3) == 0 ||
-                     strncmp(namePtr, "ipsec", 5) == 0 ||
-                     strncmp(namePtr, "vtun", 4) == 0 ||
-                     strncmp(namePtr, "wg", 2) == 0) {
-                shouldFilter = YES;
-                NSLog(@"[LC] 🎭 NWPath filtering VPN interface: %s", namePtr);
+        }
+        
+        NSLog(@"[LC] 🎭 Swift swizzle: filtered %lu VPN interfaces, returning %lu clean interfaces", 
+              (unsigned long)(originalInterfaces.count - filteredInterfaces.count),
+              (unsigned long)filteredInterfaces.count);
+        
+        return [filteredInterfaces copy];
+    });
+    
+    // Replace the method implementation
+    method_setImplementation(originalMethod, swizzledImp);
+    
+    NSLog(@"[LC] ✅ Successfully swizzled NWPath.availableInterfaces");
+}
+
+static void swizzleNWInterfaceMethods(void) {
+    // Get the NWInterface class
+    Class nwInterfaceClass = NSClassFromString(@"Network.NWInterface");
+    if (!nwInterfaceClass) {
+        nwInterfaceClass = NSClassFromString(@"NWInterface");
+    }
+    
+    if (!nwInterfaceClass) {
+        NSLog(@"[LC] ❌ NWInterface class not found for swizzling");
+        return;
+    }
+    
+    NSLog(@"[LC] 🎯 Found NWInterface class: %@", nwInterfaceClass);
+    
+    // Swizzle the 'type' property to spoof VPN interface types
+    SEL typeSel = NSSelectorFromString(@"type");
+    Method typeMethod = class_getInstanceMethod(nwInterfaceClass, typeSel);
+    
+    if (typeMethod) {
+        IMP originalTypeImp = method_getImplementation(typeMethod);
+        
+        IMP swizzledTypeImp = imp_implementationWithBlock(^NSInteger(id self) {
+            // Call original method
+            NSInteger (*originalFunc)(id, SEL) = (NSInteger (*)(id, SEL))originalTypeImp;
+            NSInteger originalType = originalFunc(self, typeSel);
+            
+            // Get interface name
+            NSString *interfaceName = [self performSelector:@selector(name)];
+            
+            if (interfaceName && originalType == 0) { // NWInterface.InterfaceType.other = 0
+                // Check if this is a VPN interface
+                if ([interfaceName hasPrefix:@"utun"]) {
+                    NSString *numberPart = [interfaceName substringFromIndex:4];
+                    int utunNumber = [numberPart intValue];
+                    if (utunNumber >= 6) {
+                        NSLog(@"[LC] 🎭 Swift swizzle spoofing interface type for %@ from 'other' to 'wifi'", interfaceName);
+                        return 1; // NWInterface.InterfaceType.wifi = 1
+                    }
+                }
+                // Spoof other VPN types
+                else if ([interfaceName hasPrefix:@"tap"] ||
+                         [interfaceName hasPrefix:@"tun"] ||
+                         [interfaceName hasPrefix:@"ppp"] ||
+                         [interfaceName hasPrefix:@"wg"]) {
+                    NSLog(@"[LC] 🎭 Swift swizzle spoofing interface type for %@ from 'other' to 'wifi'", interfaceName);
+                    return 1; // NWInterface.InterfaceType.wifi = 1
+                }
             }
             
-            // Only call the original block if we're not filtering this interface
-            if (!shouldFilter) {
-                // Call the original enumerate block with proper bridged cast
-                void (^originalBlock)(void*, bool*) = (__bridge void (^)(void*, bool*))enumerate_block;
-                originalBlock(interface, stop);
-            }
-        } else {
-            // Keep interfaces without names (shouldn't happen but be safe)
-            void (^originalBlock)(void*, bool*) = (__bridge void (^)(void*, bool*))enumerate_block;
-            originalBlock(interface, stop);
-        }
-    };
-    
-    // Call original function with our filtering block (bridged cast)
-    orig_nw_path_enumerate_interfaces(path, (__bridge void*)filteringBlock);
-    
-    NSLog(@"[LC] 🎯 === NW_PATH_ENUMERATE_INTERFACES HOOK COMPLETE ===");
-}
-
-static const char* hook_nw_interface_get_name(void* interface) {
-    NSLog(@"[LC] 🎯 nw_interface_get_name called - interface: %p", interface);
-    
-    if (!orig_nw_interface_get_name) {
-        NSLog(@"[LC] ❌ orig_nw_interface_get_name is NULL!");
-        return NULL;
+            return originalType;
+        });
+        
+        method_setImplementation(typeMethod, swizzledTypeImp);
+        NSLog(@"[LC] ✅ Successfully swizzled NWInterface.type");
     }
-    
-    const char* originalName = orig_nw_interface_get_name(interface);
-    
-    if (originalName) {
-        NSLog(@"[LC] 🎯 Interface name: %s", originalName);
-    } else {
-        NSLog(@"[LC] 🎯 Interface name: NULL");
-    }
-    
-    return originalName;
-}
-
-static int hook_nw_interface_get_type(void* interface) {
-    NSLog(@"[LC] 🎯 nw_interface_get_type called - interface: %p", interface);
-    
-    if (!orig_nw_interface_get_type) {
-        NSLog(@"[LC] ❌ orig_nw_interface_get_type is NULL!");
-        return 0;
-    }
-    
-    int originalType = orig_nw_interface_get_type(interface);
-    NSLog(@"[LC] 🎯 Interface type: %d", originalType);
-    
-    // Get interface name to check if it's VPN
-    const char* namePtr = orig_nw_interface_get_name(interface);
-    if (namePtr) {
-        // If this is a VPN interface that shows as "other" (0), change it to "wifi" (1)
-        if (originalType == 0) { // nw_interface_type_other
-            if (strncmp(namePtr, "utun", 4) == 0) {
-                int utunNumber = atoi(namePtr + 4);
-                if (utunNumber >= 6) {
-                    NSLog(@"[LC] 🎭 Spoofing interface type for %s from 'other' to 'wifi'", namePtr);
-                    return 1; // nw_interface_type_wifi
-                }
-            }
-            // Also spoof other VPN types
-            else if (strncmp(namePtr, "tap", 3) == 0 ||
-                     strncmp(namePtr, "tun", 3) == 0 ||
-                     strncmp(namePtr, "ppp", 3) == 0 ||
-                     strncmp(namePtr, "wg", 2) == 0) {
-                NSLog(@"[LC] 🎭 Spoofing interface type for %s from 'other' to 'wifi'", namePtr);
-                return 1; // nw_interface_type_wifi
-            }
-        }
-    }
-    
-    return originalType;
 }
 
 int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact) {
@@ -980,14 +1015,21 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         // Use litehook_hook_function for framework/libc functions instead of rebind_symbols
         // _dyld_register_func_for_add_image((void (*)(const struct mach_header *, intptr_t))hideLiveContainerImageCallback);
 
-        rebind_symbols((struct rebinding[6]){
+        rebind_symbols((struct rebinding[3]){
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
                     {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
-                    {"nw_path_enumerate_interfaces", (void *)hook_nw_path_enumerate_interfaces, (void **)&orig_nw_path_enumerate_interfaces},
-                    {"nw_interface_get_name", (void *)hook_nw_interface_get_name, (void **)&orig_nw_interface_get_name},
-                    {"nw_interface_get_type", (void *)hook_nw_interface_get_type, (void **)&orig_nw_interface_get_type},
-        }, 6);
+        }, 3);
+        // Install Swift method swizzling (delayed to ensure Network framework is loaded)
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            NSLog(@"[LC] 🎭 Installing Swift Network framework method swizzles...");
+            
+            // Call C functions instead of class methods
+            swizzleNWPathAvailableInterfaces();
+            swizzleNWInterfaceMethods();
+            
+            NSLog(@"[LC] ✅ Swift Network framework swizzles installed");
+        });
     }
     
     appExecutableFileTypeOverwritten = !hideLiveContainer;
