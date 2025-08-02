@@ -13618,10 +13618,28 @@
     "lc.settings.autoEndPiP" : {
       "extractionState" : "stale",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bild-in-Bild Modus automatisch beenden"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Automatically End PiP Mode"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitter automatiquement le mode PiP"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tự động Tắt Chế độ PiP"
           }
         },
         "zh-Hans" : {
@@ -13718,10 +13736,28 @@
     "lc.settings.bottomWindowBar" : {
       "extractionState" : "stale",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untere Fensterleiste"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bottom Window Bar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Barre de fenêtre du bas"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thanh Cửa sổ Dưới cùng"
           }
         },
         "zh-Hans" : {
@@ -14425,10 +14461,28 @@
     "lc.settings.dockWidth" : {
       "extractionState" : "stale",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dockbreite"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dock Width"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Largeur du Dock"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chiều dài Dock"
           }
         },
         "zh-Hans" : {
@@ -15023,10 +15077,28 @@
     "lc.settings.importCertFromBuiltinSideStore" : {
       "extractionState" : "stale",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zertifikat von dem eingebetteten SideStore importieren"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Import Certificate From Built-in SideStore"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importer un certificat depuis le SideStore intégré"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhập Chứng chỉ từ SideStore Tích hợp"
           }
         },
         "zh-Hans" : {
@@ -15040,10 +15112,28 @@
     "lc.settings.importCertFromBuiltinSideStore.certNotFounndErr" : {
       "extractionState" : "stale",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zertifikat konnte nicht gefunden werden. Haben Sie sich im eingebetteten SideStore angemeldet?"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Certificate not found. Did you log into built-in SideStore?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificat introuvable. Vous êtes-vous connecté au SideStore intégré ?"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không tìm thấy chứng chỉ. Bạn đã đăng nhập vào SideStore tích hợp chưa?"
           }
         },
         "zh-Hans" : {
@@ -15057,10 +15147,28 @@
     "lc.settings.importCertFromBuiltinSideStoreDesc" : {
       "extractionState" : "stale",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eingebetter SideStore erkannt. Möchten Sie das Zertifikat davon importieren?"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Built-in SideStore detected. Would you like to import certificate from it?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SideStore intégré détecté. Voulez-vous importer un certificat à partir de celui-ci ?"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã phát hiện SideStore tích hợp. Bạn có muốn nhập chứng chỉ từ đó không?"
           }
         },
         "zh-Hans" : {
@@ -17333,10 +17441,28 @@
     "lc.settings.multiLCInstall.installWithBuiltInSideStore" : {
       "extractionState" : "stale",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit dem eingebetteten SideStore installieren"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Install with Built-in SideStore"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installer avec le SideStore intégré"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cài đặt bằng SideStore Tích hợp"
           }
         },
         "zh-Hans" : {
