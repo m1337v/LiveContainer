@@ -63,8 +63,8 @@ const char* (*orig_dyld_get_image_name)(uint32_t image_index) = _dyld_get_image_
 static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
 static int (*orig_getifaddrs)(struct ifaddrs **ifap);
 // NWPath
-static void* (*orig_nw_path_copy_interface_array)(void* path);
-static void* (*orig_nw_interface_get_name)(void* interface);
+static void (*orig_nw_path_enumerate_interfaces)(void* path, void* enumerate_block);
+static const char* (*orig_nw_interface_get_name)(void* interface);
 static int (*orig_nw_interface_get_type)(void* interface);
 // Signal handlers
 int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact);
@@ -635,99 +635,111 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
 // Hook NWPath availableInterfaces to filter out VPN interfaces
 // filter out utun8 and other VPN interfaces
 
-static void* hook_nw_path_copy_interface_array(void* path) {
-    void* originalArray = orig_nw_path_copy_interface_array(path);
+
+
+// Update your hook implementations:
+static void hook_nw_path_enumerate_interfaces(void* path, void* enumerate_block) {
+    NSLog(@"[LC] 🎯 === NW_PATH_ENUMERATE_INTERFACES HOOK CALLED ===");
     
-    if (!originalArray) {
-        return originalArray;
+    if (!orig_nw_path_enumerate_interfaces) {
+        NSLog(@"[LC] ❌ Original function pointer is NULL!");
+        return;
     }
     
-    // The array is a CFArray of nw_interface_t objects
-    CFArrayRef originalCFArray = (CFArrayRef)originalArray;
-    CFIndex count = CFArrayGetCount(originalCFArray);
-    
-    // Create filtered array
-    CFMutableArrayRef filteredArray = CFArrayCreateMutable(NULL, 0, &kCFTypeArrayCallBacks);
-    
-    for (CFIndex i = 0; i < count; i++) {
-        void* interface = (void*)CFArrayGetValueAtIndex(originalCFArray, i);
-        
+    // Create a wrapper block that filters interfaces
+    void (^filteringBlock)(void* interface, bool* stop) = ^(void* interface, bool* stop) {
         // Get interface name
-        void* namePtr = orig_nw_interface_get_name(interface);
+        const char* namePtr = orig_nw_interface_get_name(interface);
         if (namePtr) {
-            char* name = (char*)namePtr;
-            
             BOOL shouldFilter = NO;
             
             // Filter utun6+ (VPN interfaces)
-            if (strncmp(name, "utun", 4) == 0) {
-                int utunNumber = atoi(name + 4);
+            if (strncmp(namePtr, "utun", 4) == 0) {
+                int utunNumber = atoi(namePtr + 4);
                 if (utunNumber >= 6) {
                     shouldFilter = YES;
-                    NSLog(@"[LC] 🎭 NWPath filtering VPN interface: %s", name);
+                    NSLog(@"[LC] 🎭 NWPath filtering VPN interface: %s", namePtr);
                 }
             }
             // Filter other VPN patterns
-            else if (strncmp(name, "tap", 3) == 0 ||
-                     strncmp(name, "tun", 3) == 0 ||
-                     strncmp(name, "ppp", 3) == 0 ||
-                     strncmp(name, "ipsec", 5) == 0 ||
-                     strncmp(name, "vtun", 4) == 0 ||
-                     strncmp(name, "wg", 2) == 0) {
+            else if (strncmp(namePtr, "tap", 3) == 0 ||
+                     strncmp(namePtr, "tun", 3) == 0 ||
+                     strncmp(namePtr, "ppp", 3) == 0 ||
+                     strncmp(namePtr, "ipsec", 5) == 0 ||
+                     strncmp(namePtr, "vtun", 4) == 0 ||
+                     strncmp(namePtr, "wg", 2) == 0) {
                 shouldFilter = YES;
-                NSLog(@"[LC] 🎭 NWPath filtering VPN interface: %s", name);
+                NSLog(@"[LC] 🎭 NWPath filtering VPN interface: %s", namePtr);
             }
             
+            // Only call the original block if we're not filtering this interface
             if (!shouldFilter) {
-                CFArrayAppendValue(filteredArray, interface);
+                // Call the original enumerate block with proper bridged cast
+                void (^originalBlock)(void*, bool*) = (__bridge void (^)(void*, bool*))enumerate_block;
+                originalBlock(interface, stop);
             }
         } else {
             // Keep interfaces without names (shouldn't happen but be safe)
-            CFArrayAppendValue(filteredArray, interface);
+            void (^originalBlock)(void*, bool*) = (__bridge void (^)(void*, bool*))enumerate_block;
+            originalBlock(interface, stop);
         }
-    }
+    };
     
-    NSLog(@"[LC] 🎭 NWPath filtered %ld interfaces, returning %ld", 
-          (long)count, (long)CFArrayGetCount(filteredArray));
+    // Call original function with our filtering block (bridged cast)
+    orig_nw_path_enumerate_interfaces(path, (__bridge void*)filteringBlock);
     
-    // Release original array and return filtered one
-    CFRelease(originalArray);
-    return (void*)filteredArray;
+    NSLog(@"[LC] 🎯 === NW_PATH_ENUMERATE_INTERFACES HOOK COMPLETE ===");
 }
 
-static void* hook_nw_interface_get_name(void* interface) {
-    void* originalName = orig_nw_interface_get_name(interface);
+static const char* hook_nw_interface_get_name(void* interface) {
+    NSLog(@"[LC] 🎯 nw_interface_get_name called - interface: %p", interface);
     
-    // Don't log every call - too verbose
-    // NSLog(@"[LC] 🎭 nw_interface_get_name: %s", originalName ? (char*)originalName : "NULL");
+    if (!orig_nw_interface_get_name) {
+        NSLog(@"[LC] ❌ orig_nw_interface_get_name is NULL!");
+        return NULL;
+    }
+    
+    const char* originalName = orig_nw_interface_get_name(interface);
+    
+    if (originalName) {
+        NSLog(@"[LC] 🎯 Interface name: %s", originalName);
+    } else {
+        NSLog(@"[LC] 🎯 Interface name: NULL");
+    }
     
     return originalName;
 }
 
 static int hook_nw_interface_get_type(void* interface) {
+    NSLog(@"[LC] 🎯 nw_interface_get_type called - interface: %p", interface);
+    
+    if (!orig_nw_interface_get_type) {
+        NSLog(@"[LC] ❌ orig_nw_interface_get_type is NULL!");
+        return 0;
+    }
+    
     int originalType = orig_nw_interface_get_type(interface);
+    NSLog(@"[LC] 🎯 Interface type: %d", originalType);
     
     // Get interface name to check if it's VPN
-    void* namePtr = orig_nw_interface_get_name(interface);
+    const char* namePtr = orig_nw_interface_get_name(interface);
     if (namePtr) {
-        char* name = (char*)namePtr;
-        
-        // If this is a VPN interface that shows as "other" (5), change it to "wifi" (1)
-        if (originalType == 5) { // other
-            if (strncmp(name, "utun", 4) == 0) {
-                int utunNumber = atoi(name + 4);
+        // If this is a VPN interface that shows as "other" (0), change it to "wifi" (1)
+        if (originalType == 0) { // nw_interface_type_other
+            if (strncmp(namePtr, "utun", 4) == 0) {
+                int utunNumber = atoi(namePtr + 4);
                 if (utunNumber >= 6) {
-                    NSLog(@"[LC] 🎭 Spoofing interface type for %s from 'other' to 'wifi'", name);
-                    return 1; // wifi
+                    NSLog(@"[LC] 🎭 Spoofing interface type for %s from 'other' to 'wifi'", namePtr);
+                    return 1; // nw_interface_type_wifi
                 }
             }
             // Also spoof other VPN types
-            else if (strncmp(name, "tap", 3) == 0 ||
-                     strncmp(name, "tun", 3) == 0 ||
-                     strncmp(name, "ppp", 3) == 0 ||
-                     strncmp(name, "wg", 2) == 0) {
-                NSLog(@"[LC] 🎭 Spoofing interface type for %s from 'other' to 'wifi'", name);
-                return 1; // wifi
+            else if (strncmp(namePtr, "tap", 3) == 0 ||
+                     strncmp(namePtr, "tun", 3) == 0 ||
+                     strncmp(namePtr, "ppp", 3) == 0 ||
+                     strncmp(namePtr, "wg", 2) == 0) {
+                NSLog(@"[LC] 🎭 Spoofing interface type for %s from 'other' to 'wifi'", namePtr);
+                return 1; // nw_interface_type_wifi
             }
         }
     }
@@ -972,7 +984,7 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
                     {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
-                    {"nw_path_copy_interface_array", (void *)hook_nw_path_copy_interface_array, (void **)&orig_nw_path_copy_interface_array},
+                    {"nw_path_enumerate_interfaces", (void *)hook_nw_path_enumerate_interfaces, (void **)&orig_nw_path_enumerate_interfaces},
                     {"nw_interface_get_name", (void *)hook_nw_interface_get_name, (void **)&orig_nw_interface_get_name},
                     {"nw_interface_get_type", (void *)hook_nw_interface_get_type, (void **)&orig_nw_interface_get_type},
         }, 6);
