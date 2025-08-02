@@ -110,6 +110,8 @@ static bool shouldHideLibrary(const char* imageName) {
     // Ultra-minimal - only what Reveil specifically looks for
     return (strstr(lowerImageName, "substrate") ||      // All substrate variants
             strstr(lowerImageName, "tweakloader") ||    // TweakLoader
+            strstr(lowerImageName, "flex") ||           // Flex
+            strstr(lowerImageName, "frida") ||          // Frida
             strstr(lowerImageName, "livecontainershared"));   // LiveContainerShared
 }
 
