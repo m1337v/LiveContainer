@@ -531,81 +531,69 @@ static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
 }
 
 // Hook getifaddrs to hide VPN interfaces
-static int parse_utun_index(const char *name) {
-    const char *suffix = name + 4;
-    if (!*suffix) return -1;
-    int idx = 0;
-    while (*suffix) {
-        if (!isdigit(*suffix)) return -1;
-        idx = idx * 10 + (*suffix - '0');
-        ++suffix;
-    }
-    return idx;
-}
-
-static BOOL is_suspicious_interface(const char *name) {
-    if (!name) return NO;
-    if (!strncmp(name, "bridge", 6)) return YES;
-    if (!strncmp(name, "tap", 3)) return YES;
-    if (!strncmp(name, "tun", 3)) return YES;
-    if (!strncmp(name, "ppp", 3)) return YES;
-    if (!strncmp(name, "ipsec", 5)) return YES;
-    if (!strncmp(name, "wg", 2)) return YES;
-    if (!strncmp(name, "ne", 2)) return YES;
-    return NO;
-}
-
 static int hook_getifaddrs(struct ifaddrs **ifap) {
     int result = orig_getifaddrs(ifap);
     if (result != 0 || !ifap || !*ifap) {
         return result;
     }
-
-    struct ifaddrs *cur = *ifap;
+    
+    struct ifaddrs *current = *ifap;
     struct ifaddrs *prev = NULL;
-
-    while (cur) {
-        const char *name = cur->ifa_name;
-
-        BOOL cut_tail = NO;
-
-        if (name) {
-            if (!strncmp(name, "utun", 4)) {
-                int index = parse_utun_index(name);
-                if (index >= 6) {
-                    NSLog(@"[LC] 🎭 Cutting interface list at suspicious %s", name);
-                    cut_tail = YES;
+    
+    while (current != NULL) {
+        BOOL shouldFilter = NO;
+        
+        if (current->ifa_name) {
+            const char* name = current->ifa_name;
+            
+            // Check for utun interfaces specifically
+            if (strncmp(name, "utun", 4) == 0) {
+                // Extract the number after "utun"
+                int utunNumber = atoi(name + 4);
+                
+                // Only filter utun6 and higher (VPN interfaces)
+                if (utunNumber >= 6) {
+                    shouldFilter = YES;
+                    NSLog(@"[LC] 🎭 getifaddrs - filtering VPN utun interface: %s", name);
                 }
-            } else if (is_suspicious_interface(name)) {
-                NSLog(@"[LC] 🎭 Cutting interface list at suspicious %s", name);
-                cut_tail = YES;
+                // utun0-5 are kept (legitimate system interfaces)
+            }
+            // Filter other VPN interface types entirely
+            else if (strncmp(name, "tap", 3) == 0 ||
+                     strncmp(name, "tun", 3) == 0 ||
+                     strncmp(name, "ppp", 3) == 0 ||
+                     strncmp(name, "bridge", 6) == 0 ||
+                     strncmp(name, "ipsec", 5) == 0 ||
+                     strncmp(name, "gif", 3) == 0 ||
+                     strncmp(name, "stf", 3) == 0 ||
+                     strncmp(name, "wg", 2) == 0) {
+                
+                shouldFilter = YES;
+                NSLog(@"[LC] 🎭 getifaddrs - filtering VPN interface: %s", name);
             }
         }
-
-        if (cut_tail) {
-            // Unlink the suspicious node and free everything from here
+        
+        if (shouldFilter) {
+            // Remove this interface from the linked list
             if (prev) {
-                prev->ifa_next = NULL;
+                prev->ifa_next = current->ifa_next;
             } else {
-                *ifap = NULL;
+                *ifap = current->ifa_next;
             }
-
-            struct ifaddrs *toFree = cur;
-            while (toFree) {
-                struct ifaddrs *next = toFree->ifa_next;
-                free(toFree);
-                toFree = next;
-            }
-            break;
+            
+            struct ifaddrs *toFree = current;
+            current = current->ifa_next;
+            
+            // DON'T manually free - let the system handle it with freeifaddrs()
+            toFree->ifa_next = NULL;
+        } else {
+            prev = current;
+            current = current->ifa_next;
         }
-
-        prev = cur;
-        cur = cur->ifa_next;
     }
-
+    
     return result;
 }
-
 
 int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact) {
     // Call the original function first
