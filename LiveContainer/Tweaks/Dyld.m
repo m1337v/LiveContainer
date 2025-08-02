@@ -63,10 +63,9 @@ const char* (*orig_dyld_get_image_name)(uint32_t image_index) = _dyld_get_image_
 static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
 static int (*orig_getifaddrs)(struct ifaddrs **ifap);
 // NWPath
-static id (*orig_NWPathMonitor_currentPath)(id self, SEL _cmd);
-static NSArray* (*orig_NWPath_availableInterfaces)(id self, SEL _cmd);
-static NSInteger (*orig_NWInterface_type)(id self, SEL _cmd);
-static NSString* (*orig_NWInterface_name)(id self, SEL _cmd);
+static void* (*orig_nw_path_copy_interface_array)(void* path);
+static void* (*orig_nw_interface_get_name)(void* interface);
+static int (*orig_nw_interface_get_type)(void* interface);
 // Signal handlers
 int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact);
 // Apple Sign In
@@ -144,6 +143,7 @@ static bool shouldHideLibrary(const char* imageName) {
     }
     
     // Ultra-minimal - only what Reveil specifically looks for
+    // TODO: Add dynamically by enumarating injected dylibs
     return (strstr(lowerImageName, "substrate") ||      // All substrate variants
             strstr(lowerImageName, "tweakloader") ||    // TweakLoader
             strstr(lowerImageName, "flex") ||           // Flex
@@ -633,73 +633,101 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
 
 // MARK: TODO Filter NWPath Interfaces
 // Hook NWPath availableInterfaces to filter out VPN interfaces
-// MARK: NWPath Hook Implementations
+// filter out utun8 and other VPN interfaces
 
-static NSArray* hook_NWPath_availableInterfaces(id self, SEL _cmd) {
-    // Call original method
-    NSArray* originalInterfaces = ((NSArray* (*)(id, SEL))orig_NWPath_availableInterfaces)(self, _cmd);
+static void* hook_nw_path_copy_interface_array(void* path) {
+    void* originalArray = orig_nw_path_copy_interface_array(path);
     
-    // Filter out interfaces that match VPNDetectionHelper patterns
-    NSArray* nonScopedProtocols = @[@"utun", @"utun0", @"utun1", @"utun2", @"utun5"];
-    NSArray* vpnPrefixes = @[@"tap", @"tun", @"ppp", @"ipsec", @"vtun", @"wg", @"pptp"];
+    if (!originalArray) {
+        return originalArray;
+    }
     
-    NSMutableArray* filteredInterfaces = [NSMutableArray array];
-    for (id interface in originalInterfaces) {
-        NSString* interfaceName = ((NSString* (*)(id, SEL))objc_msgSend)(interface, @selector(name));
-        NSInteger interfaceType = ((NSInteger (*)(id, SEL))objc_msgSend)(interface, @selector(type));
+    // The array is a CFArray of nw_interface_t objects
+    CFArrayRef originalCFArray = (CFArrayRef)originalArray;
+    CFIndex count = CFArrayGetCount(originalCFArray);
+    
+    // Create filtered array
+    CFMutableArrayRef filteredArray = CFArrayCreateMutable(NULL, 0, &kCFTypeArrayCallBacks);
+    
+    for (CFIndex i = 0; i < count; i++) {
+        void* interface = (void*)CFArrayGetValueAtIndex(originalCFArray, i);
         
-        BOOL shouldFilter = NO;
-        
-        // Check if this is an "other" type interface with VPN-like name (VPNDetectionHelper logic)
-        if (interfaceType == 5) { // NWInterfaceType.other = 5
-            for (NSString* protocol in nonScopedProtocols) {
-                if ([interfaceName hasPrefix:protocol]) {
+        // Get interface name
+        void* namePtr = orig_nw_interface_get_name(interface);
+        if (namePtr) {
+            char* name = (char*)namePtr;
+            
+            BOOL shouldFilter = NO;
+            
+            // Filter utun6+ (VPN interfaces)
+            if (strncmp(name, "utun", 4) == 0) {
+                int utunNumber = atoi(name + 4);
+                if (utunNumber >= 6) {
                     shouldFilter = YES;
-                    NSLog(@"[LC] 🎭 Hiding 'other' type VPN interface: %@", interfaceName);
-                    break;
+                    NSLog(@"[LC] 🎭 NWPath filtering VPN interface: %s", name);
                 }
             }
-        }
-        
-        // Also filter interfaces that match general VPN patterns
-        for (NSString* prefix in vpnPrefixes) {
-            if ([interfaceName hasPrefix:prefix]) {
+            // Filter other VPN patterns
+            else if (strncmp(name, "tap", 3) == 0 ||
+                     strncmp(name, "tun", 3) == 0 ||
+                     strncmp(name, "ppp", 3) == 0 ||
+                     strncmp(name, "ipsec", 5) == 0 ||
+                     strncmp(name, "vtun", 4) == 0 ||
+                     strncmp(name, "wg", 2) == 0) {
                 shouldFilter = YES;
-                NSLog(@"[LC] 🎭 Hiding VPN interface: %@", interfaceName);
-                break;
+                NSLog(@"[LC] 🎭 NWPath filtering VPN interface: %s", name);
             }
-        }
-        
-        // Keep utun0-5 but filter utun6+ (your existing logic)
-        if ([interfaceName hasPrefix:@"utun"]) {
-            NSString* numberPart = [interfaceName substringFromIndex:4];
-            int utunNumber = [numberPart intValue];
-            if (utunNumber >= 6) {
-                shouldFilter = YES;
-                NSLog(@"[LC] 🎭 Hiding high-numbered utun interface: %@", interfaceName);
+            
+            if (!shouldFilter) {
+                CFArrayAppendValue(filteredArray, interface);
             }
-        }
-        
-        if (!shouldFilter) {
-            [filteredInterfaces addObject:interface];
+        } else {
+            // Keep interfaces without names (shouldn't happen but be safe)
+            CFArrayAppendValue(filteredArray, interface);
         }
     }
     
-    return [filteredInterfaces copy];
+    NSLog(@"[LC] 🎭 NWPath filtered %ld interfaces, returning %ld", 
+          (long)count, (long)CFArrayGetCount(filteredArray));
+    
+    // Release original array and return filtered one
+    CFRelease(originalArray);
+    return (void*)filteredArray;
 }
 
-static NSInteger hook_NWInterface_type(id self, SEL _cmd) {
-    // Call original method
-    NSString* interfaceName = ((NSString* (*)(id, SEL))objc_msgSend)(self, @selector(name));
-    NSInteger originalType = ((NSInteger (*)(id, SEL))orig_NWInterface_type)(self, _cmd);
+static void* hook_nw_interface_get_name(void* interface) {
+    void* originalName = orig_nw_interface_get_name(interface);
     
-    // If this is a VPN interface that would normally show as "other", make it appear as wifi
-    if (originalType == 5) { // NWInterfaceType.other
-        NSArray* vpnPrefixes = @[@"utun", @"tap", @"tun", @"ppp", @"ipsec", @"wg"];
-        for (NSString* prefix in vpnPrefixes) {
-            if ([interfaceName hasPrefix:prefix]) {
-                NSLog(@"[LC] 🎭 Spoofing interface type for %@ from 'other' to 'wifi'", interfaceName);
-                return 1; // NWInterfaceType.wifi
+    // Don't log every call - too verbose
+    // NSLog(@"[LC] 🎭 nw_interface_get_name: %s", originalName ? (char*)originalName : "NULL");
+    
+    return originalName;
+}
+
+static int hook_nw_interface_get_type(void* interface) {
+    int originalType = orig_nw_interface_get_type(interface);
+    
+    // Get interface name to check if it's VPN
+    void* namePtr = orig_nw_interface_get_name(interface);
+    if (namePtr) {
+        char* name = (char*)namePtr;
+        
+        // If this is a VPN interface that shows as "other" (5), change it to "wifi" (1)
+        if (originalType == 5) { // other
+            if (strncmp(name, "utun", 4) == 0) {
+                int utunNumber = atoi(name + 4);
+                if (utunNumber >= 6) {
+                    NSLog(@"[LC] 🎭 Spoofing interface type for %s from 'other' to 'wifi'", name);
+                    return 1; // wifi
+                }
+            }
+            // Also spoof other VPN types
+            else if (strncmp(name, "tap", 3) == 0 ||
+                     strncmp(name, "tun", 3) == 0 ||
+                     strncmp(name, "ppp", 3) == 0 ||
+                     strncmp(name, "wg", 2) == 0) {
+                NSLog(@"[LC] 🎭 Spoofing interface type for %s from 'other' to 'wifi'", name);
+                return 1; // wifi
             }
         }
     }
@@ -940,31 +968,14 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
         // Use litehook_hook_function for framework/libc functions instead of rebind_symbols
         // _dyld_register_func_for_add_image((void (*)(const struct mach_header *, intptr_t))hideLiveContainerImageCallback);
 
-        rebind_symbols((struct rebinding[3]){
+        rebind_symbols((struct rebinding[6]){
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
                     {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
-        }, 3);
-        // Objective-C method swizzling for Network framework
-        Class nwPathClass = NSClassFromString(@"NWPath");
-        if (nwPathClass) {
-            swizzleInstanceMethod(nwPathClass, 
-                                @selector(availableInterfaces), 
-                                (IMP)hook_NWPath_availableInterfaces,
-                                (IMP*)&orig_NWPath_availableInterfaces);
-        } else {
-            NSLog(@"[LC] ⚠️ NWPath class not found - Network framework may not be available");
-        }
-        
-        Class nwInterfaceClass = NSClassFromString(@"NWInterface");
-        if (nwInterfaceClass) {
-            swizzleInstanceMethod(nwInterfaceClass, 
-                                @selector(type), 
-                                (IMP)hook_NWInterface_type,
-                                (IMP*)&orig_NWInterface_type);
-        } else {
-            NSLog(@"[LC] ⚠️ NWInterface class not found - Network framework may not be available");
-        }
+                    {"nw_path_copy_interface_array", (void *)hook_nw_path_copy_interface_array, (void **)&orig_nw_path_copy_interface_array},
+                    {"nw_interface_get_name", (void *)hook_nw_interface_get_name, (void **)&orig_nw_interface_get_name},
+                    {"nw_interface_get_type", (void *)hook_nw_interface_get_type, (void **)&orig_nw_interface_get_type},
+        }, 6);
     }
     
     appExecutableFileTypeOverwritten = !hideLiveContainer;
