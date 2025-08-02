@@ -22,6 +22,9 @@
 #import <objc/runtime.h>
 #import <Security/Security.h>
 #import "FoundationPrivate.h"
+#import <Network/Network.h>
+#import <NetworkExtension/NetworkExtension.h>
+#import <objc/message.h>
 @import Darwin;
 @import Foundation;
 @import MachO;
@@ -59,6 +62,11 @@ const char* (*orig_dyld_get_image_name)(uint32_t image_index) = _dyld_get_image_
 // VPN Detection Bypass hooks
 static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
 static int (*orig_getifaddrs)(struct ifaddrs **ifap);
+// NWPath
+static id (*orig_NWPathMonitor_currentPath)(id self, SEL _cmd);
+static NSArray* (*orig_NWPath_availableInterfaces)(id self, SEL _cmd);
+static NSInteger (*orig_NWInterface_type)(id self, SEL _cmd);
+static NSString* (*orig_NWInterface_name)(id self, SEL _cmd);
 // Signal handlers
 int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact);
 // Apple Sign In
@@ -70,6 +78,34 @@ uint32_t (*orig_dyld_get_program_sdk_version)(void* dyldPtr);
 
 // Global variable to track Sign in with Apple context  
 static BOOL isSignInWithAppleActive = NO;
+
+// MARK: Simple Method Swizzling Helper
+
+static BOOL swizzleInstanceMethod(Class targetClass, SEL originalSelector, IMP newImplementation, IMP *originalImplementation) {
+    if (!targetClass) {
+        NSLog(@"[LC] ⚠️ Swizzle failed: Class not found");
+        return NO;
+    }
+    
+    Method originalMethod = class_getInstanceMethod(targetClass, originalSelector);
+    if (!originalMethod) {
+        NSLog(@"[LC] ⚠️ Swizzle failed: Method %@ not found in class %@", 
+              NSStringFromSelector(originalSelector), NSStringFromClass(targetClass));
+        return NO;
+    }
+    
+    // Store original implementation
+    if (originalImplementation) {
+        *originalImplementation = method_getImplementation(originalMethod);
+    }
+    
+    // Replace with new implementation
+    method_setImplementation(originalMethod, newImplementation);
+    
+    NSLog(@"[LC] 🎭 Successfully swizzled %@.%@", 
+          NSStringFromClass(targetClass), NSStringFromSelector(originalSelector));
+    return YES;
+}
 
 static void overwriteAppExecutableFileType(void) {
     struct mach_header_64* appImageMachOHeader = (struct mach_header_64*) orig_dyld_get_image_header(appMainImageIndex);
@@ -595,6 +631,82 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
     return result;
 }
 
+// MARK: TODO Filter NWPath Interfaces
+// Hook NWPath availableInterfaces to filter out VPN interfaces
+// MARK: NWPath Hook Implementations
+
+static NSArray* hook_NWPath_availableInterfaces(id self, SEL _cmd) {
+    // Call original method
+    NSArray* originalInterfaces = ((NSArray* (*)(id, SEL))orig_NWPath_availableInterfaces)(self, _cmd);
+    
+    // Filter out interfaces that match VPNDetectionHelper patterns
+    NSArray* nonScopedProtocols = @[@"utun", @"utun0", @"utun1", @"utun2", @"utun5"];
+    NSArray* vpnPrefixes = @[@"tap", @"tun", @"ppp", @"ipsec", @"vtun", @"wg", @"pptp"];
+    
+    NSMutableArray* filteredInterfaces = [NSMutableArray array];
+    for (id interface in originalInterfaces) {
+        NSString* interfaceName = ((NSString* (*)(id, SEL))objc_msgSend)(interface, @selector(name));
+        NSInteger interfaceType = ((NSInteger (*)(id, SEL))objc_msgSend)(interface, @selector(type));
+        
+        BOOL shouldFilter = NO;
+        
+        // Check if this is an "other" type interface with VPN-like name (VPNDetectionHelper logic)
+        if (interfaceType == 5) { // NWInterfaceType.other = 5
+            for (NSString* protocol in nonScopedProtocols) {
+                if ([interfaceName hasPrefix:protocol]) {
+                    shouldFilter = YES;
+                    NSLog(@"[LC] 🎭 Hiding 'other' type VPN interface: %@", interfaceName);
+                    break;
+                }
+            }
+        }
+        
+        // Also filter interfaces that match general VPN patterns
+        for (NSString* prefix in vpnPrefixes) {
+            if ([interfaceName hasPrefix:prefix]) {
+                shouldFilter = YES;
+                NSLog(@"[LC] 🎭 Hiding VPN interface: %@", interfaceName);
+                break;
+            }
+        }
+        
+        // Keep utun0-5 but filter utun6+ (your existing logic)
+        if ([interfaceName hasPrefix:@"utun"]) {
+            NSString* numberPart = [interfaceName substringFromIndex:4];
+            int utunNumber = [numberPart intValue];
+            if (utunNumber >= 6) {
+                shouldFilter = YES;
+                NSLog(@"[LC] 🎭 Hiding high-numbered utun interface: %@", interfaceName);
+            }
+        }
+        
+        if (!shouldFilter) {
+            [filteredInterfaces addObject:interface];
+        }
+    }
+    
+    return [filteredInterfaces copy];
+}
+
+static NSInteger hook_NWInterface_type(id self, SEL _cmd) {
+    // Call original method
+    NSString* interfaceName = ((NSString* (*)(id, SEL))objc_msgSend)(self, @selector(name));
+    NSInteger originalType = ((NSInteger (*)(id, SEL))orig_NWInterface_type)(self, _cmd);
+    
+    // If this is a VPN interface that would normally show as "other", make it appear as wifi
+    if (originalType == 5) { // NWInterfaceType.other
+        NSArray* vpnPrefixes = @[@"utun", @"tap", @"tun", @"ppp", @"ipsec", @"wg"];
+        for (NSString* prefix in vpnPrefixes) {
+            if ([interfaceName hasPrefix:prefix]) {
+                NSLog(@"[LC] 🎭 Spoofing interface type for %@ from 'other' to 'wifi'", interfaceName);
+                return 1; // NWInterfaceType.wifi
+            }
+        }
+    }
+    
+    return originalType;
+}
+
 int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact) {
     // Call the original function first
     int result = orig_sigaction(sig, act, oact);
@@ -833,7 +945,26 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
                     {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
         }, 3);
+        // Objective-C method swizzling for Network framework
+        Class nwPathClass = NSClassFromString(@"NWPath");
+        if (nwPathClass) {
+            swizzleInstanceMethod(nwPathClass, 
+                                @selector(availableInterfaces), 
+                                (IMP)hook_NWPath_availableInterfaces,
+                                (IMP*)&orig_NWPath_availableInterfaces);
+        } else {
+            NSLog(@"[LC] ⚠️ NWPath class not found - Network framework may not be available");
+        }
         
+        Class nwInterfaceClass = NSClassFromString(@"NWInterface");
+        if (nwInterfaceClass) {
+            swizzleInstanceMethod(nwInterfaceClass, 
+                                @selector(type), 
+                                (IMP)hook_NWInterface_type,
+                                (IMP*)&orig_NWInterface_type);
+        } else {
+            NSLog(@"[LC] ⚠️ NWInterface class not found - Network framework may not be available");
+        }
     }
     
     appExecutableFileTypeOverwritten = !hideLiveContainer;
