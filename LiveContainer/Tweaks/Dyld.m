@@ -739,66 +739,81 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
 @end
 
 static void setupNetworkFrameworkSwizzling(void) {
-    NSLog(@"[LC] 🎭 Installing Network framework swizzles for VPNDetectionHelper bypass...");
+    NSLog(@"[LC] 🎭 Testing what NWPath methods actually exist...");
     
-    // 1. Hook NWPath.availableInterfaces (covers currentPath.availableInterfaces)
     Class nwPathClass = NSClassFromString(@"NWPath");
     if (nwPathClass) {
-        swizzle(nwPathClass, @selector(availableInterfaces), @selector(lc_availableInterfaces));
-        NSLog(@"[LC] ✅ Swizzled NWPath.availableInterfaces");
+        NSLog(@"[LC] 🎯 Found NWPath class: %@", nwPathClass);
         
-        // Test the swizzling immediately
-        @try {
-            id testPath = [[nwPathClass alloc] init];
-            if ([testPath respondsToSelector:@selector(availableInterfaces)]) {
-                NSLog(@"[LC] 🧪 Testing NWPath.availableInterfaces call...");
-                NSArray *testInterfaces = [testPath performSelector:@selector(availableInterfaces)];
-                NSLog(@"[LC] 🧪 Test call returned %lu interfaces", (unsigned long)testInterfaces.count);
-            }
-        } @catch (NSException *e) {
-            NSLog(@"[LC] 🧪 Test call failed: %@", e);
+        // Test if availableInterfaces method exists
+        if ([nwPathClass instancesRespondToSelector:@selector(availableInterfaces)]) {
+            NSLog(@"[LC] ✅ NWPath responds to availableInterfaces selector");
+            swizzle(nwPathClass, @selector(availableInterfaces), @selector(lc_availableInterfaces));
+            NSLog(@"[LC] ✅ Swizzled NWPath.availableInterfaces");
+        } else {
+            NSLog(@"[LC] ❌ NWPath does NOT respond to availableInterfaces selector");
         }
     }
     
-    // 2. Hook NWInterface.type (covers the .type == .other check)
     Class nwInterfaceClass = NSClassFromString(@"NWInterface");
     if (nwInterfaceClass) {
-        swizzle(nwInterfaceClass, @selector(type), @selector(lc_type));
-        NSLog(@"[LC] ✅ Swizzled NWInterface.type");
-    }
-    
-    // 3. Also try NWPathMonitor to see if we can intercept at a higher level
-    Class nwPathMonitorClass = NSClassFromString(@"NWPathMonitor");
-    if (nwPathMonitorClass) {
-        NSLog(@"[LC] 🎯 Found NWPathMonitor class: %@", nwPathMonitorClass);
+        NSLog(@"[LC] 🎯 Found NWInterface class: %@", nwInterfaceClass);
         
-        // Create a test monitor to see what happens
-        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-            @try {
-                NSLog(@"[LC] 🧪 Creating test NWPathMonitor...");
-                id monitor = [[nwPathMonitorClass alloc] init];
-                
-                if ([monitor respondsToSelector:@selector(currentPath)]) {
-                    id currentPath = [monitor performSelector:@selector(currentPath)];
-                    NSLog(@"[LC] 🧪 Got currentPath: %@ (class: %@)", currentPath, [currentPath class]);
-                    
-                    if ([currentPath respondsToSelector:@selector(availableInterfaces)]) {
-                        NSLog(@"[LC] 🧪 Calling availableInterfaces on currentPath...");
-                        NSArray *interfaces = [currentPath performSelector:@selector(availableInterfaces)];
-                        NSLog(@"[LC] 🧪 Test monitor returned %lu interfaces", (unsigned long)interfaces.count);
-                    } else {
-                        NSLog(@"[LC] 🧪 currentPath does not respond to availableInterfaces");
-                    }
-                } else {
-                    NSLog(@"[LC] 🧪 NWPathMonitor does not respond to currentPath");
-                }
-            } @catch (NSException *e) {
-                NSLog(@"[LC] 🧪 Test monitor failed: %@", e);
-            }
-        });
+        if ([nwInterfaceClass instancesRespondToSelector:@selector(type)]) {
+            NSLog(@"[LC] ✅ NWInterface responds to type selector");
+            swizzle(nwInterfaceClass, @selector(type), @selector(lc_type));
+            NSLog(@"[LC] ✅ Swizzled NWInterface.type");
+        } else {
+            NSLog(@"[LC] ❌ NWInterface does NOT respond to type selector");
+        }
     }
     
-    NSLog(@"[LC] ✅ Network framework swizzles complete");
+    // Test the swizzling by calling getNWPathDebugInfo from VPNDetectionHelper
+    NSLog(@"[LC] 🧪 Testing swizzling with VPNDetectionHelper.getNWPathDebugInfo...");
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        @try {
+            Class vpnDetectionHelperClass = NSClassFromString(@"VPNDetectionHelper");
+            if (vpnDetectionHelperClass) {
+                NSLog(@"[LC] 🧪 Found VPNDetectionHelper class");
+                
+                id sharedInstance = [vpnDetectionHelperClass performSelector:@selector(shared)];
+                if (sharedInstance) {
+                    NSLog(@"[LC] 🧪 Got VPNDetectionHelper.shared instance");
+                    
+                    // Call getNWPathDebugInfo which internally calls monitor.currentPath.availableInterfaces
+                    id debugInfo = [sharedInstance performSelector:@selector(getNWPathDebugInfo)];
+                    NSLog(@"[LC] 🧪 Called getNWPathDebugInfo - returned: %@", debugInfo ? @"data" : @"nil");
+                    
+                    // Also try direct VPN detection
+                    BOOL isVPNConnected = [[sharedInstance performSelector:@selector(isVPNConnected)] boolValue];
+                    NSLog(@"[LC] 🧪 VPN detection result: %@", isVPNConnected ? @"VPN detected" : @"No VPN");
+                    
+                } else {
+                    NSLog(@"[LC] 🧪 Could not get VPNDetectionHelper.shared instance");
+                }
+            } else {
+                NSLog(@"[LC] 🧪 VPNDetectionHelper class not found - testing with direct NWPathMonitor...");
+                
+                // Fallback: Create NWPathMonitor directly
+                Class nwPathMonitorClass = NSClassFromString(@"NWPathMonitor");
+                if (nwPathMonitorClass) {
+                    id monitor = [[nwPathMonitorClass alloc] init];
+                    if ([monitor respondsToSelector:@selector(currentPath)]) {
+                        id currentPath = [monitor performSelector:@selector(currentPath)];
+                        if ([currentPath respondsToSelector:@selector(availableInterfaces)]) {
+                            NSLog(@"[LC] 🧪 Calling availableInterfaces directly...");
+                            NSArray *interfaces = [currentPath performSelector:@selector(availableInterfaces)];
+                            NSLog(@"[LC] 🧪 Direct call returned %lu interfaces", (unsigned long)interfaces.count);
+                        }
+                    }
+                }
+            }
+        } @catch (NSException *e) {
+            NSLog(@"[LC] 🧪 Test exception: %@", e);
+        }
+    });
+    
+    NSLog(@"[LC] ✅ Network framework test setup complete");
 }
 
 // MARK: SSL Pinning
