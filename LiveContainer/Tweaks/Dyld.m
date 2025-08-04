@@ -69,7 +69,20 @@ static int (*orig_getifaddrs)(struct ifaddrs **ifap);
 // Signal handlers
 int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact);
 // Apple Sign In
+// TODO
+// SSL Pinning
+static IMP orig_afSecurityPolicySetSSLPinningMode = NULL;
+static IMP orig_afSecurityPolicySetAllowInvalidCertificates = NULL;
+static IMP orig_afSecurityPolicyPolicyWithPinningMode = NULL;
+static IMP orig_afSecurityPolicyPolicyWithPinningModeWithPinnedCertificates = NULL;
+static IMP orig_tskPinningValidatorEvaluateTrust = NULL;
+static IMP orig_customURLConnectionDelegateIsFingerprintTrusted = NULL;
+// SSL/TLS function pointers for low-level hooks
+static OSStatus (*orig_SSLSetSessionOption)(SSLContextRef context, SSLSessionOption option, Boolean value) = NULL;
+static SSLContextRef (*orig_SSLCreateContext)(CFAllocatorRef alloc, SSLProtocolSide protocolSide, SSLConnectionType connectionType) = NULL;
+static OSStatus (*orig_SSLHandshake)(SSLContextRef context) = NULL;
 
+// LC specific variables
 uint32_t guestAppSdkVersion = 0;
 uint32_t guestAppSdkVersionSet = 0;
 bool (*orig_dyld_program_sdk_at_least)(void* dyldPtr, dyld_build_version_t version);
@@ -782,6 +795,222 @@ static void swizzleNWInterfaceMethods(void) {
     }
 }
 
+// MARK: SSL Pinning
+static void hook_afSecurityPolicySetSSLPinningMode(id self, SEL _cmd, NSUInteger mode) {
+    NSLog(@"[LC] 🔓 AFNetworking: setSSLPinningMode called with mode %lu, forcing to 0 (None)", (unsigned long)mode);
+    
+    // Call original with mode 0 (AFSSLPinningModeNone)
+    void (*original)(id, SEL, NSUInteger) = (void (*)(id, SEL, NSUInteger))orig_afSecurityPolicySetSSLPinningMode;
+    original(self, _cmd, 0);
+}
+
+static void hook_afSecurityPolicySetAllowInvalidCertificates(id self, SEL _cmd, BOOL allow) {
+    NSLog(@"[LC] 🔓 AFNetworking: setAllowInvalidCertificates called with %d, forcing to YES", allow);
+    
+    // Call original with YES
+    void (*original)(id, SEL, BOOL) = (void (*)(id, SEL, BOOL))orig_afSecurityPolicySetAllowInvalidCertificates;
+    original(self, _cmd, YES);
+}
+
+static id hook_afSecurityPolicyPolicyWithPinningMode(id self, SEL _cmd, NSUInteger mode) {
+    NSLog(@"[LC] 🔓 AFNetworking: policyWithPinningMode called with mode %lu, forcing to 0 (None)", (unsigned long)mode);
+    
+    // Call original with mode 0 (AFSSLPinningModeNone)
+    id (*original)(id, SEL, NSUInteger) = (id (*)(id, SEL, NSUInteger))orig_afSecurityPolicyPolicyWithPinningMode;
+    return original(self, _cmd, 0);
+}
+
+static id hook_afSecurityPolicyPolicyWithPinningModeWithPinnedCertificates(id self, SEL _cmd, NSUInteger mode, NSSet *pinnedCertificates) {
+    NSLog(@"[LC] 🔓 AFNetworking: policyWithPinningMode:withPinnedCertificates called with mode %lu, forcing to 0 (None)", (unsigned long)mode);
+    
+    // Call original with mode 0 (AFSSLPinningModeNone)
+    id (*original)(id, SEL, NSUInteger, NSSet *) = (id (*)(id, SEL, NSUInteger, NSSet *))orig_afSecurityPolicyPolicyWithPinningModeWithPinnedCertificates;
+    return original(self, _cmd, 0, pinnedCertificates);
+}
+
+// MARK: TrustKit Bypass
+
+static BOOL hook_tskPinningValidatorEvaluateTrust(id self, SEL _cmd, SecTrustRef trust, NSString *hostname) {
+    NSLog(@"[LC] 🔓 TrustKit: evaluateTrust:forHostname called for %@, returning YES", hostname);
+    
+    // Always return YES (trust is valid)
+    return YES;
+}
+
+// MARK: Cordova SSL Certificate Checker Bypass
+
+static BOOL hook_customURLConnectionDelegateIsFingerprintTrusted(id self, SEL _cmd, NSString *fingerprint) {
+    NSLog(@"[LC] 🔓 Cordova SSLCertificateChecker: isFingerprintTrusted called, returning YES");
+    
+    // Always return YES (fingerprint is trusted)
+    return YES;
+}
+
+// MARK: NSURLSession Challenge Bypass
+
+static void hook_urlSessionDidReceiveChallenge(id self, SEL _cmd, NSURLSession *session, NSURLAuthenticationChallenge *challenge, void (^completionHandler)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
+    NSLog(@"[LC] 🔓 NSURLSession: URLSession:didReceiveChallenge:completionHandler bypassing certificate validation");
+    
+    // Create credential for the server trust and use it
+    NSURLCredential *credential = [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust];
+    [challenge.sender useCredential:credential forAuthenticationChallenge:challenge];
+    
+    // Call completion handler with success
+    completionHandler(NSURLSessionAuthChallengeUseCredential, credential);
+}
+
+// MARK: Low-Level SSL/TLS Hooks
+
+static OSStatus hook_SSLSetSessionOption(SSLContextRef context, SSLSessionOption option, Boolean value) {
+    // kSSLSessionOptionBreakOnServerAuth = 0
+    if (option == 0) {
+        NSLog(@"[LC] 🔓 SSL: SSLSetSessionOption called with kSSLSessionOptionBreakOnServerAuth, blocking");
+        return noErr; // Don't allow modification of this option
+    }
+    
+    return orig_SSLSetSessionOption(context, option, value);
+}
+
+static SSLContextRef hook_SSLCreateContext(CFAllocatorRef alloc, SSLProtocolSide protocolSide, SSLConnectionType connectionType) {
+    SSLContextRef context = orig_SSLCreateContext(alloc, protocolSide, connectionType);
+    
+    if (context && orig_SSLSetSessionOption) {
+        // Immediately set kSSLSessionOptionBreakOnServerAuth to disable cert validation
+        orig_SSLSetSessionOption(context, 0, true); // kSSLSessionOptionBreakOnServerAuth = 0
+        NSLog(@"[LC] 🔓 SSL: SSLCreateContext called, disabled certificate validation");
+    }
+    
+    return context;
+}
+
+static OSStatus hook_SSLHandshake(SSLContextRef context) {
+    OSStatus result = orig_SSLHandshake(context);
+    
+    // errSSLServerAuthCompared = -9481
+    if (result == -9481) {
+        NSLog(@"[LC] 🔓 SSL: SSLHandshake got errSSLServerAuthCompared, calling again to bypass");
+        return orig_SSLHandshake(context);
+    }
+    
+    return result;
+}
+
+// MARK: SSL Pinning Bypass Setup
+
+static void setupAFNetworkingHooks(void) {
+    Class afSecurityPolicy = NSClassFromString(@"AFSecurityPolicy");
+    if (!afSecurityPolicy) {
+        return;
+    }
+    
+    NSLog(@"[LC] 🔓 Found AFNetworking, hooking SSL pinning methods");
+    
+    // Hook instance methods
+    swizzleInstanceMethod(afSecurityPolicy, 
+                         @selector(setSSLPinningMode:), 
+                         (IMP)hook_afSecurityPolicySetSSLPinningMode, 
+                         &orig_afSecurityPolicySetSSLPinningMode);
+    
+    swizzleInstanceMethod(afSecurityPolicy, 
+                         @selector(setAllowInvalidCertificates:), 
+                         (IMP)hook_afSecurityPolicySetAllowInvalidCertificates, 
+                         &orig_afSecurityPolicySetAllowInvalidCertificates);
+    
+    // Hook class methods - need different approach
+    Method policyMethod = class_getClassMethod(afSecurityPolicy, @selector(policyWithPinningMode:));
+    if (policyMethod) {
+        orig_afSecurityPolicyPolicyWithPinningMode = method_getImplementation(policyMethod);
+        method_setImplementation(policyMethod, (IMP)hook_afSecurityPolicyPolicyWithPinningMode);
+    }
+    
+    Method policyWithCertsMethod = class_getClassMethod(afSecurityPolicy, @selector(policyWithPinningMode:withPinnedCertificates:));
+    if (policyWithCertsMethod) {
+        orig_afSecurityPolicyPolicyWithPinningModeWithPinnedCertificates = method_getImplementation(policyWithCertsMethod);
+        method_setImplementation(policyWithCertsMethod, (IMP)hook_afSecurityPolicyPolicyWithPinningModeWithPinnedCertificates);
+    }
+}
+
+static void setupTrustKitHooks(void) {
+    Class tskPinningValidator = NSClassFromString(@"TSKPinningValidator");
+    if (!tskPinningValidator) {
+        return;
+    }
+    
+    NSLog(@"[LC] 🔓 Found TrustKit, hooking pinning validation");
+    
+    swizzleInstanceMethod(tskPinningValidator, 
+                         @selector(evaluateTrust:forHostname:), 
+                         (IMP)hook_tskPinningValidatorEvaluateTrust, 
+                         &orig_tskPinningValidatorEvaluateTrust);
+}
+
+static void setupCordovaHooks(void) {
+    Class customURLConnectionDelegate = NSClassFromString(@"CustomURLConnectionDelegate");
+    if (!customURLConnectionDelegate) {
+        return;
+    }
+    
+    NSLog(@"[LC] 🔓 Found Cordova SSLCertificateChecker plugin, hooking fingerprint validation");
+    
+    swizzleInstanceMethod(customURLConnectionDelegate, 
+                         @selector(isFingerprintTrusted:), 
+                         (IMP)hook_customURLConnectionDelegateIsFingerprintTrusted, 
+                         &orig_customURLConnectionDelegateIsFingerprintTrusted);
+}
+
+static void setupNSURLSessionHooks(void) {
+    // Find all classes that implement URLSession:didReceiveChallenge:completionHandler:
+    unsigned int classCount;
+    Class *classes = objc_copyClassList(&classCount);
+    
+    for (unsigned int i = 0; i < classCount; i++) {
+        Class cls = classes[i];
+        Method method = class_getInstanceMethod(cls, @selector(URLSession:didReceiveChallenge:completionHandler:));
+        
+        if (method) {
+            NSLog(@"[LC] 🔓 Found NSURLSession delegate in class %s, hooking challenge method", class_getName(cls));
+            
+            // Get original implementation before replacing
+            IMP originalImp = method_getImplementation(method);
+            
+            // Replace with our hook
+            method_setImplementation(method, (IMP)hook_urlSessionDidReceiveChallenge);
+        }
+    }
+    
+    free(classes);
+}
+
+static void setupLowLevelSSLHooks(void) {
+    NSLog(@"[LC] 🔓 Setting up low-level SSL/TLS hooks");
+    
+    // Hook SSL functions using fishhook
+    struct rebinding ssl_rebindings[] = {
+        {"SSLSetSessionOption", (void *)hook_SSLSetSessionOption, (void **)&orig_SSLSetSessionOption},
+        {"SSLCreateContext", (void *)hook_SSLCreateContext, (void **)&orig_SSLCreateContext},
+        {"SSLHandshake", (void *)hook_SSLHandshake, (void **)&orig_SSLHandshake},
+    };
+    
+    rebind_symbols(ssl_rebindings, 3);
+}
+
+static void setupSSLPinningBypass(void) {
+    NSLog(@"[LC] 🔓 Initializing SSL pinning bypass");
+    
+    // Framework-level hooks
+    setupAFNetworkingHooks();
+    setupTrustKitHooks();
+    setupCordovaHooks();
+    setupNSURLSessionHooks();
+    
+    // Low-level SSL/TLS hooks
+    setupLowLevelSSLHooks();
+    
+    NSLog(@"[LC] 🔓 SSL pinning bypass setup complete");
+}
+
+// MARK : Signal Handlers
+
 int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact) {
     // Call the original function first
     int result = orig_sigaction(sig, act, oact);
@@ -1020,16 +1249,20 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
                     {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
         }, 3);
+        // SSL pinning bypass
+        setupSSLPinningBypass();
         // Install Swift method swizzling (delayed to ensure Network framework is loaded)
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            NSLog(@"[LC] 🎭 Installing Swift Network framework method swizzles...");
+        
+        // TODO: fix this, doesnt work atm - shows utun8
+        // dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        //     NSLog(@"[LC] 🎭 Installing Swift Network framework method swizzles...");
             
-            // Call C functions instead of class methods
-            swizzleNWPathAvailableInterfaces();
-            swizzleNWInterfaceMethods();
+        //     // Call C functions instead of class methods
+        //     swizzleNWPathAvailableInterfaces();
+        //     swizzleNWInterfaceMethods();
             
-            NSLog(@"[LC] ✅ Swift Network framework swizzles installed");
-        });
+        //     NSLog(@"[LC] ✅ Swift Network framework swizzles installed");
+        // });
     }
     
     appExecutableFileTypeOverwritten = !hideLiveContainer;
