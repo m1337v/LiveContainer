@@ -639,10 +639,18 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
 @implementation NWPath (GuestHooks)
 
 - (NSArray *)lc_availableInterfaces {
+    NSLog(@"[LC] 🎯 *** NWPath.availableInterfaces CALLED *** Class: %@ Thread: %@", [self class], [NSThread currentThread]);
+    
     NSArray *originalInterfaces = [self lc_availableInterfaces];
     
-    if (!originalInterfaces) return originalInterfaces;
+    if (!originalInterfaces) {
+        NSLog(@"[LC] 🎯 originalInterfaces is nil");
+        return originalInterfaces;
+    }
     
+    NSLog(@"[LC] 🎯 Got %lu original interfaces - filtering...", (unsigned long)originalInterfaces.count);
+    
+    // Rest of your filtering logic...
     NSMutableArray *filtered = [NSMutableArray array];
     
     for (id interface in originalInterfaces) {
@@ -650,22 +658,15 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
             NSString *name = [interface performSelector:@selector(name)];
             
             if (name) {
-                // Match the EXACT vpnProtocolsKeysIdentifiers from VPNDetectionHelper:
-                // ["tap", "tun", "ppp", "ipsec", "ipsec0", "utun", "utun1", "utun2", "utun5", "pptp"]
-                
                 BOOL shouldFilter = NO;
                 
-                // Check for VPN prefixes
                 if ([name hasPrefix:@"tap"] || [name hasPrefix:@"tun"] || 
                     [name hasPrefix:@"ppp"] || [name hasPrefix:@"ipsec"] || 
                     [name hasPrefix:@"pptp"]) {
                     shouldFilter = YES;
                     NSLog(@"[LC] 🎭 NWPath filtered VPN interface: %@", name);
                 }
-                // Special utun handling - match the nonScopedProtocols logic
                 else if ([name hasPrefix:@"utun"]) {
-                    // The VPNDetectionHelper checks for utun interfaces with type .other
-                    // Filter utun6+ to be safe, but keep utun0-5
                     NSString *numberPart = [name substringFromIndex:4];
                     int utunNumber = [numberPart intValue];
                     if (utunNumber >= 6) {
@@ -676,18 +677,21 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
                 
                 if (!shouldFilter) {
                     [filtered addObject:interface];
+                    NSLog(@"[LC] 🎯 Keeping interface: %@", name);
                 }
             } else {
                 [filtered addObject:interface];
+                NSLog(@"[LC] 🎯 Keeping interface with no name");
             }
         } @catch (NSException *e) {
             [filtered addObject:interface];
+            NSLog(@"[LC] 🎯 Keeping interface due to exception: %@", e);
         }
     }
     
-    NSLog(@"[LC] 🎭 NWPath availableInterfaces: filtered %lu VPN interfaces, returning %lu", 
-          (unsigned long)(originalInterfaces.count - filtered.count), 
-          (unsigned long)filtered.count);
+    NSLog(@"[LC] 🎭 NWPath: returned %lu filtered interfaces (filtered %lu)", 
+          (unsigned long)filtered.count,
+          (unsigned long)(originalInterfaces.count - filtered.count));
     
     return [filtered copy];
 }
@@ -701,17 +705,15 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
 @implementation NWInterface (GuestHooks)
 
 - (NSInteger)lc_type {
+    NSLog(@"[LC] 🎯 *** NWInterface.type CALLED *** Class: %@", [self class]);
+    
     NSInteger originalType = [self lc_type];
     
     @try {
         NSString *name = [self performSelector:@selector(name)];
-        
-        // The VPNDetectionHelper specifically looks for:
-        // interface.type == .other AND nonScopedProtocols.first(where: { vpnInterface.element.name.starts(with: $0) })
-        // Where nonScopedProtocols = ["utun", "utun0", "utun1", "utun2", "utun5"]
+        NSLog(@"[LC] 🎯 Interface %@ has type %ld", name ?: @"<unknown>", (long)originalType);
         
         if (name && originalType == 0) { // .other = 0
-            // If this is a VPN interface with type .other, spoof it as .wifi
             if ([name hasPrefix:@"utun"]) {
                 NSString *numberPart = [name substringFromIndex:4];
                 int utunNumber = [numberPart intValue];
@@ -720,7 +722,6 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
                     return 1; // .wifi = 1
                 }
             }
-            // Also spoof other VPN interface types
             else if ([name hasPrefix:@"tap"] || [name hasPrefix:@"tun"] || 
                      [name hasPrefix:@"ppp"] || [name hasPrefix:@"ipsec"] || 
                      [name hasPrefix:@"pptp"]) {
@@ -729,7 +730,7 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
             }
         }
     } @catch (NSException *e) {
-        // Return original if there's an issue
+        NSLog(@"[LC] 🎯 Exception getting interface name: %@", e);
     }
     
     return originalType;
@@ -740,14 +741,23 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
 static void setupNetworkFrameworkSwizzling(void) {
     NSLog(@"[LC] 🎭 Installing Network framework swizzles for VPNDetectionHelper bypass...");
     
-    // The VPNDetectionHelper specifically calls:
-    // monitor.currentPath.availableInterfaces.enumerated().first(where: { $0.element.type == .other })
-    
     // 1. Hook NWPath.availableInterfaces (covers currentPath.availableInterfaces)
     Class nwPathClass = NSClassFromString(@"NWPath");
     if (nwPathClass) {
         swizzle(nwPathClass, @selector(availableInterfaces), @selector(lc_availableInterfaces));
         NSLog(@"[LC] ✅ Swizzled NWPath.availableInterfaces");
+        
+        // Test the swizzling immediately
+        @try {
+            id testPath = [[nwPathClass alloc] init];
+            if ([testPath respondsToSelector:@selector(availableInterfaces)]) {
+                NSLog(@"[LC] 🧪 Testing NWPath.availableInterfaces call...");
+                NSArray *testInterfaces = [testPath performSelector:@selector(availableInterfaces)];
+                NSLog(@"[LC] 🧪 Test call returned %lu interfaces", (unsigned long)testInterfaces.count);
+            }
+        } @catch (NSException *e) {
+            NSLog(@"[LC] 🧪 Test call failed: %@", e);
+        }
     }
     
     // 2. Hook NWInterface.type (covers the .type == .other check)
@@ -757,17 +767,35 @@ static void setupNetworkFrameworkSwizzling(void) {
         NSLog(@"[LC] ✅ Swizzled NWInterface.type");
     }
     
-    // 3. Also try to hook the concrete Network framework classes
-    Class networkNWPathClass = NSClassFromString(@"Network.NWPath");
-    if (networkNWPathClass && networkNWPathClass != nwPathClass) {
-        swizzle(networkNWPathClass, @selector(availableInterfaces), @selector(lc_availableInterfaces));
-        NSLog(@"[LC] ✅ Swizzled Network.NWPath.availableInterfaces");
-    }
-    
-    Class networkNWInterfaceClass = NSClassFromString(@"Network.NWInterface");
-    if (networkNWInterfaceClass && networkNWInterfaceClass != nwInterfaceClass) {
-        swizzle(networkNWInterfaceClass, @selector(type), @selector(lc_type));
-        NSLog(@"[LC] ✅ Swizzled Network.NWInterface.type");
+    // 3. Also try NWPathMonitor to see if we can intercept at a higher level
+    Class nwPathMonitorClass = NSClassFromString(@"NWPathMonitor");
+    if (nwPathMonitorClass) {
+        NSLog(@"[LC] 🎯 Found NWPathMonitor class: %@", nwPathMonitorClass);
+        
+        // Create a test monitor to see what happens
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            @try {
+                NSLog(@"[LC] 🧪 Creating test NWPathMonitor...");
+                id monitor = [[nwPathMonitorClass alloc] init];
+                
+                if ([monitor respondsToSelector:@selector(currentPath)]) {
+                    id currentPath = [monitor performSelector:@selector(currentPath)];
+                    NSLog(@"[LC] 🧪 Got currentPath: %@ (class: %@)", currentPath, [currentPath class]);
+                    
+                    if ([currentPath respondsToSelector:@selector(availableInterfaces)]) {
+                        NSLog(@"[LC] 🧪 Calling availableInterfaces on currentPath...");
+                        NSArray *interfaces = [currentPath performSelector:@selector(availableInterfaces)];
+                        NSLog(@"[LC] 🧪 Test monitor returned %lu interfaces", (unsigned long)interfaces.count);
+                    } else {
+                        NSLog(@"[LC] 🧪 currentPath does not respond to availableInterfaces");
+                    }
+                } else {
+                    NSLog(@"[LC] 🧪 NWPathMonitor does not respond to currentPath");
+                }
+            } @catch (NSException *e) {
+                NSLog(@"[LC] 🧪 Test monitor failed: %@", e);
+            }
+        });
     }
     
     NSLog(@"[LC] ✅ Network framework swizzles complete");
