@@ -33,17 +33,6 @@
 
 @class NWInterface;
 
-typedef struct __SecCode *SecCodeRef;
-typedef uint32_t SecCSFlags;
-
-#ifndef errSecSuccess
-#define errSecSuccess 0
-#endif
-
-#ifndef kSecCSDefaultFlags
-#define kSecCSDefaultFlags 0
-#endif
-
 typedef uint32_t dyld_platform_t;
 
 typedef struct {
@@ -94,6 +83,15 @@ static IMP orig_customURLConnectionDelegateIsFingerprintTrusted = NULL;
 static OSStatus (*orig_SSLSetSessionOption)(SSLContextRef context, SSLSessionOption option, Boolean value) = NULL;
 static SSLContextRef (*orig_SSLCreateContext)(CFAllocatorRef alloc, SSLProtocolSide protocolSide, SSLConnectionType connectionType) = NULL;
 static OSStatus (*orig_SSLHandshake)(SSLContextRef context) = NULL;
+// SSL Killswitch 3
+static OSStatus (*orig_SecTrustEvaluate)(SecTrustRef, SecTrustResultType *);
+static bool (*orig_SecTrustEvaluateWithError)(SecTrustRef, CFErrorRef *);
+static OSStatus (*orig_SecTrustEvaluateAsync)(SecTrustRef, dispatch_queue_t, SecTrustCallback);
+static OSStatus (*orig_SecTrustEvaluateAsyncWithError)(SecTrustRef, dispatch_queue_t, SecTrustWithErrorCallback);
+static OSStatus (*orig_SecTrustEvaluateFastAsync)(SecTrustRef, dispatch_queue_t, SecTrustCallback);
+// BoringSSL
+static void (*orig_SSL_set_custom_verify)(void *, int, int (*)(void *, uint8_t *));
+static void (*orig_SSL_CTX_set_custom_verify)(void *, int, int (*)(void *, uint8_t *));
 
 // LC specific variables
 uint32_t guestAppSdkVersion = 0;
@@ -103,34 +101,6 @@ uint32_t (*orig_dyld_get_program_sdk_version)(void* dyldPtr);
 
 // Global variable to track Sign in with Apple context  
 static BOOL isSignInWithAppleActive = NO;
-
-// MARK: Simple Method Swizzling Helper
-
-static BOOL swizzleInstanceMethod(Class targetClass, SEL originalSelector, IMP newImplementation, IMP *originalImplementation) {
-    if (!targetClass) {
-        NSLog(@"[LC] ⚠️ Swizzle failed: Class not found");
-        return NO;
-    }
-    
-    Method originalMethod = class_getInstanceMethod(targetClass, originalSelector);
-    if (!originalMethod) {
-        NSLog(@"[LC] ⚠️ Swizzle failed: Method %@ not found in class %@", 
-              NSStringFromSelector(originalSelector), NSStringFromClass(targetClass));
-        return NO;
-    }
-    
-    // Store original implementation
-    if (originalImplementation) {
-        *originalImplementation = method_getImplementation(originalMethod);
-    }
-    
-    // Replace with new implementation
-    method_setImplementation(originalMethod, newImplementation);
-    
-    NSLog(@"[LC] 🎭 Successfully swizzled %@.%@", 
-          NSStringFromClass(targetClass), NSStringFromSelector(originalSelector));
-    return YES;
-}
 
 static void overwriteAppExecutableFileType(void) {
     struct mach_header_64* appImageMachOHeader = (struct mach_header_64*) orig_dyld_get_image_header(appMainImageIndex);
@@ -669,63 +639,57 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
 @implementation NWPath (GuestHooks)
 
 - (NSArray *)lc_availableInterfaces {
-    // Call original method using the swizzle pattern
     NSArray *originalInterfaces = [self lc_availableInterfaces];
     
-    if (!originalInterfaces) {
-        return originalInterfaces;
-    }
+    if (!originalInterfaces) return originalInterfaces;
     
-    NSLog(@"[LC] 🎯 NWPath.availableInterfaces called - filtering VPN interfaces");
-    
-    // Filter out VPN interfaces
-    NSMutableArray *filteredInterfaces = [NSMutableArray array];
+    NSMutableArray *filtered = [NSMutableArray array];
     
     for (id interface in originalInterfaces) {
         @try {
-            NSString *interfaceName = [interface performSelector:@selector(name)];
+            NSString *name = [interface performSelector:@selector(name)];
             
-            if (interfaceName) {
+            if (name) {
+                // Match the EXACT vpnProtocolsKeysIdentifiers from VPNDetectionHelper:
+                // ["tap", "tun", "ppp", "ipsec", "ipsec0", "utun", "utun1", "utun2", "utun5", "pptp"]
+                
                 BOOL shouldFilter = NO;
                 
-                // Filter utun6+ (VPN interfaces)
-                if ([interfaceName hasPrefix:@"utun"]) {
-                    NSString *numberPart = [interfaceName substringFromIndex:4];
+                // Check for VPN prefixes
+                if ([name hasPrefix:@"tap"] || [name hasPrefix:@"tun"] || 
+                    [name hasPrefix:@"ppp"] || [name hasPrefix:@"ipsec"] || 
+                    [name hasPrefix:@"pptp"]) {
+                    shouldFilter = YES;
+                    NSLog(@"[LC] 🎭 NWPath filtered VPN interface: %@", name);
+                }
+                // Special utun handling - match the nonScopedProtocols logic
+                else if ([name hasPrefix:@"utun"]) {
+                    // The VPNDetectionHelper checks for utun interfaces with type .other
+                    // Filter utun6+ to be safe, but keep utun0-5
+                    NSString *numberPart = [name substringFromIndex:4];
                     int utunNumber = [numberPart intValue];
                     if (utunNumber >= 6) {
                         shouldFilter = YES;
-                        NSLog(@"[LC] 🎭 Network swizzle filtering VPN utun interface: %@", interfaceName);
+                        NSLog(@"[LC] 🎭 NWPath filtered VPN utun interface: %@", name);
                     }
-                }
-                // Filter other VPN patterns
-                else if ([interfaceName hasPrefix:@"tap"] ||
-                         [interfaceName hasPrefix:@"tun"] ||
-                         [interfaceName hasPrefix:@"ppp"] ||
-                         [interfaceName hasPrefix:@"ipsec"] ||
-                         [interfaceName hasPrefix:@"vtun"] ||
-                         [interfaceName hasPrefix:@"wg"]) {
-                    shouldFilter = YES;
-                    NSLog(@"[LC] 🎭 Network swizzle filtering VPN interface: %@", interfaceName);
                 }
                 
                 if (!shouldFilter) {
-                    [filteredInterfaces addObject:interface];
+                    [filtered addObject:interface];
                 }
             } else {
-                // Keep interfaces without names
-                [filteredInterfaces addObject:interface];
+                [filtered addObject:interface];
             }
-        } @catch (NSException *exception) {
-            // Keep interface if we can't inspect it
-            [filteredInterfaces addObject:interface];
+        } @catch (NSException *e) {
+            [filtered addObject:interface];
         }
     }
     
-    NSLog(@"[LC] 🎭 Network swizzle: filtered %lu VPN interfaces, returning %lu clean interfaces", 
-          (unsigned long)(originalInterfaces.count - filteredInterfaces.count),
-          (unsigned long)filteredInterfaces.count);
+    NSLog(@"[LC] 🎭 NWPath availableInterfaces: filtered %lu VPN interfaces, returning %lu", 
+          (unsigned long)(originalInterfaces.count - filtered.count), 
+          (unsigned long)filtered.count);
     
-    return [filteredInterfaces copy];
+    return [filtered copy];
 }
 
 @end
@@ -737,34 +701,35 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
 @implementation NWInterface (GuestHooks)
 
 - (NSInteger)lc_type {
-    // Call original method using the swizzle pattern
     NSInteger originalType = [self lc_type];
     
-    // Get interface name
     @try {
-        NSString *interfaceName = [self performSelector:@selector(name)];
+        NSString *name = [self performSelector:@selector(name)];
         
-        if (interfaceName && originalType == 0) { // NWInterface.InterfaceType.other = 0
-            // Check if this is a VPN interface
-            if ([interfaceName hasPrefix:@"utun"]) {
-                NSString *numberPart = [interfaceName substringFromIndex:4];
+        // The VPNDetectionHelper specifically looks for:
+        // interface.type == .other AND nonScopedProtocols.first(where: { vpnInterface.element.name.starts(with: $0) })
+        // Where nonScopedProtocols = ["utun", "utun0", "utun1", "utun2", "utun5"]
+        
+        if (name && originalType == 0) { // .other = 0
+            // If this is a VPN interface with type .other, spoof it as .wifi
+            if ([name hasPrefix:@"utun"]) {
+                NSString *numberPart = [name substringFromIndex:4];
                 int utunNumber = [numberPart intValue];
                 if (utunNumber >= 6) {
-                    NSLog(@"[LC] 🎭 Network swizzle spoofing interface type for %@ from 'other' to 'wifi'", interfaceName);
-                    return 1; // NWInterface.InterfaceType.wifi = 1
+                    NSLog(@"[LC] 🎭 NWInterface spoofing type for VPN interface %@ from 'other' to 'wifi'", name);
+                    return 1; // .wifi = 1
                 }
             }
-            // Spoof other VPN types
-            else if ([interfaceName hasPrefix:@"tap"] ||
-                     [interfaceName hasPrefix:@"tun"] ||
-                     [interfaceName hasPrefix:@"ppp"] ||
-                     [interfaceName hasPrefix:@"wg"]) {
-                NSLog(@"[LC] 🎭 Network swizzle spoofing interface type for %@ from 'other' to 'wifi'", interfaceName);
-                return 1; // NWInterface.InterfaceType.wifi = 1
+            // Also spoof other VPN interface types
+            else if ([name hasPrefix:@"tap"] || [name hasPrefix:@"tun"] || 
+                     [name hasPrefix:@"ppp"] || [name hasPrefix:@"ipsec"] || 
+                     [name hasPrefix:@"pptp"]) {
+                NSLog(@"[LC] 🎭 NWInterface spoofing type for VPN interface %@ from 'other' to 'wifi'", name);
+                return 1; // .wifi = 1
             }
         }
-    } @catch (NSException *exception) {
-        // If we can't get the name, return original type
+    } @catch (NSException *e) {
+        // Return original if there's an issue
     }
     
     return originalType;
@@ -773,46 +738,46 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
 @end
 
 static void setupNetworkFrameworkSwizzling(void) {
-    NSLog(@"[LC] 🎭 Installing Network framework method swizzles using utils.h pattern...");
+    NSLog(@"[LC] 🎭 Installing Network framework swizzles for VPNDetectionHelper bypass...");
     
-    // NWPath availableInterfaces swizzling
-    Class nwPathClass = NSClassFromString(@"Network.NWPath");
-    if (!nwPathClass) {
-        nwPathClass = NSClassFromString(@"NWPath");
-    }
+    // The VPNDetectionHelper specifically calls:
+    // monitor.currentPath.availableInterfaces.enumerated().first(where: { $0.element.type == .other })
     
+    // 1. Hook NWPath.availableInterfaces (covers currentPath.availableInterfaces)
+    Class nwPathClass = NSClassFromString(@"NWPath");
     if (nwPathClass) {
-        NSLog(@"[LC] 🎯 Found NWPath class: %@", nwPathClass);
-        
-        // Use the swizzle utility function from utils.h - just like CoreLocation does
         swizzle(nwPathClass, @selector(availableInterfaces), @selector(lc_availableInterfaces));
-        
-        NSLog(@"[LC] ✅ Successfully swizzled NWPath.availableInterfaces");
-    } else {
-        NSLog(@"[LC] ❌ NWPath class not found for swizzling");
+        NSLog(@"[LC] ✅ Swizzled NWPath.availableInterfaces");
     }
     
-    // NWInterface type swizzling
-    Class nwInterfaceClass = NSClassFromString(@"Network.NWInterface");
-    if (!nwInterfaceClass) {
-        nwInterfaceClass = NSClassFromString(@"NWInterface");
-    }
-    
+    // 2. Hook NWInterface.type (covers the .type == .other check)
+    Class nwInterfaceClass = NSClassFromString(@"NWInterface");
     if (nwInterfaceClass) {
-        NSLog(@"[LC] 🎯 Found NWInterface class: %@", nwInterfaceClass);
-        
-        // Use the swizzle utility function from utils.h - just like CoreLocation does
         swizzle(nwInterfaceClass, @selector(type), @selector(lc_type));
-        
-        NSLog(@"[LC] ✅ Successfully swizzled NWInterface.type");
-    } else {
-        NSLog(@"[LC] ❌ NWInterface class not found for swizzling");
+        NSLog(@"[LC] ✅ Swizzled NWInterface.type");
     }
     
-    NSLog(@"[LC] ✅ Network framework swizzles installation complete");
+    // 3. Also try to hook the concrete Network framework classes
+    Class networkNWPathClass = NSClassFromString(@"Network.NWPath");
+    if (networkNWPathClass && networkNWPathClass != nwPathClass) {
+        swizzle(networkNWPathClass, @selector(availableInterfaces), @selector(lc_availableInterfaces));
+        NSLog(@"[LC] ✅ Swizzled Network.NWPath.availableInterfaces");
+    }
+    
+    Class networkNWInterfaceClass = NSClassFromString(@"Network.NWInterface");
+    if (networkNWInterfaceClass && networkNWInterfaceClass != nwInterfaceClass) {
+        swizzle(networkNWInterfaceClass, @selector(type), @selector(lc_type));
+        NSLog(@"[LC] ✅ Swizzled Network.NWInterface.type");
+    }
+    
+    NSLog(@"[LC] ✅ Network framework swizzles complete");
 }
 
 // MARK: SSL Pinning
+// MARK: TODO: Fix detection in Alamofire (Alamofire Error Server Trust Failure)
+
+// MARK: TODO: Add SSL-killswitch 3
+
 static void hook_afSecurityPolicySetSSLPinningMode(id self, SEL _cmd, NSUInteger mode) {
     NSLog(@"[LC] 🔓 AFNetworking: setSSLPinningMode called with mode %lu, forcing to 0 (None)", (unsigned long)mode);
     
@@ -922,18 +887,20 @@ static void setupAFNetworkingHooks(void) {
     
     NSLog(@"[LC] 🔓 Found AFNetworking, hooking SSL pinning methods");
     
-    // Hook instance methods
-    swizzleInstanceMethod(afSecurityPolicy, 
-                         @selector(setSSLPinningMode:), 
-                         (IMP)hook_afSecurityPolicySetSSLPinningMode, 
-                         &orig_afSecurityPolicySetSSLPinningMode);
+    // Hook instance methods using direct method replacement
+    Method setSSLPinningModeMethod = class_getInstanceMethod(afSecurityPolicy, @selector(setSSLPinningMode:));
+    if (setSSLPinningModeMethod) {
+        orig_afSecurityPolicySetSSLPinningMode = method_getImplementation(setSSLPinningModeMethod);
+        method_setImplementation(setSSLPinningModeMethod, (IMP)hook_afSecurityPolicySetSSLPinningMode);
+    }
     
-    swizzleInstanceMethod(afSecurityPolicy, 
-                         @selector(setAllowInvalidCertificates:), 
-                         (IMP)hook_afSecurityPolicySetAllowInvalidCertificates, 
-                         &orig_afSecurityPolicySetAllowInvalidCertificates);
+    Method setAllowInvalidCertificatesMethod = class_getInstanceMethod(afSecurityPolicy, @selector(setAllowInvalidCertificates:));
+    if (setAllowInvalidCertificatesMethod) {
+        orig_afSecurityPolicySetAllowInvalidCertificates = method_getImplementation(setAllowInvalidCertificatesMethod);
+        method_setImplementation(setAllowInvalidCertificatesMethod, (IMP)hook_afSecurityPolicySetAllowInvalidCertificates);
+    }
     
-    // Hook class methods - need different approach
+    // Hook class methods - keep as is since they work
     Method policyMethod = class_getClassMethod(afSecurityPolicy, @selector(policyWithPinningMode:));
     if (policyMethod) {
         orig_afSecurityPolicyPolicyWithPinningMode = method_getImplementation(policyMethod);
@@ -955,10 +922,11 @@ static void setupTrustKitHooks(void) {
     
     NSLog(@"[LC] 🔓 Found TrustKit, hooking pinning validation");
     
-    swizzleInstanceMethod(tskPinningValidator, 
-                         @selector(evaluateTrust:forHostname:), 
-                         (IMP)hook_tskPinningValidatorEvaluateTrust, 
-                         &orig_tskPinningValidatorEvaluateTrust);
+    Method evaluateTrustMethod = class_getInstanceMethod(tskPinningValidator, @selector(evaluateTrust:forHostname:));
+    if (evaluateTrustMethod) {
+        orig_tskPinningValidatorEvaluateTrust = method_getImplementation(evaluateTrustMethod);
+        method_setImplementation(evaluateTrustMethod, (IMP)hook_tskPinningValidatorEvaluateTrust);
+    }
 }
 
 static void setupCordovaHooks(void) {
@@ -969,10 +937,11 @@ static void setupCordovaHooks(void) {
     
     NSLog(@"[LC] 🔓 Found Cordova SSLCertificateChecker plugin, hooking fingerprint validation");
     
-    swizzleInstanceMethod(customURLConnectionDelegate, 
-                         @selector(isFingerprintTrusted:), 
-                         (IMP)hook_customURLConnectionDelegateIsFingerprintTrusted, 
-                         &orig_customURLConnectionDelegateIsFingerprintTrusted);
+    Method isFingerprintTrustedMethod = class_getInstanceMethod(customURLConnectionDelegate, @selector(isFingerprintTrusted:));
+    if (isFingerprintTrustedMethod) {
+        orig_customURLConnectionDelegateIsFingerprintTrusted = method_getImplementation(isFingerprintTrustedMethod);
+        method_setImplementation(isFingerprintTrustedMethod, (IMP)hook_customURLConnectionDelegateIsFingerprintTrusted);
+    }
 }
 
 static void setupNSURLSessionHooks(void) {
@@ -1026,6 +995,46 @@ static void setupSSLPinningBypass(void) {
     NSLog(@"[LC] 🔓 SSL pinning bypass setup complete");
 }
 
+// MARK: SSL Killswitch 3
+static OSStatus hook_SecTrustEvaluate(SecTrustRef trust, SecTrustResultType *result) {
+    OSStatus res = orig_SecTrustEvaluate(trust, result);
+    if (result) *result = kSecTrustResultProceed;
+    return errSecSuccess;
+}
+
+static bool hook_SecTrustEvaluateWithError(SecTrustRef trust, CFErrorRef *error) {
+    if (error && *error) *error = NULL;
+    return true;
+}
+
+static OSStatus hook_SecTrustEvaluateAsync(SecTrustRef trust, dispatch_queue_t queue, SecTrustCallback result) {
+    dispatch_async(queue, ^{ result(trust, true); });
+    return errSecSuccess;
+}
+
+static OSStatus hook_SecTrustEvaluateAsyncWithError(SecTrustRef trust, dispatch_queue_t queue, SecTrustWithErrorCallback result) {
+    dispatch_async(queue, ^{ result(trust, true, NULL); });
+    return errSecSuccess;
+}
+
+static OSStatus hook_SecTrustEvaluateFastAsync(SecTrustRef trust, dispatch_queue_t queue, SecTrustCallback result) {
+    dispatch_async(queue, ^{ result(trust, true); });
+    return errSecSuccess;
+}
+
+// MARK: BoringSSL Hooks
+static int hook_verify_callback(void *ssl, uint8_t *out_alert) {
+    return 0; // ssl_verify_ok
+}
+
+static void hook_SSL_set_custom_verify(void *ssl, int mode, int (*callback)(void *, uint8_t *)) {
+    orig_SSL_set_custom_verify(ssl, 0, hook_verify_callback);
+}
+
+static void hook_SSL_CTX_set_custom_verify(void *ctx, int mode, int (*callback)(void *, uint8_t *)) {
+    orig_SSL_CTX_set_custom_verify(ctx, 0, hook_verify_callback);
+}
+
 // MARK : Signal Handlers
 
 int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact) {
@@ -1044,7 +1053,7 @@ int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigacti
     return result;
 }
 
-// advanced
+// Advanced Signal handler hook
 // int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact) {
 //     int result = orig_sigaction(sig, act, oact);
     
