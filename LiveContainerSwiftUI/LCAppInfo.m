@@ -931,6 +931,20 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     [self save];
 }
 
+// SSL Addon Section
+- (bool)bypassSSLPinning {
+    if(_info[@"bypassSSLPinning"] != nil) {
+        return [_info[@"bypassSSLPinning"] boolValue];
+    } else {
+        return YES; // Default to enabled for security testing
+    }
+}
+
+- (void)setBypassSSLPinning:(bool)bypassSSLPinning {
+    _info[@"bypassSSLPinning"] = [NSNumber numberWithBool:bypassSSLPinning];
+    [self save];
+}
+
 // MARK: UI Addon Section
 - (NSDate*)lastLaunched {
     return _info[@"lastLaunched"];

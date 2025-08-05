@@ -65,6 +65,9 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property NSString* proxyPassword;
 @property NSString* spoofNetworkMode; // "standard", "aggressive", "compatibility"
 
+// SSL section
+@property bool bypassSSLPinning;
+
 - (void)setBundlePath:(NSString*)newBundlePath;
 - (NSMutableDictionary*)info;
 - (UIImage*)icon;

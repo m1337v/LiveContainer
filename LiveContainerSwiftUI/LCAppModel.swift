@@ -168,7 +168,7 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var isProcessingVideo = false
     @Published var videoProcessingProgress: Double = 0.0
 
-    // MARK: Proxy Addon
+    // MARK: Network Addon
     @Published var uiSpoofNetwork : Bool {
         didSet {
             appInfo.spoofNetwork = uiSpoofNetwork
@@ -204,6 +204,9 @@ class LCAppModel: ObservableObject, Hashable {
             appInfo.spoofNetworkMode = uiSpoofNetworkMode
         }
     }
+
+    // MARK: SSL Addon
+    @Published var uiBypassSSLPinning = false
 
     var delegate : LCAppModelDelegate?
     

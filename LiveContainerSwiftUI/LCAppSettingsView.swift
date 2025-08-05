@@ -892,6 +892,22 @@ struct LCAppSettingsView : View{
                         .transition(.opacity.combined(with: .slide))
                 }
             }
+
+            // MARK: SSL Addon Section
+            Section {
+                Toggle(isOn: $model.uiBypassSSLPinning) {
+                    Label {
+                        Text("Bypass SSL Pinning")
+                    } icon: {
+                        Image(systemName: "lock.open")
+                            .foregroundColor(.orange)
+                    }
+                }
+            } header: {
+                Text("Security Testing")
+            } footer: {
+                Text("Bypasses SSL certificate pinning for security testing and debugging. This allows the app to accept invalid certificates and ignore certificate validation.")
+            }
             
             Section {
                 NavigationLink {

@@ -98,6 +98,7 @@ uint32_t guestAppSdkVersion = 0;
 uint32_t guestAppSdkVersionSet = 0;
 bool (*orig_dyld_program_sdk_at_least)(void* dyldPtr, dyld_build_version_t version);
 uint32_t (*orig_dyld_get_program_sdk_version)(void* dyldPtr);
+static bool bypassSSLPinning = false;
 
 // Global variable to track Sign in with Apple context  
 static BOOL isSignInWithAppleActive = NO;
@@ -554,8 +555,6 @@ uint32_t hook_dyld_get_program_sdk_version(void* dyldApiInstancePtr) {
 //     return CFBridgingRetain(cleanProxySettings);
 // }
 static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
-    NSLog(@"[LC] 🎭 CFNetworkCopySystemProxySettings - returning truly empty settings (cellular behavior)");
-    
     // Return completely empty dictionary - exactly like cellular connection
     NSDictionary *emptySettings = @{};
     
@@ -739,65 +738,66 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
 @end
 
 static void setupNetworkFrameworkSwizzling(void) {
-    NSLog(@"[LC] 🔍 Discovering actual NWPath methods...");
+    NSLog(@"[LC] 🔍 Hooking ALL NWPath methods to see what Swift calls...");
     
     Class nwPathClass = NSClassFromString(@"NWPath");
     if (nwPathClass) {
-        NSLog(@"[LC] 🎯 Found NWPath class: %@", nwPathClass);
-        
-        // List ALL instance methods to find the real availableInterfaces getter
+        // Get ALL methods and hook them with debug logging
         unsigned int methodCount;
         Method *methods = class_copyMethodList(nwPathClass, &methodCount);
         
-        NSLog(@"[LC] 🔍 NWPath has %u instance methods:", methodCount);
-        NSMutableArray *availableInterfacesCandidates = [NSMutableArray array];
+        NSLog(@"[LC] 🔍 Found %u methods on NWPath - hooking all for debug", methodCount);
         
         for (unsigned int i = 0; i < methodCount; i++) {
             SEL selector = method_getName(methods[i]);
             NSString *methodName = NSStringFromSelector(selector);
             
-            // Look for anything containing "interface" or "available"
-            if ([methodName.lowercaseString containsString:@"interface"] || 
-                [methodName.lowercaseString containsString:@"available"]) {
-                [availableInterfacesCandidates addObject:methodName];
-                NSLog(@"[LC] 🎯 CANDIDATE: %@", methodName);
+            // Skip our own methods and obviously unrelated ones
+            if ([methodName hasPrefix:@"lc_"] || 
+                [methodName hasPrefix:@"."]) {
+                continue;
             }
+            
+            // Hook every other method with debug logging
+            IMP originalImp = class_getMethodImplementation(nwPathClass, selector);
+            
+            id debugBlock = ^id(id self, ...) {
+                NSLog(@"[LC] 🎯 *** NWPath.%@ CALLED *** on %@", methodName, [self class]);
+                
+                // Call original and log result
+                id result = ((id (*)(id, SEL))originalImp)(self, selector);
+                
+                if ([result isKindOfClass:[NSArray class]]) {
+                    NSArray *array = (NSArray *)result;
+                    NSLog(@"[LC] 🎯 %@ returned NSArray with %lu items - THIS MIGHT BE IT!", methodName, (unsigned long)array.count);
+                    
+                    // Log first few items to see if they're interfaces
+                    for (int j = 0; j < MIN(3, array.count); j++) {
+                        id item = array[j];
+                        if ([item respondsToSelector:@selector(name)]) {
+                            NSString *name = [item performSelector:@selector(name)];
+                            NSLog(@"[LC] 🎯   Interface[%d]: %@", j, name);
+                        }
+                    }
+                } else if (result) {
+                    NSLog(@"[LC] 🎯 %@ returned: %@ (class: %@)", methodName, result, [result class]);
+                } else {
+                    NSLog(@"[LC] 🎯 %@ returned nil", methodName);
+                }
+                
+                return result;
+            };
+            
+            IMP debugImp = imp_implementationWithBlock(debugBlock);
+            method_setImplementation(methods[i], debugImp);  
         }
         
         free(methods);
         
-        // Try the most likely candidates
-        NSArray *likelyCandidates = @[
-            @"availableInterfaces",
-            @"_availableInterfaces", 
-            @"getAvailableInterfaces",
-            @"interfaces",
-            @"_interfaces"
-        ];
-        
-        for (NSString *candidate in likelyCandidates) {
-            SEL candidateSelector = NSSelectorFromString(candidate);
-            if ([nwPathClass instancesRespondToSelector:candidateSelector]) {
-                NSLog(@"[LC] ✅ Found working selector: %@", candidate);
-                swizzle(nwPathClass, candidateSelector, @selector(lc_availableInterfaces));
-                NSLog(@"[LC] ✅ Swizzled NWPath.%@", candidate);
-                break;
-            }
-        }
-        
-        // Also try any discovered candidates
-        for (NSString *candidate in availableInterfacesCandidates) {
-            SEL candidateSelector = NSSelectorFromString(candidate);
-            if ([nwPathClass instancesRespondToSelector:candidateSelector]) {
-                NSLog(@"[LC] ✅ Found discovered selector: %@", candidate);
-                swizzle(nwPathClass, candidateSelector, @selector(lc_availableInterfaces));
-                NSLog(@"[LC] ✅ Swizzled NWPath.%@", candidate);
-                break;
-            }
-        }
+        NSLog(@"[LC] ✅ Hooked all NWPath methods for debug - now call getNWPathDebugInfo!");
     }
     
-    // NWInterface.type swizzling (this works)
+    // Also hook NWInterface.type
     Class nwInterfaceClass = NSClassFromString(@"NWInterface");
     if (nwInterfaceClass) {
         if ([nwInterfaceClass instancesRespondToSelector:@selector(type)]) {
@@ -806,7 +806,7 @@ static void setupNetworkFrameworkSwizzling(void) {
         }
     }
     
-    NSLog(@"[LC] ✅ Network framework discovery complete");
+    NSLog(@"[LC] ✅ Debug hooks complete");
 }
 
 // MARK: SSL Pinning
@@ -1280,6 +1280,9 @@ void DyldHookLoadableIntoProcess(void) {
 // MARK: Init
 void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
     // iterate through loaded images and find LiveContainer it self
+    NSDictionary *guestAppInfo = [NSUserDefaults guestAppInfo];
+    bypassSSLPinning = [guestAppInfo[@"bypassSSLPinning"] boolValue];
+
     int imageCount = _dyld_image_count();
     for(int i = 0; i < imageCount; ++i) {
         const struct mach_header* currentImageHeader = _dyld_get_image_header(i);
@@ -1311,15 +1314,17 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
                     {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
         }, 3);
-        // SSL pinning bypass
-        setupSSLPinningBypass();
+        
         // NWPath swizzling
         // setupNetworkFrameworkSwizzling();
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             setupNetworkFrameworkSwizzling();
     });
     }
-    
+    if (bypassSSLPinning) {
+        setupSSLPinningBypass();
+    }
+
     appExecutableFileTypeOverwritten = !hideLiveContainer;
     
     if(spoofSDKVersion) {
