@@ -3,6 +3,11 @@
 #include <objc/runtime.h>
 #include <os/lock.h>
 
+void swizzle(Class class, SEL originalAction, SEL swizzledAction);
+void swizzleClassMethod(Class class, SEL originalAction, SEL swizzledAction);
+// Cross-class swizzling (adds method from class2 to class, then swizzles)
+void swizzle2(Class class, SEL originalAction, Class class2, SEL swizzledAction);
+
 const char **_CFGetProgname(void);
 const char **_CFGetProcessPath(void);
 int _NSGetExecutablePath(char* buf, uint32_t* bufsize);

@@ -14,7 +14,8 @@
 #import <MobileCoreServices/MobileCoreServices.h> 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <objc/runtime.h>
-#import "../LiveContainer/Tweaks/Tweaks.h"
+#import "Tweaks.h"
+// #import "../utils.h" // duplicate swizzle
 
 // pragma MARK: - Global State
 

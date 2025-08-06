@@ -169,10 +169,7 @@
 		174140F52D9C1C9B00F3F928 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"AVFoundation+GuestHooks.m",
-				"CoreLocation+GuestHooks.m",
 				DocumentPicker.m,
-				"Network+GuestHooks.m",
 				Notification.m,
 				TweakLoader.m,
 				"UIKit+GuestHooks.m",
@@ -194,6 +191,15 @@
 			);
 			target = E1292BD52DCA3B660065E12D /* LiveContainerShared */;
 		};
+		58AB1E232E433721003668F2 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"AVFoundation+GuestHooks.m",
+				"CoreLocation+GuestHooks.m",
+				"Network+GuestHooks.m",
+			);
+			target = 174140392D9C0D0000F3F928 /* TweakLoader */;
+		};
 		E1292AF72DCA3A660065E12D /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -204,6 +210,9 @@
 		E1292C202DCA48F00065E12D /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				"AVFoundation+GuestHooks.h",
+				"CoreLocation+GuestHooks.h",
+				"Network+GuestHooks.h",
 				Tweaks.h,
 			);
 			target = E1292BD52DCA3B660065E12D /* LiveContainerShared */;
@@ -260,6 +269,15 @@
 				XPCServer.h,
 			);
 		};
+		58AB1E2A2E43389A003668F2 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = E1292BD22DCA3B660065E12D /* Sources */;
+			membershipExceptions = (
+				"AVFoundation+GuestHooks.h",
+				"CoreLocation+GuestHooks.h",
+				"Network+GuestHooks.h",
+			);
+		};
 /* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -273,7 +291,7 @@
 		17780D3B2E1C02420077E636 /* litehook */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (17780E512E1C039D0077E636 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = litehook; sourceTree = "<group>"; };
 		17B0F8452DE16FE4008110EA /* xcconfigs */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = xcconfigs; sourceTree = "<group>"; };
 		E1292AE72DCA3A660065E12D /* LiveProcess */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (E1292AF72DCA3A660065E12D /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = LiveProcess; sourceTree = "<group>"; };
-		E1292C1A2DCA48F00065E12D /* Tweaks */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (E1292C202DCA48F00065E12D /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Tweaks; sourceTree = "<group>"; };
+		E1292C1A2DCA48F00065E12D /* Tweaks */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (58AB1E232E433721003668F2 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, E1292C202DCA48F00065E12D /* PBXFileSystemSynchronizedBuildFileExceptionSet */, 58AB1E2A2E43389A003668F2 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Tweaks; sourceTree = "<group>"; };
 		E1292C242DCA4E6F0065E12D /* MultitaskSupport */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (E1292C2D2DCA4E800065E12D /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = MultitaskSupport; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 

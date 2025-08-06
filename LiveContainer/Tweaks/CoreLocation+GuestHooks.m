@@ -1,7 +1,7 @@
 #import "CoreLocation+GuestHooks.h"
 #import <CoreLocation/CoreLocation.h>
 #import <objc/runtime.h>
-#import "utils.h"
+#import "../utils.h"
 
 static BOOL spoofGPSEnabled = NO;
 static CLLocationCoordinate2D spoofedCoordinate = {37.7749, -122.4194};

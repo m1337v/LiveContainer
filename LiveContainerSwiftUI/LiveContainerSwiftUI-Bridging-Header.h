@@ -14,7 +14,7 @@
 #include "../MultitaskSupport/DecoratedAppSceneViewController.h"
 #include "../MultitaskSupport/PiPManager.h"
 #include "../LiveContainer/FoundationPrivate.h"
-#include "../TweakLoader/CoreLocation+GuestHooks.h"
-#include "../TweakLoader/AVFoundation+GuestHooks.h"
+#include "../LiveContainer/Tweaks/CoreLocation+GuestHooks.h"
+#include "../LiveContainer/Tweaks/AVFoundation+GuestHooks.h"
 
 #endif /* LiveContainerSwiftUI_Bridging_Header_h_h */

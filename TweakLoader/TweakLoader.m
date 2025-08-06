@@ -3,13 +3,6 @@
 #include <dlfcn.h>
 #include <objc/runtime.h>
 #include "utils.h"
-#import "CoreLocation+GuestHooks.h"
-#import "AVFoundation+GuestHooks.h"
-#import "Network+GuestHooks.h"
-
-void CoreLocationGuestHooksInit(void);
-void AVFoundationGuestHooksInit(void);
-void NetworkGuestHooksInit(void);
 
 static NSString *loadTweakAtURL(NSURL *url) {
     NSString *tweakPath = url.path;
@@ -132,22 +125,7 @@ static void TweakLoaderConstructor() {
         }
     }
 
-    // GPS Addon Section
-    // Initialize GPS hooks if needed - this is now safer since it uses NSUserDefaults.guestAppInfo
-    // which is the same pattern used by other hooks like SecItem
-    if (NSUserDefaults.guestAppInfo[@"spoofGPS"] && [NSUserDefaults.guestAppInfo[@"spoofGPS"] boolValue]) {
-        CoreLocationGuestHooksInit();
-    }
-    
-    // Camera Addon Section
-    if (NSUserDefaults.guestAppInfo[@"spoofCamera"] && [NSUserDefaults.guestAppInfo[@"spoofCamera"] boolValue]) {
-        AVFoundationGuestHooksInit();
-    }
 
-    // Network Addon Section
-    if (NSUserDefaults.guestAppInfo[@"spoofNetwork"] && [NSUserDefaults.guestAppInfo[@"spoofNetwork"] boolValue]) {
-        NetworkGuestHooksInit();
-    }
 
     if (errors.count > 0) {
         dispatch_async(dispatch_get_main_queue(), ^{

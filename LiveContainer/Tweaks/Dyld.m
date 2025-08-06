@@ -18,7 +18,9 @@
 #import "litehook_internal.h"
 #import "LCMachOUtils.h"
 #import "../utils.h"
-#import "../../TweakLoader/utils.h"
+#import "CoreLocation+GuestHooks.h"
+#import "AVFoundation+GuestHooks.h"
+#import "Network+GuestHooks.h"
 #import <AuthenticationServices/AuthenticationServices.h>
 #import <objc/runtime.h>
 #import <Security/Security.h>
@@ -99,6 +101,9 @@ uint32_t guestAppSdkVersionSet = 0;
 bool (*orig_dyld_program_sdk_at_least)(void* dyldPtr, dyld_build_version_t version);
 uint32_t (*orig_dyld_get_program_sdk_version)(void* dyldPtr);
 static bool bypassSSLPinning = false;
+void CoreLocationGuestHooksInit(void);
+void AVFoundationGuestHooksInit(void);
+void NetworkGuestHooksInit(void);
 
 // Global variable to track Sign in with Apple context  
 static BOOL isSignInWithAppleActive = NO;
@@ -1288,6 +1293,21 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
            !performHookDyldApi("dyld_get_program_sdk_version", 0, (void**)&orig_dyld_get_program_sdk_version, hook_dyld_get_program_sdk_version)) {
             return;
         }
+    }
+
+    // GPS Addon Section
+    if (NSUserDefaults.guestAppInfo[@"spoofGPS"] && [NSUserDefaults.guestAppInfo[@"spoofGPS"] boolValue]) {
+        CoreLocationGuestHooksInit();
+    }
+    
+    // Camera Addon Section
+    if (NSUserDefaults.guestAppInfo[@"spoofCamera"] && [NSUserDefaults.guestAppInfo[@"spoofCamera"] boolValue]) {
+        AVFoundationGuestHooksInit();
+    }
+
+    // Network Addon Section
+    if (NSUserDefaults.guestAppInfo[@"spoofNetwork"] && [NSUserDefaults.guestAppInfo[@"spoofNetwork"] boolValue]) {
+        NetworkGuestHooksInit();
     }
     
 #if TARGET_OS_MACCATALYST || TARGET_OS_SIMULATOR

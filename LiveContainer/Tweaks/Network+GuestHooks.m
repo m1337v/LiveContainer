@@ -8,7 +8,7 @@
 #import <sys/socket.h>
 #import <net/if.h>
 #import <netdb.h>
-#import "utils.h"
+#import "../utils.h"
 
 // Global proxy state (Socker-inspired)
 static BOOL proxyEnabled = NO;
