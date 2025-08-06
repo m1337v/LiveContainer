@@ -61,7 +61,7 @@ class LCContainer : ObservableObject, Hashable {
         self.init(folderName: infoDict["folderName"] as? String ?? "ERROR",
                   name: infoDict["name"] as? String ?? "ERROR",
                   isShared: isShared,
-                  isolateAppGroup: infoDict["isolateAppGroup"] as? Bool ?? false
+                  isolateAppGroup: infoDict["isolateAppGroup"] as? Bool ?? true
         )
     }
     
@@ -104,7 +104,7 @@ class LCContainer : ObservableObject, Hashable {
             return
         }
         name = infoDict["name"] as? String ?? "ERROR"
-        isolateAppGroup = infoDict["isolateAppGroup"] as? Bool ?? false
+        isolateAppGroup = infoDict["isolateAppGroup"] as? Bool ?? true
     }
     
     static func == (lhs: LCContainer, rhs: LCContainer) -> Bool {
@@ -125,7 +125,7 @@ extension LCAppInfo {
                 containerInfo = [[
                     "folderName": oldDataUUID,
                     "name": oldDataUUID,
-                    "isolateAppGroup": false
+                    "isolateAppGroup": true
                 ]]
                 upgrade = true
             }

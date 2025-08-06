@@ -3,7 +3,7 @@
 #import "LCSharedUtils.h"
 #import "Tweaks.h"
 
-BOOL isolateAppGroup = NO;
+BOOL isolateAppGroup = YES;
 void NSFMGuestHooksInit(void) {
     NSString* containerInfoPath = [[NSString stringWithUTF8String:getenv("HOME")] stringByAppendingPathComponent:@"LCContainerInfo.plist"];
     NSDictionary* infoDict = [NSDictionary dictionaryWithContentsOfFile:containerInfoPath];

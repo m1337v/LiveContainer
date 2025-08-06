@@ -491,9 +491,10 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     if(_info[@"dontInjectTweakLoader"] != nil) {
         return [_info[@"dontInjectTweakLoader"] boolValue];
     } else {
-        return NO;
+        return YES; // Changed from NO to YES - default to disabled injection
     }
 }
+
 - (void)setDontInjectTweakLoader:(bool)dontInjectTweakLoader {
     if([_info[@"dontInjectTweakLoader"] boolValue] == dontInjectTweakLoader) {
         return;
@@ -509,9 +510,10 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     if(_info[@"dontLoadTweakLoader"] != nil) {
         return [_info[@"dontLoadTweakLoader"] boolValue];
     } else {
-        return NO;
+        return YES; // Changed from NO to YES - default to disabled loading
     }
 }
+
 - (void)setDontLoadTweakLoader:(bool)dontLoadTweakLoader {
     _info[@"dontLoadTweakLoader"] = [NSNumber numberWithBool:dontLoadTweakLoader];
     [self save];

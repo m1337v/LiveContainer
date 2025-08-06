@@ -695,8 +695,11 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
             finalNewApp.autoSaveDisabled = false
             finalNewApp.save()
         } else {
-            // enable SDK version spoof by defalut
+            // enable SDK version spoof by default
             finalNewApp.spoofSDKVersion = true
+            // Set TweakLoader defaults for new apps (disable by default for security)
+            finalNewApp.dontInjectTweakLoader = true
+            finalNewApp.dontLoadTweakLoader = true
         }
         finalNewApp.installationDate = Date.now
         

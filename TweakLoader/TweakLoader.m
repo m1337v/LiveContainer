@@ -125,8 +125,6 @@ static void TweakLoaderConstructor() {
         }
     }
 
-
-
     if (errors.count > 0) {
         dispatch_async(dispatch_get_main_queue(), ^{
             NSString *error = [errors componentsJoinedByString:@"\n"];
