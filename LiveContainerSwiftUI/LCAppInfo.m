@@ -288,144 +288,139 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 }
 
 - (void)patchExecAndSignIfNeedWithCompletionHandler:(void(^)(bool success, NSString* errorInfo))completetionHandler progressHandler:(void(^)(NSProgress* progress))progressHandler forceSign:(BOOL)forceSign {
-    
-    // Set the signing in progress flag
     [NSUserDefaults.standardUserDefaults setObject:@(YES) forKey:@"SigningInProgress"];
+    NSString *appPath = self.bundlePath;
+    NSString *infoPath = [NSString stringWithFormat:@"%@/Info.plist", appPath];
+    NSMutableDictionary *info = _info;
+    NSMutableDictionary *infoPlist = _infoPlist;
+    if (!info) {
+        [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SigningInProgress"];
+        completetionHandler(NO, @"Info.plist not found");
+        return;
+    }
+    NSFileManager* fm = NSFileManager.defaultManager;
+    NSString *execPath = [NSString stringWithFormat:@"%@/%@", appPath, _infoPlist[@"CFBundleExecutable"]];
     
-    @try {
-        NSString *appPath = self.bundlePath;
-        NSString *infoPath = [NSString stringWithFormat:@"%@/Info.plist", appPath];
-        NSMutableDictionary *info = _info;
-        NSMutableDictionary *infoPlist = _infoPlist;
+    // Update patch
+    int currentPatchRev = 7;
+    bool needPatch = [info[@"LCPatchRevision"] intValue] < currentPatchRev;
+    if (needPatch || forceSign) {
+        // copy-delete-move to avoid EXC_BAD_ACCESS (SIGKILL - CODESIGNING)
+        NSString *backupPath = [NSString stringWithFormat:@"%@/%@_LiveContainerPatchBackUp", appPath, _infoPlist[@"CFBundleExecutable"]];
+        NSError *err;
+        [fm copyItemAtPath:execPath toPath:backupPath error:&err];
+        [fm removeItemAtPath:execPath error:&err];
+        [fm moveItemAtPath:backupPath toPath:execPath error:&err];
+    }
+    
+    if (needPatch) {
+        __block bool has64bitSlice = NO;
+        NSString *error = LCParseMachO(execPath.UTF8String, false, ^(const char *path, struct mach_header_64 *header, int fd, void* filePtr) {
+            if(header->cputype == CPU_TYPE_ARM64) {
+                has64bitSlice |= YES;
+                int patchResult = LCPatchExecSlice(path, header, ![self dontInjectTweakLoader]);
+                if(patchResult & PATCH_EXEC_RESULT_NO_SPACE_FOR_TWEAKLOADER) {
+                    info[@"LCTweakLoaderCantInject"] = @YES;
+                    info[@"dontInjectTweakLoader"] = @YES;
+                }
+            }
+        });
+        self.is32bit = !has64bitSlice;
+        LCPatchAppBundleFixupARM64eSlice([NSURL fileURLWithPath:appPath]);
         
-        if (!info) {
-            completetionHandler(NO, @"Info.plist not found");
+        if (error) {
+            [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SigningInProgress"];
+            completetionHandler(NO, error);
             return;
         }
+        info[@"LCPatchRevision"] = @(currentPatchRev);
+        forceSign = true;
         
-        NSFileManager* fm = NSFileManager.defaultManager;
-        NSString *execPath = [NSString stringWithFormat:@"%@/%@", appPath, _infoPlist[@"CFBundleExecutable"]];
-        
-        // Update patch
-        int currentPatchRev = 7;
-        bool needPatch = [info[@"LCPatchRevision"] intValue] < currentPatchRev;
-        if (needPatch || forceSign) {
-            // copy-delete-move to avoid EXC_BAD_ACCESS (SIGKILL - CODESIGNING)
-            NSString *backupPath = [NSString stringWithFormat:@"%@/%@_LiveContainerPatchBackUp", appPath, _infoPlist[@"CFBundleExecutable"]];
-            NSError *err;
-            [fm copyItemAtPath:execPath toPath:backupPath error:&err];
-            [fm removeItemAtPath:execPath error:&err];
-            [fm moveItemAtPath:backupPath toPath:execPath error:&err];
-        }
-        
-        if (needPatch) {
-            __block bool has64bitSlice = NO;
-            NSString *error = LCParseMachO(execPath.UTF8String, false, ^(const char *path, struct mach_header_64 *header, int fd, void* filePtr) {
-                if(header->cputype == CPU_TYPE_ARM64) {
-                    has64bitSlice |= YES;
-                    int patchResult = LCPatchExecSlice(path, header, ![self dontInjectTweakLoader]);
-                    if(patchResult & PATCH_EXEC_RESULT_NO_SPACE_FOR_TWEAKLOADER) {
-                        info[@"LCTweakLoaderCantInject"] = @YES;
-                        // info[@"dontInjectTweakLoader"] = @YES;
-                    }
-                }
-            });
-            self.is32bit = !has64bitSlice;
-            LCPatchAppBundleFixupARM64eSlice([NSURL fileURLWithPath:appPath]);
-            
-            if (error) {
-                completetionHandler(NO, error);
-                return;
-            }
-            info[@"LCPatchRevision"] = @(currentPatchRev);
-            forceSign = true;
-            
-            [self save];
-        }
+        [self save];
+    }
 
-        if (!LCUtils.certificatePassword || self.is32bit || self.dontSign) {
+    if (!LCUtils.certificatePassword || self.is32bit || self.dontSign) {
+        [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SigningInProgress"];
+        completetionHandler(YES, nil);
+        return;
+    }
+
+    // check if iOS think this app's signature is valid, if so, we can skip any further signature check
+    NSString* executablePath = [appPath stringByAppendingPathComponent:infoPlist[@"CFBundleExecutable"]];
+    if(!forceSign) {
+        bool signatureValid = checkCodeSignature(executablePath.UTF8String);
+        
+        if(signatureValid) {
+            [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SigningInProgress"];
             completetionHandler(YES, nil);
             return;
         }
-
-        // check if iOS think this app's signature is valid, if so, we can skip any further signature check
-        NSString* executablePath = [appPath stringByAppendingPathComponent:infoPlist[@"CFBundleExecutable"]];
-        if(!forceSign) {
-            bool signatureValid = checkCodeSignature(executablePath.UTF8String);
-            
-            if(signatureValid) {
-                completetionHandler(YES, nil);
-                return;
-            }
-        }
-        
-        if (!LCUtils.certificateData) {
-            completetionHandler(NO, @"lc.signer.noCertificateFoundErr");
-            return;
-        }
-        
-        if(forceSign) {
-            // remove ZSign cache since hash is changed after upgrading patch
-            NSString* cachePath = [appPath stringByAppendingPathComponent:@"zsign_cache.json"];
-            if([fm fileExistsAtPath:cachePath]) {
-                NSError* err;
-                [fm removeItemAtPath:cachePath error:&err];
-            }
-        }
-        
-        // Sign app if JIT-less is set up
-        NSURL *appPathURL = [NSURL fileURLWithPath:appPath];
-        // We need to temporarily fake bundle ID and main executable to sign properly
-        NSString *tmpExecPath = [appPath stringByAppendingPathComponent:@"LiveContainer.tmp"];
-        if (!info[@"LCBundleIdentifier"]) {
-            // Don't let main executable get entitlements
-            [fm copyItemAtPath:NSBundle.mainBundle.executablePath toPath:tmpExecPath error:nil];
-
-            infoPlist[@"LCBundleExecutable"] = infoPlist[@"CFBundleExecutable"];
-            infoPlist[@"LCBundleIdentifier"] = infoPlist[@"CFBundleIdentifier"];
-            infoPlist[@"CFBundleExecutable"] = tmpExecPath.lastPathComponent;
-            infoPlist[@"CFBundleIdentifier"] = NSBundle.mainBundle.bundleIdentifier;
-            [infoPlist writeToFile:infoPath atomically:YES];
-        }
-        infoPlist[@"CFBundleExecutable"] = infoPlist[@"LCBundleExecutable"];
-        infoPlist[@"CFBundleIdentifier"] = infoPlist[@"LCBundleIdentifier"];
-        [infoPlist removeObjectForKey:@"LCBundleExecutable"];
-        [infoPlist removeObjectForKey:@"LCBundleIdentifier"];
-        
-        void (^signCompletionHandler)(BOOL success, NSError *error) = ^(BOOL success, NSError *_Nullable error) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                // Remove fake main executable
-                [fm removeItemAtPath:tmpExecPath error:nil];
-                
-                // Save sign ID and restore bundle ID
-                [self save];
-                [infoPlist writeToFile:infoPath atomically:YES];
-                
-                if(!success) {
-                    completetionHandler(NO, error.localizedDescription);
-                } else {
-                    bool signatureValid = checkCodeSignature(executablePath.UTF8String);
-                    if(signatureValid) {
-                        completetionHandler(YES, [error localizedDescription]);
-                    } else {
-                        completetionHandler(NO, @"lc.signer.latestCertificateInvalidErr");
-                    }
-                }
-            });
-        };
-        
-        __block NSProgress *progress = [LCUtils signAppBundleWithZSign:appPathURL completionHandler:signCompletionHandler];
-
-        if (progress) {
-            progressHandler(progress);
-        }
-        
-    } @finally {
-         // ✅ ONLY clear the flag here - this always runs regardless of how the method exits
-        [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SigningInProgress"];
-        [NSUserDefaults.standardUserDefaults synchronize];
-        NSLog(@"[LC] SigningInProgress flag cleared in @finally block");
     }
+    
+    if (!LCUtils.certificateData) {
+        [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SigningInProgress"];
+        completetionHandler(NO, @"lc.signer.noCertificateFoundErr");
+        return;
+    }
+    
+    if(forceSign) {
+        // remove ZSign cache since hash is changed after upgrading patch
+        NSString* cachePath = [appPath stringByAppendingPathComponent:@"zsign_cache.json"];
+        if([fm fileExistsAtPath:cachePath]) {
+            NSError* err;
+            [fm removeItemAtPath:cachePath error:&err];
+        }
+    }
+    
+    // Sign app if JIT-less is set up
+        NSURL *appPathURL = [NSURL fileURLWithPath:appPath];
+            // We need to temporarily fake bundle ID and main executable to sign properly
+            NSString *tmpExecPath = [appPath stringByAppendingPathComponent:@"LiveContainer.tmp"];
+            if (!info[@"LCBundleIdentifier"]) {
+                // Don't let main executable get entitlements
+                [fm copyItemAtPath:NSBundle.mainBundle.executablePath toPath:tmpExecPath error:nil];
+
+                infoPlist[@"LCBundleExecutable"] = infoPlist[@"CFBundleExecutable"];
+                infoPlist[@"LCBundleIdentifier"] = infoPlist[@"CFBundleIdentifier"];
+                infoPlist[@"CFBundleExecutable"] = tmpExecPath.lastPathComponent;
+                infoPlist[@"CFBundleIdentifier"] = NSBundle.mainBundle.bundleIdentifier;
+                [infoPlist writeToFile:infoPath atomically:YES];
+            }
+            infoPlist[@"CFBundleExecutable"] = infoPlist[@"LCBundleExecutable"];
+            infoPlist[@"CFBundleIdentifier"] = infoPlist[@"LCBundleIdentifier"];
+            [infoPlist removeObjectForKey:@"LCBundleExecutable"];
+            [infoPlist removeObjectForKey:@"LCBundleIdentifier"];
+            
+            void (^signCompletionHandler)(BOOL success, NSError *error)  = ^(BOOL success, NSError *_Nullable error) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    
+                    // Remove fake main executable
+                    [fm removeItemAtPath:tmpExecPath error:nil];
+                    
+                    // Save sign ID and restore bundle ID
+                    [self save];
+                    [infoPlist writeToFile:infoPath atomically:YES];
+                    [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SigningInProgress"];
+                    if(!success) {
+                        completetionHandler(NO, error.localizedDescription);
+                    } else {
+                        bool signatureValid = checkCodeSignature(executablePath.UTF8String);
+                        if(signatureValid) {
+                            completetionHandler(YES, [error localizedDescription]);
+                        } else {
+                            completetionHandler(NO, @"lc.signer.latestCertificateInvalidErr");
+                        }
+                    }
+                    
+                });
+            };
+            
+            __block NSProgress *progress = [LCUtils signAppBundleWithZSign:appPathURL completionHandler:signCompletionHandler];
+
+            if (progress) {
+                progressHandler(progress);
+            }
+
 }
 
 - (bool)isJITNeeded {
