@@ -115,20 +115,7 @@ static void overwriteAppExecutableFileType(void) {
     }
 }
 
-// MARK: shouldHideLibrary
-// static bool shouldHideLibrary(const char* imageName) {
-//     if (!imageName) return false;
-    
-//     // Only hide exact matches to avoid breaking legitimate frameworks
-//     return (strstr(imageName, "TweakLoader.dylib") ||
-//             strstr(imageName, "LiveContainerShared") ||
-//             strstr(imageName, "CydiaSubstrate") ||
-//             strstr(imageName, "MobileSubstrate") ||
-//             strstr(imageName, "substrate") ||
-//             strstr(imageName, "fishhook") ||
-//             (strstr(imageName, "LiveContainer") && strstr(imageName, ".app/")));
-// }
-
+// MARK: ImageaName Filtering
 static bool shouldHideLibrary(const char* imageName) {
     if (!imageName) return false;
     
@@ -138,9 +125,8 @@ static bool shouldHideLibrary(const char* imageName) {
     for (int i = 0; lowerImageName[i]; i++) {
         lowerImageName[i] = tolower(lowerImageName[i]);
     }
-    
-    // Ultra-minimal - only what Reveil specifically looks for
-    // TODO: Add dynamically by enumarating injected dylibs
+
+    // MARK: TODO: Add dynamically by enumarating injected dylibs
     return (strstr(lowerImageName, "substrate") ||      // All substrate variants
             strstr(lowerImageName, "tweakloader") ||    // TweakLoader
             strstr(lowerImageName, "flex") ||           // Flex
@@ -223,6 +209,8 @@ static void ensureAppMainIndexIsSet(void) {
 //     }
 //     return origin;
 // }
+
+// MARK: Dyld Section
 
 void* hook_dlsym(void * __handle, const char * __symbol) {
     // Hide jailbreak detection symbols
@@ -517,43 +505,158 @@ uint32_t hook_dyld_get_program_sdk_version(void* dyldApiInstancePtr) {
     return guestAppSdkVersion;
 }
 
-// MARK: VPN Detection
-// static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
-//     NSLog(@"[LC] 🎭 CFNetworkCopySystemProxySettings called");
+bool performHookDyldApi(const char* functionName, uint32_t adrpOffset, void** origFunction, void* hookFunction) {
     
-//     // Safety check: if original function wasn't found or hooked properly
-//     if (!orig_CFNetworkCopySystemProxySettings) {
-//         NSLog(@"[LC] ⚠️ Original CFNetworkCopySystemProxySettings not available - returning clean settings");
-        
-//         // Return minimal clean settings without calling original
-//         NSDictionary *safeSettings = @{
-//             @"HTTPEnable": @0,
-//             @"HTTPSEnable": @0,
-//             @"SOCKSEnable": @0,
-//             @"ProxyAutoConfigEnable": @0,
-//             @"__SCOPED__": @{}
-//         };
-        
-//         return CFBridgingRetain(safeSettings);
-//     }
+    uint32_t* baseAddr = dlsym(RTLD_DEFAULT, functionName);
+    assert(baseAddr != 0);
+    /*
+     arm64e
+     1ad450b90  e10300aa   mov     x1, x0
+     1ad450b94  487b2090   adrp    x8, dyld4::gAPIs
+     1ad450b98  000140f9   ldr     x0, [x8]  {dyld4::gAPIs} may contain offset
+     1ad450b9c  100040f9   ldr     x16, [x0]
+     1ad450ba0  f10300aa   mov     x17, x0
+     1ad450ba4  517fecf2   movk    x17, #0x63fa, lsl #0x30
+     1ad450ba8  301ac1da   autda   x16, x17
+     1ad450bac  114780d2   mov     x17, #0x238
+     1ad450bb0  1002118b   add     x16, x16, x17
+     1ad450bb4  020240f9   ldr     x2, [x16]
+     1ad450bb8  e30310aa   mov     x3, x16
+     1ad450bbc  f00303aa   mov     x16, x3
+     1ad450bc0  7085f3f2   movk    x16, #0x9c2b, lsl #0x30
+     1ad450bc4  50081fd7   braa    x2, x16
+
+     arm64
+     00000001ac934c80         mov        x1, x0
+     00000001ac934c84         adrp       x8, #0x1f462d000
+     00000001ac934c88         ldr        x0, [x8, #0xf88]                            ; __ZN5dyld45gDyldE
+     00000001ac934c8c         ldr        x8, [x0]
+     00000001ac934c90         ldr        x2, [x8, #0x258]
+     00000001ac934c94         br         x2
+     */
+    uint32_t* adrpInstPtr = baseAddr + adrpOffset;
+    assert ((*adrpInstPtr & 0x9f000000) == 0x90000000);
+    uint32_t immlo = (*adrpInstPtr & 0x60000000) >> 29;
+    uint32_t immhi = (*adrpInstPtr & 0xFFFFE0) >> 5;
+    int64_t imm = (((int64_t)((immhi << 2) | immlo)) << 43) >> 31;
     
-//     // Original function is available - proceed with normal spoofing
-//     NSLog(@"[LC] 🎭 Spoofing system proxy settings (hiding proxy/VPN detection)");
+    void* gdyldPtr = (void*)(((uint64_t)baseAddr & 0xfffffffffffff000) + imm);
     
-//     NSDictionary *cleanProxySettings = @{
-//         @"HTTPEnable": @0,
-//         @"HTTPPort": @0,
-//         @"HTTPSEnable": @0,
-//         @"HTTPSPort": @0,
-//         @"ProxyAutoConfigEnable": @0,
-//         @"SOCKSEnable": @0,
-//         @"SOCKSPort": @0,
-//         @"ExceptionsList": @[],
-//         @"__SCOPED__": @{}        // ✅ Blocks VPN detection (empty = no VPN interfaces)
-//     };
+    uint32_t* ldrInstPtr1 = baseAddr + adrpOffset + 1;
+    // check if the instruction is ldr Unsigned offset
+    assert((*ldrInstPtr1 & 0xBFC00000) == 0xB9400000);
+    uint32_t size = (*ldrInstPtr1 & 0xC0000000) >> 30;
+    uint32_t imm12 = (*ldrInstPtr1 & 0x3FFC00) >> 10;
+    gdyldPtr += (imm12 << size);
     
-//     return CFBridgingRetain(cleanProxySettings);
-// }
+    assert(gdyldPtr != 0);
+    assert(*(void**)gdyldPtr != 0);
+    void* vtablePtr = **(void***)gdyldPtr;
+    
+    void* vtableFunctionPtr = 0;
+    uint32_t* movInstPtr = baseAddr + adrpOffset + 6;
+
+    if((*movInstPtr & 0x7F800000) == 0x52800000) {
+        // arm64e, mov imm + add + ldr
+        uint32_t imm16 = (*movInstPtr & 0x1FFFE0) >> 5;
+        vtableFunctionPtr = vtablePtr + imm16;
+    } else if ((*movInstPtr & 0xFFE00C00) == 0xF8400C00) {
+        // arm64e, ldr immediate Pre-index 64bit
+        uint32_t imm9 = (*movInstPtr & 0x1FF000) >> 12;
+        vtableFunctionPtr = vtablePtr + imm9;
+    } else {
+        // arm64
+        uint32_t* ldrInstPtr2 = baseAddr + adrpOffset + 3;
+        assert((*ldrInstPtr2 & 0xBFC00000) == 0xB9400000);
+        uint32_t size2 = (*ldrInstPtr2 & 0xC0000000) >> 30;
+        uint32_t imm12_2 = (*ldrInstPtr2 & 0x3FFC00) >> 10;
+        vtableFunctionPtr = vtablePtr + (imm12_2 << size2);
+    }
+
+    
+    kern_return_t ret = builtin_vm_protect(mach_task_self(), (mach_vm_address_t)vtableFunctionPtr, sizeof(uintptr_t), false, PROT_READ | PROT_WRITE | VM_PROT_COPY);
+    assert(ret == KERN_SUCCESS);
+    *origFunction = (void*)*(void**)vtableFunctionPtr;
+    *(uint64_t*)vtableFunctionPtr = (uint64_t)hookFunction;
+    builtin_vm_protect(mach_task_self(), (mach_vm_address_t)vtableFunctionPtr, sizeof(uintptr_t), false, PROT_READ);
+    return true;
+}
+
+bool initGuestSDKVersionInfo(void) {
+    void* dyldBase = getDyldBase();
+    // it seems Apple is constantly changing findVersionSetEquivalent's signature so we directly search sVersionMap instead
+    uint32_t* versionMapPtr = getCachedSymbol(@"__ZN5dyld3L11sVersionMapE", dyldBase);
+    if(!versionMapPtr) {
+#if !TARGET_OS_SIMULATOR
+        const char* dyldPath = "/usr/lib/dyld";
+        uint64_t offset = LCFindSymbolOffset(dyldPath, "__ZN5dyld3L11sVersionMapE");
+#else
+        void *result = litehook_find_symbol(dyldBase, "__ZN5dyld3L11sVersionMapE");
+        uint64_t offset = (uint64_t)result - (uint64_t)dyldBase;
+#endif
+        versionMapPtr = dyldBase + offset;
+        saveCachedSymbol(@"__ZN5dyld3L11sVersionMapE", dyldBase, offset);
+    }
+    
+    assert(versionMapPtr);
+    // however sVersionMap's struct size is also unknown, but we can figure it out
+    // we assume the size is 10K so we won't need to change this line until maybe iOS 40
+    uint32_t* versionMapEnd = versionMapPtr + 2560;
+    // ensure the first is versionSet and the third is iOS version (5.0.0)
+    assert(versionMapPtr[0] == 0x07db0901 && versionMapPtr[2] == 0x00050000);
+    // get struct size. we assume size is smaller then 128. appearently Apple won't have so many platforms
+    uint32_t size = 0;
+    for(int i = 1; i < 128; ++i) {
+        // find the next versionSet (for 6.0.0)
+        if(versionMapPtr[i] == 0x07dc0901) {
+            size = i;
+            break;
+        }
+    }
+    assert(size);
+    
+    NSOperatingSystemVersion currentVersion = [[NSProcessInfo processInfo] operatingSystemVersion];
+    uint32_t maxVersion = ((uint32_t)currentVersion.majorVersion << 16) | ((uint32_t)currentVersion.minorVersion << 8);
+    
+    uint32_t candidateVersion = 0;
+    uint32_t candidateVersionEquivalent = 0;
+    uint32_t newVersionSetVersion = 0;
+    for(uint32_t* nowVersionMapItem = versionMapPtr; nowVersionMapItem < versionMapEnd; nowVersionMapItem += size) {
+        newVersionSetVersion = nowVersionMapItem[2];
+        if (newVersionSetVersion > guestAppSdkVersion) { break; }
+        candidateVersion = newVersionSetVersion;
+        candidateVersionEquivalent = nowVersionMapItem[0];
+        if(newVersionSetVersion >= maxVersion) { break; }
+    }
+    
+    if (newVersionSetVersion == 0xffffffff && candidateVersion == 0) {
+        candidateVersionEquivalent = newVersionSetVersion;
+    }
+
+    guestAppSdkVersionSet = candidateVersionEquivalent;
+    
+    return true;
+}
+
+#if TARGET_OS_MACCATALYST || TARGET_OS_SIMULATOR
+void DyldHookLoadableIntoProcess(void) {
+    uint32_t *patchAddr = (uint32_t *)litehook_find_symbol(getDyldBase(), "__ZNK6mach_o6Header19loadableIntoProcessENS_8PlatformE7CStringb");
+    size_t patchSize = sizeof(uint32_t[2]);
+
+    kern_return_t kret;
+    kret = builtin_vm_protect(mach_task_self(), (vm_address_t)patchAddr, patchSize, false, PROT_READ | PROT_WRITE | VM_PROT_COPY);
+    assert(kret == KERN_SUCCESS);
+
+    patchAddr[0] = 0xD2800020; // mov x0, #1
+    patchAddr[1] = 0xD65F03C0; // ret
+
+    kret = builtin_vm_protect(mach_task_self(), (vm_address_t)patchAddr, patchSize, false, PROT_READ | PROT_EXEC);
+    assert(kret == KERN_SUCCESS);
+}
+#endif
+
+// MARK: VPN Section
+
 static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
     // Return completely empty dictionary - exactly like cellular connection
     NSDictionary *emptySettings = @{};
@@ -561,7 +664,6 @@ static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
     return CFBridgingRetain(emptySettings);
 }
 
-// Hook getifaddrs to hide VPN interfaces
 static int hook_getifaddrs(struct ifaddrs **ifap) {
     int result = orig_getifaddrs(ifap);
     if (result != 0 || !ifap || !*ifap) {
@@ -627,7 +729,8 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
 }
 
 // MARK: TODO Filter NWPath Interfaces
-// Hook NWPath availableInterfaces to filter out VPN interfaces
+// Hook NWPath availableInterfaces to filter out VPN interface (utun8)
+// later: filter ethernet en2 as well
 
 // MARK: Swift Network Framework Swizzling (C Functions)
 
@@ -810,9 +913,10 @@ static void setupNetworkFrameworkSwizzling(void) {
 }
 
 // MARK: SSL Pinning
-// MARK: TODO: Fix detection in Alamofire (Alamofire Error Server Trust Failure)
-
-// MARK: TODO: Add SSL-killswitch 3
+// TODO: Fix detection in Alamofire (Alamofire Error Server Trust Failure)
+// TODO: Add SSL-killswitch 3
+// TODO: Add BoringSSL hooks
+// TODO: Add Flutter/Dart Hooks
 
 static void hook_afSecurityPolicySetSSLPinningMode(id self, SEL _cmd, NSUInteger mode) {
     NSLog(@"[LC] 🔓 AFNetworking: setSSLPinningMode called with mode %lu, forcing to 0 (None)", (unsigned long)mode);
@@ -1126,156 +1230,6 @@ int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigacti
     
 //     return result;
 // }
-
-bool performHookDyldApi(const char* functionName, uint32_t adrpOffset, void** origFunction, void* hookFunction) {
-    
-    uint32_t* baseAddr = dlsym(RTLD_DEFAULT, functionName);
-    assert(baseAddr != 0);
-    /*
-     arm64e
-     1ad450b90  e10300aa   mov     x1, x0
-     1ad450b94  487b2090   adrp    x8, dyld4::gAPIs
-     1ad450b98  000140f9   ldr     x0, [x8]  {dyld4::gAPIs} may contain offset
-     1ad450b9c  100040f9   ldr     x16, [x0]
-     1ad450ba0  f10300aa   mov     x17, x0
-     1ad450ba4  517fecf2   movk    x17, #0x63fa, lsl #0x30
-     1ad450ba8  301ac1da   autda   x16, x17
-     1ad450bac  114780d2   mov     x17, #0x238
-     1ad450bb0  1002118b   add     x16, x16, x17
-     1ad450bb4  020240f9   ldr     x2, [x16]
-     1ad450bb8  e30310aa   mov     x3, x16
-     1ad450bbc  f00303aa   mov     x16, x3
-     1ad450bc0  7085f3f2   movk    x16, #0x9c2b, lsl #0x30
-     1ad450bc4  50081fd7   braa    x2, x16
-
-     arm64
-     00000001ac934c80         mov        x1, x0
-     00000001ac934c84         adrp       x8, #0x1f462d000
-     00000001ac934c88         ldr        x0, [x8, #0xf88]                            ; __ZN5dyld45gDyldE
-     00000001ac934c8c         ldr        x8, [x0]
-     00000001ac934c90         ldr        x2, [x8, #0x258]
-     00000001ac934c94         br         x2
-     */
-    uint32_t* adrpInstPtr = baseAddr + adrpOffset;
-    assert ((*adrpInstPtr & 0x9f000000) == 0x90000000);
-    uint32_t immlo = (*adrpInstPtr & 0x60000000) >> 29;
-    uint32_t immhi = (*adrpInstPtr & 0xFFFFE0) >> 5;
-    int64_t imm = (((int64_t)((immhi << 2) | immlo)) << 43) >> 31;
-    
-    void* gdyldPtr = (void*)(((uint64_t)baseAddr & 0xfffffffffffff000) + imm);
-    
-    uint32_t* ldrInstPtr1 = baseAddr + adrpOffset + 1;
-    // check if the instruction is ldr Unsigned offset
-    assert((*ldrInstPtr1 & 0xBFC00000) == 0xB9400000);
-    uint32_t size = (*ldrInstPtr1 & 0xC0000000) >> 30;
-    uint32_t imm12 = (*ldrInstPtr1 & 0x3FFC00) >> 10;
-    gdyldPtr += (imm12 << size);
-    
-    assert(gdyldPtr != 0);
-    assert(*(void**)gdyldPtr != 0);
-    void* vtablePtr = **(void***)gdyldPtr;
-    
-    void* vtableFunctionPtr = 0;
-    uint32_t* movInstPtr = baseAddr + adrpOffset + 6;
-
-    if((*movInstPtr & 0x7F800000) == 0x52800000) {
-        // arm64e, mov imm + add + ldr
-        uint32_t imm16 = (*movInstPtr & 0x1FFFE0) >> 5;
-        vtableFunctionPtr = vtablePtr + imm16;
-    } else if ((*movInstPtr & 0xFFE00C00) == 0xF8400C00) {
-        // arm64e, ldr immediate Pre-index 64bit
-        uint32_t imm9 = (*movInstPtr & 0x1FF000) >> 12;
-        vtableFunctionPtr = vtablePtr + imm9;
-    } else {
-        // arm64
-        uint32_t* ldrInstPtr2 = baseAddr + adrpOffset + 3;
-        assert((*ldrInstPtr2 & 0xBFC00000) == 0xB9400000);
-        uint32_t size2 = (*ldrInstPtr2 & 0xC0000000) >> 30;
-        uint32_t imm12_2 = (*ldrInstPtr2 & 0x3FFC00) >> 10;
-        vtableFunctionPtr = vtablePtr + (imm12_2 << size2);
-    }
-
-    
-    kern_return_t ret = builtin_vm_protect(mach_task_self(), (mach_vm_address_t)vtableFunctionPtr, sizeof(uintptr_t), false, PROT_READ | PROT_WRITE | VM_PROT_COPY);
-    assert(ret == KERN_SUCCESS);
-    *origFunction = (void*)*(void**)vtableFunctionPtr;
-    *(uint64_t*)vtableFunctionPtr = (uint64_t)hookFunction;
-    builtin_vm_protect(mach_task_self(), (mach_vm_address_t)vtableFunctionPtr, sizeof(uintptr_t), false, PROT_READ);
-    return true;
-}
-
-bool initGuestSDKVersionInfo(void) {
-    void* dyldBase = getDyldBase();
-    // it seems Apple is constantly changing findVersionSetEquivalent's signature so we directly search sVersionMap instead
-    uint32_t* versionMapPtr = getCachedSymbol(@"__ZN5dyld3L11sVersionMapE", dyldBase);
-    if(!versionMapPtr) {
-#if !TARGET_OS_SIMULATOR
-        const char* dyldPath = "/usr/lib/dyld";
-        uint64_t offset = LCFindSymbolOffset(dyldPath, "__ZN5dyld3L11sVersionMapE");
-#else
-        void *result = litehook_find_symbol(dyldBase, "__ZN5dyld3L11sVersionMapE");
-        uint64_t offset = (uint64_t)result - (uint64_t)dyldBase;
-#endif
-        versionMapPtr = dyldBase + offset;
-        saveCachedSymbol(@"__ZN5dyld3L11sVersionMapE", dyldBase, offset);
-    }
-    
-    assert(versionMapPtr);
-    // however sVersionMap's struct size is also unknown, but we can figure it out
-    // we assume the size is 10K so we won't need to change this line until maybe iOS 40
-    uint32_t* versionMapEnd = versionMapPtr + 2560;
-    // ensure the first is versionSet and the third is iOS version (5.0.0)
-    assert(versionMapPtr[0] == 0x07db0901 && versionMapPtr[2] == 0x00050000);
-    // get struct size. we assume size is smaller then 128. appearently Apple won't have so many platforms
-    uint32_t size = 0;
-    for(int i = 1; i < 128; ++i) {
-        // find the next versionSet (for 6.0.0)
-        if(versionMapPtr[i] == 0x07dc0901) {
-            size = i;
-            break;
-        }
-    }
-    assert(size);
-    
-    NSOperatingSystemVersion currentVersion = [[NSProcessInfo processInfo] operatingSystemVersion];
-    uint32_t maxVersion = ((uint32_t)currentVersion.majorVersion << 16) | ((uint32_t)currentVersion.minorVersion << 8);
-    
-    uint32_t candidateVersion = 0;
-    uint32_t candidateVersionEquivalent = 0;
-    uint32_t newVersionSetVersion = 0;
-    for(uint32_t* nowVersionMapItem = versionMapPtr; nowVersionMapItem < versionMapEnd; nowVersionMapItem += size) {
-        newVersionSetVersion = nowVersionMapItem[2];
-        if (newVersionSetVersion > guestAppSdkVersion) { break; }
-        candidateVersion = newVersionSetVersion;
-        candidateVersionEquivalent = nowVersionMapItem[0];
-        if(newVersionSetVersion >= maxVersion) { break; }
-    }
-    
-    if (newVersionSetVersion == 0xffffffff && candidateVersion == 0) {
-        candidateVersionEquivalent = newVersionSetVersion;
-    }
-
-    guestAppSdkVersionSet = candidateVersionEquivalent;
-    
-    return true;
-}
-
-#if TARGET_OS_MACCATALYST || TARGET_OS_SIMULATOR
-void DyldHookLoadableIntoProcess(void) {
-    uint32_t *patchAddr = (uint32_t *)litehook_find_symbol(getDyldBase(), "__ZNK6mach_o6Header19loadableIntoProcessENS_8PlatformE7CStringb");
-    size_t patchSize = sizeof(uint32_t[2]);
-
-    kern_return_t kret;
-    kret = builtin_vm_protect(mach_task_self(), (vm_address_t)patchAddr, patchSize, false, PROT_READ | PROT_WRITE | VM_PROT_COPY);
-    assert(kret == KERN_SUCCESS);
-
-    patchAddr[0] = 0xD2800020; // mov x0, #1
-    patchAddr[1] = 0xD65F03C0; // ret
-
-    kret = builtin_vm_protect(mach_task_self(), (vm_address_t)patchAddr, patchSize, false, PROT_READ | PROT_EXEC);
-    assert(kret == KERN_SUCCESS);
-}
-#endif
 
 // MARK: Init
 void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
