@@ -279,6 +279,9 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
         guestAppInfo[@"proxyPassword"] = self.proxyPassword ?: @"";
         guestAppInfo[@"spoofNetworkMode"] = self.spoofNetworkMode ?: @"standard";
 
+        // SSL Addon
+        guestAppInfo[@"bypassSSLPinning"] = @(self.bypassSSLPinning);
+
         [defaults setObject:guestAppInfo forKey:@"guestAppInfo"];
         [defaults synchronize];
         

@@ -206,7 +206,11 @@ class LCAppModel: ObservableObject, Hashable {
     }
 
     // MARK: SSL Addon
-    @Published var uiBypassSSLPinning = false
+    @Published var uiBypassSSLPinning: Bool {
+        didSet {
+            appInfo.bypassSSLPinning = uiBypassSSLPinning
+        }
+    }
 
     var delegate : LCAppModelDelegate?
     
@@ -265,6 +269,9 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiProxyUsername = appInfo.proxyUsername ?? ""
         self.uiProxyPassword = appInfo.proxyPassword ?? ""
         self.uiSpoofNetworkMode = appInfo.spoofNetworkMode ?? "standard"
+
+        // MARK: SSL Addon Section
+        self.uiBypassSSLPinning = appInfo.bypassSSLPinning
 
         for container in uiContainers {
             if container.folderName == uiDefaultDataFolder {
