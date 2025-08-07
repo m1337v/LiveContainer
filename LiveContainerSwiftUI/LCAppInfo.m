@@ -936,7 +936,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     if(_info[@"bypassSSLPinning"] != nil) {
         return [_info[@"bypassSSLPinning"] boolValue];
     } else {
-        return YES; // Default to enabled for security testing
+        return NO; // Default to disabled
     }
 }
 
