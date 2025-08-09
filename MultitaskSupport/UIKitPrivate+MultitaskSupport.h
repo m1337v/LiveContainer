@@ -266,3 +266,7 @@
 @interface UIMutableScenePresentationContext : UIScenePresentationContext
 @property(nonatomic, assign) NSUInteger appearanceStyle;
 @end
+
+@interface UIViewController(Private)
+- (void)viewDidMoveToWindow:(UIWindow *)window shouldAppearOrDisappear:(BOOL)appear;
+@end

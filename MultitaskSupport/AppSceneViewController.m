@@ -231,7 +231,6 @@
     _isAppTerminationCleanUpCalled = true;
     dispatch_async(dispatch_get_main_queue(), ^{
         if(self.sceneID) {
-            [self.view.window.windowScene _unregisterSettingsDiffActionArrayForKey:self.sceneID];
             [[PrivClass(FBSceneManager) sharedInstance] destroyScene:self.sceneID withTransitionContext:nil];
         }
         if(self.presenter){
@@ -241,7 +240,6 @@
         }
         
         [self.delegate appSceneVCAppDidExit:self];
-        self.delegate = nil;
         [MultitaskManager unregisterMultitaskContainerWithContainer:self.dataUUID];
     });
 }
@@ -253,6 +251,16 @@
     } else {
         // Remove UIApplicationDidEnterBackgroundNotification so apps like YouTube can continue playing video
         [NSNotificationCenter.defaultCenter removeObserver:self.extension name:UIApplicationDidEnterBackgroundNotification object:UIApplication.sharedApplication];
+    }
+}
+
+- (void)viewDidMoveToWindow:(UIWindow *)newWindow shouldAppearOrDisappear:(BOOL)appear {
+    [super viewDidMoveToWindow:newWindow shouldAppearOrDisappear:appear];
+    if(!newWindow) {
+        if(self.sceneID) {
+            [self.view.window.windowScene _unregisterSettingsDiffActionArrayForKey:self.sceneID];
+        }
+        self.delegate = nil;
     }
 }
 
