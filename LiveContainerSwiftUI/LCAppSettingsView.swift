@@ -738,21 +738,6 @@ struct LCAppSettingsView : View{
                 }
             } header: {
                 Text("Camera Settings")
-            } footer: {
-                if model.uiSpoofCamera {
-                    switch model.uiSpoofCameraMode {
-                    case "standard":
-                        Text("Standard mode: Normal caching and hook coverage. Works with most apps.")
-                    case "aggressive":
-                        Text("Aggressive mode: Enhanced caching with multiple pre-loads and extended timing. For apps with strict timing requirements.")
-                    case "compatibility":
-                        Text("Compatibility mode: Maximum hook coverage with all fallback mechanisms. For legacy or problematic apps.")
-                    default:
-                        Text("When enabled, this app will receive the specified camera input instead of the device's actual camera data.")
-                    }
-                } else {
-                    Text("When enabled, this app will receive the specified camera input instead of the device's actual camera data.")
-                }
             }
            
 
@@ -827,20 +812,14 @@ struct LCAppSettingsView : View{
                     }
                 }
             } header: {
-                Text("Network Proxy")
-            } footer: {
-                if model.uiSpoofNetwork {
-                    Text("Routes app traffic through SOCKS5 proxy. Compatible with Shadowrocket, V2Ray, and other proxy tools.")
-                } else {
-                    Text("Route network traffic through a SOCKS5 proxy server.")
-                }
+                Text("Network Settings")
             }
 
             // MARK: Security Section
             Section {
                 Toggle(isOn: $model.uiHideLiveContainer) {
                     Text("lc.appSettings.hideLiveContainer".loc)
-                }
+                } 
 
                 Toggle(isOn: $model.uiDontInjectTweakLoader) {
                     Text("lc.appSettings.dontInjectTweakLoader".loc)
@@ -853,12 +832,7 @@ struct LCAppSettingsView : View{
                     }
                 }
                 Toggle(isOn: $model.uiBypassSSLPinning) {
-                    Label {
-                        Text("Bypass SSL Pinning")
-                    } icon: {
-                        Image(systemName: "lock.open")
-                            .foregroundColor(.orange)
-                    }
+                    Text("Bypass SSL Pinning")
                 }
             } header: {
                 Text("Security Settings")
