@@ -10,6 +10,7 @@ import SwiftUI
 import CoreLocation
 import MapKit
 import AVFoundation
+import AVKit
 import PhotosUI
 import Photos
 
@@ -504,7 +505,6 @@ struct CameraSettingsSection: View {
     @Binding var errorInfo: String
     @Binding var errorShow: Bool
     
-    // ✅ FIX: Add the missing callback parameter
     let onVideoTransformChange: () async -> Void
     
     var body: some View {
@@ -519,11 +519,10 @@ struct CameraSettingsSection: View {
             }
             
             if spoofCamera {
-                // Camera Mode Picker
+                // Simplified Camera Mode Picker (Standard/Verified as discussed)
                 Picker("Camera Mode", selection: $spoofCameraMode) {
                     Text("Standard").tag("standard")
-                    Text("Aggressive").tag("aggressive") 
-                    Text("Compatibility").tag("compatibility")
+                    Text("Verified").tag("verified") // Nomix-style with random variations
                 }
                 .pickerStyle(SegmentedPickerStyle())
                 
@@ -549,7 +548,7 @@ struct CameraSettingsSection: View {
                         errorShow: $errorShow
                     )
                     
-                    // Video transformations
+                    // Video transformations - ONLY if video path exists
                     if !spoofCameraVideoPath.isEmpty {
                         Divider()
                         
@@ -563,13 +562,16 @@ struct CameraSettingsSection: View {
                                 set: { newValue in
                                     spoofCameraTransformOrientation = newValue
                                     Task {
-                                        await onVideoTransformChange() // ✅ Now works
+                                        await onVideoTransformChange()
                                     }
                                 }
                             )) {
                                 Text("Original").tag("none")
                                 Text("Force Portrait").tag("portrait") 
                                 Text("Force Landscape").tag("landscape")
+                                Text("Rotate 90°").tag("rotate90")
+                                Text("Rotate 180°").tag("rotate180")
+                                Text("Rotate 270°").tag("rotate270")
                             }
                             
                             Picker("Scale", selection: Binding(
@@ -577,13 +579,13 @@ struct CameraSettingsSection: View {
                                 set: { newValue in
                                     spoofCameraTransformScale = newValue
                                     Task {
-                                        await onVideoTransformChange() // ✅ Now works
+                                        await onVideoTransformChange()
                                     }
                                 }
                             )) {
                                 Text("Fit").tag("fit")
                                 Text("Fill").tag("fill")
-                                Text("Crop").tag("crop")
+                                Text("Stretch").tag("stretch")
                             }
                             
                             Picker("Flip", selection: Binding(
@@ -591,15 +593,17 @@ struct CameraSettingsSection: View {
                                 set: { newValue in
                                     spoofCameraTransformFlip = newValue
                                     Task {
-                                        await onVideoTransformChange() // ✅ Now works
+                                        await onVideoTransformChange()
                                     }
                                 }
                             )) {
                                 Text("None").tag("none")
                                 Text("Horizontal").tag("horizontal")
                                 Text("Vertical").tag("vertical")
+                                Text("Both").tag("both")
                             }
                             
+                            // Processing indicator
                             if isProcessingVideo {
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
@@ -636,6 +640,16 @@ struct CameraSettingsSection: View {
             }
         } header: {
             Text("Camera Settings")
+        } footer: {
+            if spoofCamera {
+                if spoofCameraMode == "verified" {
+                    Text("Verified mode adds subtle random variations to avoid detection (like Nomix). Standard mode uses basic spoofing.")
+                } else {
+                    Text("Standard mode: Basic camera spoofing. Verified mode: Adds random variations to avoid detection.")
+                }
+            } else {
+                Text("Replace camera input with custom image or video content.")
+            }
         }
     }
 }
@@ -1282,7 +1296,16 @@ struct LCAppSettingsView : View{
                         model.uiSpoofCameraTransformScale != "fit" || 
                         model.uiSpoofCameraTransformFlip != "none"
         
-        guard hasTransforms else { return }
+        guard hasTransforms else { 
+            // Reset to original if no transforms
+            if model.uiSpoofCameraVideoPath.contains("_transformed") {
+                let originalPath = model.uiSpoofCameraVideoPath.replacingOccurrences(of: "_transformed", with: "")
+                if FileManager.default.fileExists(atPath: originalPath) {
+                    model.uiSpoofCameraVideoPath = originalPath
+                }
+            }
+            return 
+        }
         
         model.isProcessingVideo = true
         model.videoProcessingProgress = 0.0
@@ -1292,10 +1315,10 @@ struct LCAppSettingsView : View{
                 inputPath: model.uiSpoofCameraVideoPath,
                 orientation: model.uiSpoofCameraTransformOrientation,
                 scale: model.uiSpoofCameraTransformScale,
-                flip: model.uiSpoofCameraTransformFlip
+                flip: model.uiSpoofCameraTransformFlip,
+                isVerifiedMode: model.uiSpoofCameraMode == "verified"
             )
             
-            // Update the video path to use the transformed video
             model.uiSpoofCameraVideoPath = transformedPath
             
         } catch {
@@ -1310,11 +1333,13 @@ struct LCAppSettingsView : View{
         inputPath: String,
         orientation: String,
         scale: String,
-        flip: String
+        flip: String,
+        isVerifiedMode: Bool
     ) async throws -> String {
         
         let inputURL = URL(fileURLWithPath: inputPath)
-        let outputFileName = inputURL.deletingPathExtension().lastPathComponent + "_transformed.mp4"
+        let baseFileName = inputURL.deletingPathExtension().lastPathComponent
+        let outputFileName = "\(baseFileName)_transformed.mp4"
         let outputURL = inputURL.deletingLastPathComponent().appendingPathComponent(outputFileName)
         
         // Remove existing transformed file
@@ -1335,7 +1360,7 @@ struct LCAppSettingsView : View{
             withMediaType: .video,
             preferredTrackID: kCMPersistentTrackID_Invalid
         ) else {
-            throw NSError(domain: "VideoTransform", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to create composition track"])
+            throw NSError(domain: "VideoTransform", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not create composition track"])
         }
         
         let duration = try await asset.load(.duration)
@@ -1359,31 +1384,41 @@ struct LCAppSettingsView : View{
             }
         }
         
-        // Calculate transform
+        // Calculate video transformation
         let naturalSize = try await videoTrack.load(.naturalSize)
         let preferredTransform = try await videoTrack.load(.preferredTransform)
         
-        let transformResult = calculateVideoTransform(
+        let (transform, renderSize) = calculateVideoTransform(
             naturalSize: naturalSize,
             preferredTransform: preferredTransform,
             orientation: orientation,
             scale: scale,
-            flip: flip
+            flip: flip,
+            isVerifiedMode: isVerifiedMode
         )
         
-        // Create video composition
+        // Create video composition instruction
         let instruction = AVMutableVideoCompositionInstruction()
         instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
         
         let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compositionVideoTrack)
-        layerInstruction.setTransform(transformResult.transform, at: .zero)
+        layerInstruction.setTransform(transform, at: .zero)
+        
+        // Add subtle variations for verified mode
+        if isVerifiedMode {
+            // Add slight opacity variations to make detection harder
+            let fadeInDuration = CMTime(seconds: 0.1, preferredTimescale: 600)
+            layerInstruction.setOpacity(0.98, at: .zero)
+            layerInstruction.setOpacity(1.0, at: fadeInDuration)
+        }
         
         instruction.layerInstructions = [layerInstruction]
-        videoComposition.instructions = [instruction]
-        videoComposition.renderSize = transformResult.renderSize
-        videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
         
-        // Export with progress monitoring
+        videoComposition.instructions = [instruction]
+        videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
+        videoComposition.renderSize = renderSize
+        
+        // Export session
         guard let exportSession = AVAssetExportSession(
             asset: composition,
             presetName: AVAssetExportPresetHighestQuality
@@ -1428,38 +1463,76 @@ struct LCAppSettingsView : View{
         preferredTransform: CGAffineTransform,
         orientation: String,
         scale: String,
-        flip: String
+        flip: String,
+        isVerifiedMode: Bool
     ) -> (transform: CGAffineTransform, renderSize: CGSize) {
         
         var transform = preferredTransform
         var renderSize = naturalSize
         
-        // Apply orientation
+        // Apply orientation transform
         switch orientation {
         case "portrait":
             if naturalSize.width > naturalSize.height {
-                transform = transform.concatenating(CGAffineTransform(rotationAngle: .pi / 2))
+                transform = transform.rotated(by: .pi / 2)
                 renderSize = CGSize(width: naturalSize.height, height: naturalSize.width)
             }
         case "landscape":
             if naturalSize.height > naturalSize.width {
-                transform = transform.concatenating(CGAffineTransform(rotationAngle: -.pi / 2))
+                transform = transform.rotated(by: .pi / 2)
                 renderSize = CGSize(width: naturalSize.height, height: naturalSize.width)
             }
-        default: // "none"
+        case "rotate90":
+            transform = transform.rotated(by: .pi / 2)
+            renderSize = CGSize(width: naturalSize.height, height: naturalSize.width)
+        case "rotate180":
+            transform = transform.rotated(by: .pi)
+        case "rotate270":
+            transform = transform.rotated(by: -.pi / 2)
+            renderSize = CGSize(width: naturalSize.height, height: naturalSize.width)
+        default:
             break
         }
         
-        // Apply flip
+        // Apply flip transform
         switch flip {
         case "horizontal":
-            transform = transform.concatenating(CGAffineTransform(scaleX: -1, y: 1))
-            transform = transform.concatenating(CGAffineTransform(translationX: renderSize.width, y: 0))
+            transform = transform.scaledBy(x: -1, y: 1)
+            transform = transform.translatedBy(x: -renderSize.width, y: 0)
         case "vertical":
-            transform = transform.concatenating(CGAffineTransform(scaleX: 1, y: -1))
-            transform = transform.concatenating(CGAffineTransform(translationX: 0, y: renderSize.height))
-        default: // "none"
+            transform = transform.scaledBy(x: 1, y: -1)
+            transform = transform.translatedBy(x: 0, y: -renderSize.height)
+        case "both":
+            transform = transform.scaledBy(x: -1, y: -1)
+            transform = transform.translatedBy(x: -renderSize.width, y: -renderSize.height)
+        default:
             break
+        }
+        
+        // Apply scale transform
+        switch scale {
+        case "fill":
+            let scaleX = renderSize.width / naturalSize.width
+            let scaleY = renderSize.height / naturalSize.height
+            let maxScale = max(scaleX, scaleY)
+            transform = transform.scaledBy(x: maxScale, y: maxScale)
+        case "stretch":
+            let scaleX = renderSize.width / naturalSize.width
+            let scaleY = renderSize.height / naturalSize.height
+            transform = transform.scaledBy(x: scaleX, y: scaleY)
+        default: // fit
+            let scaleX = renderSize.width / naturalSize.width
+            let scaleY = renderSize.height / naturalSize.height
+            let minScale = min(scaleX, scaleY)
+            transform = transform.scaledBy(x: minScale, y: minScale)
+        }
+        
+        // Add subtle variations for verified mode (Nomix-style)
+        if isVerifiedMode {
+            // Add tiny random variations to avoid detection
+            let randomX = (Float.random(in: -1...1) * 0.001) // ±0.1% variation
+            let randomY = (Float.random(in: -1...1) * 0.001)
+            transform = transform.translatedBy(x: CGFloat(randomX), y: CGFloat(randomY))
         }
         
         return (transform, renderSize)
@@ -1806,6 +1879,7 @@ struct CameraVideoPickerView: View {
     @State private var showingFilePicker = false
     @State private var videoThumbnail: UIImage?
     @State private var videoDuration: String = ""
+    @State private var showingVideoPlayer = false // Add this for preview
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1834,36 +1908,68 @@ struct CameraVideoPickerView: View {
                 }
                 
                 if let videoThumbnail = videoThumbnail {
-                    ZStack {
-                        Image(uiImage: videoThumbnail)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(maxHeight: 120)
-                            .cornerRadius(8)
-                        
-                        // Play button overlay
-                        Image(systemName: "play.circle.fill")
-                            .font(.largeTitle)
-                            .foregroundColor(.white)
-                            .background(Circle().fill(Color.black.opacity(0.3)))
+                    Button(action: {
+                        showingVideoPlayer = true
+                    }) {
+                        ZStack {
+                            Image(uiImage: videoThumbnail)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxHeight: 120)
+                                .cornerRadius(8)
+                            
+                            // Play button overlay
+                            ZStack {
+                                Circle()
+                                    .fill(Color.black.opacity(0.6))
+                                    .frame(width: 50, height: 50)
+                                
+                                Image(systemName: "play.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                        )
                     }
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                    )
+                    .buttonStyle(PlainButtonStyle())
                     
-                    if !videoDuration.isEmpty {
-                        Text("Duration: \(videoDuration)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            if !videoDuration.isEmpty {
+                                Text(videoDuration)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.leading)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        // Show if this is a transformed video
+                        if videoPath.contains("_transformed") {
+                            Label("Transformed", systemImage: "wand.and.rays")
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                        }
                     }
                 } else {
                     HStack {
                         Image(systemName: "video")
                             .foregroundColor(.secondary)
-                        Text(URL(fileURLWithPath: videoPath).lastPathComponent)
+                        VStack(alignment: .leading) {
+                            Text(URL(fileURLWithPath: videoPath).lastPathComponent)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            Button("Preview Video") {
+                                showingVideoPlayer = true
+                            }
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .buttonStyle(.bordered)
+                        }
                         Spacer()
                     }
                     .padding()
@@ -1936,6 +2042,11 @@ struct CameraVideoPickerView: View {
             allowsMultipleSelection: false
         ) { result in
             handleFileImport(result)
+        }
+        .sheet(isPresented: $showingVideoPlayer) {
+            if !videoPath.isEmpty {
+                VideoPlayerView(videoPath: videoPath, isPresented: $showingVideoPlayer)
+            }
         }
     }
     
@@ -2025,19 +2136,105 @@ struct CameraVideoPickerView: View {
             videoThumbnail = nil
         }
         
-        // Get duration
+        // Get comprehensive video information
         Task {
             do {
+                // Get duration
                 let duration = try await asset.load(.duration)
                 let seconds = CMTimeGetSeconds(duration)
-                await MainActor.run {
-                    videoDuration = String(format: "%.1fs", seconds)
+                
+                // Get video track information
+                let videoTracks = try await asset.loadTracks(withMediaType: .video)
+                let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+                
+                var videoInfo = ""
+                
+                if let videoTrack = videoTracks.first {
+                    let naturalSize = try await videoTrack.load(.naturalSize)
+                    let preferredTransform = try await videoTrack.load(.preferredTransform)
+                    let nominalFrameRate = try await videoTrack.load(.nominalFrameRate)
+                    
+                    // Calculate actual display size after transformation
+                    let displaySize = naturalSize.applying(preferredTransform)
+                    let actualWidth = abs(displaySize.width)
+                    let actualHeight = abs(displaySize.height)
+                    
+                    // Determine video orientation
+                    let isRotated = preferredTransform.b != 0 || preferredTransform.c != 0
+                    let orientation = isRotated ? "Rotated" : "Normal"
+                    
+                    // Get file size
+                    let fileAttributes = try FileManager.default.attributesOfItem(atPath: path)
+                    let fileSize = fileAttributes[.size] as? Int64 ?? 0
+                    let fileSizeMB = Double(fileSize) / (1024 * 1024)
+                    
+                    // Build info string
+                    videoInfo = String(format: "%.1fs", seconds)
+                    videoInfo += "\n\(Int(actualWidth))×\(Int(actualHeight))"
+                    videoInfo += " (\(orientation))"
+                    videoInfo += String(format: "\n%.1f fps", nominalFrameRate)
+                    videoInfo += String(format: "\n%.1f MB", fileSizeMB)
+                    
+                    // Add codec information if available
+                    if let formatDescriptions = try? await videoTrack.load(.formatDescriptions) {
+                        for formatDescription in formatDescriptions {
+                            let codecType = CMFormatDescriptionGetMediaSubType(formatDescription)
+                            let codecString = fourCharCodeToString(codecType)
+                            videoInfo += "\n\(codecString)"
+                            break // Just show the first codec
+                        }
+                    }
+                    
+                    // Add audio info if available
+                    if !audioTracks.isEmpty {
+                        videoInfo += "\n🎵 Audio"
+                    } else {
+                        videoInfo += "\n🔇 No Audio"
+                    }
+                    
+                    // Add transform info if video is transformed
+                    if path.contains("_transformed") {
+                        videoInfo += "\n✨ Processed"
+                    }
+                    
+                } else {
+                    videoInfo = String(format: "%.1fs", seconds)
+                    videoInfo += "\nNo video track"
                 }
+                
+                await MainActor.run {
+                    videoDuration = videoInfo
+                }
+                
             } catch {
                 await MainActor.run {
-                    videoDuration = ""
+                    videoDuration = "Error loading info"
                 }
             }
+        }
+    }
+
+    // Helper function to convert FourCharCode to readable string
+    private func fourCharCodeToString(_ code: FourCharCode) -> String {
+        let bytes = [
+            UInt8((code >> 24) & 0xFF),
+            UInt8((code >> 16) & 0xFF),
+            UInt8((code >> 8) & 0xFF),
+            UInt8(code & 0xFF)
+        ]
+        
+        // Try to create a readable string
+        if let string = String(bytes: bytes, encoding: .ascii) {
+            return string.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        // Fallback to common codec names
+        switch code {
+        case 1635148593: return "H.264" // 'avc1'
+        case 1752589105: return "H.264" // 'hvc1' 
+        case 1211250227: return "H.265" // 'hev1'
+        case 1129727304: return "ProRes" // 'ap4h'
+        default: return "Unknown"
         }
     }
 }
@@ -2084,6 +2281,70 @@ struct VideoPickerWrapper: View {
                 onVideoSelected(item)
                 selectedItem = nil // Reset selection
             }
+        }
+    }
+}
+
+struct VideoPlayerView: View {
+    let videoPath: String
+    @Binding var isPresented: Bool
+    @State private var player: AVPlayer?
+    
+    var body: some View {
+        NavigationView {
+            Group {
+                if let player = player {
+                    VideoPlayer(player: player)
+                        .onAppear {
+                            player.play()
+                        }
+                        .onDisappear {
+                            player.pause()
+                        }
+                } else {
+                    VStack {
+                        ProgressView("Loading video...")
+                        Text(URL(fileURLWithPath: videoPath).lastPathComponent)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.top)
+                    }
+                }
+            }
+            .navigationTitle("Video Preview")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(
+                leading: Button("Done") {
+                    player?.pause()
+                    isPresented = false
+                }
+            )
+        }
+        .onAppear {
+            setupPlayer()
+        }
+        .onDisappear {
+            player?.pause()
+            player = nil
+        }
+    }
+    
+    private func setupPlayer() {
+        guard FileManager.default.fileExists(atPath: videoPath) else {
+            return
+        }
+        
+        let url = URL(fileURLWithPath: videoPath)
+        player = AVPlayer(url: url)
+        
+        // Set up looping if needed
+        NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: player?.currentItem,
+            queue: .main
+        ) { _ in
+            player?.seek(to: .zero)
+            player?.play()
         }
     }
 }
