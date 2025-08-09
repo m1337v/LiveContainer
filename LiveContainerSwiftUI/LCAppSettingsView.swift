@@ -763,104 +763,107 @@ struct LCAppSettingsView : View{
                         Image(systemName: "network")
                             .foregroundColor(.blue)
                             .frame(width: 20)
-                        Text("Network Spoofing")
+                        Text("SOCKS5 Proxy")
                     }
                 }
                 
                 if model.uiSpoofNetwork {
-                    // Proxy Type Picker
-                    Picker("Proxy Type", selection: $model.uiProxyType) {
-                        Text("HTTP").tag("HTTP")
-                        Text("SOCKS5").tag("SOCKS5")
-                        Text("Direct").tag("DIRECT")
+                    // Proxy Host
+                    HStack {
+                        Image(systemName: "server.rack")
+                            .foregroundColor(.gray)
+                            .frame(width: 20)
+                        VStack(alignment: .leading) {
+                            Text("Proxy Host")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            TextField("e.g., 127.0.0.1", text: $model.uiProxyHost)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                        }
                     }
-                    .pickerStyle(SegmentedPickerStyle())
                     
-                    if model.uiProxyType != "DIRECT" {
-                        // Proxy Host
+                    // Proxy Port
+                    HStack {
+                        Image(systemName: "number")
+                            .foregroundColor(.gray)
+                            .frame(width: 20)
+                        VStack(alignment: .leading) {
+                            Text("Proxy Port")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            TextField("1080", value: $model.uiProxyPort, format: .number)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .keyboardType(.numberPad)
+                        }
+                    }
+                    
+                    // Authentication (optional)
+                    DisclosureGroup("Authentication") {
                         HStack {
-                            Image(systemName: "server.rack")
+                            Image(systemName: "person")
                                 .foregroundColor(.gray)
                                 .frame(width: 20)
                             VStack(alignment: .leading) {
-                                Text("Proxy Host")
+                                Text("Username")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                TextField("e.g., proxy.example.com", text: $model.uiProxyHost)
+                                TextField("Optional", text: $model.uiProxyUsername)
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                             }
                         }
                         
-                        // Proxy Port
                         HStack {
-                            Image(systemName: "number")
+                            Image(systemName: "key")
                                 .foregroundColor(.gray)
                                 .frame(width: 20)
                             VStack(alignment: .leading) {
-                                Text("Proxy Port")
+                                Text("Password")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                TextField("8080", value: $model.uiProxyPort, format: .number)
+                                SecureField("Optional", text: $model.uiProxyPassword)
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
-                                    .keyboardType(.numberPad)
-                            }
-                        }
-                        
-                        // Authentication (optional)
-                        DisclosureGroup("Authentication") {
-                            HStack {
-                                Image(systemName: "person")
-                                    .foregroundColor(.gray)
-                                    .frame(width: 20)
-                                VStack(alignment: .leading) {
-                                    Text("Username")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    TextField("Optional", text: $model.uiProxyUsername)
-                                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                                }
-                            }
-                            
-                            HStack {
-                                Image(systemName: "key")
-                                    .foregroundColor(.gray)
-                                    .frame(width: 20)
-                                VStack(alignment: .leading) {
-                                    Text("Password")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    SecureField("Optional", text: $model.uiProxyPassword)
-                                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                                }
                             }
                         }
                     }
-                    
-                    // Network Mode
-                    Picker("Network Mode", selection: $model.uiSpoofNetworkMode) {
-                        Text("Standard").tag("standard")
-                        Text("Aggressive").tag("aggressive") 
-                        Text("Compatibility").tag("compatibility")
-                    }
-                    .pickerStyle(SegmentedPickerStyle())
                 }
             } header: {
-                Text("Network Configuration")
+                Text("Network Proxy")
             } footer: {
                 if model.uiSpoofNetwork {
-                    switch model.uiSpoofNetworkMode {
-                    case "aggressive":
-                        Text("Aggressive mode: Intercepts all network connections including low-level APIs.")
-                    case "compatibility":
-                        Text("Compatibility mode: Maximum compatibility with legacy networking code.")
-                    default:
-                        Text("When enabled, this app's network traffic will be routed through the specified proxy server.")
-                    }
+                    Text("Routes app traffic through SOCKS5 proxy. Compatible with Shadowrocket, V2Ray, and other proxy tools.")
                 } else {
-                    Text("Route network traffic through a proxy server.")
+                    Text("Route network traffic through a SOCKS5 proxy server.")
                 }
             }
 
+            // MARK: Security Section
+            Section {
+                Toggle(isOn: $model.uiHideLiveContainer) {
+                    Text("lc.appSettings.hideLiveContainer".loc)
+                }
+
+                Toggle(isOn: $model.uiDontInjectTweakLoader) {
+                    Text("lc.appSettings.dontInjectTweakLoader".loc)
+                }
+                // }.disabled(model.uiTweakLoaderInjectFailed) // don't force disable
+                
+                if model.uiDontInjectTweakLoader {
+                    Toggle(isOn: $model.uiDontLoadTweakLoader) {
+                        Text("lc.appSettings.dontLoadTweakLoader".loc)
+                    }
+                }
+                Toggle(isOn: $model.uiBypassSSLPinning) {
+                    Label {
+                        Text("Bypass SSL Pinning")
+                    } icon: {
+                        Image(systemName: "lock.open")
+                            .foregroundColor(.orange)
+                    }
+                }
+            } header: {
+                Text("Security Settings")
+            }
+            
             Section {
                 Toggle(isOn: $model.uiIsJITNeeded) {
                     Text("lc.appSettings.launchWithJit".loc)
@@ -893,22 +896,6 @@ struct LCAppSettingsView : View{
                 }
             }
 
-            // MARK: SSL Addon Section
-            Section {
-                Toggle(isOn: $model.uiBypassSSLPinning) {
-                    Label {
-                        Text("Bypass SSL Pinning")
-                    } icon: {
-                        Image(systemName: "lock.open")
-                            .foregroundColor(.orange)
-                    }
-                }
-            } header: {
-                Text("Security Testing")
-            } footer: {
-                Text("Bypasses SSL certificate pinning for security testing and debugging. This allows the app to accept invalid certificates and ignore certificate validation.")
-            }
-            
             Section {
                 NavigationLink {
                     if let supportedLanguage = model.supportedLanguages {
@@ -956,8 +943,6 @@ struct LCAppSettingsView : View{
                 }
             }
             
-
-            
             Section {
                 Toggle(isOn: $model.uiUseLCBundleId) {
                     Text("lc.appSettings.useLCBundleId".loc)
@@ -978,26 +963,6 @@ struct LCAppSettingsView : View{
                         Text("lc.apppSettings.orientationLock".loc)
                     }
                 }
-            }
-            
-            Section {
-                Toggle(isOn: $model.uiHideLiveContainer) {
-                    Text("lc.appSettings.hideLiveContainer".loc)
-                }
-
-                Toggle(isOn: $model.uiDontInjectTweakLoader) {
-                    Text("lc.appSettings.dontInjectTweakLoader".loc)
-                }
-                // }.disabled(model.uiTweakLoaderInjectFailed) // don't force disable
-                
-                if model.uiDontInjectTweakLoader {
-                    Toggle(isOn: $model.uiDontLoadTweakLoader) {
-                        Text("lc.appSettings.dontLoadTweakLoader".loc)
-                    }
-                }
-                
-            } footer: {
-                Text("lc.appSettings.hideLiveContainerDesc".loc)
             }
             
             Section {

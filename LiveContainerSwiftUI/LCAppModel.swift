@@ -169,39 +169,33 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var videoProcessingProgress: Double = 0.0
 
     // MARK: Network Addon
-    @Published var uiSpoofNetwork : Bool {
+    @Published var uiSpoofNetwork: Bool {
         didSet {
             appInfo.spoofNetwork = uiSpoofNetwork
         }
     }
-    @Published var uiProxyType : String {
-        didSet {
-            appInfo.proxyType = uiProxyType
-        }
-    }
-    @Published var uiProxyHost : String {
+
+    @Published var uiProxyHost: String {
         didSet {
             appInfo.proxyHost = uiProxyHost
         }
     }
-    @Published var uiProxyPort : Int32 {
+
+    @Published var uiProxyPort: Int32 {
         didSet {
             appInfo.proxyPort = uiProxyPort
         }
     }
-    @Published var uiProxyUsername : String {
+
+    @Published var uiProxyUsername: String {
         didSet {
             appInfo.proxyUsername = uiProxyUsername
         }
     }
-    @Published var uiProxyPassword : String {
+
+    @Published var uiProxyPassword: String {
         didSet {
             appInfo.proxyPassword = uiProxyPassword
-        }
-    }
-    @Published var uiSpoofNetworkMode : String {
-        didSet {
-            appInfo.spoofNetworkMode = uiSpoofNetworkMode
         }
     }
 
@@ -263,12 +257,10 @@ class LCAppModel: ObservableObject, Hashable {
         
         // MARK: Proxy Addon Section
         self.uiSpoofNetwork = appInfo.spoofNetwork
-        self.uiProxyType = appInfo.proxyType ?? "HTTP"
         self.uiProxyHost = appInfo.proxyHost ?? ""
         self.uiProxyPort = appInfo.proxyPort
         self.uiProxyUsername = appInfo.proxyUsername ?? ""
         self.uiProxyPassword = appInfo.proxyPassword ?? ""
-        self.uiSpoofNetworkMode = appInfo.spoofNetworkMode ?? "standard"
 
         // MARK: SSL Addon Section
         self.uiBypassSSLPinning = appInfo.bypassSSLPinning

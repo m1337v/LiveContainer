@@ -272,12 +272,10 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
         
         // save network variables to guestAppInfo
         guestAppInfo[@"spoofNetwork"] = @(self.spoofNetwork);
-        guestAppInfo[@"proxyType"] = self.proxyType ?: @"HTTP";
         guestAppInfo[@"proxyHost"] = self.proxyHost ?: @"";
         guestAppInfo[@"proxyPort"] = @(self.proxyPort);
         guestAppInfo[@"proxyUsername"] = self.proxyUsername ?: @"";
         guestAppInfo[@"proxyPassword"] = self.proxyPassword ?: @"";
-        guestAppInfo[@"spoofNetworkMode"] = self.spoofNetworkMode ?: @"standard";
 
         // SSL Addon
         guestAppInfo[@"bypassSSLPinning"] = @(self.bypassSSLPinning);

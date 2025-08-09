@@ -50,12 +50,11 @@ static void loadProxyConfiguration(void) {
 
     proxyEnabled = [guestAppInfo[@"spoofNetwork"] boolValue];
     proxyHost = [guestAppInfo[@"proxyHost"] copy];
-    proxyPort = [guestAppInfo[@"proxyPort"] integerValue] ?: 8080;
+    proxyPort = [guestAppInfo[@"proxyPort"] integerValue] ?: 1080; // Default SOCKS5 port
     proxyUsername = [guestAppInfo[@"proxyUsername"] copy];
     proxyPassword = [guestAppInfo[@"proxyPassword"] copy];
-    proxyType = [guestAppInfo[@"proxyType"] copy] ?: @"HTTP";
 
-    // Create Socker-style config
+    // Simplified Nomix-style config (SOCKS5 only)
     if (globalProxyConfig) {
         free(globalProxyConfig->host);
         free(globalProxyConfig->username);
@@ -69,11 +68,11 @@ static void loadProxyConfiguration(void) {
         globalProxyConfig->port = (int)proxyPort;
         globalProxyConfig->username = proxyUsername.length > 0 ? strdup([proxyUsername UTF8String]) : NULL;
         globalProxyConfig->password = proxyPassword.length > 0 ? strdup([proxyPassword UTF8String]) : NULL;
-        globalProxyConfig->type = [proxyType isEqualToString:@"SOCKS5"] ? 1 : 0;
+        globalProxyConfig->type = 1; // Always SOCKS5 (Nomix pattern)
     }
 
-    NSLog(@"[LC] 🔗 Proxy Config: Enabled=%d, Type=%@, Host=%@, Port=%ld", 
-          proxyEnabled, proxyType, proxyHost, (long)proxyPort);
+    NSLog(@"[LC] 🔗 SOCKS5 Proxy Config: Enabled=%d, Host=%@, Port=%ld", 
+          proxyEnabled, proxyHost, (long)proxyPort);
     
     hasLoaded = YES;
 }
@@ -181,39 +180,24 @@ static NSDictionary *createSockerStyleProxyDictionary(void) {
     
     NSMutableDictionary *proxyDict = [NSMutableDictionary dictionary];
     
-    if (globalProxyConfig->type == 0) { // HTTP
-        proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPEnable] = @YES;
-        proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPProxy] = [NSString stringWithUTF8String:globalProxyConfig->host];
-        proxyDict[(__bridge NSString *)kCFNetworkProxiesHTTPPort] = @(globalProxyConfig->port);
-        
-        // HTTPS support using string keys
-        proxyDict[@"HTTPSEnable"] = @YES;
-        proxyDict[@"HTTPSProxy"] = [NSString stringWithUTF8String:globalProxyConfig->host];
-        proxyDict[@"HTTPSPort"] = @(globalProxyConfig->port);
-        
-    } else { // SOCKS5
-        proxyDict[@"SOCKSEnable"] = @YES;
-        proxyDict[@"SOCKSProxy"] = [NSString stringWithUTF8String:globalProxyConfig->host];
-        proxyDict[@"SOCKSPort"] = @(globalProxyConfig->port);
-        proxyDict[@"SOCKSVersion"] = @5;
-    }
+    // SOCKS5 only (Nomix pattern)
+    proxyDict[@"SOCKSEnable"] = @YES;
+    proxyDict[@"SOCKSProxy"] = [NSString stringWithUTF8String:globalProxyConfig->host];
+    proxyDict[@"SOCKSPort"] = @(globalProxyConfig->port);
+    proxyDict[@"SOCKSVersion"] = @5;
     
     // Authentication
     if (globalProxyConfig->username) {
         NSString *username = [NSString stringWithUTF8String:globalProxyConfig->username];
-        proxyDict[@"HTTPProxyUsername"] = username;
-        proxyDict[@"HTTPSProxyUsername"] = username;
         proxyDict[@"SOCKSUsername"] = username;
     }
     
     if (globalProxyConfig->password) {
         NSString *password = [NSString stringWithUTF8String:globalProxyConfig->password];
-        proxyDict[@"HTTPProxyPassword"] = password;
-        proxyDict[@"HTTPSProxyPassword"] = password;
         proxyDict[@"SOCKSPassword"] = password;
     }
     
-    NSLog(@"[LC] ✅ Created Socker-style proxy dictionary");
+    NSLog(@"[LC] ✅ Created SOCKS5 proxy dictionary (Nomix pattern)");
     return [proxyDict copy];
 }
 

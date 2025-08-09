@@ -58,12 +58,10 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 
 // Network Addon Section
 @property BOOL spoofNetwork;
-@property NSString* proxyType; // "HTTP", "SOCKS5", "DIRECT"
 @property NSString* proxyHost;
 @property int proxyPort;
 @property NSString* proxyUsername;
 @property NSString* proxyPassword;
-@property NSString* spoofNetworkMode; // "standard", "aggressive", "compatibility"
 
 // SSL section
 @property bool bypassSSLPinning;
