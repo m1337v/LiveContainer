@@ -13,6 +13,8 @@ import AVFoundation
 import PhotosUI
 import Photos
 
+
+// MARK: GPS Settings Section
 struct GPSSettingsSection: View {
     @Binding var spoofGPS: Bool
     @Binding var latitude: CLLocationDegrees
@@ -486,6 +488,251 @@ struct LCCityPickerView: View {
     }
 }
 
+// MARK: Camera Settings Section
+struct CameraSettingsSection: View {
+    @Binding var spoofCamera: Bool
+    @Binding var spoofCameraMode: String
+    @Binding var spoofCameraType: String
+    @Binding var spoofCameraImagePath: String
+    @Binding var spoofCameraVideoPath: String
+    @Binding var spoofCameraLoop: Bool
+    @Binding var spoofCameraTransformOrientation: String
+    @Binding var spoofCameraTransformScale: String
+    @Binding var spoofCameraTransformFlip: String
+    @Binding var isProcessingVideo: Bool
+    @Binding var videoProcessingProgress: Double
+    @Binding var errorInfo: String
+    @Binding var errorShow: Bool
+    
+    // ✅ FIX: Add the missing callback parameter
+    let onVideoTransformChange: () async -> Void
+    
+    var body: some View {
+        Section {
+            Toggle(isOn: $spoofCamera) {
+                HStack {
+                    Image(systemName: "camera")
+                        .foregroundColor(.blue)
+                        .frame(width: 20)
+                    Text("Spoof Camera")
+                }
+            }
+            
+            if spoofCamera {
+                // Camera Mode Picker
+                Picker("Camera Mode", selection: $spoofCameraMode) {
+                    Text("Standard").tag("standard")
+                    Text("Aggressive").tag("aggressive") 
+                    Text("Compatibility").tag("compatibility")
+                }
+                .pickerStyle(SegmentedPickerStyle())
+                
+                // Media Type Picker
+                Picker("Camera Type", selection: $spoofCameraType) {
+                    Text("Static Image").tag("image")
+                    Text("Video").tag("video")
+                }
+                .pickerStyle(SegmentedPickerStyle())
+                
+                // Media Selection based on type
+                if spoofCameraType == "image" {
+                    CameraImagePickerView(
+                        imagePath: $spoofCameraImagePath,
+                        errorInfo: $errorInfo,
+                        errorShow: $errorShow
+                    )
+                } else {
+                    CameraVideoPickerView(
+                        videoPath: $spoofCameraVideoPath,
+                        loopVideo: $spoofCameraLoop,
+                        errorInfo: $errorInfo,
+                        errorShow: $errorShow
+                    )
+                    
+                    // Video transformations
+                    if !spoofCameraVideoPath.isEmpty {
+                        Divider()
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Video Transformations")
+                                .font(.headline)
+                                .padding(.top, 8)
+                            
+                            Picker("Orientation", selection: Binding(
+                                get: { spoofCameraTransformOrientation },
+                                set: { newValue in
+                                    spoofCameraTransformOrientation = newValue
+                                    Task {
+                                        await onVideoTransformChange() // ✅ Now works
+                                    }
+                                }
+                            )) {
+                                Text("Original").tag("none")
+                                Text("Force Portrait").tag("portrait") 
+                                Text("Force Landscape").tag("landscape")
+                            }
+                            
+                            Picker("Scale", selection: Binding(
+                                get: { spoofCameraTransformScale },
+                                set: { newValue in
+                                    spoofCameraTransformScale = newValue
+                                    Task {
+                                        await onVideoTransformChange() // ✅ Now works
+                                    }
+                                }
+                            )) {
+                                Text("Fit").tag("fit")
+                                Text("Fill").tag("fill")
+                                Text("Crop").tag("crop")
+                            }
+                            
+                            Picker("Flip", selection: Binding(
+                                get: { spoofCameraTransformFlip },
+                                set: { newValue in
+                                    spoofCameraTransformFlip = newValue
+                                    Task {
+                                        await onVideoTransformChange() // ✅ Now works
+                                    }
+                                }
+                            )) {
+                                Text("None").tag("none")
+                                Text("Horizontal").tag("horizontal")
+                                Text("Vertical").tag("vertical")
+                            }
+                            
+                            if isProcessingVideo {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        ProgressView()
+                                            .scaleEffect(0.8)
+                                        Text("Processing video...")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    
+                                    ProgressView(value: videoProcessingProgress)
+                                        .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                                    
+                                    Text("\(Int(videoProcessingProgress * 100))%")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.top, 4)
+                            }
+                            
+                            Text("Video will be automatically processed when settings change. Useful for fixing Instagram videos that appear rotated.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.top, 4)
+                        }
+                    }
+                }
+                
+                if #unavailable(iOS 16.0) {
+                    Text("Note: Photo library access requires iOS 16.0 or later. Use Files or manual path entry instead.")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+            }
+        } header: {
+            Text("Camera Settings")
+        }
+    }
+}
+
+
+
+// MARK: Network Settings Section
+struct NetworkSettingsSection: View {
+    @Binding var spoofNetwork: Bool
+    @Binding var proxyHost: String
+    @Binding var proxyPort: Int32
+    @Binding var proxyUsername: String
+    @Binding var proxyPassword: String
+    
+    var body: some View {
+        Section {
+            Toggle(isOn: $spoofNetwork) {
+                HStack {
+                    Image(systemName: "network")
+                        .foregroundColor(.blue)
+                        .frame(width: 20)
+                    Text("SOCKS5 Proxy")
+                }
+            }
+            
+            if spoofNetwork {
+                // Proxy Host
+                HStack {
+                    Image(systemName: "server.rack")
+                        .foregroundColor(.gray)
+                        .frame(width: 20)
+                    VStack(alignment: .leading) {
+                        Text("Proxy Host")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        TextField("e.g., 127.0.0.1", text: $proxyHost)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                    }
+                }
+                
+                // Proxy Port
+                HStack {
+                    Image(systemName: "number")
+                        .foregroundColor(.gray)
+                        .frame(width: 20)
+                    VStack(alignment: .leading) {
+                        Text("Proxy Port")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        TextField("1080", value: $proxyPort, format: .number)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .keyboardType(.numberPad)
+                    }
+                }
+                
+                // Authentication (optional)
+                DisclosureGroup("Authentication") {
+                    HStack {
+                        Image(systemName: "person")
+                            .foregroundColor(.gray)
+                            .frame(width: 20)
+                        VStack(alignment: .leading) {
+                            Text("Username")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            TextField("Optional", text: $proxyUsername)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                        }
+                    }
+                    
+                    HStack {
+                        Image(systemName: "key")
+                            .foregroundColor(.gray)
+                            .frame(width: 20)
+                        VStack(alignment: .leading) {
+                            Text("Password")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            SecureField("Optional", text: $proxyPassword)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                        }
+                    }
+                }
+            }
+        } header: {
+            Text("Network Settings")
+        } footer: {
+            if spoofNetwork {
+                Text("Routes app traffic through SOCKS5 proxy. Compatible with Shadowrocket, V2Ray, and other proxy tools.")
+            } else {
+                Text("Route network traffic through a SOCKS5 proxy server.")
+            }
+        }
+    }
+}
+
+// MARK: Main
 struct LCAppSettingsView : View{
     
     private var appInfo : LCAppInfo
@@ -600,7 +847,7 @@ struct LCAppSettingsView : View{
             }
             
             
-            // MARK: GPS Settings Section
+            // MARK: GPS Settings init
             GPSSettingsSection(
                 spoofGPS: $model.uiSpoofGPS,
                 latitude: $model.uiSpoofLatitude,
@@ -609,211 +856,35 @@ struct LCAppSettingsView : View{
                 locationName: $model.uiSpoofLocationName
             )
             
-            // MARK: Camera Settings Section
-            Section {
-                Toggle(isOn: $model.uiSpoofCamera) {
-                    HStack {
-                        Image(systemName: "camera")
-                            .foregroundColor(.blue)
-                            .frame(width: 20)
-                        Text("Spoof Camera")
-                    }
+            // MARK: Camera Settings init
+            CameraSettingsSection(
+                spoofCamera: $model.uiSpoofCamera,
+                spoofCameraMode: $model.uiSpoofCameraMode,
+                spoofCameraType: $model.uiSpoofCameraType,
+                spoofCameraImagePath: $model.uiSpoofCameraImagePath,
+                spoofCameraVideoPath: $model.uiSpoofCameraVideoPath,
+                spoofCameraLoop: $model.uiSpoofCameraLoop,
+                spoofCameraTransformOrientation: $model.uiSpoofCameraTransformOrientation,
+                spoofCameraTransformScale: $model.uiSpoofCameraTransformScale,
+                spoofCameraTransformFlip: $model.uiSpoofCameraTransformFlip,
+                isProcessingVideo: $model.isProcessingVideo,
+                videoProcessingProgress: $model.videoProcessingProgress,
+                errorInfo: $errorInfo,
+                errorShow: $errorShow,
+                onVideoTransformChange: {
+                    await processVideoTransforms() // ✅ This function exists in LCAppSettingsView
                 }
-                
-                if model.uiSpoofCamera {
-                    // Camera Mode Picker - ALWAYS VISIBLE
-                    Picker("Camera Mode", selection: $model.uiSpoofCameraMode) {
-                        Text("Standard").tag("standard")
-                        Text("Aggressive").tag("aggressive") 
-                        Text("Compatibility").tag("compatibility")
-                    }
-                    .pickerStyle(SegmentedPickerStyle())
-                    
-                    // Media Type Picker - SEPARATE FROM MODE
-                    Picker("Camera Type", selection: $model.uiSpoofCameraType) {
-                        Text("Static Image").tag("image")
-                        Text("Video").tag("video")
-                    }
-                    .pickerStyle(SegmentedPickerStyle())
-                    
-                    // Media Selection based on type
-                    if model.uiSpoofCameraType == "image" {
-                        CameraImagePickerView(
-                            imagePath: $model.uiSpoofCameraImagePath,
-                            errorInfo: $errorInfo,
-                            errorShow: $errorShow
-                        )
-                    } else {
-                        CameraVideoPickerView(
-                            videoPath: $model.uiSpoofCameraVideoPath,
-                            loopVideo: $model.uiSpoofCameraLoop,
-                            errorInfo: $errorInfo,
-                            errorShow: $errorShow
-                        )
-                        
-                        // FIXED: Video transformations inside the video type block
-                        if !model.uiSpoofCameraVideoPath.isEmpty {
-                            Divider()
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Video Transformations")
-                                    .font(.headline)
-                                    .padding(.top, 8)
-                                
-                                Picker("Orientation", selection: Binding(
-                                    get: { model.uiSpoofCameraTransformOrientation },
-                                    set: { newValue in
-                                        model.uiSpoofCameraTransformOrientation = newValue
-                                        Task {
-                                            await processVideoTransforms()
-                                        }
-                                    }
-                                )) {
-                                    Text("Original").tag("none")
-                                    Text("Force Portrait").tag("portrait") 
-                                    Text("Force Landscape").tag("landscape")
-                                }
-                                
-                                Picker("Scale", selection: Binding(
-                                    get: { model.uiSpoofCameraTransformScale },
-                                    set: { newValue in
-                                        model.uiSpoofCameraTransformScale = newValue
-                                        Task {
-                                            await processVideoTransforms()
-                                        }
-                                    }
-                                )) {
-                                    Text("Fit").tag("fit")
-                                    Text("Fill").tag("fill")
-                                    Text("Crop").tag("crop")
-                                }
-                                
-                                Picker("Flip", selection: Binding(
-                                    get: { model.uiSpoofCameraTransformFlip },
-                                    set: { newValue in
-                                        model.uiSpoofCameraTransformFlip = newValue
-                                        Task {
-                                            await processVideoTransforms()
-                                        }
-                                    }
-                                )) {
-                                    Text("None").tag("none")
-                                    Text("Horizontal").tag("horizontal")
-                                    Text("Vertical").tag("vertical")
-                                }
-                                
-                                if model.isProcessingVideo {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        HStack {
-                                            ProgressView()
-                                                .scaleEffect(0.8)
-                                            Text("Processing video...")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                        }
-                                        
-                                        ProgressView(value: model.videoProcessingProgress)
-                                            .progressViewStyle(LinearProgressViewStyle(tint: .blue))
-                                        
-                                        Text("\(Int(model.videoProcessingProgress * 100))%")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .padding(.top, 4)
-                                }
-                                
-                                Text("Video will be automatically processed when settings change. Useful for fixing Instagram videos that appear rotated.")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .padding(.top, 4)
-                            }
-                        }
-                    }
-                    
-                    if #unavailable(iOS 16.0) {
-                        Text("Note: Photo library access requires iOS 16.0 or later. Use Files or manual path entry instead.")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                    }
-                }
-            } header: {
-                Text("Camera Settings")
-            }
+            )
            
 
-            // MARK: Network Addon Section
-            Section {
-                Toggle(isOn: $model.uiSpoofNetwork) {
-                    HStack {
-                        Image(systemName: "network")
-                            .foregroundColor(.blue)
-                            .frame(width: 20)
-                        Text("SOCKS5 Proxy")
-                    }
-                }
-                
-                if model.uiSpoofNetwork {
-                    // Proxy Host
-                    HStack {
-                        Image(systemName: "server.rack")
-                            .foregroundColor(.gray)
-                            .frame(width: 20)
-                        VStack(alignment: .leading) {
-                            Text("Proxy Host")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            TextField("e.g., 127.0.0.1", text: $model.uiProxyHost)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                        }
-                    }
-                    
-                    // Proxy Port
-                    HStack {
-                        Image(systemName: "number")
-                            .foregroundColor(.gray)
-                            .frame(width: 20)
-                        VStack(alignment: .leading) {
-                            Text("Proxy Port")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            TextField("1080", value: $model.uiProxyPort, format: .number)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .keyboardType(.numberPad)
-                        }
-                    }
-                    
-                    // Authentication (optional)
-                    DisclosureGroup("Authentication") {
-                        HStack {
-                            Image(systemName: "person")
-                                .foregroundColor(.gray)
-                                .frame(width: 20)
-                            VStack(alignment: .leading) {
-                                Text("Username")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                TextField("Optional", text: $model.uiProxyUsername)
-                                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                            }
-                        }
-                        
-                        HStack {
-                            Image(systemName: "key")
-                                .foregroundColor(.gray)
-                                .frame(width: 20)
-                            VStack(alignment: .leading) {
-                                Text("Password")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                SecureField("Optional", text: $model.uiProxyPassword)
-                                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                            }
-                        }
-                    }
-                }
-            } header: {
-                Text("Network Settings")
-            }
+            // MARK: Network Settings init
+            NetworkSettingsSection(
+                spoofNetwork: $model.uiSpoofNetwork,
+                proxyHost: $model.uiProxyHost,
+                proxyPort: $model.uiProxyPort,
+                proxyUsername: $model.uiProxyUsername,
+                proxyPassword: $model.uiProxyPassword
+            )
 
             // MARK: Security Section
             Section {
