@@ -131,6 +131,7 @@ struct GPSSettingsSection: View {
     @State private var showCityPicker = false
     @State private var showLocationHistory = false
     @State private var isEditingLocationName = false
+    @State private var isGettingIPLocation = false
     
     @StateObject private var locationHistory = LCLocationHistory.shared
     
@@ -179,48 +180,90 @@ struct GPSSettingsSection: View {
                     Divider()
                     
                     // Quick location picker buttons
-                    HStack(spacing: 12) {
+                    HStack(spacing: 8) {
                         Button(action: {
                             showMapPicker = true
                         }) {
-                            Label("Map", systemImage: "map")
+                            VStack(spacing: 4) {
+                                Image(systemName: "map")
+                                    .font(.title2)
+                                Text("Map")
+                                    .font(.caption)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 60)
                         }
                         .buttonStyle(.bordered)
                         
                         Button(action: {
                             showCityPicker = true
                         }) {
-                            Label("City", systemImage: "building.2")
+                            VStack(spacing: 4) {
+                                Image(systemName: "building.2")
+                                    .font(.title2)
+                                Text("Cities")
+                                    .font(.caption)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 60)
                         }
                         .buttonStyle(.bordered)
                         
-                        // NEW: Location History Button
+                        // Add IP Location Button
+                        Button(action: {
+                            Task {
+                                await getLocationFromIP()
+                            }
+                        }) {
+                            VStack(spacing: 4) {
+                                if isGettingIPLocation {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "network")
+                                        .font(.title2)
+                                }
+                                Text("IP")
+                                    .font(.caption)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 60)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(isGettingIPLocation)
+                        
                         Button(action: {
                             showLocationHistory = true
                         }) {
-                            Label("Recent", systemImage: "clock.arrow.circlepath")
-                        }
-                        .buttonStyle(.bordered)
-                        .overlay(
-                            // Show badge if there are recent locations
-                            Group {
-                                if !locationHistory.recentLocations.isEmpty {
-                                    HStack {
-                                        Spacer()
+                            VStack(spacing: 4) {
+                                ZStack {
+                                    Image(systemName: "clock.arrow.circlepath")
+                                        .font(.title2)
+                                    
+                                    // Show badge if there are recent locations
+                                    if !locationHistory.recentLocations.isEmpty {
                                         VStack {
-                                            Text("\(locationHistory.recentLocations.count)")
-                                                .font(.caption2)
-                                                .foregroundColor(.white)
-                                                .frame(minWidth: 16, minHeight: 16)
-                                                .background(Color.red)
-                                                .clipShape(Circle())
+                                            HStack {
+                                                Spacer()
+                                                Text("\(locationHistory.recentLocations.count)")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.white)
+                                                    .frame(minWidth: 16, minHeight: 16)
+                                                    .background(Color.red)
+                                                    .clipShape(Circle())
+                                            }
                                             Spacer()
                                         }
+                                        .offset(x: 8, y: -8)
                                     }
-                                    .offset(x: 8, y: -8)
                                 }
+                                Text("Recent")
+                                    .font(.caption)
                             }
-                        )
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 60)
+                        }
+                        .buttonStyle(.bordered)
                     }
                     
                     Divider()
@@ -325,6 +368,34 @@ struct GPSSettingsSection: View {
         }
     }
     
+    @MainActor
+    private func getLocationFromIP() async {
+        isGettingIPLocation = true
+        
+        do {
+            let result = try await LCLocationHistory.shared.getLocationFromIP()
+            
+            // Set coordinates and city name
+            latitude = result.latitude
+            longitude = result.longitude
+            locationName = result.cityName // Use the city name from API
+            
+            // Automatically save to history
+            saveCurrentLocationToHistory()
+            
+            print("✅ IP Location set: \(result.cityName) (\(result.latitude), \(result.longitude))")
+            
+        } catch {
+            // Silent fail for better UX - just don't update coordinates
+            print("❌ IP location failed: \(error.localizedDescription)")
+            
+            // Optional: Set a generic fallback if you want
+            // locationName = "IP Location Failed"
+        }
+        
+        isGettingIPLocation = false
+    }
+
     // MARK: Auto-save functionality
     @State private var autoSaveTask: Task<Void, Never>?
     
@@ -453,7 +524,7 @@ struct LCLocationHistoryView: View {
     }
 }
 
-// MARK: - Location History Extensions
+// MARK: - Location History
 extension LCLocationHistory {
     // Get locations sorted by distance from current coordinates
     func locationsSortedByDistance(from coordinate: CLLocationCoordinate2D) -> [LocationHistoryItem] {
@@ -480,6 +551,172 @@ extension LCLocationHistory {
         // For now, just return the most recent ones
         // Could be enhanced to track usage frequency
         return Array(recentLocations.prefix(limit))
+    }
+}
+
+// MARK: - IP Location
+extension LCLocationHistory {
+    
+    // MARK: - IP Geolocation Functions
+    // Simple IP geolocation with city name - returns coordinates and best available city name
+    func getLocationFromIP() async throws -> (latitude: CLLocationDegrees, longitude: CLLocationDegrees, cityName: String) {
+        // Try ip-api.com first (most detailed response)
+        if let result = try? await ipApiService() {
+            return result
+        }
+        
+        // Fallback to ipinfo.io
+        if let result = try? await ipInfoService() {
+            return result
+        }
+        
+        // Fallback to geojs.io
+        if let result = try? await geoJSService() {
+            return result
+        }
+        
+        throw NSError(domain: "IPGeolocation", code: 1, userInfo: [NSLocalizedDescriptionKey: "All IP geolocation services failed"])
+    }
+    
+    // Service 1: ip-api.com (most detailed, free)
+    private func ipApiService() async throws -> (latitude: CLLocationDegrees, longitude: CLLocationDegrees, cityName: String) {
+        guard let url = URL(string: "http://ip-api.com/json/?fields=status,message,country,regionName,city,lat,lon") else {
+            throw NSError(domain: "IPGeolocation", code: 1, userInfo: nil)
+        }
+        
+        let (data, _) = try await URLSession.shared.data(from: url)
+        
+        struct IPApiResponse: Codable {
+            let status: String
+            let message: String?
+            let country: String?
+            let regionName: String?
+            let city: String?
+            let lat: Double?
+            let lon: Double?
+        }
+        
+        let response = try JSONDecoder().decode(IPApiResponse.self, from: data)
+        
+        guard response.status == "success",
+              let lat = response.lat,
+              let lon = response.lon else {
+            throw NSError(domain: "IPGeolocation", code: 2, userInfo: [NSLocalizedDescriptionKey: response.message ?? "API request failed"])
+        }
+        
+        // Build the best city name from available data
+        let cityName = buildCityName(
+            city: response.city,
+            region: response.regionName,
+            country: response.country,
+            serviceName: "ip-api"
+        )
+        
+        return (lat, lon, cityName)
+    }
+    
+    // Service 2: ipinfo.io
+    private func ipInfoService() async throws -> (latitude: CLLocationDegrees, longitude: CLLocationDegrees, cityName: String) {
+        guard let url = URL(string: "https://ipinfo.io/json") else {
+            throw NSError(domain: "IPGeolocation", code: 1, userInfo: nil)
+        }
+        
+        let (data, _) = try await URLSession.shared.data(from: url)
+        
+        struct IPInfoResponse: Codable {
+            let city: String?
+            let region: String?
+            let country: String?
+            let loc: String? // "lat,lon" format
+        }
+        
+        let response = try JSONDecoder().decode(IPInfoResponse.self, from: data)
+        
+        guard let loc = response.loc else {
+            throw NSError(domain: "IPGeolocation", code: 2, userInfo: nil)
+        }
+        
+        let coordinates = loc.split(separator: ",")
+        guard coordinates.count == 2,
+              let lat = Double(coordinates[0]),
+              let lon = Double(coordinates[1]) else {
+            throw NSError(domain: "IPGeolocation", code: 3, userInfo: nil)
+        }
+        
+        // Build city name
+        let cityName = buildCityName(
+            city: response.city,
+            region: response.region,
+            country: response.country,
+            serviceName: "ipinfo"
+        )
+        
+        return (lat, lon, cityName)
+    }
+    
+    // Service 3: geojs.io
+    private func geoJSService() async throws -> (latitude: CLLocationDegrees, longitude: CLLocationDegrees, cityName: String) {
+        guard let url = URL(string: "https://get.geojs.io/v1/ip/geo.json") else {
+            throw NSError(domain: "IPGeolocation", code: 1, userInfo: nil)
+        }
+        
+        let (data, _) = try await URLSession.shared.data(from: url)
+        
+        struct GeoJSResponse: Codable {
+            let country: String?
+            let region: String?
+            let city: String?
+            let latitude: String?
+            let longitude: String?
+        }
+        
+        let response = try JSONDecoder().decode(GeoJSResponse.self, from: data)
+        
+        guard let latStr = response.latitude,
+              let lonStr = response.longitude,
+              let lat = Double(latStr),
+              let lon = Double(lonStr) else {
+            throw NSError(domain: "IPGeolocation", code: 2, userInfo: nil)
+        }
+        
+        // Build city name
+        let cityName = buildCityName(
+            city: response.city,
+            region: response.region,
+            country: response.country,
+            serviceName: "geojs"
+        )
+        
+        return (lat, lon, cityName)
+    }
+    
+    // Helper function to build the best city name from available data
+    private func buildCityName(city: String?, region: String?, country: String?, serviceName: String) -> String {
+        var components: [String] = []
+        
+        // Always prioritize city name if available
+        if let city = city, !city.isEmpty {
+            components.append(city)
+        }
+        
+        // Add region if different from city
+        if let region = region, !region.isEmpty, region != city {
+            components.append(region)
+        }
+        
+        // Add country if we don't have city or if it's just a region
+        if let country = country, !country.isEmpty {
+            // Only add country if we don't have a city, or if we only have region
+            if components.isEmpty || (components.count == 1 && city == nil) {
+                components.append(country)
+            }
+        }
+        
+        // Build final name
+        let locationName = components.isEmpty ? "IP Location" : components.joined(separator: ", ")
+        
+        print("🌍 IP location from \(serviceName): \(locationName)")
+        return locationName
     }
 }
 
