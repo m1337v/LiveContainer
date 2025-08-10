@@ -1805,8 +1805,9 @@ struct CameraImagePickerView: View {
     
     @State private var showingFilePicker = false
     @State private var showingPhotoPicker = false
-    @State private var selectedPhotoItem: Any? = nil
-    @State private var previewImage: UIImage?
+    @State private var originalImage: UIImage? // Store original
+    @State private var transformedImage: UIImage? // Store transformed for preview
+    @State private var isTransforming = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1826,8 +1827,8 @@ struct CameraImagePickerView: View {
                         .buttonStyle(.bordered)
                     }
                     
-                    // Image preview
-                    if let previewImage = previewImage {
+                    // Image preview - show transformed version if available
+                    if let previewImage = transformedImage ?? originalImage {
                         Image(uiImage: previewImage)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
@@ -1835,7 +1836,41 @@ struct CameraImagePickerView: View {
                             .cornerRadius(8)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                                    .stroke(hasAnyTransforms() ? Color.blue : Color.secondary.opacity(0.3), lineWidth: hasAnyTransforms() ? 2 : 1)
+                            )
+                            .overlay(
+                                // Show transform indicator
+                                Group {
+                                    if hasAnyTransforms() && !isTransforming {
+                                        VStack {
+                                            Spacer()
+                                            HStack {
+                                                Spacer()
+                                                Label("Transformed", systemImage: "wand.and.rays")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.white)
+                                                    .padding(4)
+                                                    .background(Color.blue.opacity(0.8))
+                                                    .cornerRadius(4)
+                                                    .padding(4)
+                                            }
+                                        }
+                                    }
+                                    
+                                    if isTransforming {
+                                        ZStack {
+                                            Color.black.opacity(0.3)
+                                            VStack {
+                                                ProgressView()
+                                                    .scaleEffect(0.8)
+                                                Text("Applying...")
+                                                    .font(.caption)
+                                                    .foregroundColor(.white)
+                                            }
+                                        }
+                                        .cornerRadius(8)
+                                    }
+                                }
                             )
                     } else {
                         HStack {
@@ -1898,20 +1933,20 @@ struct CameraImagePickerView: View {
                 TextField("Path to image file", text: $imagePath)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .onChange(of: imagePath) { newPath in
-                        loadImagePreview(from: newPath)
+                        loadImageFromPath(newPath)
                     }
             }
             
-            // Video transformations for image-generated videos
+            // ✅ SIMPLIFIED: Image transformations that apply immediately
             if !imagePath.isEmpty {
                 Divider()
                 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Video Transformations")
+                    Text("Image Transformations")
                         .font(.headline)
                         .padding(.top, 8)
                     
-                    Text("Image will be converted to video and can be transformed")
+                    Text("Transformations are applied to the image in real-time")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.bottom, 4)
@@ -1922,9 +1957,7 @@ struct CameraImagePickerView: View {
                             get: { spoofCameraMode == "verified" },
                             set: { newValue in
                                 spoofCameraMode = newValue ? "verified" : "standard"
-                                Task {
-                                    await processImageToVideoTransforms()
-                                }
+                                applyTransformations()
                             }
                         ))
                         
@@ -1936,13 +1969,14 @@ struct CameraImagePickerView: View {
                                 .foregroundColor(.green)
                         }
                     }
+                    .disabled(isTransforming)
                     .padding(.bottom, 4)
                     
                     if spoofCameraMode == "verified" {
                         HStack {
                             Image(systemName: "info.circle")
                                 .foregroundColor(.blue)
-                            Text("Adds Nomix-style random variations to avoid detection")
+                            Text("Adds subtle random variations to avoid detection")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -1957,9 +1991,7 @@ struct CameraImagePickerView: View {
                         get: { spoofCameraTransformOrientation },
                         set: { newValue in
                             spoofCameraTransformOrientation = newValue
-                            Task {
-                                await processImageToVideoTransforms()
-                            }
+                            applyTransformations()
                         }
                     )) {
                         Text("Original").tag("none")
@@ -1969,28 +2001,26 @@ struct CameraImagePickerView: View {
                         Text("Rotate 180°").tag("rotate180")
                         Text("Rotate 270°").tag("rotate270")
                     }
+                    .disabled(isTransforming)
                     
                     Picker("Scale", selection: Binding(
                         get: { spoofCameraTransformScale },
                         set: { newValue in
                             spoofCameraTransformScale = newValue
-                            Task {
-                                await processImageToVideoTransforms()
-                            }
+                            applyTransformations()
                         }
                     )) {
                         Text("Fit").tag("fit")
                         Text("Fill").tag("fill")
                         Text("Stretch").tag("stretch")
                     }
+                    .disabled(isTransforming)
                     
                     Picker("Flip", selection: Binding(
                         get: { spoofCameraTransformFlip },
                         set: { newValue in
                             spoofCameraTransformFlip = newValue
-                            Task {
-                                await processImageToVideoTransforms()
-                            }
+                            applyTransformations()
                         }
                     )) {
                         Text("None").tag("none")
@@ -1998,30 +2028,10 @@ struct CameraImagePickerView: View {
                         Text("Vertical").tag("vertical")
                         Text("Both").tag("both")
                     }
-                    
-                    // Processing indicator
-                    if isProcessingVideo {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                Text("Converting image to video with transformations...")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            ProgressView(value: videoProcessingProgress)
-                                .progressViewStyle(LinearProgressViewStyle(tint: .blue))
-                            
-                            Text("\(Int(videoProcessingProgress * 100))%")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.top, 4)
-                    }
+                    .disabled(isTransforming)
                     
                     // Transform summary
-                    if hasAnyImageTransforms() {
+                    if hasAnyTransforms() {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Active Transformations:")
                                 .font(.caption)
@@ -2060,7 +2070,17 @@ struct CameraImagePickerView: View {
                         .cornerRadius(6)
                     }
                     
-                    Text("Image will be converted to a looping video with applied transformations. Verified mode adds anti-detection variations.")
+                    // Reset button
+                    if hasAnyTransforms() {
+                        Button("Reset to Original") {
+                            resetTransformations()
+                        }
+                        .font(.caption)
+                        .buttonStyle(.bordered)
+                        .disabled(isTransforming)
+                    }
+                    
+                    Text("The transformed image will be converted to a looping video when camera spoofing is enabled.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.top, 4)
@@ -2069,7 +2089,7 @@ struct CameraImagePickerView: View {
         }
         .onAppear {
             if !imagePath.isEmpty {
-                loadImagePreview(from: imagePath)
+                loadImageFromPath(imagePath)
             }
         }
         .fileImporter(
@@ -2093,10 +2113,11 @@ struct CameraImagePickerView: View {
             }
         }
         imagePath = ""
-        previewImage = nil
+        originalImage = nil
+        transformedImage = nil
     }
     
-    private func hasAnyImageTransforms() -> Bool {
+    private func hasAnyTransforms() -> Bool {
         return spoofCameraMode == "verified" ||
                spoofCameraTransformOrientation != "none" ||
                spoofCameraTransformFlip != "none" ||
@@ -2114,14 +2135,16 @@ struct CameraImagePickerView: View {
         }
     }
     
-    private func loadImagePreview(from path: String) {
+    private func loadImageFromPath(_ path: String) {
         guard !path.isEmpty else {
-            previewImage = nil
+            originalImage = nil
+            transformedImage = nil
             return
         }
         
         guard FileManager.default.fileExists(atPath: path) else {
-            previewImage = nil
+            originalImage = nil
+            transformedImage = nil
             DispatchQueue.main.async {
                 errorInfo = "Image file not found at path: \(path)"
                 errorShow = true
@@ -2129,15 +2152,17 @@ struct CameraImagePickerView: View {
             return
         }
         
-        // Load image asynchronously to avoid blocking UI
+        // Load image asynchronously
         DispatchQueue.global(qos: .userInitiated).async {
             if let image = UIImage(contentsOfFile: path) {
                 DispatchQueue.main.async {
-                    previewImage = image
+                    originalImage = image
+                    applyTransformations() // Apply transformations when loading
                 }
             } else {
                 DispatchQueue.main.async {
-                    previewImage = nil
+                    originalImage = nil
+                    transformedImage = nil
                     errorInfo = "Failed to load image from file. File may be corrupted or not a valid image format."
                     errorShow = true
                 }
@@ -2145,11 +2170,178 @@ struct CameraImagePickerView: View {
         }
     }
     
+    // ✅ SIMPLIFIED: Apply transformations directly to the image
+    private func applyTransformations() {
+        guard let original = originalImage else {
+            transformedImage = nil
+            return
+        }
+        
+        // If no transformations, use original
+        if !hasAnyTransforms() {
+            transformedImage = original
+            return
+        }
+        
+        isTransforming = true
+        
+        // Apply transformations in background
+        DispatchQueue.global(qos: .userInitiated).async {
+            let transformed = applyImageTransforms(image: original)
+            
+            DispatchQueue.main.async {
+                transformedImage = transformed
+                isTransforming = false
+                
+                // Save the transformed image to a temp file for use by the video system
+                saveTransformedImageForVideo(transformed)
+            }
+        }
+    }
+    
+    private func applyImageTransforms(image: UIImage) -> UIImage {
+        let originalSize = image.size
+        var targetSize = originalSize
+        var transform = CGAffineTransform.identity
+        
+        // 1. Apply orientation transforms
+        switch spoofCameraTransformOrientation {
+        case "portrait":
+            if originalSize.width > originalSize.height {
+                // Rotate landscape to portrait
+                transform = transform.concatenating(CGAffineTransform(rotationAngle: .pi / 2))
+                targetSize = CGSize(width: originalSize.height, height: originalSize.width)
+            }
+        case "landscape":
+            if originalSize.height > originalSize.width {
+                // Rotate portrait to landscape
+                transform = transform.concatenating(CGAffineTransform(rotationAngle: .pi / 2))
+                targetSize = CGSize(width: originalSize.height, height: originalSize.width)
+            }
+        case "rotate90":
+            transform = transform.concatenating(CGAffineTransform(rotationAngle: .pi / 2))
+            targetSize = CGSize(width: originalSize.height, height: originalSize.width)
+        case "rotate180":
+            transform = transform.concatenating(CGAffineTransform(rotationAngle: .pi))
+        case "rotate270":
+            transform = transform.concatenating(CGAffineTransform(rotationAngle: -.pi / 2))
+            targetSize = CGSize(width: originalSize.height, height: originalSize.width)
+        default:
+            break
+        }
+        
+        // 2. Apply flip transforms
+        switch spoofCameraTransformFlip {
+        case "horizontal":
+            transform = transform.concatenating(CGAffineTransform(scaleX: -1, y: 1))
+        case "vertical":
+            transform = transform.concatenating(CGAffineTransform(scaleX: 1, y: -1))
+        case "both":
+            transform = transform.concatenating(CGAffineTransform(scaleX: -1, y: -1))
+        default:
+            break
+        }
+        
+        // 3. Apply scale transforms
+        var finalSize = targetSize
+        switch spoofCameraTransformScale {
+        case "fill":
+            // Scale to fill screen (crop if necessary)
+            let screenAspect = UIScreen.main.bounds.width / UIScreen.main.bounds.height
+            let imageAspect = targetSize.width / targetSize.height
+            
+            if imageAspect > screenAspect {
+                // Image is wider, scale to height
+                let scale = UIScreen.main.bounds.height / targetSize.height
+                finalSize = CGSize(width: targetSize.width * scale, height: UIScreen.main.bounds.height)
+            } else {
+                // Image is taller, scale to width
+                let scale = UIScreen.main.bounds.width / targetSize.width
+                finalSize = CGSize(width: UIScreen.main.bounds.width, height: targetSize.height * scale)
+            }
+        case "stretch":
+            // Stretch to fill screen
+            finalSize = UIScreen.main.bounds.size
+        default: // "fit"
+            // Keep original size or fit proportionally
+            break
+        }
+        
+        // 4. Apply verified mode variations
+        if spoofCameraMode == "verified" {
+            let seed = Int(Date().timeIntervalSince1970) % 1000
+            var rng = SeededRandomGenerator(seed: seed)
+            
+            // Slight rotation (±1 degree)
+            let rotationVariation = rng.nextDouble(-1.0, 1.0) * .pi / 180.0
+            transform = transform.concatenating(CGAffineTransform(rotationAngle: rotationVariation))
+            
+            // Slight scale (0.98x to 1.02x)
+            let scaleVariation = rng.nextDouble(0.98, 1.02)
+            transform = transform.concatenating(CGAffineTransform(scaleX: scaleVariation, y: scaleVariation))
+            
+            // Slight translation (±3 pixels)
+            let translateX = rng.nextDouble(-3.0, 3.0)
+            let translateY = rng.nextDouble(-3.0, 3.0)
+            transform = transform.concatenating(CGAffineTransform(translationX: translateX, y: translateY))
+            
+            print("🎭 Verified mode applied: rotation=\(rotationVariation * 180 / .pi)°, scale=\(scaleVariation), translate=(\(translateX),\(translateY))")
+        }
+        
+        // 5. Render the transformed image
+        UIGraphicsBeginImageContextWithOptions(finalSize, false, 1.0)
+        defer { UIGraphicsEndImageContext() }
+        
+        guard let context = UIGraphicsGetCurrentContext() else { return image }
+        
+        // Apply transforms around center
+        context.translateBy(x: finalSize.width / 2, y: finalSize.height / 2)
+        context.concatenate(transform)
+        context.translateBy(x: -finalSize.width / 2, y: -finalSize.height / 2)
+        
+        // Draw the image
+        let drawRect = CGRect(
+            x: (finalSize.width - targetSize.width) / 2,
+            y: (finalSize.height - targetSize.height) / 2,
+            width: targetSize.width,
+            height: targetSize.height
+        )
+        image.draw(in: drawRect)
+        
+        return UIGraphicsGetImageFromCurrentImageContext() ?? image
+    }
+    
+    private func resetTransformations() {
+        spoofCameraMode = "standard"
+        spoofCameraTransformOrientation = "none"
+        spoofCameraTransformScale = "fit"
+        spoofCameraTransformFlip = "none"
+        transformedImage = originalImage
+    }
+    
+    // Save transformed image for video conversion
+    private func saveTransformedImageForVideo(_ image: UIImage) {
+        guard let jpegData = image.jpegData(compressionQuality: 0.9) else { return }
+        
+        let tempDir = NSTemporaryDirectory()
+        let transformedImagePath = tempDir.appending("lc_transformed_image.jpg")
+        
+        do {
+            try jpegData.write(to: URL(fileURLWithPath: transformedImagePath))
+            
+            // Update the image path to point to the transformed version
+            // This will be used by the AVFoundation hooks
+            imagePath = transformedImagePath
+        } catch {
+            print("Failed to save transformed image: \(error)")
+        }
+    }
+    
     @available(iOS 16.0, *)
     private func loadSelectedPhoto(_ item: PhotosPickerItem) async {
         do {
             if let data = try await item.loadTransferable(type: Data.self) {
-                // Validate that this is actually image data
+                // Validate image data
                 guard UIImage(data: data) != nil else {
                     await MainActor.run {
                         errorInfo = "Selected file is not a valid image format"
@@ -2161,22 +2353,20 @@ struct CameraImagePickerView: View {
                 let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
                 let cameraImagesFolder = documentsPath.appendingPathComponent("CameraSpoof/Images")
                 
-                // Create directory if it doesn't exist
                 try FileManager.default.createDirectory(at: cameraImagesFolder, withIntermediateDirectories: true)
                 
-                // Generate unique filename with proper extension
                 let timestamp = Int(Date().timeIntervalSince1970)
                 let fileName = "camera_image_\(timestamp).jpg"
                 let filePath = cameraImagesFolder.appendingPathComponent(fileName)
                 
-                // Save the image as JPEG for consistent format
                 if let image = UIImage(data: data),
                    let jpegData = image.jpegData(compressionQuality: 0.9) {
                     try jpegData.write(to: filePath)
                     
                     await MainActor.run {
                         imagePath = filePath.path
-                        previewImage = image
+                        originalImage = image
+                        applyTransformations()
                     }
                 } else {
                     throw NSError(domain: "ImageProcessing", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to process image data"])
@@ -2195,7 +2385,6 @@ struct CameraImagePickerView: View {
         case .success(let urls):
             guard let url = urls.first else { return }
             
-            // Start accessing security-scoped resource
             guard url.startAccessingSecurityScopedResource() else {
                 errorInfo = "Unable to access selected file"
                 errorShow = true
@@ -2205,7 +2394,6 @@ struct CameraImagePickerView: View {
             defer { url.stopAccessingSecurityScopedResource() }
             
             do {
-                // First, validate it's an image
                 guard let image = UIImage(contentsOfFile: url.path) else {
                     errorInfo = "Selected file is not a valid image format"
                     errorShow = true
@@ -2215,24 +2403,22 @@ struct CameraImagePickerView: View {
                 let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
                 let cameraImagesFolder = documentsPath.appendingPathComponent("CameraSpoof/Images")
                 
-                // Create directory if it doesn't exist
                 try FileManager.default.createDirectory(at: cameraImagesFolder, withIntermediateDirectories: true)
                 
-                // Use original filename but ensure unique
                 let originalName = url.deletingPathExtension().lastPathComponent
                 let extensionName = url.pathExtension.isEmpty ? "jpg" : url.pathExtension
                 let timestamp = Int(Date().timeIntervalSince1970)
                 let fileName = "\(originalName)_\(timestamp).\(extensionName)"
                 let destinationPath = cameraImagesFolder.appendingPathComponent(fileName)
                 
-                // Copy file to documents
                 if FileManager.default.fileExists(atPath: destinationPath.path) {
                     try FileManager.default.removeItem(at: destinationPath)
                 }
                 try FileManager.default.copyItem(at: url, to: destinationPath)
                 
                 imagePath = destinationPath.path
-                previewImage = image
+                originalImage = image
+                applyTransformations()
                 
             } catch {
                 errorInfo = "Failed to import image file: \(error.localizedDescription)"
@@ -2243,244 +2429,6 @@ struct CameraImagePickerView: View {
             errorInfo = "File selection failed: \(error.localizedDescription)"
             errorShow = true
         }
-    }
-    
-    @MainActor
-    private func processImageToVideoTransforms() async {
-        guard !imagePath.isEmpty else { return }
-        
-        let hasTransforms = hasAnyImageTransforms()
-        guard hasTransforms else { return }
-        
-        isProcessingVideo = true
-        videoProcessingProgress = 0.0
-        
-        do {
-            // Load the image
-            guard let sourceImage = UIImage(contentsOfFile: imagePath) else {
-                throw NSError(domain: "ImageTransform", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to load image"])
-            }
-            
-            // Create video from image with transformations
-            let transformedVideoPath = try await createVideoFromImageWithTransforms(
-                sourceImage: sourceImage,
-                orientation: spoofCameraTransformOrientation,
-                scale: spoofCameraTransformScale,
-                flip: spoofCameraTransformFlip,
-                isVerifiedMode: spoofCameraMode == "verified"
-            )
-            
-            // The video path is handled by the AVFoundation system
-            print("✅ Image converted to video with transformations: \(transformedVideoPath)")
-            
-        } catch {
-            errorInfo = "Image transformation failed: \(error.localizedDescription)"
-            errorShow = true
-        }
-        
-        isProcessingVideo = false
-    }
-    
-    private func createVideoFromImageWithTransforms(
-        sourceImage: UIImage,
-        orientation: String,
-        scale: String,
-        flip: String,
-        isVerifiedMode: Bool
-    ) async throws -> String {
-        
-        // Create temporary video file
-        let tempDir = NSTemporaryDirectory()
-        let tempVideoPath = tempDir.appending("lc_image_transformed_video.mp4")
-        
-        // Remove existing temp file
-        if FileManager.default.fileExists(atPath: tempVideoPath) {
-            try FileManager.default.removeItem(atPath: tempVideoPath)
-        }
-        
-        let outputURL = URL(fileURLWithPath: tempVideoPath)
-        
-        // Apply image transformations first
-        let transformedImage = applyImageTransforms(
-            image: sourceImage,
-            orientation: orientation,
-            scale: scale,
-            flip: flip,
-            isVerifiedMode: isVerifiedMode
-        )
-        
-        // Create video writer
-        let writer = try AVAssetWriter(url: outputURL, fileType: .mp4)
-        
-        let videoSettings: [String: Any] = [
-            AVVideoCodecKey: AVVideoCodecType.h264,
-            AVVideoWidthKey: Int(transformedImage.size.width),
-            AVVideoHeightKey: Int(transformedImage.size.height),
-            AVVideoCompressionPropertiesKey: [
-                AVVideoAverageBitRateKey: 1000000
-            ]
-        ]
-        
-        let writerInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
-        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
-            assetWriterInput: writerInput,
-            sourcePixelBufferAttributes: [
-                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
-            ]
-        )
-        
-        writer.add(writerInput)
-        writer.startWriting()
-        writer.startSession(atSourceTime: .zero)
-        
-        return try await withCheckedThrowingContinuation { continuation in
-            let queue = DispatchQueue(label: "imageToVideo")
-            let input = writerInput
-            let pixelAdaptor = adaptor
-            let videoWriter = writer
-            
-            input.requestMediaDataWhenReady(on: queue) {
-                let videoDuration: Double = 2.0 // 2 second loop
-                let totalFrames = Int(videoDuration * 30)
-                
-                for frameNumber in 0..<totalFrames {
-                    while !input.isReadyForMoreMediaData {
-                        Thread.sleep(forTimeInterval: 0.01)
-                    }
-                    
-                    let frameTime = CMTime(value: Int64(frameNumber), timescale: 30)
-                    
-                    if let pixelBuffer = self.createPixelBuffer(from: transformedImage, frameNumber: frameNumber, isVerifiedMode: isVerifiedMode) {
-                        pixelAdaptor.append(pixelBuffer, withPresentationTime: frameTime)
-                    }
-                    
-                    DispatchQueue.main.async {
-                        self.videoProcessingProgress = Double(frameNumber) / Double(totalFrames)
-                    }
-                }
-                
-                input.markAsFinished()
-                videoWriter.finishWriting {
-                    if videoWriter.status == .completed {
-                        continuation.resume(returning: tempVideoPath)
-                    } else {
-                        continuation.resume(throwing: videoWriter.error ?? NSError(domain: "VideoCreation", code: 1, userInfo: nil))
-                    }
-                }
-            }
-        }
-    }
-    
-    private func applyImageTransforms(
-        image: UIImage,
-        orientation: String,
-        scale: String,
-        flip: String,
-        isVerifiedMode: Bool
-    ) -> UIImage {
-        
-        let targetSize = CGSize(width: 1080, height: 1920) // Default portrait
-        
-        // Apply orientation
-        var transform = CGAffineTransform.identity
-        var renderSize = targetSize
-        
-        switch orientation {
-        case "landscape":
-            renderSize = CGSize(width: targetSize.height, height: targetSize.width)
-        case "rotate90":
-            transform = transform.concatenating(CGAffineTransform(rotationAngle: .pi / 2))
-        case "rotate180":
-            transform = transform.concatenating(CGAffineTransform(rotationAngle: .pi))
-        case "rotate270":
-            transform = transform.concatenating(CGAffineTransform(rotationAngle: -.pi / 2))
-        default:
-            break
-        }
-        
-        // Apply flip
-        switch flip {
-        case "horizontal":
-            transform = transform.concatenating(CGAffineTransform(scaleX: -1, y: 1))
-        case "vertical":
-            transform = transform.concatenating(CGAffineTransform(scaleX: 1, y: -1))
-        case "both":
-            transform = transform.concatenating(CGAffineTransform(scaleX: -1, y: -1))
-        default:
-            break
-        }
-        
-        // Apply verified mode variations if enabled
-        if isVerifiedMode {
-            let seed = Int(Date().timeIntervalSince1970) % 1000
-            var rng = SeededRandomGenerator(seed: seed)
-            
-            // Slight rotation variation
-            let rotationVariation = rng.nextDouble(-0.5, 0.5) * .pi / 180.0
-            transform = transform.concatenating(CGAffineTransform(rotationAngle: rotationVariation))
-            
-            // Slight scale variation
-            let scaleVariation = rng.nextDouble(0.98, 1.02)
-            transform = transform.concatenating(CGAffineTransform(scaleX: scaleVariation, y: scaleVariation))
-        }
-        
-        // Apply transforms and return modified image
-        UIGraphicsBeginImageContextWithOptions(renderSize, false, 1.0)
-        defer { UIGraphicsEndImageContext() }
-        
-        guard let context = UIGraphicsGetCurrentContext() else { return image }
-        
-        // Apply transform around center
-        context.translateBy(x: renderSize.width / 2, y: renderSize.height / 2)
-        context.concatenate(transform)
-        context.translateBy(x: -renderSize.width / 2, y: -renderSize.height / 2)
-        
-        // Draw the image
-        image.draw(in: CGRect(origin: .zero, size: renderSize))
-        
-        return UIGraphicsGetImageFromCurrentImageContext() ?? image
-    }
-    
-    private func createPixelBuffer(from image: UIImage, frameNumber: Int, isVerifiedMode: Bool) -> CVPixelBuffer? {
-        let attrs = [
-            kCVPixelBufferCGImageCompatibilityKey: kCFBooleanTrue!,
-            kCVPixelBufferCGBitmapContextCompatibilityKey: kCFBooleanTrue!
-        ] as CFDictionary
-        
-        var pixelBuffer: CVPixelBuffer?
-        let status = CVPixelBufferCreate(
-            kCFAllocatorDefault,
-            Int(image.size.width),
-            Int(image.size.height),
-            kCVPixelFormatType_32BGRA,
-            attrs,
-            &pixelBuffer
-        )
-        
-        guard status == kCVReturnSuccess, let buffer = pixelBuffer else { return nil }
-        
-        CVPixelBufferLockBaseAddress(buffer, [])
-        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
-        
-        guard let context = CGContext(
-            data: CVPixelBufferGetBaseAddress(buffer),
-            width: Int(image.size.width),
-            height: Int(image.size.height),
-            bitsPerComponent: 8,
-            bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue
-        ) else { return nil }
-        
-        // Add verified mode subtle variations per frame
-        if isVerifiedMode && frameNumber % 10 == 0 {
-            let variation = Float(frameNumber % 100) / 1000.0 // Very subtle brightness variation
-            context.setAlpha(CGFloat(1.0 + variation))
-        }
-        
-        context.draw(image.cgImage!, in: CGRect(origin: .zero, size: image.size))
-        
-        return buffer
     }
 }
 
