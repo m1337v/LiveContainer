@@ -16,6 +16,110 @@ import Photos
 
 
 // MARK: GPS Settings Section
+class LCLocationHistory: ObservableObject {
+    static let shared = LCLocationHistory()
+    
+    @Published var recentLocations: [LocationHistoryItem] = []
+    
+    private let maxHistoryItems = 20 // Keep last 20 locations
+    private let userDefaults = UserDefaults.standard
+    private let historyKey = "LCLocationHistory"
+    
+    private init() {
+        loadHistory()
+    }
+    
+    func addLocation(name: String, latitude: CLLocationDegrees, longitude: CLLocationDegrees, altitude: CLLocationDistance = 0.0) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        
+        // Check if location with same name already exists
+        if let existingIndex = recentLocations.firstIndex(where: { $0.name.localizedCaseInsensitiveCompare(trimmedName) == .orderedSame }) {
+            // Update existing location with new coordinates and move to top
+            var updatedLocation = recentLocations[existingIndex]
+            updatedLocation.latitude = latitude
+            updatedLocation.longitude = longitude
+            updatedLocation.altitude = altitude
+            updatedLocation.lastUsed = Date()
+            
+            recentLocations.remove(at: existingIndex)
+            recentLocations.insert(updatedLocation, at: 0)
+            
+            print("🗂️ Updated existing location: \(trimmedName)")
+        } else {
+            // Add new location at the beginning
+            let newLocation = LocationHistoryItem(
+                name: trimmedName,
+                latitude: latitude,
+                longitude: longitude,
+                altitude: altitude,
+                lastUsed: Date()
+            )
+            
+            recentLocations.insert(newLocation, at: 0)
+            
+            // Keep only the most recent items
+            if recentLocations.count > maxHistoryItems {
+                recentLocations = Array(recentLocations.prefix(maxHistoryItems))
+            }
+            
+            print("🗂️ Added new location: \(trimmedName)")
+        }
+        
+        saveHistory()
+    }
+    
+    func removeLocation(at index: Int) {
+        guard index < recentLocations.count else { return }
+        recentLocations.remove(at: index)
+        saveHistory()
+    }
+    
+    func clearHistory() {
+        recentLocations.removeAll()
+        saveHistory()
+    }
+    
+    private func saveHistory() {
+        do {
+            let data = try JSONEncoder().encode(recentLocations)
+            userDefaults.set(data, forKey: historyKey)
+            print("🗂️ Saved \(recentLocations.count) locations to history")
+        } catch {
+            print("🗂️ Failed to save location history: \(error)")
+        }
+    }
+    
+    private func loadHistory() {
+        guard let data = userDefaults.data(forKey: historyKey) else {
+            print("🗂️ No location history found")
+            return
+        }
+        
+        do {
+            recentLocations = try JSONDecoder().decode([LocationHistoryItem].self, from: data)
+            print("🗂️ Loaded \(recentLocations.count) locations from history")
+        } catch {
+            print("🗂️ Failed to load location history: \(error)")
+            recentLocations = []
+        }
+    }
+}
+
+struct LocationHistoryItem: Codable, Identifiable {
+    let id = UUID()
+    let name: String
+    var latitude: CLLocationDegrees
+    var longitude: CLLocationDegrees
+    var altitude: CLLocationDistance
+    var lastUsed: Date
+    
+    private enum CodingKeys: String, CodingKey {
+        case name, latitude, longitude, altitude, lastUsed
+    }
+}
+
+// MARK: - GPS Settings Section
 struct GPSSettingsSection: View {
     @Binding var spoofGPS: Bool
     @Binding var latitude: CLLocationDegrees
@@ -25,17 +129,20 @@ struct GPSSettingsSection: View {
     
     @State private var showMapPicker = false
     @State private var showCityPicker = false
+    @State private var showLocationHistory = false
     @State private var isEditingLocationName = false
+    
+    @StateObject private var locationHistory = LCLocationHistory.shared
     
     var body: some View {
         Section {
             Toggle(isOn: $spoofGPS) {
                 HStack {
-                        Image(systemName: "location")
-                            .foregroundColor(.blue)
-                            .frame(width: 20)
-                        Text("Spoof GPS Location")
-                    }
+                    Image(systemName: "location")
+                        .foregroundColor(.blue)
+                        .frame(width: 20)
+                    Text("Spoof GPS Location")
+                }
             }
             
             if spoofGPS {
@@ -48,6 +155,10 @@ struct GPSSettingsSection: View {
                             Spacer()
                             Button(isEditingLocationName ? "Done" : "Edit") {
                                 isEditingLocationName.toggle()
+                                if !isEditingLocationName && !locationName.isEmpty {
+                                    // Save to history when done editing
+                                    saveCurrentLocationToHistory()
+                                }
                             }
                             .font(.caption)
                             .buttonStyle(.bordered)
@@ -56,13 +167,12 @@ struct GPSSettingsSection: View {
                         if isEditingLocationName {
                             TextField("Enter location name", text: $locationName)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .onSubmit {
+                                    isEditingLocationName = false
+                                    saveCurrentLocationToHistory()
+                                }
                         } else {
                             Text(locationName.isEmpty ? "Unknown Location" : locationName)
-                                .foregroundColor(locationName.isEmpty ? .secondary : .primary)
-                                .padding(.vertical, 8)
-                                .padding(.horizontal, 12)
-                                .background(Color.secondary.opacity(0.1))
-                                .cornerRadius(8)
                         }
                     }
                     
@@ -74,7 +184,6 @@ struct GPSSettingsSection: View {
                             showMapPicker = true
                         }) {
                             Label("Map Picker", systemImage: "map")
-                                .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
                         
@@ -82,9 +191,36 @@ struct GPSSettingsSection: View {
                             showCityPicker = true
                         }) {
                             Label("City Picker", systemImage: "building.2")
-                                .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
+                        
+                        // NEW: Location History Button
+                        Button(action: {
+                            showLocationHistory = true
+                        }) {
+                            Label("Recent", systemImage: "clock.arrow.circlepath")
+                        }
+                        .buttonStyle(.bordered)
+                        .overlay(
+                            // Show badge if there are recent locations
+                            Group {
+                                if !locationHistory.recentLocations.isEmpty {
+                                    HStack {
+                                        Spacer()
+                                        VStack {
+                                            Text("\(locationHistory.recentLocations.count)")
+                                                .font(.caption2)
+                                                .foregroundColor(.white)
+                                                .frame(minWidth: 16, minHeight: 16)
+                                                .background(Color.red)
+                                                .clipShape(Circle())
+                                            Spacer()
+                                        }
+                                    }
+                                    .offset(x: 8, y: -8)
+                                }
+                            }
+                        )
                     }
                     
                     Divider()
@@ -96,7 +232,11 @@ struct GPSSettingsSection: View {
                             Spacer()
                             TextField("37.7749", value: $latitude, format: .number.precision(.fractionLength(6)))
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .frame(maxWidth: 140)
+                                .frame(maxWidth: 120)
+                                .onChange(of: latitude) { _ in
+                                    // Auto-save when coordinates change
+                                    autoSaveLocationAfterDelay()
+                                }
                         }
                         
                         HStack {
@@ -104,7 +244,10 @@ struct GPSSettingsSection: View {
                             Spacer()
                             TextField("-122.4194", value: $longitude, format: .number.precision(.fractionLength(6)))
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .frame(maxWidth: 140)
+                                .frame(maxWidth: 120)
+                                .onChange(of: longitude) { _ in
+                                    autoSaveLocationAfterDelay()
+                                }
                         }
                         
                         HStack {
@@ -113,6 +256,9 @@ struct GPSSettingsSection: View {
                             TextField("0.0", value: $altitude, format: .number.precision(.fractionLength(2)))
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .frame(maxWidth: 100)
+                                .onChange(of: altitude) { _ in
+                                    autoSaveLocationAfterDelay()
+                                }
                         }
                     }
                     
@@ -130,6 +276,15 @@ struct GPSSettingsSection: View {
                                     .foregroundColor(.primary)
                             }
                             Spacer()
+                            
+                            // Quick save button
+                            Button(action: {
+                                saveCurrentLocationToHistory()
+                            }) {
+                                Image(systemName: "plus.circle.fill")
+                                    .foregroundColor(.green)
+                            }
+                            .buttonStyle(PlainButtonStyle())
                         }
                         .padding(.vertical, 4)
                     }
@@ -144,9 +299,23 @@ struct GPSSettingsSection: View {
         }
         .sheet(isPresented: $showMapPicker) {
             LCMapPickerView(latitude: $latitude, longitude: $longitude, locationName: $locationName, isPresented: $showMapPicker)
+                .onDisappear {
+                    saveCurrentLocationToHistory()
+                }
         }
         .sheet(isPresented: $showCityPicker) {
             LCCityPickerView(latitude: $latitude, longitude: $longitude, locationName: $locationName, isPresented: $showCityPicker)
+                .onDisappear {
+                    saveCurrentLocationToHistory()
+                }
+        }
+        .sheet(isPresented: $showLocationHistory) {
+            LCLocationHistoryView(
+                latitude: $latitude,
+                longitude: $longitude,
+                locationName: $locationName,
+                isPresented: $showLocationHistory
+            )
         }
         .onAppear {
             // Only set default name if it's empty
@@ -155,8 +324,231 @@ struct GPSSettingsSection: View {
             }
         }
     }
+    
+    // MARK: Auto-save functionality
+    @State private var autoSaveTask: Task<Void, Never>?
+    
+    private func autoSaveLocationAfterDelay() {
+        // Cancel previous auto-save task
+        autoSaveTask?.cancel()
+        
+        // Start new auto-save task with 2-second delay
+        autoSaveTask = Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+            
+            if !Task.isCancelled {
+                await MainActor.run {
+                    saveCurrentLocationToHistory()
+                }
+            }
+        }
+    }
+    
+    private func saveCurrentLocationToHistory() {
+        guard !locationName.isEmpty && locationName != "Unknown Location" else { return }
+        guard latitude != 0 || longitude != 0 else { return }
+        
+        locationHistory.addLocation(
+            name: locationName,
+            latitude: latitude,
+            longitude: longitude,
+            altitude: altitude
+        )
+    }
 }
 
+// MARK: - Location History View
+struct LCLocationHistoryView: View {
+    @Binding var latitude: CLLocationDegrees
+    @Binding var longitude: CLLocationDegrees
+    @Binding var locationName: String
+    @Binding var isPresented: Bool
+    
+    @StateObject private var locationHistory = LCLocationHistory.shared
+    @State private var showingClearAlert = false
+    
+    var body: some View {
+        NavigationView {
+            Group {
+                if locationHistory.recentLocations.isEmpty {
+                    VStack(spacing: 20) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 64))
+                            .foregroundColor(.secondary)
+                        
+                        Text("No Recent Locations")
+                            .font(.title2)
+                            .fontWeight(.medium)
+                        
+                        Text("Locations you use will appear here for quick access.")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List {
+                        ForEach(locationHistory.recentLocations) { location in
+                            LocationHistoryRow(
+                                location: location,
+                                onSelect: {
+                                    selectLocation(location)
+                                }
+                            )
+                        }
+                        .onDelete(perform: deleteLocations)
+                    }
+                }
+            }
+            .navigationTitle("Recent Locations")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        isPresented = false
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if !locationHistory.recentLocations.isEmpty {
+                        Button("Clear All") {
+                            showingClearAlert = true
+                        }
+                        .foregroundColor(.red)
+                    }
+                }
+            }
+        }
+        .alert("Clear Location History", isPresented: $showingClearAlert) {
+            Button("Clear All", role: .destructive) {
+                locationHistory.clearHistory()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will remove all \(locationHistory.recentLocations.count) saved locations. This action cannot be undone.")
+        }
+    }
+    
+    private func selectLocation(_ location: LocationHistoryItem) {
+        latitude = location.latitude
+        longitude = location.longitude
+        locationName = location.name
+        
+        // Update the last used time
+        locationHistory.addLocation(
+            name: location.name,
+            latitude: location.latitude,
+            longitude: location.longitude,
+            altitude: location.altitude
+        )
+        
+        isPresented = false
+    }
+    
+    private func deleteLocations(at offsets: IndexSet) {
+        for index in offsets {
+            locationHistory.removeLocation(at: index)
+        }
+    }
+}
+
+// MARK: - Location History Extensions
+extension LCLocationHistory {
+    // Get locations sorted by distance from current coordinates
+    func locationsSortedByDistance(from coordinate: CLLocationCoordinate2D) -> [LocationHistoryItem] {
+        return recentLocations.sorted { location1, location2 in
+            let distance1 = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+                .distance(from: CLLocation(latitude: location1.latitude, longitude: location1.longitude))
+            let distance2 = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+                .distance(from: CLLocation(latitude: location2.latitude, longitude: location2.longitude))
+            return distance1 < distance2
+        }
+    }
+    
+    // Search locations by name
+    func searchLocations(query: String) -> [LocationHistoryItem] {
+        guard !query.isEmpty else { return recentLocations }
+        
+        return recentLocations.filter { location in
+            location.name.localizedCaseInsensitiveContains(query)
+        }
+    }
+    
+    // Get favorite locations (most frequently used)
+    func favoriteLocations(limit: Int = 5) -> [LocationHistoryItem] {
+        // For now, just return the most recent ones
+        // Could be enhanced to track usage frequency
+        return Array(recentLocations.prefix(limit))
+    }
+}
+
+// MARK: - Location History Row
+struct LocationHistoryRow: View {
+    let location: LocationHistoryItem
+    let onSelect: () -> Void
+    
+    var body: some View {
+        Button(action: onSelect) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(location.name)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        Text("\(location.latitude, specifier: "%.6f"), \(location.longitude, specifier: "%.6f")")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        if location.altitude != 0 {
+                            Text("Altitude: \(location.altitude, specifier: "%.1f")m")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text(timeAgoString(from: location.lastUsed))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    private func timeAgoString(from date: Date) -> String {
+        let interval = Date().timeIntervalSince(date)
+        
+        if interval < 60 {
+            return "Just now"
+        } else if interval < 3600 {
+            let minutes = Int(interval / 60)
+            return "\(minutes)m ago"
+        } else if interval < 86400 {
+            let hours = Int(interval / 3600)
+            return "\(hours)h ago"
+        } else {
+            let days = Int(interval / 86400)
+            if days == 1 {
+                return "1 day ago"
+            } else {
+                return "\(days) days ago"
+            }
+        }
+    }
+}
+
+// MARK: - Map Picker View
 struct LCMapPickerView: View {
     @Binding var latitude: CLLocationDegrees
     @Binding var longitude: CLLocationDegrees
@@ -275,17 +667,30 @@ struct LCMapPickerView: View {
             .navigationTitle("Choose Location")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarBackButtonHidden(true)
-            .navigationBarItems(
-                leading: Button("Cancel") {
-                    isPresented = false
-                },
-                trailing: Button("OK") {
-                    latitude = pinLocation.latitude
-                    longitude = pinLocation.longitude
-                    locationName = currentLocationName // Use the geocoded name
-                    isPresented = false
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        isPresented = false
+                    }
                 }
-            )
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("OK") {
+                        latitude = pinLocation.latitude
+                        longitude = pinLocation.longitude
+                        locationName = currentLocationName // Use the geocoded name
+
+                        // Save the location to history
+                        LCLocationHistory.shared.addLocation(
+                            name: currentLocationName,
+                            latitude: pinLocation.latitude,
+                            longitude: pinLocation.longitude
+                        )
+
+                        isPresented = false
+                    }
+                }
+            }
         }
         .onAppear {
             reverseGeocode(coordinate: region.center)
@@ -345,6 +750,7 @@ struct LCMapPickerView: View {
     }
 }
 
+// MARK: - Supporting Structures
 struct MapPin: Identifiable {
     let id = UUID()
     let coordinate: CLLocationCoordinate2D
@@ -356,6 +762,7 @@ struct City {
     let longitude: CLLocationDegrees
 }
 
+// MARK: - City Picker View
 struct LCCityPickerView: View {
     @Binding var latitude: CLLocationDegrees
     @Binding var longitude: CLLocationDegrees
@@ -463,6 +870,14 @@ struct LCCityPickerView: View {
                         latitude = city.latitude
                         longitude = city.longitude
                         locationName = city.name // Set the city name
+
+                        // Save the selected city to history
+                        LCLocationHistory.shared.addLocation(
+                            name: city.name,
+                            latitude: city.latitude,
+                            longitude: city.longitude
+                        )
+
                         isPresented = false
                     }) {
                         VStack(alignment: .leading, spacing: 4) {
@@ -480,15 +895,18 @@ struct LCCityPickerView: View {
             .searchable(text: $searchText, prompt: "Search cities...")
             .navigationTitle("Choose City")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(
-                leading: Button("Cancel") {
-                    isPresented = false
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        isPresented = false
+                    }
                 }
-            )
+            }
         }
     }
 }
 
+// RandomSeed for random adjustments
 struct SeededRandomGenerator {
     private var state: UInt64
     
