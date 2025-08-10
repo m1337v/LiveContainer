@@ -1999,10 +1999,21 @@ struct LCAppSettingsView : View{
                         NavigationLink {
                             LCContainerView(container: model.uiContainers[i], uiDefaultDataFolder: $model.uiDefaultDataFolder, delegate: self)
                         } label: {
-                            Text(model.uiContainers[i].name)
+                            HStack {
+                                // ✅ ADD: Star icon for default container
+                                if model.uiContainers[i].folderName == model.uiDefaultDataFolder {
+                                    Image(systemName: "star.fill")
+                                        .foregroundColor(.blue)
+                                        .font(.system(size: 12))
+                                }
+                                
+                                Text(model.uiContainers[i].name)
+                                Spacer()
+                            }
                         }
                     }
                 }
+                
                 if(model.uiContainers.count < SharedModel.keychainAccessGroupCount) {
                     Button {
                         Task{ await createFolder() }
