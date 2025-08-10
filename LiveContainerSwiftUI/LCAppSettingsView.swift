@@ -1307,12 +1307,23 @@ struct LCAppSettingsView : View{
             return 
         }
         
+        // Always start from the original file
+        var inputPath = model.uiSpoofCameraVideoPath
+        if inputPath.contains("_transformed") {
+            inputPath = inputPath.replacingOccurrences(of: "_transformed", with: "")
+            if !FileManager.default.fileExists(atPath: inputPath) {
+                errorInfo = "Original video file not found"
+                errorShow = true
+                return
+            }
+        }
+        
         model.isProcessingVideo = true
         model.videoProcessingProgress = 0.0
         
         do {
             let transformedPath = try await transformVideo(
-                inputPath: model.uiSpoofCameraVideoPath,
+                inputPath: inputPath, // Use original path
                 orientation: model.uiSpoofCameraTransformOrientation,
                 scale: model.uiSpoofCameraTransformScale,
                 flip: model.uiSpoofCameraTransformFlip,
@@ -1348,6 +1359,12 @@ struct LCAppSettingsView : View{
         }
         
         let asset = AVAsset(url: inputURL)
+        
+        // Verify the asset is readable
+        guard try await asset.load(.isReadable) else {
+            throw NSError(domain: "VideoTransform", code: 0, userInfo: [NSLocalizedDescriptionKey: "Input video is not readable"])
+        }
+        
         let composition = AVMutableComposition()
         let videoComposition = AVMutableVideoComposition()
         
@@ -1371,7 +1388,8 @@ struct LCAppSettingsView : View{
         )
         
         // Add audio track if present
-        if let audioTrack = try await asset.loadTracks(withMediaType: .audio).first {
+        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+        if let audioTrack = audioTracks.first {
             if let compositionAudioTrack = composition.addMutableTrack(
                 withMediaType: .audio,
                 preferredTrackID: kCMPersistentTrackID_Invalid
@@ -1418,10 +1436,15 @@ struct LCAppSettingsView : View{
         videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
         videoComposition.renderSize = renderSize
         
+        // IMPORTANT: Set color properties to avoid black video
+        videoComposition.colorPrimaries = AVVideoColorPrimaries_ITU_R_709_2
+        videoComposition.colorTransferFunction = AVVideoTransferFunction_ITU_R_709_2
+        videoComposition.colorYCbCrMatrix = AVVideoYCbCrMatrix_ITU_R_709_2
+        
         // Export session
         guard let exportSession = AVAssetExportSession(
             asset: composition,
-            presetName: AVAssetExportPresetHighestQuality
+            presetName: AVAssetExportPresetMediumQuality // Use medium quality instead of highest for better compatibility
         ) else {
             throw NSError(domain: "VideoTransform", code: 3, userInfo: [NSLocalizedDescriptionKey: "Failed to create export session"])
         }
@@ -1429,6 +1452,7 @@ struct LCAppSettingsView : View{
         exportSession.outputURL = outputURL
         exportSession.outputFileType = .mp4
         exportSession.videoComposition = videoComposition
+        exportSession.shouldOptimizeForNetworkUse = true
         
         // Monitor progress
         let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak exportSession] timer in
@@ -1452,9 +1476,12 @@ struct LCAppSettingsView : View{
             }
             return outputURL.path
         case .failed:
-            throw exportSession.error ?? NSError(domain: "VideoTransform", code: 4, userInfo: [NSLocalizedDescriptionKey: "Export failed"])
+            let errorMessage = exportSession.error?.localizedDescription ?? "Unknown export error"
+            throw NSError(domain: "VideoTransform", code: 4, userInfo: [NSLocalizedDescriptionKey: "Export failed: \(errorMessage)"])
+        case .cancelled:
+            throw NSError(domain: "VideoTransform", code: 5, userInfo: [NSLocalizedDescriptionKey: "Export was cancelled"])
         default:
-            throw NSError(domain: "VideoTransform", code: 5, userInfo: [NSLocalizedDescriptionKey: "Export cancelled or failed"])
+            throw NSError(domain: "VideoTransform", code: 6, userInfo: [NSLocalizedDescriptionKey: "Export in unknown state"])
         }
     }
 
@@ -1467,29 +1494,37 @@ struct LCAppSettingsView : View{
         isVerifiedMode: Bool
     ) -> (transform: CGAffineTransform, renderSize: CGSize) {
         
-        var transform = preferredTransform
+        // Start with identity transform, we'll build the complete transform ourselves
+        var transform = CGAffineTransform.identity
         var renderSize = naturalSize
         
-        // Apply orientation transform
+        // First, apply the original video's preferred transform to get it upright
+        let videoRect = CGRect(origin: .zero, size: naturalSize).applying(preferredTransform)
+        let normalizedSize = CGSize(width: abs(videoRect.width), height: abs(videoRect.height))
+        
+        // Update render size to the normalized size
+        renderSize = normalizedSize
+        
+        // Apply our custom orientation transform
         switch orientation {
         case "portrait":
-            if naturalSize.width > naturalSize.height {
+            if normalizedSize.width > normalizedSize.height {
                 transform = transform.rotated(by: .pi / 2)
-                renderSize = CGSize(width: naturalSize.height, height: naturalSize.width)
+                renderSize = CGSize(width: normalizedSize.height, height: normalizedSize.width)
             }
         case "landscape":
-            if naturalSize.height > naturalSize.width {
+            if normalizedSize.height > normalizedSize.width {
                 transform = transform.rotated(by: .pi / 2)
-                renderSize = CGSize(width: naturalSize.height, height: naturalSize.width)
+                renderSize = CGSize(width: normalizedSize.height, height: normalizedSize.width)
             }
         case "rotate90":
             transform = transform.rotated(by: .pi / 2)
-            renderSize = CGSize(width: naturalSize.height, height: naturalSize.width)
+            renderSize = CGSize(width: normalizedSize.height, height: normalizedSize.width)
         case "rotate180":
             transform = transform.rotated(by: .pi)
         case "rotate270":
             transform = transform.rotated(by: -.pi / 2)
-            renderSize = CGSize(width: naturalSize.height, height: naturalSize.width)
+            renderSize = CGSize(width: normalizedSize.height, height: normalizedSize.width)
         default:
             break
         }
@@ -1498,44 +1533,47 @@ struct LCAppSettingsView : View{
         switch flip {
         case "horizontal":
             transform = transform.scaledBy(x: -1, y: 1)
-            transform = transform.translatedBy(x: -renderSize.width, y: 0)
         case "vertical":
             transform = transform.scaledBy(x: 1, y: -1)
-            transform = transform.translatedBy(x: 0, y: -renderSize.height)
         case "both":
             transform = transform.scaledBy(x: -1, y: -1)
-            transform = transform.translatedBy(x: -renderSize.width, y: -renderSize.height)
         default:
             break
         }
         
-        // Apply scale transform
+        // Apply scale transform (adjust for the render size)
         switch scale {
         case "fill":
-            let scaleX = renderSize.width / naturalSize.width
-            let scaleY = renderSize.height / naturalSize.height
+            let scaleX = renderSize.width / normalizedSize.width
+            let scaleY = renderSize.height / normalizedSize.height
             let maxScale = max(scaleX, scaleY)
             transform = transform.scaledBy(x: maxScale, y: maxScale)
         case "stretch":
-            let scaleX = renderSize.width / naturalSize.width
-            let scaleY = renderSize.height / naturalSize.height
+            let scaleX = renderSize.width / normalizedSize.width
+            let scaleY = renderSize.height / normalizedSize.height
             transform = transform.scaledBy(x: scaleX, y: scaleY)
         default: // fit
-            let scaleX = renderSize.width / naturalSize.width
-            let scaleY = renderSize.height / naturalSize.height
-            let minScale = min(scaleX, scaleY)
-            transform = transform.scaledBy(x: minScale, y: minScale)
+            break // No additional scaling for fit
         }
+        
+        // Center the video in the render size
+        let tx = (renderSize.width - normalizedSize.width) / 2
+        let ty = (renderSize.height - normalizedSize.height) / 2
+        transform = transform.translatedBy(x: tx, y: ty)
+        
+        // Combine with the original preferred transform
+        let finalTransform = preferredTransform.concatenating(transform)
         
         // Add subtle variations for verified mode (Nomix-style)
         if isVerifiedMode {
             // Add tiny random variations to avoid detection
             let randomX = (Float.random(in: -1...1) * 0.001) // ±0.1% variation
             let randomY = (Float.random(in: -1...1) * 0.001)
-            transform = transform.translatedBy(x: CGFloat(randomX), y: CGFloat(randomY))
+            let verifiedTransform = finalTransform.translatedBy(x: CGFloat(randomX), y: CGFloat(randomY))
+            return (verifiedTransform, renderSize)
         }
         
-        return (transform, renderSize)
+        return (finalTransform, renderSize)
     }
 
     func formatDate(date: Date?) -> String {
@@ -2128,16 +2166,21 @@ struct CameraVideoPickerView: View {
         // Generate thumbnail
         let imageGenerator = AVAssetImageGenerator(asset: asset)
         imageGenerator.appliesPreferredTrackTransform = true
+        imageGenerator.maximumSize = CGSize(width: 300, height: 300) // Add size limit for better performance
         
-        do {
-            let cgImage = try imageGenerator.copyCGImage(at: .zero, actualTime: nil)
-            videoThumbnail = UIImage(cgImage: cgImage)
-        } catch {
-            videoThumbnail = nil
-        }
-        
-        // Get comprehensive video information
         Task {
+            do {
+                let cgImage = try imageGenerator.copyCGImage(at: CMTime.zero, actualTime: nil)
+                await MainActor.run {
+                    videoThumbnail = UIImage(cgImage: cgImage)
+                }
+            } catch {
+                await MainActor.run {
+                    videoThumbnail = nil
+                }
+            }
+            
+            // Get comprehensive video information
             do {
                 // Get duration
                 let duration = try await asset.load(.duration)
