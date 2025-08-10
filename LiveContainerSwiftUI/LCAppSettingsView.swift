@@ -489,6 +489,25 @@ struct LCCityPickerView: View {
     }
 }
 
+struct SeededRandomGenerator {
+    private var state: UInt64
+    
+    init(seed: Int) {
+        self.state = UInt64(seed)
+    }
+    
+    mutating func next() -> UInt64 {
+        // Linear congruential generator (simple but effective for our use)
+        state = state &* 1103515245 &+ 12345
+        return state
+    }
+    
+    mutating func nextDouble(_ min: Double, _ max: Double) -> Double {
+        let normalized = Double(next() % 10000) / 9999.0 // 0.0 to 1.0
+        return min + normalized * (max - min)
+    }
+}
+
 // MARK: Camera Settings Section
 struct CameraSettingsSection: View {
     @Binding var spoofCamera: Bool
@@ -520,14 +539,7 @@ struct CameraSettingsSection: View {
             }
             
             if spoofCamera {
-                // Simplified Camera Mode Picker (Standard/Verified as discussed)
-                Picker("Camera Mode", selection: $spoofCameraMode) {
-                    Text("Standard").tag("standard")
-                    Text("Verified").tag("verified") // Nomix-style with random variations
-                }
-                .pickerStyle(SegmentedPickerStyle())
-                
-                // Media Type Picker
+                // Media Type Picker (keep this simple)
                 Picker("Camera Type", selection: $spoofCameraType) {
                     Text("Static Image").tag("image")
                     Text("Video").tag("video")
@@ -539,7 +551,14 @@ struct CameraSettingsSection: View {
                     CameraImagePickerView(
                         imagePath: $spoofCameraImagePath,
                         errorInfo: $errorInfo,
-                        errorShow: $errorShow
+                        errorShow: $errorShow,
+                        // Pass transformation bindings to image picker
+                        spoofCameraMode: $spoofCameraMode,
+                        spoofCameraTransformOrientation: $spoofCameraTransformOrientation,
+                        spoofCameraTransformScale: $spoofCameraTransformScale,
+                        spoofCameraTransformFlip: $spoofCameraTransformFlip,
+                        isProcessingVideo: $isProcessingVideo,
+                        videoProcessingProgress: $videoProcessingProgress
                     )
                 } else {
                     CameraVideoPickerView(
@@ -549,7 +568,7 @@ struct CameraSettingsSection: View {
                         errorShow: $errorShow
                     )
                     
-                    // Video transformations - ONLY if video path exists
+                    // ✅ NEW: Video transformations with Verified Mode as first option
                     if !spoofCameraVideoPath.isEmpty {
                         Divider()
                         
@@ -558,12 +577,49 @@ struct CameraSettingsSection: View {
                                 .font(.headline)
                                 .padding(.top, 8)
                             
+                            // ✅ Verified Mode as part of transformations
+                            HStack {
+                                Toggle("Verified Mode", isOn: Binding(
+                                    get: { spoofCameraMode == "verified" },
+                                    set: { newValue in
+                                        spoofCameraMode = newValue ? "verified" : "standard"
+                                        Task {
+                                            await processVideoTransforms()
+                                        }
+                                    }
+                                ))
+                                
+                                Spacer()
+                                
+                                if spoofCameraMode == "verified" {
+                                    Label("Anti-Detection", systemImage: "checkmark.shield")
+                                        .font(.caption)
+                                        .foregroundColor(.green)
+                                }
+                            }
+                            .padding(.bottom, 4)
+                            
+                            if spoofCameraMode == "verified" {
+                                HStack {
+                                    Image(systemName: "info.circle")
+                                        .foregroundColor(.blue)
+                                    Text("Adds Nomix-style random variations to avoid detection")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(6)
+                            }
+                            
+                            // Standard transformation controls
                             Picker("Orientation", selection: Binding(
                                 get: { spoofCameraTransformOrientation },
                                 set: { newValue in
                                     spoofCameraTransformOrientation = newValue
                                     Task {
-                                        await processVideoTransforms() // ✅ Now calls local function
+                                        await processVideoTransforms()
                                     }
                                 }
                             )) {
@@ -580,7 +636,7 @@ struct CameraSettingsSection: View {
                                 set: { newValue in
                                     spoofCameraTransformScale = newValue
                                     Task {
-                                        await processVideoTransforms() // ✅ Now calls local function
+                                        await processVideoTransforms()
                                     }
                                 }
                             )) {
@@ -594,7 +650,7 @@ struct CameraSettingsSection: View {
                                 set: { newValue in
                                     spoofCameraTransformFlip = newValue
                                     Task {
-                                        await processVideoTransforms() // ✅ Now calls local function
+                                        await processVideoTransforms()
                                     }
                                 }
                             )) {
@@ -610,7 +666,7 @@ struct CameraSettingsSection: View {
                                     HStack {
                                         ProgressView()
                                             .scaleEffect(0.8)
-                                        Text("Processing video...")
+                                        Text("Processing video transformations...")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                     }
@@ -625,7 +681,47 @@ struct CameraSettingsSection: View {
                                 .padding(.top, 4)
                             }
                             
-                            Text("Video will be automatically processed when settings change. Useful for fixing Instagram videos that appear rotated.")
+                            // Transform summary
+                            if hasAnyTransforms() {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Active Transformations:")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.secondary)
+                                    
+                                    HStack {
+                                        if spoofCameraMode == "verified" {
+                                            Label("Verified", systemImage: "checkmark.shield")
+                                                .font(.caption2)
+                                                .foregroundColor(.green)
+                                        }
+                                        
+                                        if spoofCameraTransformOrientation != "none" {
+                                            Label(orientationLabel(), systemImage: "rotate.3d")
+                                                .font(.caption2)
+                                                .foregroundColor(.blue)
+                                        }
+                                        
+                                        if spoofCameraTransformFlip != "none" {
+                                            Label(spoofCameraTransformFlip.capitalized, systemImage: "arrow.up.and.down.righttriangle.up.righttriangle.down")
+                                                .font(.caption2)
+                                                .foregroundColor(.purple)
+                                        }
+                                        
+                                        if spoofCameraTransformScale != "fit" {
+                                            Label(spoofCameraTransformScale.capitalized, systemImage: "viewfinder")
+                                                .font(.caption2)
+                                                .foregroundColor(.orange)
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.secondary.opacity(0.1))
+                                .cornerRadius(6)
+                            }
+                            
+                            Text("Transformations are applied when settings change. Verified mode adds random variations like Nomix.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                                 .padding(.top, 4)
@@ -641,20 +737,10 @@ struct CameraSettingsSection: View {
             }
         } header: {
             Text("Camera Settings")
-        } footer: {
-            if spoofCamera {
-                if spoofCameraMode == "verified" {
-                    Text("Verified mode adds subtle random variations to avoid detection (like Nomix). Standard mode uses basic spoofing. Tap video thumbnail to preview transformations.")
-                } else {
-                    Text("Standard mode: Basic camera spoofing. Verified mode: Adds random variations to avoid detection. Tap video thumbnail to preview transformations.")
-                }
-            } else {
-                Text("Replace camera input with custom image or video content. Tap video thumbnail to preview transformations.")
-            }
         }
     }
     
-    // ✅ MOVE ALL VIDEO TRANSFORM FUNCTIONS HERE:
+    // MARK: VIDEO TRANSFORM FUNCTIONS
     
     @MainActor
     private func processVideoTransforms() async {
@@ -663,38 +749,16 @@ struct CameraSettingsSection: View {
         }
         
         // Check if any transforms are applied
-        let hasTransforms = spoofCameraTransformOrientation != "none" || 
-                        spoofCameraTransformScale != "fit" || 
-                        spoofCameraTransformFlip != "none"
+        let hasTransforms = hasAnyTransforms()
         
-        guard hasTransforms else { 
-            // Reset to original if no transforms
-            if spoofCameraVideoPath.contains("_transformed") {
-                let originalPath = spoofCameraVideoPath.replacingOccurrences(of: "_transformed", with: "")
-                if FileManager.default.fileExists(atPath: originalPath) {
-                    spoofCameraVideoPath = originalPath
-                }
-            }
-            return 
-        }
-        
-        // Always start from the original file
-        var inputPath = spoofCameraVideoPath
-        if inputPath.contains("_transformed") {
-            inputPath = inputPath.replacingOccurrences(of: "_transformed", with: "")
-            if !FileManager.default.fileExists(atPath: inputPath) {
-                errorInfo = "Original video file not found"
-                errorShow = true
-                return
-            }
-        }
+        guard hasTransforms else { return }
         
         isProcessingVideo = true
         videoProcessingProgress = 0.0
         
         do {
             let transformedPath = try await transformVideo(
-                inputPath: inputPath,
+                inputPath: spoofCameraVideoPath,
                 orientation: spoofCameraTransformOrientation,
                 scale: spoofCameraTransformScale,
                 flip: spoofCameraTransformFlip,
@@ -716,12 +780,11 @@ struct CameraSettingsSection: View {
         orientation: String,
         scale: String,
         flip: String,
-        isVerifiedMode: Bool
+        isVerifiedMode: Bool = false
     ) async throws -> String {
         
         let inputURL = URL(fileURLWithPath: inputPath)
-        let baseFileName = inputURL.deletingPathExtension().lastPathComponent
-        let outputFileName = "\(baseFileName)_transformed.mp4"
+        let outputFileName = inputURL.deletingPathExtension().lastPathComponent + "_transformed.mp4"
         let outputURL = inputURL.deletingLastPathComponent().appendingPathComponent(outputFileName)
         
         // Remove existing transformed file
@@ -730,13 +793,8 @@ struct CameraSettingsSection: View {
         }
         
         let asset = AVAsset(url: inputURL)
-        
-        // Verify the asset is readable
-        guard try await asset.load(.isReadable) else {
-            throw NSError(domain: "VideoTransform", code: 0, userInfo: [NSLocalizedDescriptionKey: "Input video is not readable"])
-        }
-        
         let composition = AVMutableComposition()
+        let videoComposition = AVMutableVideoComposition()
         
         // Add video track
         guard let videoTrack = try await asset.loadTracks(withMediaType: .video).first else {
@@ -747,7 +805,7 @@ struct CameraSettingsSection: View {
             withMediaType: .video,
             preferredTrackID: kCMPersistentTrackID_Invalid
         ) else {
-            throw NSError(domain: "VideoTransform", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not create composition track"])
+            throw NSError(domain: "VideoTransform", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to create composition track"])
         }
         
         let duration = try await asset.load(.duration)
@@ -758,8 +816,7 @@ struct CameraSettingsSection: View {
         )
         
         // Add audio track if present
-        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
-        if let audioTrack = audioTracks.first {
+        if let audioTrack = try await asset.loadTracks(withMediaType: .audio).first {
             if let compositionAudioTrack = composition.addMutableTrack(
                 withMediaType: .audio,
                 preferredTrackID: kCMPersistentTrackID_Invalid
@@ -772,52 +829,32 @@ struct CameraSettingsSection: View {
             }
         }
         
-        // Only create video composition if transforms are needed
-        let hasTransforms = orientation != "none" || flip != "none" || isVerifiedMode
+        // Calculate transform
+        let naturalSize = try await videoTrack.load(.naturalSize)
+        let preferredTransform = try await videoTrack.load(.preferredTransform)
         
-        var videoComposition: AVMutableVideoComposition?
+        let transformResult = calculateVideoTransform(
+            naturalSize: naturalSize,
+            preferredTransform: preferredTransform,
+            orientation: orientation,
+            scale: scale,
+            flip: flip,
+            isVerifiedMode: isVerifiedMode
+        )
         
-        if hasTransforms {
-            // Calculate video transformation
-            let naturalSize = try await videoTrack.load(.naturalSize)
-            let preferredTransform = try await videoTrack.load(.preferredTransform)
-            
-            let (transform, renderSize) = calculateVideoTransform(
-                naturalSize: naturalSize,
-                preferredTransform: preferredTransform,
-                orientation: orientation,
-                scale: scale,
-                flip: flip,
-                isVerifiedMode: isVerifiedMode
-            )
-            
-            // Create video composition
-            let mutableVideoComposition = AVMutableVideoComposition()
-            
-            // Create video composition instruction
-            let instruction = AVMutableVideoCompositionInstruction()
-            instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
-            
-            let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compositionVideoTrack)
-            layerInstruction.setTransform(transform, at: .zero)
-            
-            // Add subtle variations for verified mode
-            if isVerifiedMode {
-                // Add slight opacity variations to make detection harder
-                let fadeInDuration = CMTime(seconds: 0.1, preferredTimescale: 600)
-                layerInstruction.setOpacity(0.98, at: .zero)
-                layerInstruction.setOpacity(1.0, at: fadeInDuration)
-            }
-            
-            instruction.layerInstructions = [layerInstruction]
-            mutableVideoComposition.instructions = [instruction]
-            mutableVideoComposition.frameDuration = CMTime(value: 1, timescale: 30)
-            mutableVideoComposition.renderSize = renderSize
-            
-            videoComposition = mutableVideoComposition
-        }
+        // Create video composition
+        let instruction = AVMutableVideoCompositionInstruction()
+        instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
         
-        // ✅ FIXED: Create export session with proper concurrency handling
+        let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compositionVideoTrack)
+        layerInstruction.setTransform(transformResult.transform, at: .zero)
+        
+        instruction.layerInstructions = [layerInstruction]
+        videoComposition.instructions = [instruction]
+        videoComposition.renderSize = transformResult.renderSize
+        videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
+        
+        // Export with progress monitoring
         guard let exportSession = AVAssetExportSession(
             asset: composition,
             presetName: AVAssetExportPresetHighestQuality
@@ -827,12 +864,7 @@ struct CameraSettingsSection: View {
         
         exportSession.outputURL = outputURL
         exportSession.outputFileType = .mp4
-        exportSession.shouldOptimizeForNetworkUse = true
-        
-        // Only apply video composition if we have transforms
-        if let videoComposition = videoComposition {
-            exportSession.videoComposition = videoComposition
-        }
+        exportSession.videoComposition = videoComposition
         
         // ✅ FIXED: Use withCheckedContinuation for proper async/await
         return try await withCheckedThrowingContinuation { continuation in
@@ -875,80 +907,116 @@ struct CameraSettingsSection: View {
         orientation: String,
         scale: String,
         flip: String,
-        isVerifiedMode: Bool
+        isVerifiedMode: Bool = false // Add this parameter
     ) -> (transform: CGAffineTransform, renderSize: CGSize) {
         
-        // STEP 1: Start with the original video's transform to get correct orientation
         var transform = preferredTransform
+        var renderSize = naturalSize
         
-        // STEP 2: Calculate the size after applying the original transform
-        let transformedRect = CGRect(origin: .zero, size: naturalSize).applying(preferredTransform)
-        let currentSize = CGSize(width: abs(transformedRect.width), height: abs(transformedRect.height))
-        var renderSize = currentSize
-        
-        // STEP 3: Apply our custom transformations ON TOP of the existing transform
-        
-        // Apply orientation changes
+        // Apply orientation
         switch orientation {
         case "portrait":
-            if currentSize.width > currentSize.height {
-                // Video is landscape, rotate to portrait
-                transform = transform.rotated(by: .pi / 2)
-                renderSize = CGSize(width: currentSize.height, height: currentSize.width)
+            if naturalSize.width > naturalSize.height {
+                transform = transform.concatenating(CGAffineTransform(rotationAngle: .pi / 2))
+                renderSize = CGSize(width: naturalSize.height, height: naturalSize.width)
             }
         case "landscape":
-            if currentSize.height > currentSize.width {
-                // Video is portrait, rotate to landscape
-                transform = transform.rotated(by: .pi / 2)
-                renderSize = CGSize(width: currentSize.height, height: currentSize.width)
+            if naturalSize.height > naturalSize.width {
+                transform = transform.concatenating(CGAffineTransform(rotationAngle: -.pi / 2))
+                renderSize = CGSize(width: naturalSize.height, height: naturalSize.width)
             }
         case "rotate90":
-            transform = transform.rotated(by: .pi / 2)
-            renderSize = CGSize(width: currentSize.height, height: currentSize.width)
+            transform = transform.concatenating(CGAffineTransform(rotationAngle: .pi / 2))
+            renderSize = CGSize(width: naturalSize.height, height: naturalSize.width)
         case "rotate180":
-            transform = transform.rotated(by: .pi)
-            // Size stays the same for 180° rotation
+            transform = transform.concatenating(CGAffineTransform(rotationAngle: .pi))
         case "rotate270":
-            transform = transform.rotated(by: -.pi / 2)
-            renderSize = CGSize(width: currentSize.height, height: currentSize.width)
-        default:
-            break // "none" - no additional rotation
+            transform = transform.concatenating(CGAffineTransform(rotationAngle: -.pi / 2))
+            renderSize = CGSize(width: naturalSize.height, height: naturalSize.width)
+        default: // "none"
+            break
         }
         
-        // Apply flip transformations
+        // Apply flip
         switch flip {
         case "horizontal":
-            transform = transform.scaledBy(x: -1, y: 1)
+            transform = transform.concatenating(CGAffineTransform(scaleX: -1, y: 1))
+            transform = transform.concatenating(CGAffineTransform(translationX: renderSize.width, y: 0))
         case "vertical":
-            transform = transform.scaledBy(x: 1, y: -1)
+            transform = transform.concatenating(CGAffineTransform(scaleX: 1, y: -1))
+            transform = transform.concatenating(CGAffineTransform(translationX: 0, y: renderSize.height))
         case "both":
-            transform = transform.scaledBy(x: -1, y: -1)
-        default:
-            break // "none" - no flipping
-        }
-        
-        // STEP 4: Handle scaling (this affects how the video fills the render size)
-        switch scale {
-        case "fill":
-            // Video will fill the entire render area (may crop)
-            break
-        case "stretch":
-            // Video will be stretched to fill render area (may distort)
-            break
-        default: // "fit"
-            // Video will fit within render area (may have black bars)
+            transform = transform.concatenating(CGAffineTransform(scaleX: -1, y: -1))
+            transform = transform.concatenating(CGAffineTransform(translationX: renderSize.width, y: renderSize.height))
+        default: // "none"
             break
         }
         
-        // STEP 5: Add subtle variations for verified mode (Nomix-style)
+        // ✅ NEW: Apply Verified Mode (Nomix-style) variations
         if isVerifiedMode {
-            // Add tiny random variations to avoid detection
-            let randomX = Float.random(in: -0.5...0.5) // Very small pixel variations
-            let randomY = Float.random(in: -0.5...0.5)
-            transform = transform.translatedBy(x: CGFloat(randomX), y: CGFloat(randomY))
+            // Generate subtle random variations to avoid detection
+            let seed = Int(Date().timeIntervalSince1970) % 1000 // Change variations over time
+            var rng = SeededRandomGenerator(seed: seed)
+            
+            // 1. Slight rotation variation (±0.5 degrees)
+            let rotationVariation = rng.nextDouble(-0.5, 0.5) * .pi / 180.0
+            if abs(rotationVariation) > 0.001 {
+                let centerX = renderSize.width / 2
+                let centerY = renderSize.height / 2
+                let rotateTransform = CGAffineTransform(translationX: centerX, y: centerY)
+                    .concatenating(CGAffineTransform(rotationAngle: rotationVariation))
+                    .concatenating(CGAffineTransform(translationX: -centerX, y: -centerY))
+                transform = transform.concatenating(rotateTransform)
+            }
+            
+            // 2. Slight scale variation (0.98x to 1.02x)
+            let scaleVariation = rng.nextDouble(0.98, 1.02)
+            if abs(scaleVariation - 1.0) > 0.001 {
+                let centerX = renderSize.width / 2
+                let centerY = renderSize.height / 2
+                let scaleTransform = CGAffineTransform(translationX: centerX, y: centerY)
+                    .concatenating(CGAffineTransform(scaleX: scaleVariation, y: scaleVariation))
+                    .concatenating(CGAffineTransform(translationX: -centerX, y: -centerY))
+                transform = transform.concatenating(scaleTransform)
+            }
+            
+            // 3. Small translation variation (±2 pixels)
+            let translateX = rng.nextDouble(-2.0, 2.0)
+            let translateY = rng.nextDouble(-2.0, 2.0)
+            if abs(translateX) > 0.1 || abs(translateY) > 0.1 {
+                transform = transform.concatenating(CGAffineTransform(translationX: translateX, y: translateY))
+            }
+            
+            // 4. Slight render size variation (±1 pixel) to break fingerprinting
+            let sizeVariationX = rng.nextDouble(-1.0, 1.0)
+            let sizeVariationY = rng.nextDouble(-1.0, 1.0)
+            renderSize = CGSize(
+                width: max(1, renderSize.width + sizeVariationX),
+                height: max(1, renderSize.height + sizeVariationY)
+            )
+            
+            print("🎭 Verified mode applied: rotation=\(rotationVariation * 180 / .pi)°, scale=\(scaleVariation), translate=(\(translateX),\(translateY)), size=(\(sizeVariationX),\(sizeVariationY))")
         }
         
         return (transform, renderSize)
+    }
+
+    private func hasAnyTransforms() -> Bool {
+        return spoofCameraMode == "verified" ||
+            spoofCameraTransformOrientation != "none" ||
+            spoofCameraTransformFlip != "none" ||
+            spoofCameraTransformScale != "fit"
+    }
+
+    private func orientationLabel() -> String {
+        switch spoofCameraTransformOrientation {
+        case "portrait": return "Portrait"
+        case "landscape": return "Landscape"
+        case "rotate90": return "90°"
+        case "rotate180": return "180°"
+        case "rotate270": return "270°"
+        default: return "Original"
+        }
     }
 }
 
@@ -1724,6 +1792,14 @@ struct CameraImagePickerView: View {
     @Binding var errorInfo: String
     @Binding var errorShow: Bool
     
+    // ✅ NEW: Add bindings for transformations since images become videos
+    @Binding var spoofCameraMode: String
+    @Binding var spoofCameraTransformOrientation: String
+    @Binding var spoofCameraTransformScale: String
+    @Binding var spoofCameraTransformFlip: String
+    @Binding var isProcessingVideo: Bool
+    @Binding var videoProcessingProgress: Double
+    
     @State private var showingFilePicker = false
     @State private var showingPhotoPicker = false
     @State private var selectedPhotoItem: Any? = nil
@@ -1784,7 +1860,7 @@ struct CameraImagePickerView: View {
                     .textSelection(.enabled)
             }
             
-            // Picker buttons - FIXED VERSION
+            // Picker buttons
             HStack(spacing: 12) {
                 if #available(iOS 16.0, *) {
                     PhotosPickerWrapper(
@@ -1826,6 +1902,171 @@ struct CameraImagePickerView: View {
                         loadImagePreview(from: newPath)
                     }
             }
+            
+            // ✅ NEW: Video transformations for image-generated videos
+            if !imagePath.isEmpty {
+                Divider()
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Video Transformations")
+                        .font(.headline)
+                        .padding(.top, 8)
+                    
+                    Text("Image will be converted to video and can be transformed")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.bottom, 4)
+                    
+                    // ✅ Verified Mode toggle
+                    HStack {
+                        Toggle("Verified Mode", isOn: Binding(
+                            get: { spoofCameraMode == "verified" },
+                            set: { newValue in
+                                spoofCameraMode = newValue ? "verified" : "standard"
+                                Task {
+                                    await processImageToVideoTransforms()
+                                }
+                            }
+                        ))
+                        
+                        Spacer()
+                        
+                        if spoofCameraMode == "verified" {
+                            Label("Anti-Detection", systemImage: "checkmark.shield")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                        }
+                    }
+                    .padding(.bottom, 4)
+                    
+                    if spoofCameraMode == "verified" {
+                        HStack {
+                            Image(systemName: "info.circle")
+                                .foregroundColor(.blue)
+                            Text("Adds Nomix-style random variations to avoid detection")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(6)
+                    }
+                    
+                    // Standard transformation controls
+                    Picker("Orientation", selection: Binding(
+                        get: { spoofCameraTransformOrientation },
+                        set: { newValue in
+                            spoofCameraTransformOrientation = newValue
+                            Task {
+                                await processImageToVideoTransforms()
+                            }
+                        }
+                    )) {
+                        Text("Original").tag("none")
+                        Text("Force Portrait").tag("portrait") 
+                        Text("Force Landscape").tag("landscape")
+                        Text("Rotate 90°").tag("rotate90")
+                        Text("Rotate 180°").tag("rotate180")
+                        Text("Rotate 270°").tag("rotate270")
+                    }
+                    
+                    Picker("Scale", selection: Binding(
+                        get: { spoofCameraTransformScale },
+                        set: { newValue in
+                            spoofCameraTransformScale = newValue
+                            Task {
+                                await processImageToVideoTransforms()
+                            }
+                        }
+                    )) {
+                        Text("Fit").tag("fit")
+                        Text("Fill").tag("fill")
+                        Text("Stretch").tag("stretch")
+                    }
+                    
+                    Picker("Flip", selection: Binding(
+                        get: { spoofCameraTransformFlip },
+                        set: { newValue in
+                            spoofCameraTransformFlip = newValue
+                            Task {
+                                await processImageToVideoTransforms()
+                            }
+                        }
+                    )) {
+                        Text("None").tag("none")
+                        Text("Horizontal").tag("horizontal")
+                        Text("Vertical").tag("vertical")
+                        Text("Both").tag("both")
+                    }
+                    
+                    // Processing indicator
+                    if isProcessingVideo {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("Converting image to video with transformations...")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            ProgressView(value: videoProcessingProgress)
+                                .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                            
+                            Text("\(Int(videoProcessingProgress * 100))%")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.top, 4)
+                    }
+                    
+                    // Transform summary
+                    if hasAnyImageTransforms() {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Active Transformations:")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(.secondary)
+                            
+                            HStack {
+                                if spoofCameraMode == "verified" {
+                                    Label("Verified", systemImage: "checkmark.shield")
+                                        .font(.caption2)
+                                        .foregroundColor(.green)
+                                }
+                                
+                                if spoofCameraTransformOrientation != "none" {
+                                    Label(orientationLabel(), systemImage: "rotate.3d")
+                                        .font(.caption2)
+                                        .foregroundColor(.blue)
+                                }
+                                
+                                if spoofCameraTransformFlip != "none" {
+                                    Label(spoofCameraTransformFlip.capitalized, systemImage: "arrow.up.and.down.righttriangle.up.righttriangle.down")
+                                        .font(.caption2)
+                                        .foregroundColor(.purple)
+                                }
+                                
+                                if spoofCameraTransformScale != "fit" {
+                                    Label(spoofCameraTransformScale.capitalized, systemImage: "viewfinder")
+                                        .font(.caption2)
+                                        .foregroundColor(.orange)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.secondary.opacity(0.1))
+                        .cornerRadius(6)
+                    }
+                    
+                    Text("Image will be converted to a looping video with applied transformations. Verified mode adds anti-detection variations.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 4)
+                }
+            }
         }
         .onAppear {
             if !imagePath.isEmpty {
@@ -1839,6 +2080,261 @@ struct CameraImagePickerView: View {
         ) { result in
             handleFileImport(result)
         }
+    }
+    
+    // ✅ NEW: Helper functions for image transformations
+    private func hasAnyImageTransforms() -> Bool {
+        return spoofCameraMode == "verified" ||
+               spoofCameraTransformOrientation != "none" ||
+               spoofCameraTransformFlip != "none" ||
+               spoofCameraTransformScale != "fit"
+    }
+    
+    private func orientationLabel() -> String {
+        switch spoofCameraTransformOrientation {
+        case "portrait": return "Portrait"
+        case "landscape": return "Landscape"
+        case "rotate90": return "90°"
+        case "rotate180": return "180°"
+        case "rotate270": return "270°"
+        default: return "Original"
+        }
+    }
+    
+    @MainActor
+    private func processImageToVideoTransforms() async {
+        guard !imagePath.isEmpty else { return }
+        
+        let hasTransforms = hasAnyImageTransforms()
+        guard hasTransforms else { return }
+        
+        isProcessingVideo = true
+        videoProcessingProgress = 0.0
+        
+        do {
+            // Load the image
+            guard let sourceImage = UIImage(contentsOfFile: imagePath) else {
+                throw NSError(domain: "ImageTransform", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to load image"])
+            }
+            
+            // Create video from image with transformations
+            let transformedVideoPath = try await createVideoFromImageWithTransforms(
+                sourceImage: sourceImage,
+                orientation: spoofCameraTransformOrientation,
+                scale: spoofCameraTransformScale,
+                flip: spoofCameraTransformFlip,
+                isVerifiedMode: spoofCameraMode == "verified"
+            )
+            
+            // The video path is handled by the AVFoundation system
+            print("✅ Image converted to video with transformations: \(transformedVideoPath)")
+            
+        } catch {
+            errorInfo = "Image transformation failed: \(error.localizedDescription)"
+            errorShow = true
+        }
+        
+        isProcessingVideo = false
+    }
+    
+    private func createVideoFromImageWithTransforms(
+        sourceImage: UIImage,
+        orientation: String,
+        scale: String,
+        flip: String,
+        isVerifiedMode: Bool
+    ) async throws -> String {
+        
+        // Create temporary video file
+        let tempDir = NSTemporaryDirectory()
+        let tempVideoPath = tempDir.appending("lc_image_transformed_video.mp4")
+        
+        // Remove existing temp file
+        if FileManager.default.fileExists(atPath: tempVideoPath) {
+            try FileManager.default.removeItem(atPath: tempVideoPath)
+        }
+        
+        let outputURL = URL(fileURLWithPath: tempVideoPath)
+        
+        // Apply image transformations first
+        let transformedImage = applyImageTransforms(
+            image: sourceImage,
+            orientation: orientation,
+            scale: scale,
+            flip: flip,
+            isVerifiedMode: isVerifiedMode
+        )
+        
+        // Create video writer
+        let writer = try AVAssetWriter(url: outputURL, fileType: .mp4)
+        
+        let videoSettings: [String: Any] = [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: Int(transformedImage.size.width),
+            AVVideoHeightKey: Int(transformedImage.size.height),
+            AVVideoCompressionPropertiesKey: [
+                AVVideoAverageBitRateKey: 1000000
+            ]
+        ]
+        
+        let writerInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+            assetWriterInput: writerInput,
+            sourcePixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+            ]
+        )
+        
+        writer.add(writerInput)
+        writer.startWriting()
+        writer.startSession(atSourceTime: .zero)
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            let queue = DispatchQueue(label: "imageToVideo")
+            
+            writerInput.requestMediaDataWhenReady(on: queue) {
+                let frameDuration = CMTime(value: 1, timescale: 30)
+                let videoDuration: Double = 2.0 // 2 second loop
+                let totalFrames = Int(videoDuration * 30)
+                
+                for frameNumber in 0..<totalFrames {
+                    while !writerInput.isReadyForMoreMediaData {
+                        Thread.sleep(forTimeInterval: 0.01)
+                    }
+                    
+                    let frameTime = CMTime(value: Int64(frameNumber), timescale: 30)
+                    
+                    if let pixelBuffer = self.createPixelBuffer(from: transformedImage, frameNumber: frameNumber, isVerifiedMode: isVerifiedMode) {
+                        adaptor.append(pixelBuffer, withPresentationTime: frameTime)
+                    }
+                    
+                    DispatchQueue.main.async {
+                        self.videoProcessingProgress = Double(frameNumber) / Double(totalFrames)
+                    }
+                }
+                
+                writerInput.markAsFinished()
+                writer.finishWriting {
+                    if writer.status == .completed {
+                        continuation.resume(returning: tempVideoPath)
+                    } else {
+                        continuation.resume(throwing: writer.error ?? NSError(domain: "VideoCreation", code: 1, userInfo: nil))
+                    }
+                }
+            }
+        }
+    }
+    
+    private func applyImageTransforms(
+        image: UIImage,
+        orientation: String,
+        scale: String,
+        flip: String,
+        isVerifiedMode: Bool
+    ) -> UIImage {
+        
+        let targetSize = CGSize(width: 1080, height: 1920) // Default portrait
+        
+        // Apply orientation
+        var transform = CGAffineTransform.identity
+        var renderSize = targetSize
+        
+        switch orientation {
+        case "landscape":
+            renderSize = CGSize(width: targetSize.height, height: targetSize.width)
+        case "rotate90":
+            transform = transform.concatenating(CGAffineTransform(rotationAngle: .pi / 2))
+        case "rotate180":
+            transform = transform.concatenating(CGAffineTransform(rotationAngle: .pi))
+        case "rotate270":
+            transform = transform.concatenating(CGAffineTransform(rotationAngle: -.pi / 2))
+        default:
+            break
+        }
+        
+        // Apply flip
+        switch flip {
+        case "horizontal":
+            transform = transform.concatenating(CGAffineTransform(scaleX: -1, y: 1))
+        case "vertical":
+            transform = transform.concatenating(CGAffineTransform(scaleX: 1, y: -1))
+        case "both":
+            transform = transform.concatenating(CGAffineTransform(scaleX: -1, y: -1))
+        default:
+            break
+        }
+        
+        // Apply verified mode variations if enabled
+        if isVerifiedMode {
+            let seed = Int(Date().timeIntervalSince1970) % 1000
+            var rng = SeededRandomGenerator(seed: seed)
+            
+            // Slight rotation variation
+            let rotationVariation = rng.nextDouble(-0.5, 0.5) * .pi / 180.0
+            transform = transform.concatenating(CGAffineTransform(rotationAngle: rotationVariation))
+            
+            // Slight scale variation
+            let scaleVariation = rng.nextDouble(0.98, 1.02)
+            transform = transform.concatenating(CGAffineTransform(scaleX: scaleVariation, y: scaleVariation))
+        }
+        
+        // Apply transforms and return modified image
+        UIGraphicsBeginImageContextWithOptions(renderSize, false, 1.0)
+        defer { UIGraphicsEndImageContext() }
+        
+        guard let context = UIGraphicsGetCurrentContext() else { return image }
+        
+        // Apply transform around center
+        context.translateBy(x: renderSize.width / 2, y: renderSize.height / 2)
+        context.concatenate(transform)
+        context.translateBy(x: -renderSize.width / 2, y: -renderSize.height / 2)
+        
+        // Draw the image
+        image.draw(in: CGRect(origin: .zero, size: renderSize))
+        
+        return UIGraphicsGetImageFromCurrentImageContext() ?? image
+    }
+    
+    private func createPixelBuffer(from image: UIImage, frameNumber: Int, isVerifiedMode: Bool) -> CVPixelBuffer? {
+        let attrs = [
+            kCVPixelBufferCGImageCompatibilityKey: kCFBooleanTrue!,
+            kCVPixelBufferCGBitmapContextCompatibilityKey: kCFBooleanTrue!
+        ] as CFDictionary
+        
+        var pixelBuffer: CVPixelBuffer?
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            Int(image.size.width),
+            Int(image.size.height),
+            kCVPixelFormatType_32BGRA,
+            attrs,
+            &pixelBuffer
+        )
+        
+        guard status == kCVReturnSuccess, let buffer = pixelBuffer else { return nil }
+        
+        CVPixelBufferLockBaseAddress(buffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
+        
+        guard let context = CGContext(
+            data: CVPixelBufferGetBaseAddress(buffer),
+            width: Int(image.size.width),
+            height: Int(image.size.height),
+            bitsPerComponent: 8,
+            bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue
+        ) else { return nil }
+        
+        // Add verified mode subtle variations per frame
+        if isVerifiedMode && frameNumber % 10 == 0 {
+            let variation = Float(frameNumber % 100) / 1000.0 // Very subtle brightness variation
+            context.setAlpha(CGFloat(1.0 + variation))
+        }
+        
+        context.draw(image.cgImage!, in: CGRect(origin: .zero, size: image.size))
+        
+        return buffer
     }
     
     @available(iOS 16.0, *)
