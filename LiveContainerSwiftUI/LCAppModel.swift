@@ -206,6 +206,33 @@ class LCAppModel: ObservableObject, Hashable {
         }
     }
 
+    // MARK: Identifier Addon
+    @Published var uiSpoofDevice = false
+    @Published var uiSpoofDeviceModel = "iPhone15,2"
+    @Published var uiSpoofSystemVersion = "17.2"
+    @Published var uiSpoofDeviceName = "iPhone"
+    @Published var uiSpoofCarrierName = "Verizon"
+    @Published var uiSpoofCustomCarrier = ""
+    @Published var uiSpoofBattery = false
+    @Published var uiSpoofBatteryLevel = 0.85
+    @Published var uiSpoofMemory = false
+    @Published var uiSpoofMemorySize = 6
+    @Published var uiSpoofIdentifiers = false
+    @Published var uiSpoofVendorID = "12345678-1234-1234-1234-123456789012"
+    @Published var uiSpoofAdvertisingID = "87654321-4321-4321-4321-210987654321"
+    @Published var uiSpoofAdTrackingEnabled = true
+    @Published var uiSpoofInstallationID = "DEFAULT12345678"
+    @Published var uiSpoofMACAddress = "02:00:00:00:00:00"
+    @Published var uiSpoofFingerprint = false
+    @Published var uiSpoofScreen = false
+    @Published var uiSpoofScreenScale = 3.0
+    @Published var uiSpoofScreenSize = "1179x2556"
+    @Published var uiSpoofTimezone = false
+    @Published var uiSpoofTimezoneValue = "America/New_York"
+    @Published var uiSpoofLanguage = false
+    @Published var uiSpoofPrimaryLanguage = "en"
+    @Published var uiSpoofRegion = "US"
+
     var delegate : LCAppModelDelegate?
     
     init(appInfo : LCAppInfo, delegate: LCAppModelDelegate? = nil) {
