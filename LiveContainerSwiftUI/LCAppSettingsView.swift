@@ -183,14 +183,14 @@ struct GPSSettingsSection: View {
                         Button(action: {
                             showMapPicker = true
                         }) {
-                            Label("Map Picker", systemImage: "map")
+                            Label("Map", systemImage: "map")
                         }
                         .buttonStyle(.bordered)
                         
                         Button(action: {
                             showCityPicker = true
                         }) {
-                            Label("City Picker", systemImage: "building.2")
+                            Label("City", systemImage: "building.2")
                         }
                         .buttonStyle(.bordered)
                         
