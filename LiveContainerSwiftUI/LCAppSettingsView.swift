@@ -711,7 +711,7 @@ struct CameraSettingsSection: View {
         isProcessingVideo = false
     }
 
-    private func transformVideo(
+   private func transformVideo(
         inputPath: String,
         orientation: String,
         scale: String,
@@ -817,7 +817,7 @@ struct CameraSettingsSection: View {
             videoComposition = mutableVideoComposition
         }
         
-        // Export session
+        // ✅ FIXED: Create export session with proper concurrency handling
         guard let exportSession = AVAssetExportSession(
             asset: composition,
             presetName: AVAssetExportPresetHighestQuality
@@ -834,34 +834,38 @@ struct CameraSettingsSection: View {
             exportSession.videoComposition = videoComposition
         }
         
-        // Monitor progress
-        let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak exportSession] timer in
-            guard let session = exportSession else {
-                timer.invalidate()
-                return
-            }
-            
-            Task { @MainActor in
-                videoProcessingProgress = Double(session.progress)
-            }
-        }
-
-        await exportSession.export()
-        timer.invalidate()
-        
-        switch exportSession.status {
-        case .completed:
-            await MainActor.run {
+        // ✅ FIXED: Use withCheckedContinuation for proper async/await
+        return try await withCheckedThrowingContinuation { continuation in
+            // Monitor progress in a separate task
+            let progressTask = Task { @MainActor in
+                while !exportSession.status.isFinished {
+                    videoProcessingProgress = Double(exportSession.progress)
+                    try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                }
                 videoProcessingProgress = 1.0
             }
-            return outputURL.path
-        case .failed:
-            let errorMessage = exportSession.error?.localizedDescription ?? "Unknown export error"
-            throw NSError(domain: "VideoTransform", code: 4, userInfo: [NSLocalizedDescriptionKey: "Export failed: \(errorMessage)"])
-        case .cancelled:
-            throw NSError(domain: "VideoTransform", code: 5, userInfo: [NSLocalizedDescriptionKey: "Export was cancelled"])
-        default:
-            throw NSError(domain: "VideoTransform", code: 6, userInfo: [NSLocalizedDescriptionKey: "Export in unknown state"])
+            
+            exportSession.exportAsynchronously {
+                progressTask.cancel()
+                
+                switch exportSession.status {
+                case .completed:
+                    Task { @MainActor in
+                        videoProcessingProgress = 1.0
+                    }
+                    continuation.resume(returning: outputURL.path)
+                case .failed:
+                    let errorMessage = exportSession.error?.localizedDescription ?? "Unknown export error"
+                    let error = NSError(domain: "VideoTransform", code: 4, userInfo: [NSLocalizedDescriptionKey: "Export failed: \(errorMessage)"])
+                    continuation.resume(throwing: error)
+                case .cancelled:
+                    let error = NSError(domain: "VideoTransform", code: 5, userInfo: [NSLocalizedDescriptionKey: "Export was cancelled"])
+                    continuation.resume(throwing: error)
+                default:
+                    let error = NSError(domain: "VideoTransform", code: 6, userInfo: [NSLocalizedDescriptionKey: "Export in unknown state"])
+                    continuation.resume(throwing: error)
+                }
+            }
         }
     }
 
@@ -1039,6 +1043,17 @@ struct NetworkSettingsSection: View {
     }
 }
 
+extension AVAssetExportSession.Status {
+    var isFinished: Bool {
+        switch self {
+        case .completed, .failed, .cancelled:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 // MARK: Main
 struct LCAppSettingsView : View{
     
@@ -1177,7 +1192,7 @@ struct LCAppSettingsView : View{
                 isProcessingVideo: $model.isProcessingVideo,
                 videoProcessingProgress: $model.videoProcessingProgress,
                 errorInfo: $errorInfo,
-                errorShow: $errorShow,
+                errorShow: $errorShow
             )
            
 
