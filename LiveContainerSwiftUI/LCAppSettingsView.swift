@@ -9,7 +9,7 @@ import Foundation
 import SwiftUI
 import CoreLocation
 import MapKit
-import AVFoundation
+@preconcurrency import AVFoundation
 import AVKit
 import PhotosUI
 import Photos
@@ -866,28 +866,31 @@ struct CameraSettingsSection: View {
         exportSession.outputFileType = .mp4
         exportSession.videoComposition = videoComposition
         
-        // ✅ FIXED: Use withCheckedContinuation for proper async/await
+        // Use withCheckedContinuation for proper async/await
         return try await withCheckedThrowingContinuation { continuation in
+            // Store references to avoid capture issues
+            let session = exportSession
+            
             // Monitor progress in a separate task
             let progressTask = Task { @MainActor in
-                while !exportSession.status.isFinished {
-                    videoProcessingProgress = Double(exportSession.progress)
+                while !session.status.isFinished {
+                    videoProcessingProgress = Double(session.progress)
                     try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
                 }
                 videoProcessingProgress = 1.0
             }
             
-            exportSession.exportAsynchronously {
+            session.exportAsynchronously {
                 progressTask.cancel()
                 
-                switch exportSession.status {
+                switch session.status {
                 case .completed:
                     Task { @MainActor in
                         videoProcessingProgress = 1.0
                     }
                     continuation.resume(returning: outputURL.path)
                 case .failed:
-                    let errorMessage = exportSession.error?.localizedDescription ?? "Unknown export error"
+                    let errorMessage = session.error?.localizedDescription ?? "Unknown export error"
                     let error = NSError(domain: "VideoTransform", code: 4, userInfo: [NSLocalizedDescriptionKey: "Export failed: \(errorMessage)"])
                     continuation.resume(throwing: error)
                 case .cancelled:
@@ -1792,7 +1795,7 @@ struct CameraImagePickerView: View {
     @Binding var errorInfo: String
     @Binding var errorShow: Bool
     
-    // ✅ NEW: Add bindings for transformations since images become videos
+    // Transformation bindings
     @Binding var spoofCameraMode: String
     @Binding var spoofCameraTransformOrientation: String
     @Binding var spoofCameraTransformScale: String
@@ -1809,55 +1812,51 @@ struct CameraImagePickerView: View {
         VStack(alignment: .leading, spacing: 12) {
             // Current image display
             if !imagePath.isEmpty {
-                HStack {
-                    Text("Current Image:")
-                        .font(.headline)
-                    Spacer()
-                    Button("Clear") {
-                        // Remove the file from filesystem before clearing the path
-                        if FileManager.default.fileExists(atPath: imagePath) {
-                            do {
-                                try FileManager.default.removeItem(atPath: imagePath)
-                            } catch {
-                                errorInfo = "Failed to remove image file: \(error.localizedDescription)"
-                                errorShow = true
-                            }
-                        }
-                        imagePath = ""
-                        previewImage = nil
-                    }
-                    .font(.caption)
-                    .foregroundColor(.red)
-                }
-                
-                if let previewImage = previewImage {
-                    Image(uiImage: previewImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxHeight: 120)
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                        )
-                } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    // Header with clear button
                     HStack {
-                        Image(systemName: "photo")
-                            .foregroundColor(.secondary)
-                        Text(URL(fileURLWithPath: imagePath).lastPathComponent)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        Text("Current Image:")
+                            .font(.headline)
                         Spacer()
+                        Button(action: clearImage) {
+                            Text("Clear")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .padding()
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(8)
+                    
+                    // Image preview
+                    if let previewImage = previewImage {
+                        Image(uiImage: previewImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(maxHeight: 120)
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                            )
+                    } else {
+                        HStack {
+                            Image(systemName: "photo")
+                                .foregroundColor(.secondary)
+                            Text(URL(fileURLWithPath: imagePath).lastPathComponent)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                        }
+                        .padding()
+                        .background(Color.secondary.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                    
+                    // File path
+                    Text("Path: \(imagePath)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .textSelection(.enabled)
                 }
-                
-                Text("Path: \(imagePath)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .textSelection(.enabled)
             }
             
             // Picker buttons
@@ -1903,7 +1902,7 @@ struct CameraImagePickerView: View {
                     }
             }
             
-            // ✅ NEW: Video transformations for image-generated videos
+            // Video transformations for image-generated videos
             if !imagePath.isEmpty {
                 Divider()
                 
@@ -1917,7 +1916,7 @@ struct CameraImagePickerView: View {
                         .foregroundColor(.secondary)
                         .padding(.bottom, 4)
                     
-                    // ✅ Verified Mode toggle
+                    // Verified Mode toggle
                     HStack {
                         Toggle("Verified Mode", isOn: Binding(
                             get: { spoofCameraMode == "verified" },
@@ -2082,7 +2081,21 @@ struct CameraImagePickerView: View {
         }
     }
     
-    // ✅ NEW: Helper functions for image transformations
+    // MARK: - Helper Functions
+    
+    private func clearImage() {
+        if FileManager.default.fileExists(atPath: imagePath) {
+            do {
+                try FileManager.default.removeItem(atPath: imagePath)
+            } catch {
+                errorInfo = "Failed to remove image file: \(error.localizedDescription)"
+                errorShow = true
+            }
+        }
+        imagePath = ""
+        previewImage = nil
+    }
+    
     private func hasAnyImageTransforms() -> Bool {
         return spoofCameraMode == "verified" ||
                spoofCameraTransformOrientation != "none" ||
@@ -2098,6 +2111,137 @@ struct CameraImagePickerView: View {
         case "rotate180": return "180°"
         case "rotate270": return "270°"
         default: return "Original"
+        }
+    }
+    
+    private func loadImagePreview(from path: String) {
+        guard !path.isEmpty else {
+            previewImage = nil
+            return
+        }
+        
+        guard FileManager.default.fileExists(atPath: path) else {
+            previewImage = nil
+            DispatchQueue.main.async {
+                errorInfo = "Image file not found at path: \(path)"
+                errorShow = true
+            }
+            return
+        }
+        
+        // Load image asynchronously to avoid blocking UI
+        DispatchQueue.global(qos: .userInitiated).async {
+            if let image = UIImage(contentsOfFile: path) {
+                DispatchQueue.main.async {
+                    previewImage = image
+                }
+            } else {
+                DispatchQueue.main.async {
+                    previewImage = nil
+                    errorInfo = "Failed to load image from file. File may be corrupted or not a valid image format."
+                    errorShow = true
+                }
+            }
+        }
+    }
+    
+    @available(iOS 16.0, *)
+    private func loadSelectedPhoto(_ item: PhotosPickerItem) async {
+        do {
+            if let data = try await item.loadTransferable(type: Data.self) {
+                // Validate that this is actually image data
+                guard UIImage(data: data) != nil else {
+                    await MainActor.run {
+                        errorInfo = "Selected file is not a valid image format"
+                        errorShow = true
+                    }
+                    return
+                }
+                
+                let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+                let cameraImagesFolder = documentsPath.appendingPathComponent("CameraSpoof/Images")
+                
+                // Create directory if it doesn't exist
+                try FileManager.default.createDirectory(at: cameraImagesFolder, withIntermediateDirectories: true)
+                
+                // Generate unique filename with proper extension
+                let timestamp = Int(Date().timeIntervalSince1970)
+                let fileName = "camera_image_\(timestamp).jpg"
+                let filePath = cameraImagesFolder.appendingPathComponent(fileName)
+                
+                // Save the image as JPEG for consistent format
+                if let image = UIImage(data: data),
+                   let jpegData = image.jpegData(compressionQuality: 0.9) {
+                    try jpegData.write(to: filePath)
+                    
+                    await MainActor.run {
+                        imagePath = filePath.path
+                        previewImage = image
+                    }
+                } else {
+                    throw NSError(domain: "ImageProcessing", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to process image data"])
+                }
+            }
+        } catch {
+            await MainActor.run {
+                errorInfo = "Failed to import image: \(error.localizedDescription)"
+                errorShow = true
+            }
+        }
+    }
+    
+    private func handleFileImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            
+            // Start accessing security-scoped resource
+            guard url.startAccessingSecurityScopedResource() else {
+                errorInfo = "Unable to access selected file"
+                errorShow = true
+                return
+            }
+            
+            defer { url.stopAccessingSecurityScopedResource() }
+            
+            do {
+                // First, validate it's an image
+                guard let image = UIImage(contentsOfFile: url.path) else {
+                    errorInfo = "Selected file is not a valid image format"
+                    errorShow = true
+                    return
+                }
+                
+                let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+                let cameraImagesFolder = documentsPath.appendingPathComponent("CameraSpoof/Images")
+                
+                // Create directory if it doesn't exist
+                try FileManager.default.createDirectory(at: cameraImagesFolder, withIntermediateDirectories: true)
+                
+                // Use original filename but ensure unique
+                let originalName = url.deletingPathExtension().lastPathComponent
+                let extensionName = url.pathExtension.isEmpty ? "jpg" : url.pathExtension
+                let timestamp = Int(Date().timeIntervalSince1970)
+                let fileName = "\(originalName)_\(timestamp).\(extensionName)"
+                let destinationPath = cameraImagesFolder.appendingPathComponent(fileName)
+                
+                // Copy file to documents
+                if FileManager.default.fileExists(atPath: destinationPath.path) {
+                    try FileManager.default.removeItem(at: destinationPath)
+                }
+                try FileManager.default.copyItem(at: url, to: destinationPath)
+                
+                imagePath = destinationPath.path
+                previewImage = image
+                
+            } catch {
+                errorInfo = "Failed to import image file: \(error.localizedDescription)"
+                errorShow = true
+            }
+            
+        case .failure(let error):
+            errorInfo = "File selection failed: \(error.localizedDescription)"
+            errorShow = true
         }
     }
     
@@ -2191,21 +2335,23 @@ struct CameraImagePickerView: View {
         
         return try await withCheckedThrowingContinuation { continuation in
             let queue = DispatchQueue(label: "imageToVideo")
+            let input = writerInput
+            let pixelAdaptor = adaptor
+            let videoWriter = writer
             
-            writerInput.requestMediaDataWhenReady(on: queue) {
-                let frameDuration = CMTime(value: 1, timescale: 30)
+            input.requestMediaDataWhenReady(on: queue) {
                 let videoDuration: Double = 2.0 // 2 second loop
                 let totalFrames = Int(videoDuration * 30)
                 
                 for frameNumber in 0..<totalFrames {
-                    while !writerInput.isReadyForMoreMediaData {
+                    while !input.isReadyForMoreMediaData {
                         Thread.sleep(forTimeInterval: 0.01)
                     }
                     
                     let frameTime = CMTime(value: Int64(frameNumber), timescale: 30)
                     
                     if let pixelBuffer = self.createPixelBuffer(from: transformedImage, frameNumber: frameNumber, isVerifiedMode: isVerifiedMode) {
-                        adaptor.append(pixelBuffer, withPresentationTime: frameTime)
+                        pixelAdaptor.append(pixelBuffer, withPresentationTime: frameTime)
                     }
                     
                     DispatchQueue.main.async {
@@ -2213,12 +2359,12 @@ struct CameraImagePickerView: View {
                     }
                 }
                 
-                writerInput.markAsFinished()
-                writer.finishWriting {
-                    if writer.status == .completed {
+                input.markAsFinished()
+                videoWriter.finishWriting {
+                    if videoWriter.status == .completed {
                         continuation.resume(returning: tempVideoPath)
                     } else {
-                        continuation.resume(throwing: writer.error ?? NSError(domain: "VideoCreation", code: 1, userInfo: nil))
+                        continuation.resume(throwing: videoWriter.error ?? NSError(domain: "VideoCreation", code: 1, userInfo: nil))
                     }
                 }
             }
@@ -2335,86 +2481,6 @@ struct CameraImagePickerView: View {
         context.draw(image.cgImage!, in: CGRect(origin: .zero, size: image.size))
         
         return buffer
-    }
-    
-    @available(iOS 16.0, *)
-    private func loadSelectedPhoto(_ item: PhotosPickerItem) async {
-        do {
-            if let data = try await item.loadTransferable(type: Data.self) {
-                let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-                let cameraImagesFolder = documentsPath.appendingPathComponent("CameraSpoof/Images")
-                
-                // Create directory if it doesn't exist
-                try FileManager.default.createDirectory(at: cameraImagesFolder, withIntermediateDirectories: true)
-                
-                // Generate unique filename
-                let fileName = "camera_image_\(Date().timeIntervalSince1970).jpg"
-                let filePath = cameraImagesFolder.appendingPathComponent(fileName)
-                
-                // Save the image
-                try data.write(to: filePath)
-                
-                await MainActor.run {
-                    imagePath = filePath.path
-                    if let image = UIImage(data: data) {
-                        previewImage = image
-                    }
-                }
-            }
-        } catch {
-            await MainActor.run {
-                errorInfo = "Failed to import image: \(error.localizedDescription)"
-                errorShow = true
-            }
-        }
-    }
-    
-    private func handleFileImport(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            guard let url = urls.first else { return }
-            
-            do {
-                let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-                let cameraImagesFolder = documentsPath.appendingPathComponent("CameraSpoof/Images")
-                
-                // Create directory if it doesn't exist
-                try FileManager.default.createDirectory(at: cameraImagesFolder, withIntermediateDirectories: true)
-                
-                let fileName = url.lastPathComponent
-                let destinationPath = cameraImagesFolder.appendingPathComponent(fileName)
-                
-                // Copy file to documents
-                if FileManager.default.fileExists(atPath: destinationPath.path) {
-                    try FileManager.default.removeItem(at: destinationPath)
-                }
-                try FileManager.default.copyItem(at: url, to: destinationPath)
-                
-                imagePath = destinationPath.path
-                loadImagePreview(from: imagePath)
-                
-            } catch {
-                errorInfo = "Failed to import image file: \(error.localizedDescription)"
-                errorShow = true
-            }
-            
-        case .failure(let error):
-            errorInfo = "File selection failed: \(error.localizedDescription)"
-            errorShow = true
-        }
-    }
-    
-    private func loadImagePreview(from path: String) {
-        guard !path.isEmpty, FileManager.default.fileExists(atPath: path) else {
-            previewImage = nil
-            return
-        }
-        
-        if let image = UIImage(contentsOfFile: path) {
-            previewImage = image
-        } else {
-            previewImage = nil
-        }
     }
 }
 
