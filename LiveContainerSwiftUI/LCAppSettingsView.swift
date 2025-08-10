@@ -505,7 +505,8 @@ struct CameraSettingsSection: View {
     @Binding var errorInfo: String
     @Binding var errorShow: Bool
     
-    let onVideoTransformChange: () async -> Void
+    // Remove the callback - handle internally
+    // let onVideoTransformChange: () async -> Void
     
     var body: some View {
         Section {
@@ -562,7 +563,7 @@ struct CameraSettingsSection: View {
                                 set: { newValue in
                                     spoofCameraTransformOrientation = newValue
                                     Task {
-                                        await onVideoTransformChange()
+                                        await processVideoTransforms() // ✅ Now calls local function
                                     }
                                 }
                             )) {
@@ -579,7 +580,7 @@ struct CameraSettingsSection: View {
                                 set: { newValue in
                                     spoofCameraTransformScale = newValue
                                     Task {
-                                        await onVideoTransformChange()
+                                        await processVideoTransforms() // ✅ Now calls local function
                                     }
                                 }
                             )) {
@@ -593,7 +594,7 @@ struct CameraSettingsSection: View {
                                 set: { newValue in
                                     spoofCameraTransformFlip = newValue
                                     Task {
-                                        await onVideoTransformChange()
+                                        await processVideoTransforms() // ✅ Now calls local function
                                     }
                                 }
                             )) {
@@ -643,17 +644,309 @@ struct CameraSettingsSection: View {
         } footer: {
             if spoofCamera {
                 if spoofCameraMode == "verified" {
-                    Text("Verified mode adds subtle random variations to avoid detection (like Nomix). Standard mode uses basic spoofing.")
+                    Text("Verified mode adds subtle random variations to avoid detection (like Nomix). Standard mode uses basic spoofing. Tap video thumbnail to preview transformations.")
                 } else {
-                    Text("Standard mode: Basic camera spoofing. Verified mode: Adds random variations to avoid detection.")
+                    Text("Standard mode: Basic camera spoofing. Verified mode: Adds random variations to avoid detection. Tap video thumbnail to preview transformations.")
                 }
             } else {
-                Text("Replace camera input with custom image or video content.")
+                Text("Replace camera input with custom image or video content. Tap video thumbnail to preview transformations.")
             }
         }
     }
-}
+    
+    // ✅ MOVE ALL VIDEO TRANSFORM FUNCTIONS HERE:
+    
+    @MainActor
+    private func processVideoTransforms() async {
+        guard spoofCamera && spoofCameraType == "video" && !spoofCameraVideoPath.isEmpty else {
+            return
+        }
+        
+        // Check if any transforms are applied
+        let hasTransforms = spoofCameraTransformOrientation != "none" || 
+                        spoofCameraTransformScale != "fit" || 
+                        spoofCameraTransformFlip != "none"
+        
+        guard hasTransforms else { 
+            // Reset to original if no transforms
+            if spoofCameraVideoPath.contains("_transformed") {
+                let originalPath = spoofCameraVideoPath.replacingOccurrences(of: "_transformed", with: "")
+                if FileManager.default.fileExists(atPath: originalPath) {
+                    spoofCameraVideoPath = originalPath
+                }
+            }
+            return 
+        }
+        
+        // Always start from the original file
+        var inputPath = spoofCameraVideoPath
+        if inputPath.contains("_transformed") {
+            inputPath = inputPath.replacingOccurrences(of: "_transformed", with: "")
+            if !FileManager.default.fileExists(atPath: inputPath) {
+                errorInfo = "Original video file not found"
+                errorShow = true
+                return
+            }
+        }
+        
+        isProcessingVideo = true
+        videoProcessingProgress = 0.0
+        
+        do {
+            let transformedPath = try await transformVideo(
+                inputPath: inputPath,
+                orientation: spoofCameraTransformOrientation,
+                scale: spoofCameraTransformScale,
+                flip: spoofCameraTransformFlip,
+                isVerifiedMode: spoofCameraMode == "verified"
+            )
+            
+            spoofCameraVideoPath = transformedPath
+            
+        } catch {
+            errorInfo = "Video transformation failed: \(error.localizedDescription)"
+            errorShow = true
+        }
+        
+        isProcessingVideo = false
+    }
 
+    private func transformVideo(
+        inputPath: String,
+        orientation: String,
+        scale: String,
+        flip: String,
+        isVerifiedMode: Bool
+    ) async throws -> String {
+        
+        let inputURL = URL(fileURLWithPath: inputPath)
+        let baseFileName = inputURL.deletingPathExtension().lastPathComponent
+        let outputFileName = "\(baseFileName)_transformed.mp4"
+        let outputURL = inputURL.deletingLastPathComponent().appendingPathComponent(outputFileName)
+        
+        // Remove existing transformed file
+        if FileManager.default.fileExists(atPath: outputURL.path) {
+            try FileManager.default.removeItem(at: outputURL)
+        }
+        
+        let asset = AVAsset(url: inputURL)
+        
+        // Verify the asset is readable
+        guard try await asset.load(.isReadable) else {
+            throw NSError(domain: "VideoTransform", code: 0, userInfo: [NSLocalizedDescriptionKey: "Input video is not readable"])
+        }
+        
+        let composition = AVMutableComposition()
+        
+        // Add video track
+        guard let videoTrack = try await asset.loadTracks(withMediaType: .video).first else {
+            throw NSError(domain: "VideoTransform", code: 1, userInfo: [NSLocalizedDescriptionKey: "No video track found"])
+        }
+        
+        guard let compositionVideoTrack = composition.addMutableTrack(
+            withMediaType: .video,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else {
+            throw NSError(domain: "VideoTransform", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not create composition track"])
+        }
+        
+        let duration = try await asset.load(.duration)
+        try compositionVideoTrack.insertTimeRange(
+            CMTimeRange(start: .zero, duration: duration),
+            of: videoTrack,
+            at: .zero
+        )
+        
+        // Add audio track if present
+        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+        if let audioTrack = audioTracks.first {
+            if let compositionAudioTrack = composition.addMutableTrack(
+                withMediaType: .audio,
+                preferredTrackID: kCMPersistentTrackID_Invalid
+            ) {
+                try compositionAudioTrack.insertTimeRange(
+                    CMTimeRange(start: .zero, duration: duration),
+                    of: audioTrack,
+                    at: .zero
+                )
+            }
+        }
+        
+        // Only create video composition if transforms are needed
+        let hasTransforms = orientation != "none" || flip != "none" || isVerifiedMode
+        
+        var videoComposition: AVMutableVideoComposition?
+        
+        if hasTransforms {
+            // Calculate video transformation
+            let naturalSize = try await videoTrack.load(.naturalSize)
+            let preferredTransform = try await videoTrack.load(.preferredTransform)
+            
+            let (transform, renderSize) = calculateVideoTransform(
+                naturalSize: naturalSize,
+                preferredTransform: preferredTransform,
+                orientation: orientation,
+                scale: scale,
+                flip: flip,
+                isVerifiedMode: isVerifiedMode
+            )
+            
+            // Create video composition
+            let mutableVideoComposition = AVMutableVideoComposition()
+            
+            // Create video composition instruction
+            let instruction = AVMutableVideoCompositionInstruction()
+            instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
+            
+            let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compositionVideoTrack)
+            layerInstruction.setTransform(transform, at: .zero)
+            
+            // Add subtle variations for verified mode
+            if isVerifiedMode {
+                // Add slight opacity variations to make detection harder
+                let fadeInDuration = CMTime(seconds: 0.1, preferredTimescale: 600)
+                layerInstruction.setOpacity(0.98, at: .zero)
+                layerInstruction.setOpacity(1.0, at: fadeInDuration)
+            }
+            
+            instruction.layerInstructions = [layerInstruction]
+            mutableVideoComposition.instructions = [instruction]
+            mutableVideoComposition.frameDuration = CMTime(value: 1, timescale: 30)
+            mutableVideoComposition.renderSize = renderSize
+            
+            videoComposition = mutableVideoComposition
+        }
+        
+        // Export session
+        guard let exportSession = AVAssetExportSession(
+            asset: composition,
+            presetName: AVAssetExportPresetHighestQuality
+        ) else {
+            throw NSError(domain: "VideoTransform", code: 3, userInfo: [NSLocalizedDescriptionKey: "Failed to create export session"])
+        }
+        
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = .mp4
+        exportSession.shouldOptimizeForNetworkUse = true
+        
+        // Only apply video composition if we have transforms
+        if let videoComposition = videoComposition {
+            exportSession.videoComposition = videoComposition
+        }
+        
+        // Monitor progress
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak exportSession] timer in
+            guard let session = exportSession else {
+                timer.invalidate()
+                return
+            }
+            
+            Task { @MainActor in
+                videoProcessingProgress = Double(session.progress)
+            }
+        }
+
+        await exportSession.export()
+        timer.invalidate()
+        
+        switch exportSession.status {
+        case .completed:
+            await MainActor.run {
+                videoProcessingProgress = 1.0
+            }
+            return outputURL.path
+        case .failed:
+            let errorMessage = exportSession.error?.localizedDescription ?? "Unknown export error"
+            throw NSError(domain: "VideoTransform", code: 4, userInfo: [NSLocalizedDescriptionKey: "Export failed: \(errorMessage)"])
+        case .cancelled:
+            throw NSError(domain: "VideoTransform", code: 5, userInfo: [NSLocalizedDescriptionKey: "Export was cancelled"])
+        default:
+            throw NSError(domain: "VideoTransform", code: 6, userInfo: [NSLocalizedDescriptionKey: "Export in unknown state"])
+        }
+    }
+
+    private func calculateVideoTransform(
+        naturalSize: CGSize,
+        preferredTransform: CGAffineTransform,
+        orientation: String,
+        scale: String,
+        flip: String,
+        isVerifiedMode: Bool
+    ) -> (transform: CGAffineTransform, renderSize: CGSize) {
+        
+        // STEP 1: Start with the original video's transform to get correct orientation
+        var transform = preferredTransform
+        
+        // STEP 2: Calculate the size after applying the original transform
+        let transformedRect = CGRect(origin: .zero, size: naturalSize).applying(preferredTransform)
+        let currentSize = CGSize(width: abs(transformedRect.width), height: abs(transformedRect.height))
+        var renderSize = currentSize
+        
+        // STEP 3: Apply our custom transformations ON TOP of the existing transform
+        
+        // Apply orientation changes
+        switch orientation {
+        case "portrait":
+            if currentSize.width > currentSize.height {
+                // Video is landscape, rotate to portrait
+                transform = transform.rotated(by: .pi / 2)
+                renderSize = CGSize(width: currentSize.height, height: currentSize.width)
+            }
+        case "landscape":
+            if currentSize.height > currentSize.width {
+                // Video is portrait, rotate to landscape
+                transform = transform.rotated(by: .pi / 2)
+                renderSize = CGSize(width: currentSize.height, height: currentSize.width)
+            }
+        case "rotate90":
+            transform = transform.rotated(by: .pi / 2)
+            renderSize = CGSize(width: currentSize.height, height: currentSize.width)
+        case "rotate180":
+            transform = transform.rotated(by: .pi)
+            // Size stays the same for 180° rotation
+        case "rotate270":
+            transform = transform.rotated(by: -.pi / 2)
+            renderSize = CGSize(width: currentSize.height, height: currentSize.width)
+        default:
+            break // "none" - no additional rotation
+        }
+        
+        // Apply flip transformations
+        switch flip {
+        case "horizontal":
+            transform = transform.scaledBy(x: -1, y: 1)
+        case "vertical":
+            transform = transform.scaledBy(x: 1, y: -1)
+        case "both":
+            transform = transform.scaledBy(x: -1, y: -1)
+        default:
+            break // "none" - no flipping
+        }
+        
+        // STEP 4: Handle scaling (this affects how the video fills the render size)
+        switch scale {
+        case "fill":
+            // Video will fill the entire render area (may crop)
+            break
+        case "stretch":
+            // Video will be stretched to fill render area (may distort)
+            break
+        default: // "fit"
+            // Video will fit within render area (may have black bars)
+            break
+        }
+        
+        // STEP 5: Add subtle variations for verified mode (Nomix-style)
+        if isVerifiedMode {
+            // Add tiny random variations to avoid detection
+            let randomX = Float.random(in: -0.5...0.5) // Very small pixel variations
+            let randomY = Float.random(in: -0.5...0.5)
+            transform = transform.translatedBy(x: CGFloat(randomX), y: CGFloat(randomY))
+        }
+        
+        return (transform, renderSize)
+    }
+}
 
 
 // MARK: Network Settings Section
@@ -885,9 +1178,6 @@ struct LCAppSettingsView : View{
                 videoProcessingProgress: $model.videoProcessingProgress,
                 errorInfo: $errorInfo,
                 errorShow: $errorShow,
-                onVideoTransformChange: {
-                    await processVideoTransforms() // ✅ This function exists in LCAppSettingsView
-                }
             )
            
 
@@ -1283,297 +1573,6 @@ struct LCAppSettingsView : View{
             errorInfo = error.localizedDescription
             errorShow = true
         }
-    }
-
-    @MainActor
-    private func processVideoTransforms() async {
-        guard model.uiSpoofCamera && model.uiSpoofCameraType == "video" && !model.uiSpoofCameraVideoPath.isEmpty else {
-            return
-        }
-        
-        // Check if any transforms are applied
-        let hasTransforms = model.uiSpoofCameraTransformOrientation != "none" || 
-                        model.uiSpoofCameraTransformScale != "fit" || 
-                        model.uiSpoofCameraTransformFlip != "none"
-        
-        guard hasTransforms else { 
-            // Reset to original if no transforms
-            if model.uiSpoofCameraVideoPath.contains("_transformed") {
-                let originalPath = model.uiSpoofCameraVideoPath.replacingOccurrences(of: "_transformed", with: "")
-                if FileManager.default.fileExists(atPath: originalPath) {
-                    model.uiSpoofCameraVideoPath = originalPath
-                }
-            }
-            return 
-        }
-        
-        // Always start from the original file
-        var inputPath = model.uiSpoofCameraVideoPath
-        if inputPath.contains("_transformed") {
-            inputPath = inputPath.replacingOccurrences(of: "_transformed", with: "")
-            if !FileManager.default.fileExists(atPath: inputPath) {
-                errorInfo = "Original video file not found"
-                errorShow = true
-                return
-            }
-        }
-        
-        model.isProcessingVideo = true
-        model.videoProcessingProgress = 0.0
-        
-        do {
-            let transformedPath = try await transformVideo(
-                inputPath: inputPath, // Use original path
-                orientation: model.uiSpoofCameraTransformOrientation,
-                scale: model.uiSpoofCameraTransformScale,
-                flip: model.uiSpoofCameraTransformFlip,
-                isVerifiedMode: model.uiSpoofCameraMode == "verified"
-            )
-            
-            model.uiSpoofCameraVideoPath = transformedPath
-            
-        } catch {
-            errorInfo = "Video transformation failed: \(error.localizedDescription)"
-            errorShow = true
-        }
-        
-        model.isProcessingVideo = false
-    }
-
-    private func transformVideo(
-        inputPath: String,
-        orientation: String,
-        scale: String,
-        flip: String,
-        isVerifiedMode: Bool
-    ) async throws -> String {
-        
-        let inputURL = URL(fileURLWithPath: inputPath)
-        let baseFileName = inputURL.deletingPathExtension().lastPathComponent
-        let outputFileName = "\(baseFileName)_transformed.mp4"
-        let outputURL = inputURL.deletingLastPathComponent().appendingPathComponent(outputFileName)
-        
-        // Remove existing transformed file
-        if FileManager.default.fileExists(atPath: outputURL.path) {
-            try FileManager.default.removeItem(at: outputURL)
-        }
-        
-        let asset = AVAsset(url: inputURL)
-        
-        // Verify the asset is readable
-        guard try await asset.load(.isReadable) else {
-            throw NSError(domain: "VideoTransform", code: 0, userInfo: [NSLocalizedDescriptionKey: "Input video is not readable"])
-        }
-        
-        let composition = AVMutableComposition()
-        let videoComposition = AVMutableVideoComposition()
-        
-        // Add video track
-        guard let videoTrack = try await asset.loadTracks(withMediaType: .video).first else {
-            throw NSError(domain: "VideoTransform", code: 1, userInfo: [NSLocalizedDescriptionKey: "No video track found"])
-        }
-        
-        guard let compositionVideoTrack = composition.addMutableTrack(
-            withMediaType: .video,
-            preferredTrackID: kCMPersistentTrackID_Invalid
-        ) else {
-            throw NSError(domain: "VideoTransform", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not create composition track"])
-        }
-        
-        let duration = try await asset.load(.duration)
-        try compositionVideoTrack.insertTimeRange(
-            CMTimeRange(start: .zero, duration: duration),
-            of: videoTrack,
-            at: .zero
-        )
-        
-        // Add audio track if present
-        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
-        if let audioTrack = audioTracks.first {
-            if let compositionAudioTrack = composition.addMutableTrack(
-                withMediaType: .audio,
-                preferredTrackID: kCMPersistentTrackID_Invalid
-            ) {
-                try compositionAudioTrack.insertTimeRange(
-                    CMTimeRange(start: .zero, duration: duration),
-                    of: audioTrack,
-                    at: .zero
-                )
-            }
-        }
-        
-        // Calculate video transformation
-        let naturalSize = try await videoTrack.load(.naturalSize)
-        let preferredTransform = try await videoTrack.load(.preferredTransform)
-        
-        let (transform, renderSize) = calculateVideoTransform(
-            naturalSize: naturalSize,
-            preferredTransform: preferredTransform,
-            orientation: orientation,
-            scale: scale,
-            flip: flip,
-            isVerifiedMode: isVerifiedMode
-        )
-        
-        // Create video composition instruction
-        let instruction = AVMutableVideoCompositionInstruction()
-        instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
-        
-        let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compositionVideoTrack)
-        layerInstruction.setTransform(transform, at: .zero)
-        
-        // Add subtle variations for verified mode
-        if isVerifiedMode {
-            // Add slight opacity variations to make detection harder
-            let fadeInDuration = CMTime(seconds: 0.1, preferredTimescale: 600)
-            layerInstruction.setOpacity(0.98, at: .zero)
-            layerInstruction.setOpacity(1.0, at: fadeInDuration)
-        }
-        
-        instruction.layerInstructions = [layerInstruction]
-        
-        videoComposition.instructions = [instruction]
-        videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
-        videoComposition.renderSize = renderSize
-        
-        // IMPORTANT: Set color properties to avoid black video
-        videoComposition.colorPrimaries = AVVideoColorPrimaries_ITU_R_709_2
-        videoComposition.colorTransferFunction = AVVideoTransferFunction_ITU_R_709_2
-        videoComposition.colorYCbCrMatrix = AVVideoYCbCrMatrix_ITU_R_709_2
-        
-        // Export session
-        guard let exportSession = AVAssetExportSession(
-            asset: composition,
-            presetName: AVAssetExportPresetMediumQuality // Use medium quality instead of highest for better compatibility
-        ) else {
-            throw NSError(domain: "VideoTransform", code: 3, userInfo: [NSLocalizedDescriptionKey: "Failed to create export session"])
-        }
-        
-        exportSession.outputURL = outputURL
-        exportSession.outputFileType = .mp4
-        exportSession.videoComposition = videoComposition
-        exportSession.shouldOptimizeForNetworkUse = true
-        
-        // Monitor progress
-        let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak exportSession] timer in
-            guard let session = exportSession else {
-                timer.invalidate()
-                return
-            }
-            
-            Task { @MainActor in
-                model.videoProcessingProgress = Double(session.progress)
-            }
-        }
-
-        await exportSession.export()
-        timer.invalidate()
-        
-        switch exportSession.status {
-        case .completed:
-            await MainActor.run {
-                model.videoProcessingProgress = 1.0
-            }
-            return outputURL.path
-        case .failed:
-            let errorMessage = exportSession.error?.localizedDescription ?? "Unknown export error"
-            throw NSError(domain: "VideoTransform", code: 4, userInfo: [NSLocalizedDescriptionKey: "Export failed: \(errorMessage)"])
-        case .cancelled:
-            throw NSError(domain: "VideoTransform", code: 5, userInfo: [NSLocalizedDescriptionKey: "Export was cancelled"])
-        default:
-            throw NSError(domain: "VideoTransform", code: 6, userInfo: [NSLocalizedDescriptionKey: "Export in unknown state"])
-        }
-    }
-
-    private func calculateVideoTransform(
-        naturalSize: CGSize,
-        preferredTransform: CGAffineTransform,
-        orientation: String,
-        scale: String,
-        flip: String,
-        isVerifiedMode: Bool
-    ) -> (transform: CGAffineTransform, renderSize: CGSize) {
-        
-        // Start with identity transform, we'll build the complete transform ourselves
-        var transform = CGAffineTransform.identity
-        var renderSize = naturalSize
-        
-        // First, apply the original video's preferred transform to get it upright
-        let videoRect = CGRect(origin: .zero, size: naturalSize).applying(preferredTransform)
-        let normalizedSize = CGSize(width: abs(videoRect.width), height: abs(videoRect.height))
-        
-        // Update render size to the normalized size
-        renderSize = normalizedSize
-        
-        // Apply our custom orientation transform
-        switch orientation {
-        case "portrait":
-            if normalizedSize.width > normalizedSize.height {
-                transform = transform.rotated(by: .pi / 2)
-                renderSize = CGSize(width: normalizedSize.height, height: normalizedSize.width)
-            }
-        case "landscape":
-            if normalizedSize.height > normalizedSize.width {
-                transform = transform.rotated(by: .pi / 2)
-                renderSize = CGSize(width: normalizedSize.height, height: normalizedSize.width)
-            }
-        case "rotate90":
-            transform = transform.rotated(by: .pi / 2)
-            renderSize = CGSize(width: normalizedSize.height, height: normalizedSize.width)
-        case "rotate180":
-            transform = transform.rotated(by: .pi)
-        case "rotate270":
-            transform = transform.rotated(by: -.pi / 2)
-            renderSize = CGSize(width: normalizedSize.height, height: normalizedSize.width)
-        default:
-            break
-        }
-        
-        // Apply flip transform
-        switch flip {
-        case "horizontal":
-            transform = transform.scaledBy(x: -1, y: 1)
-        case "vertical":
-            transform = transform.scaledBy(x: 1, y: -1)
-        case "both":
-            transform = transform.scaledBy(x: -1, y: -1)
-        default:
-            break
-        }
-        
-        // Apply scale transform (adjust for the render size)
-        switch scale {
-        case "fill":
-            let scaleX = renderSize.width / normalizedSize.width
-            let scaleY = renderSize.height / normalizedSize.height
-            let maxScale = max(scaleX, scaleY)
-            transform = transform.scaledBy(x: maxScale, y: maxScale)
-        case "stretch":
-            let scaleX = renderSize.width / normalizedSize.width
-            let scaleY = renderSize.height / normalizedSize.height
-            transform = transform.scaledBy(x: scaleX, y: scaleY)
-        default: // fit
-            break // No additional scaling for fit
-        }
-        
-        // Center the video in the render size
-        let tx = (renderSize.width - normalizedSize.width) / 2
-        let ty = (renderSize.height - normalizedSize.height) / 2
-        transform = transform.translatedBy(x: tx, y: ty)
-        
-        // Combine with the original preferred transform
-        let finalTransform = preferredTransform.concatenating(transform)
-        
-        // Add subtle variations for verified mode (Nomix-style)
-        if isVerifiedMode {
-            // Add tiny random variations to avoid detection
-            let randomX = (Float.random(in: -1...1) * 0.001) // ±0.1% variation
-            let randomY = (Float.random(in: -1...1) * 0.001)
-            let verifiedTransform = finalTransform.translatedBy(x: CGFloat(randomX), y: CGFloat(randomY))
-            return (verifiedTransform, renderSize)
-        }
-        
-        return (finalTransform, renderSize)
     }
 
     func formatDate(date: Date?) -> String {
