@@ -31,6 +31,10 @@ bool isSharedBundle = false;
 bool isSideStore = false;
 bool sideStoreExist = false;
 
+static NSString *originalGuestBundleId = nil;
+static NSString *liveContainerBundleId = nil;
+static BOOL useSelectiveBundleIdSpoofing = NO;
+
 @implementation NSUserDefaults(LiveContainer)
 + (instancetype)lcUserDefaults {
     return lcUserDefaults;

@@ -94,6 +94,13 @@ static OSStatus (*orig_SecTrustEvaluateFastAsync)(SecTrustRef, dispatch_queue_t,
 // BoringSSL
 static void (*orig_SSL_set_custom_verify)(void *, int, int (*)(void *, uint8_t *));
 static void (*orig_SSL_CTX_set_custom_verify)(void *, int, int (*)(void *, uint8_t *));
+// Bundle
+extern NSString *originalGuestBundleId;
+extern NSString *liveContainerBundleId; 
+extern BOOL useSelectiveBundleIdSpoofing;
+static NSString* (*orig_NSBundle_bundleIdentifier)(id self, SEL _cmd);
+static NSDictionary* (*orig_NSBundle_infoDictionary)(id self, SEL _cmd);
+static id (*orig_NSBundle_objectForInfoDictionaryKey)(id self, SEL _cmd, NSString *key);
 
 // LC specific variables
 uint32_t guestAppSdkVersion = 0;
@@ -1235,6 +1242,152 @@ int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigacti
     
 //     return result;
 // }
+
+// MARK: Bundle ID Section
+// Context detection function - this is the key intelligence
+static BOOL shouldUseLiveContainerBundleId(void) {
+    // Get the call stack to determine context
+    NSArray *callStack = [NSThread callStackSymbols];
+    
+    // Check for system framework calls that need LiveContainer's bundle ID
+    for (NSString *frame in callStack) {
+        // Notification permission requests
+        if ([frame containsString:@"UserNotifications"] ||
+            [frame containsString:@"UNUserNotificationCenter"] ||
+            [frame containsString:@"requestAuthorizationWithOptions"]) {
+            return YES;
+        }
+        
+        // File picker and document interaction
+        if ([frame containsString:@"UIDocumentPickerViewController"] ||
+            [frame containsString:@"UIDocumentInteractionController"] ||
+            [frame containsString:@"documentPicker"] ||
+            [frame containsString:@"_UIDocumentPicker"]) {
+            return YES;
+        }
+        
+        // Photo library access
+        if ([frame containsString:@"Photos"] ||
+            [frame containsString:@"PHPhotoLibrary"] ||
+            [frame containsString:@"PHAuthorizationStatus"]) {
+            return YES;
+        }
+        
+        // Camera and microphone permissions
+        if ([frame containsString:@"AVCaptureDevice"] ||
+            [frame containsString:@"AVAudioSession"] ||
+            [frame containsString:@"requestAccessForMediaType"]) {
+            return YES;
+        }
+        
+        // Location services
+        if ([frame containsString:@"CoreLocation"] ||
+            [frame containsString:@"CLLocationManager"] ||
+            [frame containsString:@"requestWhenInUseAuthorization"]) {
+            return YES;
+        }
+        
+        // Contacts access
+        if ([frame containsString:@"ContactsUI"] ||
+            [frame containsString:@"CNContactStore"] ||
+            [frame containsString:@"requestAccessForEntityType"]) {
+            return YES;
+        }
+        
+        // App Store and system services
+        if ([frame containsString:@"StoreKit"] ||
+            [frame containsString:@"SKStoreProductViewController"] ||
+            [frame containsString:@"openURL"]) {
+            return YES;
+        }
+        
+        // Keychain access (system level)
+        if ([frame containsString:@"SecItem"] ||
+            [frame containsString:@"keychain"] ||
+            [frame containsString:@"Security"]) {
+            return YES;
+        }
+    }
+    
+    // Check for specific security validation patterns that should see original bundle ID
+    for (NSString *frame in callStack) {
+        // Internal security checks - these should see original bundle ID
+        if ([frame containsString:@"SecurityGuardSDK"] ||
+            [frame containsString:@"security"] ||
+            [frame containsString:@"guard"] ||
+            [frame containsString:@"validation"] ||
+            [frame containsString:@"integrity"] ||
+            [frame containsString:@"verify"] ||
+            [frame containsString:@"checkBundle"] ||
+            [frame containsString:@"yw_1222"]) { // Your specific security file
+            return NO;
+        }
+        
+        // Anti-tampering checks
+        if ([frame containsString:@"tamper"] ||
+            [frame containsString:@"jailbreak"] ||
+            [frame containsString:@"debug"] ||
+            [frame containsString:@"hook"]) {
+            return NO;
+        }
+    }
+    
+    // Default: use original bundle ID for unknown contexts
+    return NO;
+}
+
+static NSString* hook_NSBundle_bundleIdentifier(id self, SEL _cmd) {
+    NSString* result = orig_NSBundle_bundleIdentifier(self, _cmd);
+    
+    if (!useSelectiveBundleIdSpoofing || ![self isEqual:[NSBundle mainBundle]]) {
+        return result;
+    }
+    
+    // Get calling context to determine which bundle ID to return
+    if (shouldUseLiveContainerBundleId()) {
+        NSLog(@"[LC] 🎭 Returning LiveContainer bundle ID for system API: %@", liveContainerBundleId);
+        return liveContainerBundleId;
+    } else {
+        NSLog(@"[LC] 🎭 Returning original bundle ID for security check: %@", originalGuestBundleId);
+        return originalGuestBundleId;
+    }
+}
+
+static NSDictionary* hook_NSBundle_infoDictionary(id self, SEL _cmd) {
+    NSDictionary* result = orig_NSBundle_infoDictionary(self, _cmd);
+    
+    if (!useSelectiveBundleIdSpoofing || ![self isEqual:[NSBundle mainBundle]]) {
+        return result;
+    }
+    
+    NSMutableDictionary* modifiedDict = [result mutableCopy];
+    
+    if (shouldUseLiveContainerBundleId()) {
+        modifiedDict[@"CFBundleIdentifier"] = liveContainerBundleId;
+        NSLog(@"[LC] 🎭 Modified Info.plist bundle ID for system API");
+    } else {
+        modifiedDict[@"CFBundleIdentifier"] = originalGuestBundleId;
+        NSLog(@"[LC] 🎭 Preserved original bundle ID for security check");
+    }
+    
+    return [modifiedDict copy];
+}
+
+static id hook_NSBundle_objectForInfoDictionaryKey(id self, SEL _cmd, NSString *key) {
+    if (!useSelectiveBundleIdSpoofing || ![self isEqual:[NSBundle mainBundle]] || ![key isEqualToString:@"CFBundleIdentifier"]) {
+        return orig_NSBundle_objectForInfoDictionaryKey(self, _cmd, key);
+    }
+    
+    if (shouldUseLiveContainerBundleId()) {
+        NSLog(@"[LC] 🎭 Returning LiveContainer bundle ID for key access: %@", liveContainerBundleId);
+        return liveContainerBundleId;
+    } else {
+        NSLog(@"[LC] 🎭 Returning original bundle ID for key access: %@", originalGuestBundleId);
+        return originalGuestBundleId;
+    }
+}
+
+
 
 // MARK: Init
 void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
