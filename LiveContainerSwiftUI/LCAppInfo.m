@@ -541,6 +541,32 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     [self save];
 }
 
+- (bool)fixFilePickerNew {
+    if(_info[@"fixFilePickerNew"] != nil) {
+        return [_info[@"fixFilePickerNew"] boolValue];
+    } else {
+        return NO;
+    }
+}
+
+- (void)setFixFilePickerNew:(bool)fixFilePickerNew {
+    _info[@"fixFilePickerNew"] = @(fixFilePickerNew);
+    [self save];
+}
+
+- (bool)fixLocalNotification {
+    if(_info[@"fixLocalNotification"] != nil) {
+        return [_info[@"fixLocalNotification"] boolValue];
+    } else {
+        return NO;
+    }
+}
+
+- (void)setFixLocalNotification:(bool)fixLocalNotification {
+    _info[@"fixLocalNotification"] = @(fixLocalNotification);
+    [self save];
+}
+
 - (LCOrientationLock)orientationLock {
     return (LCOrientationLock) [((NSNumber*) _info[@"LCOrientationLock"]) intValue];
 

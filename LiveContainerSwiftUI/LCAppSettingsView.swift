@@ -2674,6 +2674,12 @@ struct LCAppSettingsView : View{
             }
             
             Section {
+                Toggle(isOn: $model.uiFixFilePickerNew) {
+                    Text("lc.appSettings.fixFilePickerNew".loc)
+                }
+                Toggle(isOn: $model.uiFixLocalNotification) {
+                    Text("lc.appSettings.fixLocalNotification".loc)
+                }
                 Toggle(isOn: $model.uiUseLCBundleId) {
                     Text("lc.appSettings.useLCBundleId".loc)
                 }

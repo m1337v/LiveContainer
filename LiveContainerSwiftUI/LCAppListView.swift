@@ -691,6 +691,8 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
             finalNewApp.hideLiveContainer = appToReplace.appInfo.hideLiveContainer
             finalNewApp.dontLoadTweakLoader = appToReplace.appInfo.dontLoadTweakLoader
             finalNewApp.doUseLCBundleId = appToReplace.appInfo.doUseLCBundleId
+            finalNewApp.fixFilePickerNew = appToReplace.appInfo.fixFilePickerNew
+            finalNewApp.fixLocalNotification = appToReplace.appInfo.fixLocalNotification
             finalNewApp.lastLaunched = appToReplace.appInfo.lastLaunched
             finalNewApp.autoSaveDisabled = false
             finalNewApp.save()

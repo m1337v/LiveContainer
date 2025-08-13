@@ -139,7 +139,6 @@
 		E1292BD62DCA3B660065E12D /* LiveContainerShared.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = LiveContainerShared.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		E1292C032DCA3C160065E12D /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
 		E16D94DE2E1CC8200068EB63 /* LCMachOUtils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LCMachOUtils.m; sourceTree = "<group>"; };
-		E16D95702E1CC8F20068EB63 /* litehook_internal.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = litehook_internal.h; sourceTree = "<group>"; };
 		E16D95762E1CD49E0068EB63 /* LCMachOUtils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LCMachOUtils.h; sourceTree = "<group>"; };
 		E16D9BA02E1D48DE0068EB63 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -370,7 +369,6 @@
 			isa = PBXGroup;
 			children = (
 				E16D95762E1CD49E0068EB63 /* LCMachOUtils.h */,
-				E16D95702E1CC8F20068EB63 /* litehook_internal.h */,
 				E1292C032DCA3C160065E12D /* main.c */,
 				E1292C1A2DCA48F00065E12D /* Tweaks */,
 				172CA8542D9D721700CF6989 /* dyld_bypass_validation.m */,

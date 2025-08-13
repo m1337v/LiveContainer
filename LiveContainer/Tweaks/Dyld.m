@@ -15,7 +15,7 @@
 #include <SystemConfiguration/SystemConfiguration.h>
 #include <CFNetwork/CFNetwork.h>
 #import "../../fishhook/fishhook.h"
-#import "litehook_internal.h"
+#import "../../litehook/src/litehook.h"
 #import "LCMachOUtils.h"
 #import "../utils.h"
 #import "CoreLocation+GuestHooks.h"

@@ -13,7 +13,7 @@
 
 __attribute__((constructor))
 static void UNHooksInit(void) {
-    if(NSUserDefaults.isSideStore) {
+    if([NSUserDefaults.guestAppInfo[@"fixLocalNotification"] boolValue] || NSUserDefaults.isSideStore) {
         [UNUserNotificationCenter.currentNotificationCenter setBundleIdentifier:[NSUserDefaults.lcMainBundle bundleIdentifier]];
     }
 }

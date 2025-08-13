@@ -25,6 +25,8 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property bool dontInjectTweakLoader;
 @property UIColor* cachedColor;
 @property LCOrientationLock orientationLock;
+@property bool fixFilePickerNew;
+@property bool fixLocalNotification;
 @property bool doUseLCBundleId;
 @property NSString* selectedLanguage;
 @property NSString* dataUUID;

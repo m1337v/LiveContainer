@@ -1,7 +1,7 @@
 @import Darwin;
 @import Foundation;
 @import MachO;
-#import "litehook_internal.h"
+#import "../litehook/src/litehook.h"
 #import "LCUtils.h"
 
 static uint32_t rnd32(uint32_t v, uint32_t r) {
@@ -302,7 +302,7 @@ uint64_t LCFindSymbolOffset(const char *basePath, const char *symbol) {
     __block uint64_t offset = 0;
     LCParseMachO(path, true, ^(const char *path, struct mach_header_64 *header, int fd, void *filePtr) {
         if(header->cputype != CPU_TYPE_ARM64) return;
-        void *result = litehook_find_symbol(header, symbol);
+        void *result = litehook_find_symbol_file(header, symbol);
         offset = (uint64_t)result - (uint64_t)header;
     });
     NSCAssert(offset != 0, @"Failed to find symbol %s in %s", symbol, path);

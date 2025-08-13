@@ -398,7 +398,7 @@ BOOL canAppOpenItself(NSURL* url) {
 }
 
 - (void)hook_openURL:(NSURL *)url options:(NSDictionary<NSString *,id> *)options completionHandler:(void (^)(_Bool))completion {
-    if([url.scheme isEqualToString:@"sidestore"] && NSUserDefaults.isSideStore) {
+    if(NSUserDefaults.isSideStore && ![url.scheme isEqualToString:@"livecontainer"]) {
         [self hook_openURL:url options:options completionHandler:completion];
         return;
     }
@@ -450,7 +450,7 @@ BOOL canAppOpenItself(NSURL* url) {
     }
 
     // Don't have UIOpenURLAction or is passing a file to app? pass it
-    if (!urlAction || urlAction.url.isFileURL || ([urlAction.url.scheme isEqualToString:@"sidestore"] && NSUserDefaults.isSideStore)) {
+    if (!urlAction || urlAction.url.isFileURL || (NSUserDefaults.isSideStore && ![urlAction.url.scheme isEqualToString:@"livecontainer"])) {
         [self hook_scene:scene didReceiveActions:actions fromTransitionContext:context];
         return;
     }
