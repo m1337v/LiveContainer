@@ -128,8 +128,92 @@ static void overwriteAppExecutableFileType(void) {
 }
 
 // MARK: ImageaName Filtering
+// Cache for loaded tweak names
+static NSMutableSet<NSString *> *loadedTweakNames = nil;
+static dispatch_once_t tweakDetectionToken;
+
+static void detectConfiguredTweaks(void) {
+    dispatch_once(&tweakDetectionToken, ^{
+        loadedTweakNames = [[NSMutableSet alloc] init];
+        
+        @try {
+            // Get the global tweak folder path (same as TweakLoader uses)
+            const char *tweakFolderC = getenv("LC_GLOBAL_TWEAKS_FOLDER");
+            NSString *globalTweakFolder = tweakFolderC ? @(tweakFolderC) : nil;
+            
+            // Global tweaks
+            if (globalTweakFolder) {
+                NSArray<NSURL *> *globalTweaks = [NSFileManager.defaultManager 
+                    contentsOfDirectoryAtURL:[NSURL fileURLWithPath:globalTweakFolder]
+                    includingPropertiesForKeys:@[] 
+                    options:0 
+                    error:nil];
+                
+                for (NSURL *tweakURL in globalTweaks) {
+                    NSString *tweakName = [tweakURL.path lastPathComponent]; // Just get the filename
+                    if ([tweakName hasSuffix:@".dylib"] || [tweakName hasSuffix:@".framework"]) {
+                        [loadedTweakNames addObject:tweakName];
+                        NSLog(@"[LC] 🕵️ Will hide global tweak: %@", tweakName);
+                    }
+                }
+            }
+            
+            // App-specific tweaks
+            NSString *tweakFolderName = NSUserDefaults.guestAppInfo[@"LCTweakFolder"];
+            if (tweakFolderName.length > 0) {
+                NSString *documentsPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+                NSString *tweakFolderPath = [documentsPath stringByAppendingPathComponent:tweakFolderName];
+                
+                NSArray<NSURL *> *appTweaks = [NSFileManager.defaultManager 
+                    contentsOfDirectoryAtURL:[NSURL fileURLWithPath:tweakFolderPath]
+                    includingPropertiesForKeys:@[] 
+                    options:0 
+                    error:nil];
+                
+                for (NSURL *tweakURL in appTweaks) {
+                    NSString *tweakName = [tweakURL.path lastPathComponent]; // Just get the filename
+                    if ([tweakName hasSuffix:@".dylib"] || [tweakName hasSuffix:@".framework"]) {
+                        [loadedTweakNames addObject:tweakName];
+                        NSLog(@"[LC] 🕵️ Will hide app-specific tweak: %@", tweakName);
+                    }
+                }
+            }
+            
+            NSLog(@"[LC] 🕵️ Total configured tweaks to hide: %lu", (unsigned long)loadedTweakNames.count);
+            
+        } @catch (NSException *exception) {
+            NSLog(@"[LC] ❌ Error detecting configured tweaks: %@", exception.reason);
+        }
+    });
+}
+
+// static bool shouldHideLibrary(const char* imageName) {
+//     if (!imageName) return false;
+    
+//     // Convert to lowercase for case-insensitive comparison
+//     char lowerImageName[1024];
+//     strlcpy(lowerImageName, imageName, sizeof(lowerImageName));
+//     for (int i = 0; lowerImageName[i]; i++) {
+//         lowerImageName[i] = tolower(lowerImageName[i]);
+//     }
+
+//     // MARK: TODO: Add dynamically by enumarating injected dylibs
+//     return (strstr(lowerImageName, "substrate") ||      // All substrate variants
+//             strstr(lowerImageName, "tweakloader") ||    // TweakLoader
+//             strstr(lowerImageName, "flex") ||           // Flex
+//             strstr(lowerImageName, "frida") ||          // Frida
+//             strstr(lowerImageName, "livecontainershared"));   // LiveContainerShared
+// }
+// Enhanced shouldHideLibrary function
 static bool shouldHideLibrary(const char* imageName) {
     if (!imageName) return false;
+    
+    // Ensure tweak detection has run
+    detectConfiguredTweaks();
+    
+    // Convert to NSString for easier processing
+    NSString *imageNameStr = @(imageName);
+    NSString *fileName = [imageNameStr lastPathComponent];
     
     // Convert to lowercase for case-insensitive comparison
     char lowerImageName[1024];
@@ -138,11 +222,19 @@ static bool shouldHideLibrary(const char* imageName) {
         lowerImageName[i] = tolower(lowerImageName[i]);
     }
 
-    // MARK: TODO: Add dynamically by enumarating injected dylibs
+    // Check against dynamically detected configured tweaks
+    @synchronized(loadedTweakNames) {
+        for (NSString *tweakName in loadedTweakNames) {
+            if ([fileName isEqualToString:tweakName] || 
+                [fileName.lowercaseString isEqualToString:tweakName.lowercaseString]) {
+                return true;
+            }
+        }
+    }
+
+    // Keep critical hardcoded patterns that MUST be hidden
     return (strstr(lowerImageName, "substrate") ||      // All substrate variants
-            strstr(lowerImageName, "tweakloader") ||    // TweakLoader
-            strstr(lowerImageName, "flex") ||           // Flex
-            strstr(lowerImageName, "frida") ||          // Frida
+            strstr(lowerImageName, "tweakloader") ||    // TweakLoader itself
             strstr(lowerImageName, "livecontainershared"));   // LiveContainerShared
 }
 
