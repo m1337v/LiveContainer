@@ -137,20 +137,23 @@ static void detectConfiguredTweaks(void) {
     
     loadedTweakNames = [[NSMutableSet alloc] init];
     
-    // Get global tweaks folder
-    const char *tweakFolderC = getenv("LC_GLOBAL_TWEAKS_FOLDER");
-    if (tweakFolderC) {
-        NSString *globalTweakFolder = @(tweakFolderC);
+    // Use the same hardcoded global tweaks path that TweakLoader would use
+    NSString *lcBundlePath = [[NSBundle mainBundle] bundlePath];
+    NSString *globalTweakFolder = [lcBundlePath stringByAppendingPathComponent:@"Frameworks/TweakLoader.framework/GlobalTweaks"];
+    
+    // Check if the folder exists and read it
+    if ([[NSFileManager defaultManager] fileExistsAtPath:globalTweakFolder]) {
         NSArray *globalTweaks = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:globalTweakFolder error:nil];
         
         for (NSString *tweakName in globalTweaks) {
             if ([tweakName hasSuffix:@".dylib"]) {
                 [loadedTweakNames addObject:tweakName];
+                NSLog(@"[LC] 🕵️ Will hide global tweak: %@", tweakName);
             }
         }
     }
     
-    // Get app-specific tweaks folder
+    // Get app-specific tweaks folder (this should still work)
     NSString *tweakFolderName = NSUserDefaults.guestAppInfo[@"LCTweakFolder"];
     if (tweakFolderName.length > 0) {
         NSString *documentsPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
@@ -161,10 +164,12 @@ static void detectConfiguredTweaks(void) {
         for (NSString *tweakName in appTweaks) {
             if ([tweakName hasSuffix:@".dylib"]) {
                 [loadedTweakNames addObject:tweakName];
+                NSLog(@"[LC] 🕵️ Will hide app-specific tweak: %@", tweakName);
             }
         }
     }
     
+    NSLog(@"[LC] 🕵️ Total tweaks to hide: %lu", (unsigned long)loadedTweakNames.count);
     tweaksDetected = YES;
 }
 
