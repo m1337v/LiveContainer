@@ -130,47 +130,63 @@ static void overwriteAppExecutableFileType(void) {
 // MARK: ImageaName Filtering
 // Cache for loaded tweak names
 static NSMutableSet<NSString *> *loadedTweakNames = nil;
-static BOOL tweaksDetected = NO;
 
-static void detectConfiguredTweaks(void) {
-    if (tweaksDetected) return;
+static void detectConfiguredTweaksEarly(void) {
+    if (loadedTweakNames) return; // Already detected
     
     loadedTweakNames = [[NSMutableSet alloc] init];
     
-    // Use the same hardcoded global tweaks path that TweakLoader would use
-    NSString *lcBundlePath = [[NSBundle mainBundle] bundlePath];
-    NSString *globalTweakFolder = [lcBundlePath stringByAppendingPathComponent:@"Frameworks/TweakLoader.framework/GlobalTweaks"];
-    
-    // Check if the folder exists and read it
-    if ([[NSFileManager defaultManager] fileExistsAtPath:globalTweakFolder]) {
-        NSArray *globalTweaks = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:globalTweakFolder error:nil];
-        
-        for (NSString *tweakName in globalTweaks) {
-            if ([tweakName hasSuffix:@".dylib"]) {
-                [loadedTweakNames addObject:tweakName];
-                NSLog(@"[LC] 🕵️ Will hide global tweak: %@", tweakName);
+    @try {
+        // Method 1: Check environment variable before TweakLoader unsets it
+        const char *tweakFolderC = getenv("LC_GLOBAL_TWEAKS_FOLDER");
+        if (tweakFolderC) {
+            NSString *globalTweakFolder = @(tweakFolderC);
+            NSArray *globalTweaks = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:globalTweakFolder error:nil];
+            
+            for (NSString *tweakName in globalTweaks) {
+                if ([tweakName hasSuffix:@".dylib"]) {
+                    [loadedTweakNames addObject:tweakName];
+                    NSLog(@"[LC] 🕵️ Early detection - will hide global tweak: %@", tweakName);
+                }
             }
         }
-    }
-    
-    // Get app-specific tweaks folder (this should still work)
-    NSString *tweakFolderName = NSUserDefaults.guestAppInfo[@"LCTweakFolder"];
-    if (tweakFolderName.length > 0) {
-        NSString *documentsPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
-        NSString *tweakFolderPath = [documentsPath stringByAppendingPathComponent:tweakFolderName];
         
-        NSArray *appTweaks = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:tweakFolderPath error:nil];
+        // Method 2: Use hardcoded path as fallback
+        NSString *lcBundlePath = [[NSBundle mainBundle] bundlePath];
+        NSString *globalTweakFolder = [lcBundlePath stringByAppendingPathComponent:@"Frameworks/TweakLoader.framework/GlobalTweaks"];
         
-        for (NSString *tweakName in appTweaks) {
-            if ([tweakName hasSuffix:@".dylib"]) {
-                [loadedTweakNames addObject:tweakName];
-                NSLog(@"[LC] 🕵️ Will hide app-specific tweak: %@", tweakName);
+        if ([[NSFileManager defaultManager] fileExistsAtPath:globalTweakFolder]) {
+            NSArray *globalTweaks = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:globalTweakFolder error:nil];
+            
+            for (NSString *tweakName in globalTweaks) {
+                if ([tweakName hasSuffix:@".dylib"]) {
+                    [loadedTweakNames addObject:tweakName];
+                    NSLog(@"[LC] 🕵️ Early detection - will hide global tweak: %@", tweakName);
+                }
             }
         }
+        
+        // Method 3: App-specific tweaks
+        NSString *tweakFolderName = NSUserDefaults.guestAppInfo[@"LCTweakFolder"];
+        if (tweakFolderName.length > 0) {
+            NSString *documentsPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+            NSString *tweakFolderPath = [documentsPath stringByAppendingPathComponent:tweakFolderName];
+            
+            NSArray *appTweaks = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:tweakFolderPath error:nil];
+            
+            for (NSString *tweakName in appTweaks) {
+                if ([tweakName hasSuffix:@".dylib"]) {
+                    [loadedTweakNames addObject:tweakName];
+                    NSLog(@"[LC] 🕵️ Early detection - will hide app-specific tweak: %@", tweakName);
+                }
+            }
+        }
+        
+        NSLog(@"[LC] 🕵️ Early detection complete - total tweaks to hide: %lu", (unsigned long)loadedTweakNames.count);
+        
+    } @catch (NSException *exception) {
+        NSLog(@"[LC] ❌ Error in early tweak detection: %@", exception.reason);
     }
-    
-    NSLog(@"[LC] 🕵️ Total tweaks to hide: %lu", (unsigned long)loadedTweakNames.count);
-    tweaksDetected = YES;
 }
 
 // static bool shouldHideLibrary(const char* imageName) {
@@ -194,12 +210,10 @@ static void detectConfiguredTweaks(void) {
 static bool shouldHideLibrary(const char* imageName) {
     if (!imageName) return false;
     
-    detectConfiguredTweaks();
-    
     NSString *fileName = [@(imageName) lastPathComponent];
     
-    // Check against configured tweaks
-    if ([loadedTweakNames containsObject:fileName]) {
+    // Check against pre-detected configured tweaks
+    if (loadedTweakNames && [loadedTweakNames containsObject:fileName]) {
         return true;
     }
     
@@ -1484,6 +1498,7 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
     // hook dlopen and dlsym to solve RTLD_MAIN_ONLY, hook other functions to hide LiveContainer itself
     litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, dlsym, hook_dlsym, nil);
     if(hideLiveContainer) {
+        detectConfiguredTweaksEarly();
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_image_count, hook_dyld_image_count, nil);
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_get_image_header, hook_dyld_get_image_header, nil);
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_get_image_vmaddr_slide, hook_dyld_get_image_vmaddr_slide, nil);
