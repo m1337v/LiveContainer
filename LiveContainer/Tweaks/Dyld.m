@@ -130,61 +130,42 @@ static void overwriteAppExecutableFileType(void) {
 // MARK: ImageaName Filtering
 // Cache for loaded tweak names
 static NSMutableSet<NSString *> *loadedTweakNames = nil;
-static dispatch_once_t tweakDetectionToken;
+static BOOL tweaksDetected = NO;
 
 static void detectConfiguredTweaks(void) {
-    dispatch_once(&tweakDetectionToken, ^{
-        loadedTweakNames = [[NSMutableSet alloc] init];
+    if (tweaksDetected) return;
+    
+    loadedTweakNames = [[NSMutableSet alloc] init];
+    
+    // Get global tweaks folder
+    const char *tweakFolderC = getenv("LC_GLOBAL_TWEAKS_FOLDER");
+    if (tweakFolderC) {
+        NSString *globalTweakFolder = @(tweakFolderC);
+        NSArray *globalTweaks = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:globalTweakFolder error:nil];
         
-        @try {
-            // Get the global tweak folder path (same as TweakLoader uses)
-            const char *tweakFolderC = getenv("LC_GLOBAL_TWEAKS_FOLDER");
-            NSString *globalTweakFolder = tweakFolderC ? @(tweakFolderC) : nil;
-            
-            // Global tweaks
-            if (globalTweakFolder) {
-                NSArray<NSURL *> *globalTweaks = [NSFileManager.defaultManager 
-                    contentsOfDirectoryAtURL:[NSURL fileURLWithPath:globalTweakFolder]
-                    includingPropertiesForKeys:@[] 
-                    options:0 
-                    error:nil];
-                
-                for (NSURL *tweakURL in globalTweaks) {
-                    NSString *tweakName = [tweakURL.path lastPathComponent]; // Just get the filename
-                    if ([tweakName hasSuffix:@".dylib"] || [tweakName hasSuffix:@".framework"]) {
-                        [loadedTweakNames addObject:tweakName];
-                        NSLog(@"[LC] 🕵️ Will hide global tweak: %@", tweakName);
-                    }
-                }
+        for (NSString *tweakName in globalTweaks) {
+            if ([tweakName hasSuffix:@".dylib"]) {
+                [loadedTweakNames addObject:tweakName];
             }
-            
-            // App-specific tweaks
-            NSString *tweakFolderName = NSUserDefaults.guestAppInfo[@"LCTweakFolder"];
-            if (tweakFolderName.length > 0) {
-                NSString *documentsPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
-                NSString *tweakFolderPath = [documentsPath stringByAppendingPathComponent:tweakFolderName];
-                
-                NSArray<NSURL *> *appTweaks = [NSFileManager.defaultManager 
-                    contentsOfDirectoryAtURL:[NSURL fileURLWithPath:tweakFolderPath]
-                    includingPropertiesForKeys:@[] 
-                    options:0 
-                    error:nil];
-                
-                for (NSURL *tweakURL in appTweaks) {
-                    NSString *tweakName = [tweakURL.path lastPathComponent]; // Just get the filename
-                    if ([tweakName hasSuffix:@".dylib"] || [tweakName hasSuffix:@".framework"]) {
-                        [loadedTweakNames addObject:tweakName];
-                        NSLog(@"[LC] 🕵️ Will hide app-specific tweak: %@", tweakName);
-                    }
-                }
-            }
-            
-            NSLog(@"[LC] 🕵️ Total configured tweaks to hide: %lu", (unsigned long)loadedTweakNames.count);
-            
-        } @catch (NSException *exception) {
-            NSLog(@"[LC] ❌ Error detecting configured tweaks: %@", exception.reason);
         }
-    });
+    }
+    
+    // Get app-specific tweaks folder
+    NSString *tweakFolderName = NSUserDefaults.guestAppInfo[@"LCTweakFolder"];
+    if (tweakFolderName.length > 0) {
+        NSString *documentsPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+        NSString *tweakFolderPath = [documentsPath stringByAppendingPathComponent:tweakFolderName];
+        
+        NSArray *appTweaks = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:tweakFolderPath error:nil];
+        
+        for (NSString *tweakName in appTweaks) {
+            if ([tweakName hasSuffix:@".dylib"]) {
+                [loadedTweakNames addObject:tweakName];
+            }
+        }
+    }
+    
+    tweaksDetected = YES;
 }
 
 // static bool shouldHideLibrary(const char* imageName) {
@@ -208,34 +189,26 @@ static void detectConfiguredTweaks(void) {
 static bool shouldHideLibrary(const char* imageName) {
     if (!imageName) return false;
     
-    // Ensure tweak detection has run
     detectConfiguredTweaks();
     
-    // Convert to NSString for easier processing
-    NSString *imageNameStr = @(imageName);
-    NSString *fileName = [imageNameStr lastPathComponent];
+    NSString *fileName = [@(imageName) lastPathComponent];
     
-    // Convert to lowercase for case-insensitive comparison
+    // Check against configured tweaks
+    if ([loadedTweakNames containsObject:fileName]) {
+        return true;
+    }
+    
+    // Convert to lowercase for hardcoded patterns
     char lowerImageName[1024];
     strlcpy(lowerImageName, imageName, sizeof(lowerImageName));
     for (int i = 0; lowerImageName[i]; i++) {
         lowerImageName[i] = tolower(lowerImageName[i]);
     }
 
-    // Check against dynamically detected configured tweaks
-    @synchronized(loadedTweakNames) {
-        for (NSString *tweakName in loadedTweakNames) {
-            if ([fileName isEqualToString:tweakName] || 
-                [fileName.lowercaseString isEqualToString:tweakName.lowercaseString]) {
-                return true;
-            }
-        }
-    }
-
-    // Keep critical hardcoded patterns that MUST be hidden
-    return (strstr(lowerImageName, "substrate") ||      // All substrate variants
-            strstr(lowerImageName, "tweakloader") ||    // TweakLoader itself
-            strstr(lowerImageName, "livecontainershared"));   // LiveContainerShared
+    // Keep critical hardcoded patterns
+    return (strstr(lowerImageName, "substrate") ||
+            strstr(lowerImageName, "tweakloader") ||
+            strstr(lowerImageName, "livecontainershared"));
 }
 
 static void ensureAppMainIndexIsSet(void) {
