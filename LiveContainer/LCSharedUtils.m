@@ -220,7 +220,6 @@ extern NSBundle *lcMainBundle;
     
     NSNumber* num57 = info[lc];
     if(![num57 isKindOfClass:NSNumber.class]) {
-        num57 = info[lc] = @0;
         return NO;
     }
     
@@ -328,7 +327,7 @@ extern NSBundle *lcMainBundle;
     
 }
 
-+ (NSBundle*)findBundleWithBundleId:(NSString*)bundleId {
++ (NSBundle*)findBundleWithBundleId:(NSString*)bundleId isSharedAppOut:(bool*)isSharedAppOut {
     NSString *docPath = [NSString stringWithFormat:@"%s/Documents", getenv("LC_HOME_PATH")];
     
     NSURL *appGroupFolder = nil;
@@ -341,6 +340,11 @@ extern NSBundle *lcMainBundle;
         
         bundlePath = [NSString stringWithFormat:@"%@/Applications/%@", appGroupFolder.path, bundleId];
         appBundle = [[NSBundle alloc] initWithPath:bundlePath];
+        if(appBundle) {
+            *isSharedAppOut = true;
+        }
+    } else {
+        *isSharedAppOut = false;
     }
     return appBundle;
 }

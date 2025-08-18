@@ -59,11 +59,11 @@ NSString* findDefaultContainerWithBundleId(NSString* bundleId) {
 }
 
 
-void LCShowSwitchAppConfirmation(NSURL *url, NSString* bundleId) {
+void LCShowSwitchAppConfirmation(NSURL *url, NSString* bundleId, bool isSharedApp) {
     NSURLComponents* newUrlComp = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO];
     newUrlComp.scheme = @"livecontainer2";
     
-    BOOL canOpenInLC2 = [NSUserDefaults.lcAppUrlScheme isEqualToString:@"livecontainer"] && [UIApplication.sharedApplication canOpenURL:[NSURL URLWithString: @"livecontainer2://"]];
+    BOOL canOpenInLC2 = isSharedApp && [NSUserDefaults.lcAppUrlScheme isEqualToString:@"livecontainer"] && [UIApplication.sharedApplication canOpenURL:[NSURL URLWithString: @"livecontainer2://"]];
     if(canOpenInLC2 && ![NSClassFromString(@"LCSharedUtils") isLCSchemeInUse:@"livecontainer2"]) {
         [UIApplication.sharedApplication openURL:newUrlComp.URL options:@{} completionHandler:nil];
         return;
@@ -83,7 +83,7 @@ void LCShowSwitchAppConfirmation(NSURL *url, NSString* bundleId) {
         window.windowScene = nil;
     }];
     [alert addAction:okAction];
-    if([NSUserDefaults.lcAppUrlScheme isEqualToString:@"livecontainer"] && [UIApplication.sharedApplication canOpenURL:[NSURL URLWithString: @"livecontainer2://"]]) {
+    if(canOpenInLC2) {
         UIAlertAction* openlc2Action = [UIAlertAction actionWithTitle:@"lc.guestTweak.openInLc2".loc style:UIAlertActionStyleDefault handler:^(UIAlertAction * action) {
             [UIApplication.sharedApplication openURL:newUrlComp.URL options:@{} completionHandler:nil];
             window.windowScene = nil;
@@ -252,7 +252,7 @@ void handleLiveContainerLaunch(NSURL* url) {
     
     // launch to LiveContainerUI
     if([bundleName isEqualToString:@"ui"]) {
-        LCShowSwitchAppConfirmation(url, @"LiveContainer");
+        LCShowSwitchAppConfirmation(url, @"LiveContainer", false);
         return;
     }
     
@@ -276,7 +276,8 @@ void handleLiveContainerLaunch(NSURL* url) {
             return;
         }
         
-        NSBundle* bundle = [NSClassFromString(@"LCSharedUtils") findBundleWithBundleId: bundleName];
+        bool isSharedApp = false;
+        NSBundle* bundle = [NSClassFromString(@"LCSharedUtils") findBundleWithBundleId: bundleName isSharedAppOut:&isSharedApp];
         NSDictionary* lcAppInfo;
         if(bundle) {
             lcAppInfo = [NSDictionary dictionaryWithContentsOfURL:[bundle URLForResource:@"LCAppInfo" withExtension:@"plist"]];
@@ -288,7 +289,7 @@ void handleLiveContainerLaunch(NSURL* url) {
             // need authentication
             authenticateUser(^(BOOL success, NSError *error) {
                 if (success) {
-                    LCShowSwitchAppConfirmation(url, bundleName);
+                    LCShowSwitchAppConfirmation(url, bundleName, isSharedApp);
                 } else {
                     if ([error.domain isEqualToString:LAErrorDomain]) {
                         if (error.code != LAErrorUserCancel) {
@@ -300,7 +301,7 @@ void handleLiveContainerLaunch(NSURL* url) {
                 }
             });
         } else {
-            LCShowSwitchAppConfirmation(url, bundleName);
+            LCShowSwitchAppConfirmation(url, bundleName, isSharedApp);
         }
     }
 }

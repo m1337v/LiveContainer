@@ -40,6 +40,12 @@
             "value" : "ホーム画面に追加"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "홈 화면에 추가"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -122,6 +128,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "一部のアプリがマルチタスクで実行中です。このアプリを起動すると、マルチタスクで実行しているアプリは終了します。続けますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 앱이 멀티태스킹 중입니다. 이 앱을 실행할 경우 멀티태스킹 중인 앱은 닫힙니다."
           }
         },
         "pl" : {
@@ -207,6 +219,12 @@
             "value" : "本当に%@をアンインストールしますか？"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@(을)를 제거하시겠습니까?"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -288,6 +306,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アンインストールの確認"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 제거"
           }
         },
         "pl" : {
@@ -373,6 +397,12 @@
             "value" : "起動URLをコピー"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실행 URL 복사"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -454,6 +484,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アプリクリップを作成"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Clip 생성"
           }
         },
         "pl" : {
@@ -539,6 +575,12 @@
             "value" : "%@のデータフォルダも削除しますか？将来のために残しておくこともできます。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 데이터 폴더도 같이 삭제하시겠습니까? 데이터를 유지할 경우 나중에 다시 사용할 수 있습니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -620,6 +662,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "データフォルダを削除"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "데이터 폴더 삭제"
           }
         },
         "pl" : {
@@ -705,6 +753,12 @@
             "value" : "JITなしで実行"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT 없이 실행"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -786,6 +840,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "マルチタスク"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "멀티태스킹"
           }
         },
         "pl" : {
@@ -871,6 +931,12 @@
             "value" : "データフォルダは未作成"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "데이터 폴더 없음"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -952,6 +1018,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "データフォルダを開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "데이터 폴더 열기"
           }
         },
         "pl" : {
@@ -1037,6 +1109,12 @@
             "value" : "実行"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실행"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1118,6 +1196,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アプリアイコンを保存"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 아이콘 저장"
           }
         },
         "pl" : {
@@ -1203,6 +1287,12 @@
             "value" : "アンインストール"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 제거"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1284,6 +1374,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "お好きな方法でLiveContainerのJITを有効化してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 LiveContainer에 JIT을 활성화해주세요."
           }
         },
         "pl" : {
@@ -1369,6 +1465,12 @@
             "value" : "JIT を待機中"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT 대기 중"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1450,6 +1552,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "インストールを中止"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설치 취소"
           }
         },
         "pl" : {
@@ -1625,6 +1733,18 @@
             }
           }
         },
+        "ko" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "총 %lld개"
+                }
+              }
+            }
+          }
+        },
         "pl" : {
           "variations" : {
             "plural" : {
@@ -1786,6 +1906,12 @@
             "value" : "AppInfoの初期化に失敗しました！"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 정보 초기화에 실패했습니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1867,6 +1993,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アプリが見つかりません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱을 찾을 수 없습니다."
           }
         },
         "pl" : {
@@ -1952,6 +2084,12 @@
             "value" : "アプリバンドルが見つかりません。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 번들을 찾을 수 없습니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2033,6 +2171,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アプリを共有アプリに変換するとLiveContainer 2で使用できます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer2에서 앱을 사용하려면 공유 앱으로 변환하세요"
           }
         },
         "pl" : {
@@ -2118,6 +2262,12 @@
             "value" : "URLまたはURLスキームを入力"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL 또는 URL Scheme을 입력하세요"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2199,6 +2349,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "非表示のアプリ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "숨긴 앱"
           }
         },
         "pl" : {
@@ -2284,6 +2440,12 @@
             "value" : "非表示のアプリはここに表示されます"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 설정에서 앱 숨기기."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2365,6 +2527,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アプリのInfo.plistの読み取りに失敗しました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱의 Info.plist를 읽을 수 없습니다."
           }
         },
         "pl" : {
@@ -2450,6 +2618,12 @@
             "value" : "新規インストール"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새로운 앱으로 설치"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2531,6 +2705,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "インストール"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설치"
           }
         },
         "pl" : {
@@ -2616,6 +2796,12 @@
             "value" : "IPAファイルをインストール"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IPA 설치하기"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2697,6 +2883,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "URLからインストール"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL로 설치하기"
           }
         },
         "pl" : {
@@ -2782,6 +2974,12 @@
             "value" : "同じバンドル識別子を持つ既存のアプリがあります。置き換えるか、新規インストールしてください。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "동일한 번들 식별자를 갖고 있는 앱이 존재합니다. 하나를 교체하거나 새로운 앱으로 설치해주세요."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2863,6 +3061,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "＋ボタンを押してアプリをインストール"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱을 설치하려면 +를 누르세요."
           }
         },
         "pl" : {
@@ -2948,6 +3152,12 @@
             "value" : "インストールURLを入力してください"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL을 입력해주세요."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3029,6 +3239,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "IPAのアクセスに失敗しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IPA에 접근할 수 없습니다."
           }
         },
         "pl" : {
@@ -3114,6 +3330,12 @@
             "value" : "メインのLiveContainerを管理"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본 LiveContainer에서 앱을 관리하세요"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3195,6 +3417,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "マイアプリ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 목록"
           }
         },
         "pl" : {
@@ -3280,6 +3508,12 @@
             "value" : "リンクを開く"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "링크 열기"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3361,6 +3595,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "スキーム \"%@\"はLiveContainerにインストールしているアプリでは開けません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer로 설치된 앱은 \"%@\" Scheme을 사용할 수 없습니다."
           }
         },
         "pl" : {
@@ -3446,6 +3686,12 @@
             "value" : "アプリの署名に成功しましたが、LiveContainerは以下のファイルに署名できませんでした。アプリは使用できますが、クラッシュする可能性があります。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 설치가 완료되었으나, 일부 파일 서명에 실패했습니다. 앱 사용 도중 앱이 충돌할 수 있습니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3517,10 +3763,28 @@
             "value" : "Nom (A-Z)"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前順 (A-Z)"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이름 (A–Z)"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nazwa (A–Z)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nome (A—Z)"
           }
         },
         "vi" : {
@@ -3564,10 +3828,28 @@
             "value" : "Personnalisé"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カスタム"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "커스텀"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Własne"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personalizado"
           }
         },
         "vi" : {
@@ -3612,10 +3894,28 @@
             "value" : "Réarranger"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "並べ替え"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "재정렬"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zmień kolejność"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reorganizar"
           }
         },
         "vi" : {
@@ -3659,10 +3959,28 @@
             "value" : "Cela réinitialisera l'ordre de tri personnalisé à l'ordre alphabétique."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カスタムした並べ替えをリセットして、アルファベット順に戻します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "가나다순으로 재정렬됩니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zmieni kolejność sortowania na kolejność alfabetyczną."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Isto vai redefinir a ordem de classificação personalizada para a ordem alfabética."
           }
         },
         "vi" : {
@@ -3706,10 +4024,28 @@
             "value" : "Date d'installation"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インストールした日時"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설치 날짜"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Data zainstalowania"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data de Instalação"
           }
         },
         "vi" : {
@@ -3753,10 +4089,28 @@
             "value" : "Dernier ouvert"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最後に使用した日時"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "최근 사용일"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ostatnio otwarte"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aberto Pela Última Vez"
           }
         },
         "vi" : {
@@ -3801,10 +4155,28 @@
             "value" : "Nom (Z-A)"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前順 (Z-A)"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이름 (Z–A)"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nazwa (Z–A)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nome (Z—A)"
           }
         },
         "vi" : {
@@ -3858,6 +4230,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "インストールするIPAファイルを提供してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설치할 IPA를 선택해주세요."
           }
         },
         "pl" : {
@@ -3943,6 +4321,12 @@
             "value" : "入力されたURLが無効です。確認してもう一度やりなおしてください。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL이 유효하지 않습니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4024,6 +4408,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "画面の向きをロック"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "화면 잠금"
           }
         },
         "pl" : {
@@ -4109,6 +4499,12 @@
             "value" : "横画面"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "가로"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4190,6 +4586,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ポートレート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "세로"
           }
         },
         "pl" : {
@@ -4275,6 +4677,12 @@
             "value" : "このアプリのデータは現在%@にあります。%@を開いて｢マイアプリ｣画面を表示してから、もう一度お試しください。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 앱 데이터는 %@에 있습니다. %@(을)를 열고 앱 목록에 실행해보세요."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4356,6 +4764,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "バンドルフォルダ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "번들 폴더"
           }
         },
         "pl" : {
@@ -4441,6 +4855,12 @@
             "value" : "TweakLoaderを注入しない"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TweakLoader 적용 해제"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4522,6 +4942,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "TweakLoaderを読み込まない"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TweakLoader 사용 안 함"
           }
         },
         "pl" : {
@@ -4607,6 +5033,12 @@
             "value" : "修正"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "문제 해결"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4688,6 +5120,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ファイル選択を修正 (旧式)"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(구) 파일 선택기 문제 해결"
           }
         },
         "pl" : {
@@ -4773,6 +5211,12 @@
             "value" : "選択したファイルを受信トレイにコピーするように強制することで、｢開く｣を押しても反応しない問題を修正します。インポートしたファイルはアプリのデータフォルダ内の｢受診トレイ｣フォルダに保存されます。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일 선택기가 ‘열기’ 버튼을 누른 후 응답하지 않을 경우, 앱이 강제로 'Inbox'에 파일을 복사하도록 하여 문제를 해결할 수 있습니다. 복사한 파일은 앱 데이터 폴더 안에 있는 'Inbox' 폴더에 나타날 수 있습니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4854,6 +5298,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "強制的に署名"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "강제 서명"
           }
         },
         "pl" : {
@@ -4939,6 +5389,12 @@
             "value" : "このアプリが“Invalid Signature”のようなエラーで起動に失敗した場合は、再署名を試してください。それでもうまくいかない場合は、JITレス証明書を更新してください。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "'Invalid Signature' 오류가 뜰 경우 이 기능을 사용해주세요. 해결이 안 될 경우 JIT-Less 인증서를 재설치해주세요."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5020,6 +5476,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SDKバージョンを偽装することで、アプリがビルドされたSDKバージョンでシステムライブラリが動作するようにします。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SDK를 속일 경우 시스템 라이브러리를 앱이 만들어진 SDK 버전으로 강제로 실행합니다."
           }
         },
         "pl" : {
@@ -5105,6 +5567,12 @@
             "value" : "アプリを隠す"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 숨기기"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5186,6 +5654,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アプリを完全に隠すには、設定で｢厳重な非表示モード｣をオンにします。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱을 완전히 숨길려면, 설정에서 고급 숨김 모드를 활성화해주세요."
           }
         },
         "pl" : {
@@ -5271,6 +5745,12 @@
             "value" : "Dyld ApiからLiveContainerを隠す"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dyld API에서 LiveContainer 숨기기"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5352,6 +5832,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "一部のアプリの不正検出を回避できる可能性があります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 앱 트윅 감지를 우회할 수 있습니다."
           }
         },
         "pl" : {
@@ -5437,6 +5923,12 @@
             "value" : "JITで起動"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT 활성화"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5518,6 +6010,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "LiveContainerはアプリを起動する前にJIT権限の取得を試みます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 실행 전 JIT 권한 접근을 시도합니다."
           }
         },
         "pl" : {
@@ -5603,6 +6101,12 @@
             "value" : "アプリをロック"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 잠그기"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5684,6 +6188,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新規データフォルダ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 데이터 폴더"
           }
         },
         "pl" : {
@@ -5816,6 +6326,12 @@
             "value" : "このアプリは署名されていませんが、それでも署名しますか？"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱이 서명되지 않은 상태입니다. 서명하시겠습니까?"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5897,6 +6413,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SDKバージョンを偽装"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SDK 버전 속이기"
           }
         },
         "pl" : {
@@ -5982,6 +6504,12 @@
             "value" : "プライベートアプリに変換"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "비공개 앱으로 전환"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6063,6 +6591,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このアプリをプライベートドキュメントフォルダに移動すると、ファイルアプリでそのデータや調整にアクセスできますが、他のLiveContainerでは実行できません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "비공개 앱으로 전환 시, 파일 앱에서 데이터 및 트윅 접근이 다시 가능해집니다. 다만, 다른 LiveContainer에서 실행은 불가능해집니다."
           }
         },
         "pl" : {
@@ -6148,6 +6682,12 @@
             "value" : "共有アプリに変換"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "공유 앱으로 전환"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6229,6 +6769,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このアプリをアプリグループに移動すると、他のLiveContainerからもこのアプリをデータや調整を保持したまま実行できるようになります。ファイルアプリから再びデータや調整にアクセスしたい場合は元に戻してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "공유 앱으로 전환 시, 다른 LiveContainer에서도 실행이 가능해집니다. 다만, 파일 앱에서 데이터 및 트윅 접근이 제한됩니다."
           }
         },
         "pl" : {
@@ -6314,6 +6860,12 @@
             "value" : "調整フォルダ"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "트윅 폴더"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6395,6 +6947,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ファイル選択とローカル通知を修正"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일 선택기 & 로컬 알림 문제 해결"
           }
         },
         "pl" : {
@@ -6480,6 +7038,12 @@
             "value" : "メインバンドルを上書きするときにLiveContainerのバンドル識別子を使用することでこれらの問題を修正します。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer 번들 식별자를 메인 번들 덮어쓸 때 사용하여 문제를 해결합니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6561,6 +7125,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ADP証明書"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ADP 인증서"
           }
         },
         "pl" : {
@@ -6646,6 +7216,12 @@
             "value" : "自動"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6727,6 +7303,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キャンセル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "취소"
           }
         },
         "pl" : {
@@ -6812,6 +7394,12 @@
             "value" : "閉じる"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "닫기"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6893,6 +7481,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "コンテナ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "컨테이너"
           }
         },
         "pl" : {
@@ -6978,6 +7572,12 @@
             "value" : "続ける"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "계속"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7059,6 +7659,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "コピー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "복사"
           }
         },
         "pl" : {
@@ -7144,6 +7750,12 @@
             "value" : "が適切"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "수정"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7227,6 +7839,12 @@
             "value" : "データ"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "데이터"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7298,10 +7916,28 @@
             "value" : "Par défaut"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デフォルト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Domyślne"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Padrão"
           }
         },
         "vi" : {
@@ -7355,6 +7991,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "削除"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "삭제"
           }
         },
         "pl" : {
@@ -7440,6 +8082,12 @@
             "value" : "無効"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "비활성화됨"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7521,6 +8169,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完了"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "완료"
           }
         },
         "pl" : {
@@ -7606,6 +8260,12 @@
             "value" : "新しいフォルダ名を入力"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 폴더 이름을 입력하세요"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7687,6 +8347,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新しい名前を入力"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 이름을 입력하세요"
           }
         },
         "pl" : {
@@ -7772,6 +8438,12 @@
             "value" : "エラー"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오류"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7853,6 +8525,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "言語"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "언어"
           }
         },
         "pl" : {
@@ -7938,6 +8616,12 @@
             "value" : "読み込み中…"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로딩 중…"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8019,6 +8703,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "その他"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기타"
           }
         },
         "pl" : {
@@ -8104,6 +8794,12 @@
             "value" : "移動"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이동"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8185,6 +8881,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "いいえ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아니요"
           }
         },
         "pl" : {
@@ -8270,6 +8972,12 @@
             "value" : "なし"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "없음"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8351,6 +9059,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OK"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "확인"
           }
         },
         "pl" : {
@@ -8436,6 +9150,12 @@
             "value" : "名前を変更"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이름 변경"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8507,10 +9227,28 @@
             "value" : "Réinitialiser"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リセット"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "초기화"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Wyzeruj"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redefinir"
           }
         },
         "vi" : {
@@ -8554,10 +9292,28 @@
             "value" : "Statistiques"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "統計"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "통계"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Statystyki"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estatísticas"
           }
         },
         "vi" : {
@@ -8611,6 +9367,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "成功"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "성공"
           }
         },
         "pl" : {
@@ -8696,6 +9458,12 @@
             "value" : "不明"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "알 수 없음"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8777,6 +9545,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "はい"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "네"
           }
         },
         "pl" : {
@@ -8862,6 +9636,12 @@
             "value" : "これがデフォルトのコンテナです"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본 LiveContainer입니다"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8943,6 +9723,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "コンテナフォルダ名"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "컨테이너 폴더 이름"
           }
         },
         "pl" : {
@@ -9028,6 +9814,12 @@
             "value" : "コンテナ名"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "컨테이너 이름"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9109,6 +9901,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "指定がない場合、LiveContainerはデフォルトのコンテナを使用します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "컨테이너가 정해져있지 않을 경우 기본 컨테이너가 사용됩니다."
           }
         },
         "pl" : {
@@ -9194,6 +9992,12 @@
             "value" : "データを削除"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "데이터 삭제"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9275,6 +10079,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このコンテナのデータをすべて削除しますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "컨테이너 데이터를 모두 삭제하시겠습니까?"
           }
         },
         "pl" : {
@@ -9360,6 +10170,12 @@
             "value" : "このコンテナは現在使用中です"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사용 중인 컨테이너입니다"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9441,6 +10257,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "コンテナは現在%@で使用しています。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@(이)가 컨테이너를 사용하고 있습니다."
           }
         },
         "pl" : {
@@ -9526,6 +10348,12 @@
             "value" : "アプリグループを分離"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 그룹 분리"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9607,6 +10435,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キーチェーンアクセスグループが不足しています。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키체인 접근 그룹이 부족합니다."
           }
         },
         "pl" : {
@@ -9692,6 +10526,12 @@
             "value" : "コンテナの設定"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "컨테이너 설정"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9773,6 +10613,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "コンテナを削除"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "컨테이너 제거"
           }
         },
         "pl" : {
@@ -9858,6 +10704,12 @@
             "value" : "このコンテナを削除しますか？"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "컨테이너를 제거하시겠습니까?"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9939,6 +10791,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このコンテナのキーチェーンを削除しますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 컨테이너의 키체인을 삭제하시겠습니까?"
           }
         },
         "pl" : {
@@ -10024,6 +10882,12 @@
             "value" : "使用していないコンテナを選択"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "미사용 컨테이너 선택"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10105,6 +10969,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未使用のデータフォルダはありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "미사용 중인 폴더 없습니다."
           }
         },
         "pl" : {
@@ -10190,6 +11060,12 @@
             "value" : "不明なアプリ"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "알 수 없는 앱"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10271,6 +11147,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "デフォルトコンテナに設定する"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본 컨테이너로 설정"
           }
         },
         "pl" : {
@@ -10356,6 +11238,12 @@
             "value" : "3つ以上のコンテナを追加することはできません。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "최대 3개의 컨테이너까지 추가할 수 있습니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10437,6 +11325,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アプリとの紐付けを解除"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 연결 끊기"
           }
         },
         "pl" : {
@@ -10522,6 +11416,12 @@
             "value" : "ダウンロード中"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다운로드 중"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10603,6 +11503,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@に切り替えてもよろしいですか？この操作により、このアプリは終了します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@(을)를 실행할 경우 현재 앱은 종료됩니다."
           }
         },
         "pl" : {
@@ -10688,6 +11594,12 @@
             "value" : "アプリ %@が見つかりません。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 앱을 찾을 수 없습니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10769,6 +11681,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "現在のアプリ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 앱"
           }
         },
         "pl" : {
@@ -10854,6 +11772,12 @@
             "value" : "LiveContainer 2で開く"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer2에서 실행"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10935,6 +11859,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "本当にウェブページを開いてアプリを起動しますか？この操作により、このアプリは終了します。ユニバーサルリンクに対応している場合は、現在のアプリ内で開けます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "웹페이지를 열고, 앱을 실행할 경우 현재 앱이 종료됩니다. 유니버셜 링크(Universal Links)를 지원할 경우 현재 앱 안에서 열 수 있습니다."
           }
         },
         "pl" : {
@@ -11020,6 +11950,12 @@
             "value" : "アプリをインストールするにはLiveContainerを再起動してください。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱을 설치하려면 LiveContainer를 재실행해주세요."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11101,6 +12037,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定でJITレスモードを設定して、JITなしでLiveContainerを使用します。\n\n**JITレスモードをオンにする際に問題がある場合は、設定内のJITレス診断ページを確認してください。**\n\nアプリをインストールするには、｢＋｣ボタンを押してください。\n\nアプリ固有の設定、修正、ホーム画面にアプリを追加するには、アプリを長押ししてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT 없이 LiveContainer를 사용하려면 JIT-Less 모드를 활성화하세요.\n\n**JIT-Less 모드 활성화 도중 문제가 있을 경우 JIT-Less 모드 진단을 활용해보세요.**\n\n앱을 설치하려면 +를 누르세요.\n\n앱을 홈 화면에 추가하거나, 앱 설정을 열고 싶으면 앱을 길게 누르세요."
           }
         },
         "pl" : {
@@ -11186,6 +12128,12 @@
             "value" : "一般的な問題は[LiveContainer FAQ](https://github.com/khanhduytran0/LiveContainer/issues/265)を確認してください。\n\nバグや互換性の問題が発生した場合は[GitHub Issues](https://github.com/khanhduytran0/LiveContainer/issues)に報告してください。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "**자주 묻는 질문은 [LiveContainer FAQ](https://github.com/khanhduytran0/LiveContainer/issues/265)를 확인해주세요.**\n                         \n버그나 호환성 문제는 [GitHub issues](https://github.com/khanhduytran0/LiveContainer/issues)에 보고해주세요."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11267,6 +12215,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "LiveContainerヘルプ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer 도움말"
           }
         },
         "pl" : {
@@ -11352,6 +12306,12 @@
             "value" : "エンタイトルメントファイル"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "권한 파일"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11433,6 +12393,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アプリグループにアクセス可能"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 그룹 접근 상태"
           }
         },
         "pl" : {
@@ -11518,6 +12484,12 @@
             "value" : "アプリグループID"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 그룹 ID"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11599,6 +12571,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "バンドル識別子"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "번들 식별자"
           }
         },
         "pl" : {
@@ -11684,6 +12662,12 @@
             "value" : "予想バンドル識別子"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "예상 번들 식별자"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11765,6 +12749,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "証明書のデータを検出"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인증서 데이터를 발견하였습니다"
           }
         },
         "pl" : {
@@ -11850,6 +12840,12 @@
             "value" : "失効"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "만료됨"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11933,6 +12929,12 @@
             "value" : "証明書の状態"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인증서 상태"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12014,6 +13016,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "有効"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "유효"
           }
         },
         "pl" : {
@@ -12100,6 +13108,12 @@
             "value" : "証明書の有効期限"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인증서가 유효하지 않습니다"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12181,6 +13195,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "証明書の最終更新日"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인증서 최근 업데이트 날짜"
           }
         },
         "pl" : {
@@ -12266,6 +13286,12 @@
             "value" : "証明書のパスワードを検出"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인증서 비밀번호를 발견하였습니다"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12347,6 +13373,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "確認中"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "확인 중"
           }
         },
         "pl" : {
@@ -12432,6 +13464,12 @@
             "value" : "ヘルプ"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "도움말"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12515,6 +13553,12 @@
             "value" : "ストア"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스토어"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12596,6 +13640,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "チームID"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "팀 ID"
           }
         },
         "pl" : {
@@ -12740,6 +13790,12 @@
             "value" : "JITレスモードのテストに合格しました"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT-Less 모드 테스트를 통과하였습니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12823,6 +13879,12 @@
             "value" : "PIDをコピー"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PID 복사"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12904,6 +13966,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "PiPを有効化"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PiP 활성화"
           }
         },
         "pl" : {
@@ -12990,6 +14058,12 @@
             "value" : "スケール"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "크기"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13071,6 +14145,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このアプリは終了しました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱이 종료되었습니다."
           }
         },
         "pl" : {
@@ -13156,6 +14236,12 @@
             "value" : "開発者"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개발자"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13237,6 +14323,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "移動しました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이동이 완료되었습니다."
           }
         },
         "pl" : {
@@ -13322,6 +14414,12 @@
             "value" : "共有アプリグループフォルダにファイルがあります。ファイルを移動してから、もう一度お試しください。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "공유 앱 그룹 폴더에 있는 파일을 옮긴 후 다시 시도해주세요."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13403,6 +14501,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プライベートアプリグループフォルダにファイルがあります。ファイルを移動してから、もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "비공개 앱 그룹 폴더에 있는 파일을 옮긴 후 다시 시도해주세요."
           }
         },
         "pl" : {
@@ -13488,6 +14592,12 @@
             "value" : "プライベートアプリグループを共有ドキュメントフォルダに移動"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "비공개 앱 그룹을 공유 문서 폴더로 이동"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13571,6 +14681,12 @@
             "value" : "共有アプリグループファイルをプライベートドキュメントフォルダに移動"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "공유 앱 그룹 파일을 비공개 문서 폴더로 이동"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13618,6 +14734,12 @@
     "lc.settings.autoEndPiP" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إنهاء وضع PiP تلقائياً"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13634,6 +14756,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Quitter automatiquement le mode PiP"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PiPを自動で終了"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동으로 PiP 모드 비활성화"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatycznie zakończ tryb PiP"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encerrar Automaticamente o Modo PiP"
           }
         },
         "vi" : {
@@ -13689,6 +14835,12 @@
             "value" : "デフォルトでマルチタスクモードで起動する"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본으로 멀티태스킹 모드로 실행"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13736,6 +14888,12 @@
     "lc.settings.bottomWindowBar" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "شريط النافذة السفلي"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13752,6 +14910,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Barre de fenêtre du bas"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下部にウィンドウバーを配置"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "신호등 하단으로 이동"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dolny pasek okna"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Barra de Janela Inferior"
           }
         },
         "vi" : {
@@ -13802,10 +14984,28 @@
             "value" : "L'ID bundle di LiveContainer, \"%@\", non corrisponde all'application-identifier nei privilegi, che si aspetta l'ID bundle \"%@\". Alcune funzioni potrebbero non essere disponibili."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainerのバンドルID\"%@\"が、権限設定で指定されているアプリ識別子\"%@\"と一致していません。一部の機能が正しく動作しない可能性があります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer 번들 ID \"%@\"(이)가 권한 내 앱 식별자인 번들 ID \"%@\"(과)와 동일하지 않습니다. 일부 기능이 작동하지 않을 수 있습니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Identyfikator Pakietu LiveContainer \"%@\", nie jest zgodny z identyfikatorem aplikacji w upoważnieniach, które oczekują, aby."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ID do pacote do LiveContainer, \"%@\", não corresponde ao Identificador de aplicações em legitimidade, que espera que o ID do pacote seja \"%@\". Algumas funções podem não estar disponíveis."
           }
         },
         "sv" : {
@@ -13877,6 +15077,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用していないデータフォルダを削除"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "미사용 폴더 삭제"
           }
         },
         "pl" : {
@@ -14029,6 +15235,18 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld個の未使用のデータフォルダを削除しますか？"
+                }
+              }
+            }
+          }
+        },
+        "ko" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "미사용 폴더 %lld개를 삭제하시겠습니까?"
                 }
               }
             }
@@ -14195,6 +15413,12 @@
             "value" : "キーチェーンを削除"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키체인 삭제"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14278,6 +15502,12 @@
             "value" : "一部のアプリのアカウントがLiveContainer間で同期できない場合、現在のLiveContainerのプライベートキーチェーンにまだ保存されていることが原因かもしれません。キーチェーンを削除するとこの問題が解決する可能性がありますが、一部のアカウントからサインアウトされる場合があります。続けますか？"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 앱 계정이 LiveContainer 간에 동기화되지 않는 경우, 해당 계정이 현재 LiveContainer의 비공개 키체인에 남아있어 발생하는 문제일 수 있습니다. 키체인을 삭제하면 문제가 해결될 수 있습니다. 단, 일부 계정이 로그아웃될 수 있습니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14359,6 +15589,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "データ管理"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "데이터 관리"
           }
         },
         "pl" : {
@@ -14461,6 +15697,12 @@
     "lc.settings.dockWidth" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "عرض الرصيف"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14477,6 +15719,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Largeur du Dock"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ドックの大きさ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "독 너비"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Szerokość Docka"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Largura da Doca"
           }
         },
         "vi" : {
@@ -14530,6 +15796,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新しいアプリに署名しない"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새로운 앱 서명 안 함"
           }
         },
         "pl" : {
@@ -14615,6 +15887,12 @@
             "value" : "この設定をオンにすると、LiveContainerは新しくインストールするアプリに署名しません。以前にインストールしたアプリにこの設定の影響はありません。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 옵션을 활성화할 경우 새로 설치되는 앱은 서명되지 않은 상태로 설치됩니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14696,6 +15974,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ダイナミックカラー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다이나믹 색상"
           }
         },
         "pl" : {
@@ -14781,6 +16065,12 @@
             "value" : "アプリのバナーがアプリのアイコンに合わせて変化します。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 목록에 있는 앱 상자 색을 앱 아이콘 색상에 맞춥니다"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14862,6 +16152,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "JITレスモードテストをする前に、ADP証明書をインポートしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT-Less 모드를 테스트하려면 ADP 인증서가 필요합니다."
           }
         },
         "pl" : {
@@ -14947,6 +16243,12 @@
             "value" : "アプリアイコンにフレームを追加"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer 아이콘 표시"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15030,6 +16332,12 @@
             "value" : "ホーム画面に追加するアプリのアイコンにLiveContainerのアイコンフレームを追加します。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설치한 앱 아이콘에 LiveContainer 아이콘을 합성합니다. 합성된 아이콘은 App Clip으로 홈 화면에 추가하는 앱 아이콘에 사용됩니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15095,6 +16403,30 @@
             "value" : "Importer un certificat depuis le SideStore intégré"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内蔵のSideStoreから証明書をインポート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "내장 SideStore에서 인증서 가져오기"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importuj certyfikat z wbudowanego SideStore"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importar Certificado da SideStore Integrada"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15130,6 +16462,30 @@
             "value" : "Certificat introuvable. Vous êtes-vous connecté au SideStore intégré ?"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "証明書が見つかりません。内蔵のSideStoreにサインインしているか確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인증서를 찾을 수 없습니다. 내장 SideStore에 로그인 상태를 확인해주세요."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certyfikat nie został znaleziony. Czy zalogowałeś się do wbudowanego SideStore?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificado não encontrado. Você fez 'login' na SideStore integrada?"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15147,6 +16503,12 @@
     "lc.settings.importCertFromBuiltinSideStoreDesc" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تم اكتشاف SideStore مدمج. هل ترغب أن تَستورد شهادة منه"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15163,6 +16525,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SideStore intégré détecté. Voulez-vous importer un certificat à partir de celui-ci ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内蔵のSideStoreを検出しました。内蔵のSideStoreから証明書をインポートしますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "내장 SideStore가 인식되었습니다. 인증서를 가져오시겠습니까?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wykryto wbudowany SideStore. Czy chcesz zaimportować z niego certyfikat?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SideStore integrada detectada. Gostaria de importar o certificado dela?"
           }
         },
         "vi" : {
@@ -15216,6 +16602,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "証明書をインポート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인증서 가져오기"
           }
         },
         "pl" : {
@@ -15301,6 +16693,12 @@
             "value" : "AltStore/SideStoreなしでJITレスモードを使用するには、LiveContainerに署名するための証明書をインポートする必要があります。続けますか？"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AltStore, SideStore 없이 JIT-Less 모드를 사용하려면, LiveContainer를 설치할 때 사용한 동일한 인증서가 필요합니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15384,6 +16782,12 @@
             "value" : "%@から証明書をインポート"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@(에)서 인증서 가져오기"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15465,6 +16869,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "証明書のパスワードを入力してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인증서 비밀번호를 입력해주세요"
           }
         },
         "pl" : {
@@ -15662,6 +17072,12 @@
             "value" : "インターフェース"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인터페이스"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15743,6 +17159,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "証明書の検証に失敗しました。パスワードを確認して、選択した証明書がLiveContainerの署名に使用されているか確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인증서을 확인할 수 없습니다. LiveContainer를 서명하는데 사용한 인증서와 동일한지, 인증서 비밀번호가 올바른지 확인해주세요."
           }
         },
         "pl" : {
@@ -15828,6 +17250,12 @@
             "value" : "アドレス"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "주소"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15909,6 +17337,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "JITを有効化するツールを設定してください。ローカルネットワークの許可が必要な場合があります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT 활성화 도구를 설정해보세요. 로컬 네트워크 권한이 요구될 수 있습니다."
           }
         },
         "pl" : {
@@ -15994,6 +17428,12 @@
             "value" : "JITイネーブラー"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT 활성화 도구"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16075,6 +17515,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "JITレス"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT-Less"
           }
         },
         "pl" : {
@@ -16160,6 +17606,12 @@
             "value" : "JITレスは、JITを有効化せずにLiveContainerを使用することができます。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT-Less 사용 시 JIT 없이 LiveContainer 사용이 가능합니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16243,6 +17695,12 @@
             "value" : "JITレスモード診断"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT-Less 모드 진단"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16321,6 +17779,12 @@
           }
         },
         "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UDID"
+          }
+        },
+        "ko" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "UDID"
@@ -16697,6 +18161,42 @@
             }
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%#@arg1@(과)와 %#@arg2@ 이동이 완료되었습니다."
+          },
+          "substitutions" : {
+            "arg1" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg 데이터 폴더"
+                    }
+                  }
+                }
+              }
+            },
+            "arg2" : {
+              "argNum" : 2,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg 트윅 폴더"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17062,6 +18562,12 @@
             "value" : "アプリグループから未使用のフォルダを移動"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지저분한 폴더 앱 그룹 밖으로 이동"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17143,6 +18649,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "複数のLiveContainer"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "멀티 LiveContainer"
           }
         },
         "pl" : {
@@ -17228,6 +18740,12 @@
             "value" : "LiveContainer 2はLiveContainerと異なる証明書で署名されているため、動作しません。LiveContainerをインストールしたのと同じアカウントでLiveContainer 2をインストールしてください。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer2가 LiveContainer와 다른 인증서로 서명되었습니다. 제대로 된 사용을 위해서 LiveContainer2를 LiveContainer와 동일한 계정으로 설치해주세요."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17309,6 +18827,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "複数のLiveContainerをインストールし、アプリを共有アプリに変換することで、ほとんどのデータや設定を保持したまま、すべてのLiveContainer間で1つのアプリを開くことができます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여러 LiveContainer를 설치한 후 앱을 공유 앱으로 변환하면, 데이터와 설정을 유지한 채 모든 LiveContainer에서 해당 앱을 열 수 있습니다."
           }
         },
         "pl" : {
@@ -17394,6 +18918,12 @@
             "value" : "別のLiveContainerをインストール"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "두번째 LiveContainer 설치"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17441,6 +18971,12 @@
     "lc.settings.multiLCInstall.installWithBuiltInSideStore" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تثبيت مع SideStore المدمج"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17457,6 +18993,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Installer avec le SideStore intégré"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内蔵のSideStoreでインストール"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "내장 SideStore로 설치하기"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zainstaluj przy użyciu wbudowanego SideStore"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instalar com SideStore Integrada"
           }
         },
         "vi" : {
@@ -17510,6 +19070,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "LiveContainerは別のLiveContainer用のIPAを生成します。インストールするには%@に共有してください。続けますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer2 IPA가 생성되면 %@(으)로 설치해주세요."
           }
         },
         "pl" : {
@@ -17595,6 +19161,12 @@
             "value" : "これは2つめのLiveContainerです"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "두번째 LiveContainer입니다"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17676,6 +19248,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "別のLiveContainerを再インストール"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "두번째 LiveContainer 재설치"
           }
         },
         "pl" : {
@@ -17761,6 +19339,12 @@
             "value" : "マルチタスクモード"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "멀티태스킹 모드"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17842,6 +19426,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ネイティブウィンドウ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본 창"
           }
         },
         "pl" : {
@@ -17927,6 +19517,12 @@
             "value" : "バーチャルウィンドウ"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "가상 창"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18010,6 +19606,12 @@
             "value" : "削除可能なデータフォルダがありません。すべてのデータフォルダが使用中です。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모든 폴더가 사용 중입니다. 삭제할 수 있는 데이터 폴더가 없습니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18081,10 +19683,28 @@
             "value" : "LiveContainer n'est pas signé avec un certificat de développement, donc LiveContainer ne fonctionnera pas du tout. Veuillez signer LiveContainer avec un certificat de développement."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainerは開発用の証明書で署名されていないため、動作しません。有効な開発用証明書で署名してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer를 사용할 수 없습니다. 개발용 인증서로 설치해주세요."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "LiveContainer nie jest podpisany certyfikatem deweloperskim, więc w ogóle nie będzie działać. Proszę podpisać certyfikatem deweloperskim."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O LiveContainer não está assinado com um certificado de desenvolvimento, então o LiveContainer não irá funcionar. Por favor, assine o LiveContainer com um certificado de desenvolvimento."
           }
         },
         "vi" : {
@@ -18138,6 +19758,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@から証明書をリフレッシュ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에서 인증서 재설치"
           }
         },
         "pl" : {
@@ -18223,6 +19849,12 @@
             "value" : "証明書を削除する"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인증서 삭제"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18304,6 +19936,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "証明書を削除すると、アプリをインストールできなくなります。続けますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인증서 삭제 시 앱 설치가 불가능합니다."
           }
         },
         "pl" : {
@@ -18442,6 +20080,12 @@
             "value" : "常に現在のアプリでURLを開く"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "항상 현재 앱으로 URL 열기"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18523,6 +20167,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "デフォルトでは、LiveContainerはURLを開く方法を尋ねます。オンにすると、自動的に現在のアプリでURLを開きます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL 열 때 앱 선택 없이 바로 열고 싶다면 이 옵션을 활성화하면 됩니다."
           }
         },
         "pl" : {
@@ -18608,6 +20258,12 @@
             "value" : "確認せずにアプリを切り替える"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 전환 시 묻지 않기"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18689,6 +20345,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "デフォルトでは、LiveContainerはアプリを切り替える前に尋ねます。これをオンにすると、アプリをすぐに切り替えることができます。保存していないデータは失われます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 옵션을 활성화할 경우 앱이 경고 없이 바로 전환됩니다. 저장하지 않은 데이터는 삭제됩니다."
           }
         },
         "pl" : {
@@ -18774,6 +20436,12 @@
             "value" : "厳重な非表示モード"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "고급 숨김 모드"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18855,6 +20523,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このモードをオンにすると、非表示のアプリはインストール済みアプリの合計カウンターを3回クリックすることでのみ起動できるようになります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 모드를 활성화할 경우, 앱 목록 하단에 '총 n개'를 연속으로 세 번 눌러야만 숨긴 앱을 실행할 수 있습니다."
           }
         },
         "pl" : {
@@ -18940,6 +20614,12 @@
             "value" : "JITレスモードテスト"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT-Less 모드 테스트"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -19021,6 +20701,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "対応していないインストール方法です。この機能を設定するには、AltStoreまたはSideStoreを使用してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지원하지 않는 방법입니다. 해당 방법을 사용하려면 AltStore 또는 SideStore를 사용해주세요."
           }
         },
         "pl" : {
@@ -19106,6 +20792,12 @@
             "value" : "LiveContainerを海賊版目的で使用しないでください。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer를 불법적인 목적으로 사용하지 말아주세요."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -19187,6 +20879,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "LiveContainerが最後のアプリの署名中にクラッシュしました。アプリが破損している可能性があります。アプリを再インストールするか、別の署名者に変更してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 서명 과정 중 LiveContainer가 충돌하면서 앱이 손상됐을 수 있습니다. 앱을 재설치하거나 다른 서명(signer)을 이용해주세요."
           }
         },
         "pl" : {
@@ -19272,6 +20970,12 @@
             "value" : "アプリは最新の証明書で署名されていますが、コード署名が無効です。JITレス診断ページを確認して、JITレスの設定に問題がないか確認してください。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱이 최신 인증서로 서명되었지만, 코드 서명(code signature)이 유효하지 않습니다. JIT-Less 모드 진단을 통해서 JIT-Less 설정에 문제가 있는지 확인해주세요."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -19353,6 +21057,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "署名証明書が見つかりませんでした。JITレス診断ページを確認し、JITレス設定に問題がないか確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인증서를 찾을 수 없습니다. JIT-Less 모드 진단을 통해 JIT-Less에 문제가 있는지 확인해주세요."
           }
         },
         "pl" : {
@@ -19438,6 +21148,12 @@
             "value" : "アプリ"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -19519,6 +21235,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설정"
           }
         },
         "pl" : {
@@ -19604,6 +21326,12 @@
             "value" : "調整"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "트윅"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -19685,6 +21413,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "これはアプリ固有のフォルダです。調整フォルダを選択すると、ゲストアプリが自動的に取得します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 폴더는 개별 폴더입니다. 설치한 앱에 할당할 경우 해당 앱에만 트윅이 적용됩니다."
           }
         },
         "pl" : {
@@ -19770,6 +21504,12 @@
             "value" : "これはグローバルフォルダです。ここに置かれたすべての調整は、すべてのゲストアプリに注入されます。アプリ固有の調整を使用する場合は、新規フォルダを作成してください。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 폴더는 글로벌 폴더입니다. 이곳에 트윅을 추가할 경우 모든 앱에 적용됩니다. 앱별로 트윅을 적용하고 싶다면 새로운 폴더를 만드세요."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -19851,6 +21591,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "調整をインポート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "트윅 가져오기"
           }
         },
         "pl" : {
@@ -19936,6 +21682,12 @@
             "value" : "新規フォルダ"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 폴더"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -20017,6 +21769,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@はファイルではありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@(은)는 파일이 아닙니다."
           }
         },
         "pl" : {
@@ -20102,6 +21860,12 @@
             "value" : "バンドル署名の開始に失敗しました。"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "번들 서명에 실패했습니다."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -20183,6 +21947,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "認証が必要です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인증이 필요합니다."
           }
         },
         "pl" : {
@@ -20268,6 +22038,12 @@
             "value" : "このウェブページは”%@“で開くことができます。続けますか？"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "웹페이지를 \"%@\"(으)로 여시겠습니까?"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -20351,6 +22127,12 @@
             "value" : "このウェブページは\"%@\"を起動しようとしています。続けますか？"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "\"%@\"(을)를 실행하시겠습니까?"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -20432,6 +22214,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アプリを実行"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 실행"
           }
         },
         "pl" : {

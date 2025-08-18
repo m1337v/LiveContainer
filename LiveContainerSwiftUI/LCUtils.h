@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import "LCMachOUtils.h"
+@import UIKit;
 
 typedef NS_ENUM(NSInteger, Store){
     SideStore = 0,
@@ -15,6 +16,10 @@ int dyld_get_program_sdk_version(void);
 
 - (NSData *)zippedDataForURL:(NSURL *)url;
 
+@end
+
+@interface UIDevice(private)
+@property(readonly) NSString* buildVersion;
 @end
 
 @interface LCUtils : NSObject

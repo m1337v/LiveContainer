@@ -15,10 +15,22 @@ import Intents
                 UserDefaults.standard.removeObject(forKey: "selectedContainer")
             }
         }
+        
+        // allow new scene pop up as a new fullscreen window
         method_exchangeImplementations(
             class_getInstanceMethod(UIApplication.self, #selector(UIApplication.requestSceneSessionActivation(_ :userActivity:options:errorHandler:)))!,
             class_getInstanceMethod(UIApplication.self, #selector(UIApplication.hook_requestSceneSessionActivation(_:userActivity:options:errorHandler:)))!)
 
+        // remove symbol caches if user upgraded iOS
+        if let lastIOSBuildVersion = LCUtils.appGroupUserDefault.string(forKey: "LCLastIOSBuildVersion"),
+           let currentVersion = UIDevice.current.buildVersion,
+           lastIOSBuildVersion == currentVersion {
+            
+        } else {
+            LCUtils.appGroupUserDefault.removeObject(forKey: "symbolOffsetCache")
+            LCUtils.appGroupUserDefault.setValue(UIDevice.current.buildVersion, forKey: "LCLastIOSBuildVersion")
+        }
+        
         return true
     }
     
