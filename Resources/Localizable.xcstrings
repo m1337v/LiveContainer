@@ -1903,7 +1903,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AppInfoの初期化に失敗しました！"
+            "value" : "AppInfoの初期化に失敗しました"
           }
         },
         "ko" : {
@@ -3149,7 +3149,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "インストールURLを入力してください"
+            "value" : "インストールURLを入力"
           }
         },
         "ko" : {
@@ -5261,6 +5261,53 @@
         }
       }
     },
+    "lc.appSettings.fixFilePickerNew" : {
+      "comment" : "new file picker fix",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fix File Picker"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイル選択を修正"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复文件导入"
+          }
+        }
+      }
+    },
+    "lc.appSettings.fixLocalNotification" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fix Local Notifications"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカル通知を修正"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复本地通知"
+          }
+        }
+      }
+    },
     "lc.appSettings.forceSign" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6913,88 +6960,22 @@
     "lc.appSettings.useLCBundleId" : {
       "extractionState" : "manual",
       "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "أصلح آخذ الملفات و الإشعارات المحلية"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dateiauswahl reparieren & Lokale Benachrichtigung"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fix File Picker & Local Notification"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Corriger le sélecteur de fichiers et la notification locale"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Correggi selettore file & Notifiche locali"
+            "value" : "Use LiveContainer's Bundle ID"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ファイル選択とローカル通知を修正"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "파일 선택기 & 로컬 알림 문제 해결"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Napraw Wybieracz Plików oraz Powiadomień lokalnych"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Corrigir 'File Picker' & Notificação Local"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fixa filväljare och lokal notifikationer"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dosya Seçici & Yerel Bildirim Düzeltme"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sửa File Picker & Thông báo"
+            "value" : "LiveContainerのバンドル識別子を使用"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "修复文件导入和本地通知"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修復檔案選擇器和本地通知"
+            "value" : "使用LiveContainer的包名"
           }
         }
       }
@@ -11146,7 +11127,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "デフォルトコンテナに設定する"
+            "value" : "デフォルトのコンテナに設定"
           }
         },
         "ko" : {
@@ -12036,7 +12017,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "設定でJITレスモードを設定して、JITなしでLiveContainerを使用します。\n\n**JITレスモードをオンにする際に問題がある場合は、設定内のJITレス診断ページを確認してください。**\n\nアプリをインストールするには、｢＋｣ボタンを押してください。\n\nアプリ固有の設定、修正、ホーム画面にアプリを追加するには、アプリを長押ししてください。"
+            "value" : "設定でJITレスモードを設定して、JITなしでLiveContainerを使用します。\n\n**JITレスモードを有効化する際に問題がある場合は、設定内のJITレス診断ページを確認してください。**\n\nアプリをインストールするには、｢＋｣ ボタンを押してください。\n\nアプリ固有の設定、修正、ホーム画面にアプリを追加するには、アプリを長押ししてください。"
           }
         },
         "ko" : {
@@ -12214,7 +12195,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LiveContainerヘルプ"
+            "value" : "LiveContainerの使いかた"
           }
         },
         "ko" : {
@@ -12303,7 +12284,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "エンタイトルメントファイル"
+            "value" : "権限ファイル"
           }
         },
         "ko" : {
@@ -14832,7 +14813,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "デフォルトでマルチタスクモードで起動する"
+            "value" : "デフォルトでマルチタスクモードで起動"
           }
         },
         "ko" : {
@@ -19846,7 +19827,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "証明書を削除する"
+            "value" : "証明書を削除"
           }
         },
         "ko" : {
