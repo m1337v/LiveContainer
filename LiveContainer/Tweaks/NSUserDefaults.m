@@ -125,6 +125,9 @@ bool isAppleIdentifier(NSString* identifier) {
     if(isAppleIdentifier((__bridge NSString*)domain)) {
         return [self hook_initWithDomain:domain user:user byHost:host containerPath:containerPath containingPreferences:arg5];
     }
+    if(user == kCFPreferencesAnyUser) {
+        user = kCFPreferencesCurrentUser;
+    }
     return [self hook_initWithDomain:domain user:user byHost:host containerPath:(__bridge CFStringRef)appContainerPath containingPreferences:arg5];
 }
 @end
