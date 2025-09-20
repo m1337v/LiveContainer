@@ -30,63 +30,27 @@ struct dyld_all_image_infos *_alt_dyld_get_all_image_infos(void) {
     return result;
 }
 
-// static void insertDylibCommand(uint32_t cmd, const char *path, struct mach_header_64 *header) {
-//     const char *name = cmd==LC_ID_DYLIB ? basename((char *)path) : path;
-//     struct dylib_command *dylib;
-//     size_t cmdsize = sizeof(struct dylib_command) + rnd32((uint32_t)strlen(name) + 1, 8);
-//     if (cmd == LC_ID_DYLIB) {
-//         // Make this the first load command on the list (like dylibify does), or some UE3 games may break
-//         dylib = (struct dylib_command *)(sizeof(struct mach_header_64) + (uintptr_t)header);
-//         memmove((void *)((uintptr_t)dylib + cmdsize), (void *)dylib, header->sizeofcmds);
-//         bzero(dylib, cmdsize);
-//     } else {
-//         dylib = (struct dylib_command *)(sizeof(struct mach_header_64) + (void *)header+header->sizeofcmds);
-//     }
-//     dylib->cmd = cmd;
-//     dylib->cmdsize = cmdsize;
-//     dylib->dylib.name.offset = sizeof(struct dylib_command);
-//     dylib->dylib.compatibility_version = 0x10000;
-//     dylib->dylib.current_version = 0x10000;
-//     dylib->dylib.timestamp = 2;
-//     strncpy((void *)dylib + dylib->dylib.name.offset, name, strlen(name));
-//     header->ncmds++;
-//     header->sizeofcmds += dylib->cmdsize;
-// }
-static void insertDylibCommand(uint32_t cmd, const char* dylibPath, struct mach_header_64* header) {
-    struct load_command* insertPoint = (struct load_command*)((char*)header + header->sizeofcmds + sizeof(struct mach_header_64));
-    
-    // Calculate required size more carefully
-    size_t pathLen = strlen(dylibPath) + 1;  // +1 for null terminator
-    size_t dylibCmdSize = sizeof(struct dylib_command) + pathLen;
-    
-    // Align to 8-byte boundary (required by dyld)
-    dylibCmdSize = (dylibCmdSize + 7) & ~7;
-    
-    struct dylib_command* dylibCmd = (struct dylib_command*)insertPoint;
-    dylibCmd->cmd = cmd;
-    dylibCmd->cmdsize = (uint32_t)dylibCmdSize;
-    
-    // Set string offset AFTER the dylib_command struct
-    dylibCmd->dylib.name.offset = sizeof(struct dylib_command);
-    dylibCmd->dylib.timestamp = 0;
-    dylibCmd->dylib.current_version = 0;
-    dylibCmd->dylib.compatibility_version = 0;
-    
-    // Copy path string immediately after the dylib_command struct
-    char* pathDest = (char*)dylibCmd + sizeof(struct dylib_command);
-    strlcpy(pathDest, dylibPath, pathLen);
-    
-    // Zero out any padding bytes
-    size_t paddingStart = sizeof(struct dylib_command) + pathLen;
-    if (paddingStart < dylibCmdSize) {
-        memset((char*)dylibCmd + paddingStart, 0, dylibCmdSize - paddingStart);
+static void insertDylibCommand(uint32_t cmd, const char *path, struct mach_header_64 *header) {
+    const char *name = cmd==LC_ID_DYLIB ? basename((char *)path) : path;
+    struct dylib_command *dylib;
+    size_t cmdsize = sizeof(struct dylib_command) + rnd32((uint32_t)strlen(name) + 1, 8);
+    if (cmd == LC_ID_DYLIB) {
+        // Make this the first load command on the list (like dylibify does), or some UE3 games may break
+        dylib = (struct dylib_command *)(sizeof(struct mach_header_64) + (uintptr_t)header);
+        memmove((void *)((uintptr_t)dylib + cmdsize), (void *)dylib, header->sizeofcmds);
+        bzero(dylib, cmdsize);
+    } else {
+        dylib = (struct dylib_command *)(sizeof(struct mach_header_64) + (void *)header+header->sizeofcmds);
     }
-    
-    // Update header
+    dylib->cmd = cmd;
+    dylib->cmdsize = cmdsize;
+    dylib->dylib.name.offset = sizeof(struct dylib_command);
+    dylib->dylib.compatibility_version = 0x10000;
+    dylib->dylib.current_version = 0x10000;
+    dylib->dylib.timestamp = 2;
+    strncpy((void *)dylib + dylib->dylib.name.offset, name, strlen(name));
     header->ncmds++;
-    header->sizeofcmds += dylibCmdSize;
-    
-    NSLog(@"[LC] Inserted dylib command: %s (size: %zu)", dylibPath, dylibCmdSize);
+    header->sizeofcmds += dylib->cmdsize;
 }
 
 static void insertRPathCommand(const char *path, struct mach_header_64 *header) {
