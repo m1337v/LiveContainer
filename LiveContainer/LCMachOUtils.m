@@ -77,7 +77,8 @@ static void insertDylibCommand(uint32_t cmd, const char *path, struct mach_heade
     
     // Safe string copying with proper null termination
     char *pathDest = (void *)dylib + dylib->dylib.name.offset;
-    strlcpy(pathDest, name, nameLen);
+    size_t stringSpaceAvailable = cmdsize - sizeof(struct dylib_command);
+    strlcpy(pathDest, name, stringSpaceAvailable);
     
     header->ncmds++;
     header->sizeofcmds += dylib->cmdsize;
