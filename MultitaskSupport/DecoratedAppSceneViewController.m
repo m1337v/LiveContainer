@@ -42,17 +42,18 @@ void UIKitFixesInit(void) {
 @end
 
 @implementation DecoratedAppSceneViewController
-- (instancetype)initWindowName:(NSString*)windowName bundleId:(NSString*)bundleId dataUUID:(NSString*)dataUUID {
+- (instancetype)initWindowName:(NSString*)windowName bundleId:(NSString*)bundleId dataUUID:(NSString*)dataUUID rootVC:(UIViewController*)rootVC {
     self = [super initWithNibName:nil bundle:nil];
+    _scaleRatio = 1.0;
+    _isMaximized = [NSUserDefaults.lcUserDefaults boolForKey:@"LCLaunchMultitaskMaximized"];
+    [rootVC addChildViewController:self];
+    [rootVC.view addSubview:self.view];
     _appSceneVC = [[AppSceneViewController alloc] initWithBundleId:bundleId dataUUID:dataUUID delegate:self];
     [self setupDecoratedView];
     
     [MultitaskDockManager.shared addRunningApp:windowName appUUID:dataUUID view:self.view];
     
     self.dataUUID = dataUUID;
-    self.scaleRatio = 1.0;
-    self.isMaximized = NO;
-    self.originalFrame = CGRectZero;
     self.windowName = windowName;
     self.navigationItem.title = windowName;
     
@@ -89,7 +90,8 @@ void UIKitFixesInit(void) {
     UIBarButtonItem *minimizeButton = [[UIBarButtonItem alloc] initWithImage:minimizeImage style:UIBarButtonItemStylePlain target:self action:@selector(minimizeWindow)];
     minimizeButton.tintColor = [UIColor systemYellowColor];
     
-    UIImage *maximizeImage = [UIImage systemImageNamed:@"arrow.up.left.and.arrow.down.right.circle"];
+    NSString *maximizeImageName = _isMaximized ? @"arrow.down.right.and.arrow.up.left.circle" : @"arrow.up.left.and.arrow.down.right.circle";
+    UIImage *maximizeImage = [UIImage systemImageNamed:maximizeImageName];
     UIImageConfiguration *maximizeConfig = [UIImageSymbolConfiguration configurationWithPointSize:16.0 weight:UIImageSymbolWeightMedium];
     maximizeImage = [maximizeImage imageWithConfiguration:maximizeConfig];
     self.maximizeButton = [[UIBarButtonItem alloc] initWithImage:maximizeImage style:UIBarButtonItemStylePlain target:self action:@selector(maximizeWindow)];
@@ -119,10 +121,20 @@ void UIKitFixesInit(void) {
 - (void)setupDecoratedView {
     CGFloat navBarHeight = 44;
     self.view = [UIStackView new];
-    if(UIInterfaceOrientationIsLandscape(UIApplication.sharedApplication.statusBarOrientation)) {
-        self.view.frame = CGRectMake(50, 150, 480, 320 + navBarHeight);
+    BOOL isLandscape = UIInterfaceOrientationIsLandscape(UIApplication.sharedApplication.statusBarOrientation);
+    CGRect frame = CGRectMake(0, 0, isLandscape ? 480 : 320, (isLandscape ? 320 : 480) + navBarHeight);
+    CGPoint rootViewCenter = self.view.superview.center;
+    frame.origin = CGPointMake(rootViewCenter.x - frame.size.width / 2, rootViewCenter.y - frame.size.height / 2);
+    
+    if(_isMaximized) {
+        [self updateMaximizedFrameWithSettings:self.appSceneVC.settings];
+        CGRect maxFrame = UIEdgeInsetsInsetRect(self.view.window.frame, self.view.window.safeAreaInsets);
+        // save origin as normalized coordinates
+        frame.origin.x /= maxFrame.size.width;
+        frame.origin.y /= maxFrame.size.height;
+        self.originalFrame = frame;
     } else {
-        self.view.frame = CGRectMake(50, 150, 320, 480 + navBarHeight);
+        self.view.frame = frame;
     }
     
     // Navigation bar
@@ -167,10 +179,11 @@ void UIKitFixesInit(void) {
     resizeGesture.minimumNumberOfTouches = 1;
     resizeGesture.maximumNumberOfTouches = 1;
     self.resizeHandle = [[ResizeHandleView alloc] initWithFrame:CGRectMake(self.view.frame.size.width - navBarHeight, self.view.frame.size.height - navBarHeight, navBarHeight, navBarHeight)];
+    self.resizeHandle.alpha = _isMaximized ? 0.0 : 1.0;
     [self.resizeHandle addGestureRecognizer:resizeGesture];
     [self.view addSubview:self.resizeHandle];
     
-    self.view.layer.borderWidth = 1.0;
+    self.view.layer.borderWidth = _isMaximized ? 0.0 : 1.0;
     self.view.layer.borderColor = UIColor.secondarySystemBackgroundColor.CGColor;
     
     [self addChildViewController:_appSceneVC];
@@ -236,8 +249,15 @@ void UIKitFixesInit(void) {
     self.scaleRatio = slider.value;
     self.appSceneVC.scaleRatio = _scaleRatio;
     self.appSceneVC.contentView.layer.sublayerTransform = CATransform3DMakeScale(_scaleRatio, _scaleRatio, 1.0);
+    __weak typeof(self) weakSelf = self;
     [self.appSceneVC updateFrameWithSettingsBlock:^(UIMutableApplicationSceneSettings *settings) {
-        [self updateMaximizedSafeAreaWithSettings:settings];
+        if(_isMaximized) {
+            [weakSelf updateMaximizedSafeAreaWithSettings:settings];
+        } else {
+            // it seems some apps don't honor these settings so we don't cover the top of the app
+            settings.peripheryInsets = UIEdgeInsetsZero;
+            settings.safeAreaInsetsPortrait = UIEdgeInsetsZero;
+        }
     }];
 }
 
@@ -559,6 +579,7 @@ void UIKitFixesInit(void) {
 }
 
 - (void)updateOriginalFrame {
+    if(_isMaximized) return;
     CGRect maxFrame = UIEdgeInsetsInsetRect(self.view.window.frame, self.view.window.safeAreaInsets);
     // save origin as normalized coordinates
     self.originalFrame = CGRectMake(self.view.frame.origin.x / maxFrame.size.width, self.view.frame.origin.y / maxFrame.size.height, self.view.frame.size.width, self.view.frame.size.height);

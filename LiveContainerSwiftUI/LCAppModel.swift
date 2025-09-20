@@ -337,6 +337,20 @@ class LCAppModel: ObservableObject, Hashable {
         
         // ask user if they want to terminate all multitasking apps
         if MultitaskManager.isMultitasking() && !multitask {
+            if #available(iOS 16.0, *), let currentDataFolder = containerFolderName != nil ? containerFolderName : uiSelectedContainer?.folderName,
+               MultitaskManager.isUsing(container: currentDataFolder) {
+                var found = false
+                if #available(iOS 16.1, *) {
+                    found = MultitaskWindowManager.openExistingAppWindow(dataUUID: currentDataFolder)
+                }
+                if !found {
+                    found = MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: currentDataFolder)
+                }
+                if found {
+                    return
+                }
+            }
+            
             guard let ans = await delegate?.showRunWhenMultitaskAlert(), ans else {
                 return
             }
@@ -344,7 +358,7 @@ class LCAppModel: ObservableObject, Hashable {
         
         if uiContainers.isEmpty {
             let newName = NSUUID().uuidString
-            let newContainer = LCContainer(folderName: newName, name: newName, isShared: uiIsShared, isolateAppGroup: true)
+            let newContainer = LCContainer(folderName: newName, name: newName, isShared: uiIsShared)
             uiContainers.append(newContainer)
             if uiSelectedContainer == nil {
                 uiSelectedContainer = newContainer;
@@ -363,21 +377,19 @@ class LCAppModel: ObservableObject, Hashable {
             }
         }
         
-        if(multitask && MultitaskManager.isUsing(container: uiSelectedContainer!.folderName)) {
-            throw "lc.container.inUse".loc + "\n MultiTask"
-        }
+        // this is rerouted to bringing app to front, so not needed here?
+//        if(MultitaskManager.isUsing(container: uiSelectedContainer!.folderName)) {
+//            throw "lc.container.inUse".loc + "\n MultiTask"
+//        }
         
+        // if the selected container is in use (either other lc or multitask), open the host lc associated with it
         if
             let fn = uiSelectedContainer?.folderName,
-            var runningLC = LCUtils.getContainerUsingLCScheme(withFolderName: fn),
-            !(runningLC == "liveprocess" && DataManager.shared.model.multiLCStatus != 2)
+            var runningLC = LCUtils.getContainerUsingLCScheme(withFolderName: fn)
         {
-            if(!multitask && runningLC == "liveprocess" && DataManager.shared.model.multiLCStatus == 2) {
-                // we can't control the extension from lc2, so we launch lc1
-                runningLC = "livecontainer"
-            }
-
-            let openURL = URL(string: "\(runningLC)://livecontainer-launch?bundle-name=\(self.appInfo.relativeBundlePath!)&container-folder-name=\(fn)")!
+            runningLC = (runningLC as NSString).deletingPathExtension
+            
+            let openURL = URL(string: "\(runningLC)://")!
             if await UIApplication.shared.canOpenURL(openURL) {
                 await UIApplication.shared.open(openURL)
                 return

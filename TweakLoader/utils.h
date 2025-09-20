@@ -12,6 +12,7 @@ void swizzleClassMethod(Class class, SEL originalAction, SEL swizzledAction);
 + (NSString *)lcAppUrlScheme;
 + (NSBundle *)lcMainBundle;
 + (NSDictionary *)guestAppInfo;
++ (NSDictionary *)guestContainerInfo;
 + (bool)isLiveProcess;
 + (bool)isSharedApp;
 + (NSString*)lcGuestAppId;

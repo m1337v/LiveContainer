@@ -141,3 +141,19 @@ uint64_t aarch64_emulate_adrp_ldr(uint32_t instruction, uint32_t ldrInstruction,
     // Emulate
     return adrp_target + (uint64_t) imm12;
 }
+
+
+@implementation NSDictionary(lc)
+
+- (BOOL)writeBinToFile:(NSString *)path atomically:(BOOL)useAuxiliaryFile {
+    NSError* err = 0;
+    NSData* plistData = [NSPropertyListSerialization dataWithPropertyList:self format:NSPropertyListBinaryFormat_v1_0 options:0 error:&err];
+    if(!err && plistData) {
+        return [plistData writeToFile:path atomically:YES];
+    } else {
+        return NO;
+    }
+}
+
+@end
+

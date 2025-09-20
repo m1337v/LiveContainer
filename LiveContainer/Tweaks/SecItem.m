@@ -76,8 +76,7 @@ OSStatus new_SecItemDelete(CFDictionaryRef query){
 void SecItemGuestHooksInit(void)  {
 
     containerId = [NSString stringWithUTF8String:getenv("HOME")].lastPathComponent;
-    NSString* containerInfoPath = [[NSString stringWithUTF8String:getenv("HOME")] stringByAppendingPathComponent:@"LCContainerInfo.plist"];
-    NSDictionary* infoDict = [NSDictionary dictionaryWithContentsOfFile:containerInfoPath];
+    NSDictionary* infoDict = [NSUserDefaults guestContainerInfo];
     int keychainGroupId = [infoDict[@"keychainGroupId"] intValue];
     NSString* groupId = [LCSharedUtils teamIdentifier];
     if(keychainGroupId == 0) {

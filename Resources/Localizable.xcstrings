@@ -11714,91 +11714,91 @@
         }
       }
     },
-    "lc.guestTweak.openInLc2" : {
+    "lc.guestTweak.openInLc %@" : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "فتح في LiveContainer2"
+            "value" : "فتح في %@"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "In LiveContainer2 öffnen"
+            "value" : "In %@ öffnen"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Open In LiveContainer2"
+            "value" : "Open in %@"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ouvrir dans LiveContainer2"
+            "value" : "Ouvrir dans %@"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Apri In LiveContainer2"
+            "value" : "Apri In %@"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LiveContainer 2で開く"
+            "value" : "%@で開く"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LiveContainer2에서 실행"
+            "value" : "%@에서 실행"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Otwórz w LiveContainer2"
+            "value" : "Otwórz w %@"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Abrir No Contêiner Secundário"
+            "value" : "Abrir No %@"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Öppna i LiveContainer2"
+            "value" : "Öppna i %@"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LiveContainer2'de Aç"
+            "value" : "%@’de Aç"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mở trong LiveContainer2"
+            "value" : "Mở trong %@"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在LiveContainer2中打开"
+            "value" : "在%@中打开"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在LiveContainer2中打開"
+            "value" : "在%@中打開"
           }
         }
       }

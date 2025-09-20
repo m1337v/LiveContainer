@@ -5,8 +5,7 @@
 
 BOOL isolateAppGroup = YES;
 void NSFMGuestHooksInit(void) {
-    NSString* containerInfoPath = [[NSString stringWithUTF8String:getenv("HOME")] stringByAppendingPathComponent:@"LCContainerInfo.plist"];
-    NSDictionary* infoDict = [NSDictionary dictionaryWithContentsOfFile:containerInfoPath];
+    NSDictionary* infoDict = [NSUserDefaults guestContainerInfo];
     isolateAppGroup = [infoDict[@"isolateAppGroup"] boolValue];
     swizzle(NSFileManager.class, @selector(containerURLForSecurityApplicationGroupIdentifier:), @selector(hook_containerURLForSecurityApplicationGroupIdentifier:));
 }

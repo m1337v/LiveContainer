@@ -25,6 +25,7 @@ NSString *lcAppGroupPath;
 NSString* lcAppUrlScheme;
 NSBundle* lcMainBundle;
 NSDictionary* guestAppInfo;
+NSDictionary* guestContainerInfo;
 NSString* lcGuestAppId;
 bool isLiveProcess = false;
 bool isSharedBundle = false;
@@ -53,6 +54,10 @@ static BOOL useSelectiveBundleIdSpoofing = NO;
 }
 + (NSDictionary *)guestAppInfo {
     return guestAppInfo;
+}
+
++ (NSDictionary *)guestContainerInfo {
+    return guestContainerInfo;
 }
 
 + (bool)isLiveProcess {
@@ -266,7 +271,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
                 NSString *expectedBundleId = [entStr substringFromIndex:dotRange.location + 1];
                 if(![infoPlist[@"CFBundleIdentifier"] isEqualToString:expectedBundleId]) {
                     infoPlist[@"CFBundleIdentifier"] = expectedBundleId;
-                    [infoPlist writeToFile:[NSString stringWithFormat:@"%@/Info.plist", bundlePath] atomically:YES];
+                    [infoPlist writeBinToFile:[NSString stringWithFormat:@"%@/Info.plist", bundlePath] atomically:YES];
                 }
             }
         }
@@ -289,7 +294,13 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     }
     
     if(isSharedBundle) {
-        [LCSharedUtils setContainerUsingByLC:lcAppUrlScheme folderName:dataUUID];
+        NSString *urlScheme = lcAppUrlScheme;
+        if(isLiveProcess) {
+            NSString *hostScheme = [lcUserDefaults stringForKey:@"hostUrlScheme"];
+            [lcUserDefaults removeObjectForKey:@"hostUrlScheme"];
+            urlScheme = [hostScheme stringByAppendingPathExtension:urlScheme];
+        }
+        [LCSharedUtils setContainerUsingByLC:urlScheme folderName:dataUUID auditToken:0];
     }
     
     NSError *error;
@@ -402,6 +413,9 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         NSString *dirPath = [newHomePath stringByAppendingPathComponent:dir];
         [fm createDirectoryAtPath:dirPath withIntermediateDirectories:YES attributes:nil error:nil];
     }
+    
+    NSString* containerInfoPath = [newHomePath stringByAppendingPathComponent:@"LCContainerInfo.plist"];
+    guestContainerInfo = [NSDictionary dictionaryWithContentsOfFile:containerInfoPath];
     
     // Overwrite NSBundle
     overwriteMainNSBundle(appBundle);
@@ -613,8 +627,8 @@ int LiveContainerMain(int argc, char *argv[]) {
         [lcUserDefaults removeObjectForKey:@"selected"];
         [lcUserDefaults removeObjectForKey:@"selectedContainer"];
         
-        if([runningLC isEqualToString:@"liveprocess"]) {
-            runningLC = @"livecontainer";
+        if([runningLC hasSuffix:@"liveprocess"]) {
+            runningLC = runningLC.stringByDeletingPathExtension;
         }
         
         NSString* selectedAppBackUp = selectedApp;

@@ -254,7 +254,7 @@ struct LCAppBanner : View {
                         }
                     }
                 }
-                if(sharedModel.multiLCStatus != 2 && model.uiIsShared) {
+                if(model.uiIsShared) {
                     if #available(iOS 16.0, *) {
                         Button {
                             if launchInMultitaskMode {

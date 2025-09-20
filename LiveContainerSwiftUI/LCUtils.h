@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import "LCMachOUtils.h"
+#import "utils.h"
 @import UIKit;
 
 typedef NS_ENUM(NSInteger, Store){
@@ -46,6 +47,7 @@ int dyld_get_program_sdk_version(void);
 + (NSURL *)appGroupPath;
 + (NSString *)storeInstallURLScheme;
 + (NSString *)getVersionInfo;
++ (NSString *)liveProcessBundleIdentifier;
 @end
 
 @interface NSUserDefaults(LiveContainer)

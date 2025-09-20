@@ -10,6 +10,8 @@
 #import "../LiveContainerSwiftUI/LCUtils.h"
 #import "PiPManager.h"
 #import "Localization.h"
+#import "LCSharedUtils.h"
+#import "utils.h"
 
 @interface AppSceneViewController()
 @property int resizeDebounceToken;
@@ -20,7 +22,6 @@
 
 @interface AppSceneViewController()
 @property(nonatomic) UIWindowScene *hostScene;
-@property(nonatomic) UIMutableApplicationSceneSettings *settings;
 @property(nonatomic) NSString *sceneID;
 @property(nonatomic) NSExtension* extension;
 @property(nonatomic) bool isAppTerminationCleanUpCalled;
@@ -39,15 +40,10 @@
     self.bundleId = bundleId;
     self.scaleRatio = 1.0;
     self.isAppTerminationCleanUpCalled = false;
+    self.settings = [UIMutableApplicationSceneSettings new];
     // init extension
-    NSBundle *liveProcessBundle = [NSBundle bundleWithPath:[NSBundle.mainBundle.builtInPlugInsPath stringByAppendingPathComponent:@"LiveProcess.appex"]];
-    if(!liveProcessBundle) {
-        [delegate appSceneVC:self didInitializeWithError:[NSError errorWithDomain:@"LiveProcess" code:2 userInfo:@{NSLocalizedDescriptionKey: @"LiveProcess extension not found. Please reinstall LiveContainer and select Keep Extensions"}]];
-        return nil;
-    }
-    
     NSError* error = nil;
-    _extension = [NSExtension extensionWithIdentifier:liveProcessBundle.bundleIdentifier error:&error];
+    _extension = [NSExtension extensionWithIdentifier:LCUtils.liveProcessBundleIdentifier error:&error];
     if(error) {
         [delegate appSceneVC:self didInitializeWithError:error];
         return nil;
@@ -56,6 +52,7 @@
     
     NSExtensionItem *item = [NSExtensionItem new];
     item.userInfo = @{
+        @"hostUrlScheme": NSUserDefaults.lcAppUrlScheme,
         @"selected": _bundleId,
         @"selectedContainer": _dataUUID,
     };
@@ -85,7 +82,7 @@
     
     
 
-    _isNativeWindow = [[[NSUserDefaults alloc] initWithSuiteName:[LCUtils appGroupID]] integerForKey:@"LCMultitaskMode" ] == 1;
+    _isNativeWindow = [NSUserDefaults.lcSharedDefaults integerForKey:@"LCMultitaskMode" ] == 1;
 
     return self;
 }
@@ -106,7 +103,7 @@
     definition.specification = [UIApplicationSceneSpecification specification];
     FBSMutableSceneParameters *parameters = [PrivClass(FBSMutableSceneParameters) parametersForSpecification:definition.specification];
     
-    UIMutableApplicationSceneSettings *settings = [UIMutableApplicationSceneSettings new];
+    UIMutableApplicationSceneSettings *settings = self.settings;
     settings.canShowAlerts = YES;
     settings.cornerRadiusConfiguration = [[PrivClass(BSCornerRadiusConfiguration) alloc] initWithTopLeft:self.view.layer.cornerRadius bottomLeft:self.view.layer.cornerRadius bottomRight:self.view.layer.cornerRadius topRight:self.view.layer.cornerRadius];
     settings.displayConfiguration = UIScreen.mainScreen.displayConfiguration;
@@ -126,16 +123,11 @@
         UIEdgeInsets defaultInsets = self.view.window.safeAreaInsets;
         settings.peripheryInsets = defaultInsets;
         settings.safeAreaInsetsPortrait = defaultInsets;
-    } else {
-        // it seems some apps don't honor these settings so we don't cover the top of the app
-        settings.peripheryInsets = UIEdgeInsetsMake(0, 0, 0, 0);
-        settings.safeAreaInsetsPortrait = UIEdgeInsetsMake(0, 0, 0, 0);
     }
     
     settings.statusBarDisabled = !self.isNativeWindow;
     //settings.previewMaximumSize =
     //settings.deviceOrientationEventsEnabled = YES;
-    self.settings = settings;
     parameters.settings = settings;
     
     UIMutableApplicationSceneClientSettings *clientSettings = [UIMutableApplicationSceneClientSettings new];

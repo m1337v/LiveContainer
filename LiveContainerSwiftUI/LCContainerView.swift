@@ -69,6 +69,12 @@ struct LCContainerView : View {
                 .onChange(of: container.isolateAppGroup) { newValue in
                     saveContainer()
                 }
+                Toggle(isOn: $container.spoofIdentifierForVendor) {
+                    Text("lc.container.spoofIdentifierForVendor".loc)
+                }
+                .onChange(of: container.spoofIdentifierForVendor) { newValue in
+                    saveContainer()
+                }
                 
                 if let settingsBundle {
                     NavigationLink {

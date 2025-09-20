@@ -50,7 +50,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
                 _info[key] = _infoPlist[key];
                 [_infoPlist removeObjectForKey:key];
             }
-            [_infoPlist writeToFile:[NSString stringWithFormat:@"%@/Info.plist", bundlePath] atomically:YES];
+            [_infoPlist writeBinToFile:[NSString stringWithFormat:@"%@/Info.plist", bundlePath] atomically:YES];
             [self save];
         }
         
@@ -60,7 +60,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
             _infoPlist[@"CFBundleIdentifier"] = _infoPlist[@"LCBundleIdentifier"];
             [_infoPlist removeObjectForKey:@"LCBundleExecutable"];
             [_infoPlist removeObjectForKey:@"LCBundleIdentifier"];
-            [_infoPlist writeToFile:[NSString stringWithFormat:@"%@/Info.plist", bundlePath] atomically:YES];
+            [_infoPlist writeBinToFile:[NSString stringWithFormat:@"%@/Info.plist", bundlePath] atomically:YES];
         }
 
         _autoSaveDisabled = false;
@@ -257,7 +257,8 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 
 - (void)save {
     if(!_autoSaveDisabled) {
-        [_info writeToFile:[NSString stringWithFormat:@"%@/LCAppInfo.plist", _bundlePath] atomically:YES];
+        [_info writeBinToFile:[NSString stringWithFormat:@"%@/LCAppInfo.plist", _bundlePath] atomically:YES];
+    }
 
         // Also save camera settings to guestAppInfo for hooks
         NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
@@ -385,7 +386,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
                 infoPlist[@"LCBundleIdentifier"] = infoPlist[@"CFBundleIdentifier"];
                 infoPlist[@"CFBundleExecutable"] = tmpExecPath.lastPathComponent;
                 infoPlist[@"CFBundleIdentifier"] = NSBundle.mainBundle.bundleIdentifier;
-                [infoPlist writeToFile:infoPath atomically:YES];
+                [infoPlist writeBinToFile:infoPath atomically:YES];
             }
             infoPlist[@"CFBundleExecutable"] = infoPlist[@"LCBundleExecutable"];
             infoPlist[@"CFBundleIdentifier"] = infoPlist[@"LCBundleIdentifier"];
@@ -400,7 +401,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
                     
                     // Save sign ID and restore bundle ID
                     [self save];
-                    [infoPlist writeToFile:infoPath atomically:YES];
+                    [infoPlist writeBinToFile:infoPath atomically:YES];
                     [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SigningInProgress"];
                     if(!success) {
                         completetionHandler(NO, error.localizedDescription);
@@ -537,7 +538,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
         _infoPlist[@"CFBundleIdentifier"] = _info[@"LCOrignalBundleIdentifier"];
         [_info removeObjectForKey:@"LCOrignalBundleIdentifier"];
     }
-    [_infoPlist writeToFile:infoPath atomically:YES];
+    [_infoPlist writeBinToFile:infoPath atomically:YES];
     [self save];
 }
 

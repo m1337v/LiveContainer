@@ -68,13 +68,27 @@ Class LCSharedUtilsClass = nil;
     return [LCSharedUtilsClass getContainerUsingLCSchemeWithFolderName:folderName];
 }
 
-#pragma mark Multitasking (WIP, PoC only)
-+ (void)launchMultitaskGuestApp:(NSString *)displayName completionHandler:(void (^)(NSError *error))completionHandler {
+#pragma mark Multitasking
++ (NSString *)liveProcessBundleIdentifier {
+    // first check if we have LiveProcess extension in our own bundle
     NSBundle *liveProcessBundle = [NSBundle bundleWithPath:[NSBundle.mainBundle.builtInPlugInsPath stringByAppendingPathComponent:@"LiveProcess.appex"]];
-    if(!liveProcessBundle) {
+    if(liveProcessBundle) {
+        return liveProcessBundle.bundleIdentifier;
+    }
+    
+    // in LC2, attempt to guess LC1's LiveProcess extension
+    NSString *bundleID = [NSString stringWithFormat:@"com.kdt.livecontainer.%@.LiveProcess", self.teamIdentifier];
+    if([NSExtension extensionWithIdentifier:bundleID error:nil]) {
+        return bundleID;
+    }
+    
+    return nil;
+}
+
++ (void)launchMultitaskGuestApp:(NSString *)displayName completionHandler:(void (^)(NSError *error))completionHandler {
+    if(!self.liveProcessBundleIdentifier) {
         NSError *error = [NSError errorWithDomain:displayName code:2 userInfo:@{NSLocalizedDescriptionKey: @"LiveProcess extension not found. Please reinstall LiveContainer and select Keep Extensions"}];
         completionHandler(error);
-        return;
     }
     
     NSUserDefaults *lcUserDefaults = NSUserDefaults.standardUserDefaults;
@@ -86,7 +100,7 @@ Class LCSharedUtilsClass = nil;
     
     dispatch_async(dispatch_get_main_queue(), ^{
         if (@available(iOS 16.1, *)) {
-            if(UIApplication.sharedApplication.supportsMultipleScenes && [[[NSUserDefaults alloc] initWithSuiteName:[LCUtils appGroupID]] integerForKey:@"LCMultitaskMode" ] == 1) {
+            if(UIApplication.sharedApplication.supportsMultipleScenes && [NSUserDefaults.lcSharedDefaults integerForKey:@"LCMultitaskMode"] == 1) {
                 [MultitaskWindowManager openAppWindowWithDisplayName:displayName dataUUID:dataUUID bundleId:bundleId];
                 MultitaskDockManager *dock = [MultitaskDockManager shared];
                 [dock addRunningApp:displayName appUUID:dataUUID view:nil];
@@ -99,11 +113,8 @@ Class LCSharedUtilsClass = nil;
         UIViewController *rootVC = ((UIWindowScene *)UIApplication.sharedApplication.connectedScenes.anyObject).keyWindow.rootViewController;
         
 
-        DecoratedAppSceneViewController *launcherView = [[DecoratedAppSceneViewController alloc] initWindowName:displayName bundleId:bundleId dataUUID:dataUUID];
+        DecoratedAppSceneViewController *launcherView = [[DecoratedAppSceneViewController alloc] initWindowName:displayName bundleId:bundleId dataUUID:dataUUID rootVC:rootVC];
         launcherView.view.autoresizingMask = UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleBottomMargin;
-        launcherView.view.center = rootVC.view.center;
-        [rootVC addChildViewController:launcherView];
-        [rootVC.view addSubview:launcherView.view];
         completionHandler(nil);
         
     });
@@ -256,7 +267,7 @@ Class LCSharedUtilsClass = nil;
     [NSFileManager.defaultManager copyItemAtPath:[NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"Frameworks/TestJITLess.dylib"] toPath:tmpLibPath error:nil];
     NSMutableDictionary *info = NSBundle.mainBundle.infoDictionary.mutableCopy;
     info[@"CFBundleExecutable"] = @"LiveContainer.tmp";
-    [info writeToFile:tmpInfoPath atomically:YES];
+    [info writeBinToFile:tmpInfoPath atomically:YES];
 
     dispatch_semaphore_t sema = dispatch_semaphore_create(0);
     __block bool signSuccess = false;
@@ -300,7 +311,7 @@ Class LCSharedUtilsClass = nil;
     [manager createDirectoryAtURL:tmpPayloadPath withIntermediateDirectories:YES attributes:nil error:error];
     if (*error) return nil;
     
-    NSURL *tmpIPAPath = [tmpPath URLByAppendingPathComponent:@"LiveContainer2.ipa"];
+    NSURL *tmpIPAPath = [tmpPath URLByAppendingPathComponent:[NSString stringWithFormat:@"%@.ipa", newBundleName]];
     
 
     [manager copyItemAtURL:bundlePath toURL:[tmpPayloadPath URLByAppendingPathComponent:@"App.app"] error:error];
@@ -314,7 +325,7 @@ Class LCSharedUtilsClass = nil;
     infoDict[@"CFBundleName"] = newBundleName;
     infoDict[@"CFBundleIdentifier"] = [NSString stringWithFormat:@"com.kdt.%@", newBundleName];
     infoDict[@"CFBundleURLTypes"][0][@"CFBundleURLSchemes"][0] = [newBundleName lowercaseString];
-    if([infoDict[@"CFBundleURLTypes"] count] > 1) {
+    while([infoDict[@"CFBundleURLTypes"] count] > 1) {
         [infoDict[@"CFBundleURLTypes"] removeLastObject];
     }
     [infoDict removeObjectForKey:@"UTExportedTypeDeclarations"];
@@ -334,7 +345,7 @@ Class LCSharedUtilsClass = nil;
     NSURL* appBundlePath = [tmpPayloadPath URLByAppendingPathComponent:@"App.app"];
     
     NSURL* execFromPath = [appBundlePath URLByAppendingPathComponent:infoDict[@"CFBundleExecutable"]];
-    infoDict[@"CFBundleExecutable"] = @"LiveContainer2";
+    infoDict[@"CFBundleExecutable"] = newBundleName;
     NSURL* execToPath = [appBundlePath URLByAppendingPathComponent:infoDict[@"CFBundleExecutable"]];
     
     // MARK: patch main executable
@@ -419,9 +430,6 @@ Class LCSharedUtilsClass = nil;
         [manager removeItemAtURL:[appBundlePath URLByAppendingPathComponent:@"Intents.intentdefinition"] error:error];
         [manager removeItemAtURL:[appBundlePath URLByAppendingPathComponent:@"ViewApp.intentdefinition"] error:error];
         [manager removeItemAtURL:[appBundlePath URLByAppendingPathComponent:@"Metadata.appintents"] error:error];
-        if([infoDict[@"CFBundleURLTypes"] count] > 1) {
-            [infoDict[@"CFBundleURLTypes"] removeLastObject];
-        }
         [infoDict removeObjectForKey:@"INIntentsSupported"];
         [infoDict removeObjectForKey:@"NSUserActivityTypes"];
     }

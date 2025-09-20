@@ -37,9 +37,14 @@ uint64_t aarch64_emulate_adrp_ldr(uint32_t instruction, uint32_t ldrInstruction,
 + (NSString *)lcAppUrlScheme;
 + (NSBundle *)lcMainBundle;
 + (NSDictionary *)guestAppInfo;
++ (NSDictionary *)guestContainerInfo;
 + (bool)isLiveProcess;
 + (bool)isSharedApp;
 + (NSString*)lcGuestAppId;
 + (bool)isSideStore;
 + (bool)sideStoreExist;
+@end
+
+@interface NSDictionary(lc)
+- (BOOL)writeBinToFile:(NSString *)path atomically:(BOOL)useAuxiliaryFile;
 @end
