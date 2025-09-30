@@ -58,7 +58,6 @@ struct LCAppBanner : View {
                 Image(uiImage: appInfo.icon())
                     .resizable().resizable().frame(width: 60, height: 60)
                     .clipShape(RoundedRectangle(cornerSize: CGSize(width:12, height: 12)))
-                    
 
                 VStack (alignment: .leading, content: {
                     HStack {
@@ -160,6 +159,7 @@ struct LCAppBanner : View {
                     }
                 })
             }
+            .allowsHitTesting(false)
             Spacer()
             Button {
                 if #available(iOS 16.0, *), sharedModel.multiLCStatus != 2 && launchInMultitaskMode && model.uiIsShared {
@@ -217,9 +217,11 @@ struct LCAppBanner : View {
         }
         .padding()
         .frame(height: 88)
-        .background(RoundedRectangle(cornerSize: CGSize(width:22, height: 22)).fill(dynamicColors ? mainColor.opacity(0.5) : Color("AppBannerBG")))
-        .onTapGesture(count: 2) {
-            openSettings()
+        .background {
+            RoundedRectangle(cornerSize: CGSize(width:22, height: 22)).fill(dynamicColors ? mainColor.opacity(0.5) : Color("AppBannerBG"))
+                .onTapGesture(count: 2) {
+                    openSettings()
+                }
         }
         .fileExporter(
             isPresented: $saveIconExporterShow,
