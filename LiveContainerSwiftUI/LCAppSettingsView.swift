@@ -13,6 +13,8 @@ import MapKit
 import AVKit
 import PhotosUI
 import Photos
+import UIKit
+import UniformTypeIdentifiers
 
 
 // MARK: GPS Settings Section
@@ -2381,7 +2383,19 @@ struct DeviceSpoofingSection: View {
 }
 
 // MARK: Main
-struct LCAppSettingsView : View{
+
+struct LCAppSettingsView: View {
+
+    @State private var documentPickerCoordinator = DocumentPickerCoordinator()
+
+    private class DocumentPickerCoordinator: NSObject, UIDocumentPickerDelegate {
+        var onDocumentPicked: ((URL) -> Void)?
+
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            guard let url = urls.first else { return }
+            onDocumentPicked?(url)
+        }
+    }
     
     private var appInfo : LCAppInfo
     
@@ -2598,8 +2612,62 @@ struct LCAppSettingsView : View{
                 Toggle(isOn: $model.uiIsJITNeeded) {
                     Text("lc.appSettings.launchWithJit".loc)
                 }
+                if #available(iOS 26.0, *), model.uiIsJITNeeded {
+                    HStack {
+                        Text("lc.appSettings.jit26.script".loc)
+                        Spacer()
+                        if let base64String = model.jitLaunchScriptJs, !base64String.isEmpty {
+                            // Show a generic name since we're not storing the filename
+                            Text("lc.appSettings.jit26.scriptLoaded".loc)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .foregroundColor(.primary)
+
+                            Button(action: {
+                                model.jitLaunchScriptJs = nil
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.gray)
+                            }
+                            .buttonStyle(BorderlessButtonStyle())
+                        } else {
+                            Text("No file selected")
+                                .foregroundColor(.gray)
+                        }
+                        Button(action: {
+                            // This will trigger the file picker
+                            let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.javaScript], asCopy: true)
+                            picker.allowsMultipleSelection = false
+                            documentPickerCoordinator.onDocumentPicked = { url in
+                                do {
+                                    let data = try Data(contentsOf: url)
+                                    // Store the Base64-encoded string of the file content
+                                    model.jitLaunchScriptJs = data.base64EncodedString()
+                                } catch {
+                                    errorInfo = "Failed to read file: \(error.localizedDescription)"
+                                    errorShow = true
+                                }
+                            }
+                            picker.delegate = documentPickerCoordinator
+
+                            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                               let rootViewController = windowScene.windows.first?.rootViewController {
+                                rootViewController.present(picker, animated: true)
+                            }
+                        }) {
+                            Text("lc.common.select".loc)
+                        }
+                    }
+                }
             } footer: {
-                Text("lc.appSettings.launchWithJitDesc".loc)
+
+                    if #available(iOS 26.0, *), model.uiIsJITNeeded {
+                        Text("lc.appSettings.launchWithJitDesc".loc + "\n" + "lc.appSettings.jit26.scriptDesc".loc)
+
+                    } else {
+                        Text("lc.appSettings.launchWithJitDesc".loc)
+                    }
+                
             }
 
             Section {

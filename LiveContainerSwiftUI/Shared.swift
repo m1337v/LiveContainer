@@ -810,7 +810,7 @@ extension LCUtils {
         }
     }
     
-    public static func askForJIT(onServerMessage : ((String) -> Void)? ) async -> Bool {
+    public static func askForJIT(withScript script: String? = nil, onServerMessage: ((String) -> Void)? = nil) async -> Bool {
         // if LiveContainer is installed by TrollStore
         let tsPath = "\(Bundle.main.bundlePath)/../_TrollStore"
         if (access((tsPath as NSString).utf8String, 0) == 0) {
@@ -898,7 +898,11 @@ extension LCUtils {
             }
             
         } else if jitEnabler == .StkiJIT || jitEnabler == .StikJITLC {
-            let launchURLStr = "stikjit://enable-jit?bundle-id=\(Bundle.main.bundleIdentifier!)"
+            var launchURLStr = "stikjit://enable-jit?bundle-id=\(Bundle.main.bundleIdentifier!)"
+
+            if let script = script, !script.isEmpty {
+                launchURLStr += "&script-data=\(script)"
+            }
             let launchURL : URL
             if jitEnabler == .StikJITLC {
                 let encodedStr = Data(launchURLStr.utf8).base64EncodedString()

@@ -451,7 +451,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, NSSetUncaughtExceptionHandler, hook_do_nothing, nil);
     
     DyldHooksInit([guestAppInfo[@"hideLiveContainer"] boolValue], [guestAppInfo[@"spoofSDKVersion"] unsignedIntValue]);
-    
+#if is32BitSupported
     bool is32bit = [guestAppInfo[@"is32bit"] boolValue];
     if(is32bit) {
         if (!isJitEnabled) {
@@ -475,7 +475,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         // maybe need to save selected32bitLayerBundle to static variable?
         appExecPath = strdup(selected32bitLayerBundle.executablePath.UTF8String);
     }
-    
+#endif
     if(![guestAppInfo[@"dontInjectTweakLoader"] boolValue]) {
         tweakLoaderLoaded = true;
     }
@@ -515,7 +515,12 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     [NSUserDefaults performSelector:@selector(initialize)];
 
     // Attempt to load the bundle. 32-bit bundle will always fail because of 32-bit main executable, so ignore it
-    if (!is32bit && ![appBundle loadAndReturnError:&error]) {
+    if (
+#if is32BitSupported
+        !is32bit &&
+#endif
+        ![appBundle loadAndReturnError:&error]
+        ) {
         appError = error.localizedDescription;
         NSLog(@"[LCBootstrap] loading bundle failed: %@", error);
         *path = oldPath;
@@ -535,14 +540,17 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     // Go!
     NSLog(@"[LCBootstrap] jumping to main %p", appMain);
     int ret;
+#if is32BitSupported
     if(!is32bit) {
+#endif
         argv[0] = (char *)appExecPath;
         ret = appMain(argc, argv);
+#if is32BitSupported
     } else {
         char *argv32[] = {(char*)appExecPath, (char*)*path, NULL};
         ret = appMain(sizeof(argv32)/sizeof(*argv32) - 1, argv32);
     }
-
+#endif
     return [NSString stringWithFormat:@"App returned from its main function with code %d.", ret];
 }
 

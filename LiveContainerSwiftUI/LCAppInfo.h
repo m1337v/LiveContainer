@@ -35,10 +35,12 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property bool autoSaveDisabled;
 @property bool dontSign;
 @property bool spoofSDKVersion;
+@property (nonatomic, strong) NSString* jitLaunchScriptJs;
 @property NSDate* lastLaunched;
 @property NSDate* installationDate;
-
+#if is32BitSupported
 @property bool is32bit;
+#endif
 
 // GPS Addon Section
 @property BOOL spoofGPS;

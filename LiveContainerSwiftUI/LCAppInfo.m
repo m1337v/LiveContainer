@@ -8,7 +8,12 @@
 
 uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 
+@interface LCAppInfo()
+@property UIImage* cachedIcon;
+@end
+
 @implementation LCAppInfo
+
 - (instancetype)initWithBundlePath:(NSString*)bundlePath {
     self = [super init];
     self.isShared = false;
@@ -44,7 +49,8 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
                 @"LCOrientationLock",
                 @"cachedColor",
                 @"LCContainers",
-                @"hideLiveContainer"
+                @"hideLiveContainer",
+                @"jitLaunchScriptJs"
             ];
             for(NSString* key in lcAppInfoKeys) {
                 _info[key] = _infoPlist[key];
@@ -174,26 +180,58 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 }
 
 - (UIImage*)icon {
+    if(_cachedIcon) {
+        return _cachedIcon;
+    }
+    
     NSBundle* bundle = [[NSBundle alloc] initWithPath: _bundlePath];
     NSString* iconPath = nil;
     UIImage* icon = nil;
 
-    if((iconPath = [_infoPlist valueForKeyPath:@"CFBundleIcons.CFBundlePrimaryIcon.CFBundleIconFiles"][0]) &&
-       (icon = [UIImage imageNamed:iconPath inBundle:bundle compatibleWithTraitCollection:nil])) {
-        return icon;
+    @try {
+        if((iconPath = [_infoPlist valueForKeyPath:@"CFBundleIcons.CFBundlePrimaryIcon.CFBundleIconFiles"][0]) &&
+           (icon = [UIImage imageNamed:iconPath inBundle:bundle compatibleWithTraitCollection:nil])) {
+            return icon;
+        }
+    }
+    @catch (NSException *exception) {
+        NSLog(@"Failed to get icon from info.plist: %@", exception.reason);
+    }
+    @try {
+        if((iconPath = [_infoPlist valueForKeyPath:@"CFBundleIconFiles"][0]) &&
+           (icon = [UIImage imageNamed:iconPath inBundle:bundle compatibleWithTraitCollection:nil])) {
+            return icon;
+        }
+    }
+    @catch (NSException *exception) {
+        NSLog(@"Failed to get icon from info.plist: %@", exception.reason);
+    }
+    @try {
+        if((iconPath = [_infoPlist valueForKeyPath:@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"]) &&
+           (icon = [UIImage imageNamed:iconPath inBundle:bundle compatibleWithTraitCollection:nil])) {
+            return icon;
+        }
+    }
+    @catch (NSException *exception) {
+        NSLog(@"Failed to get icon from info.plist: %@", exception.reason);
     }
     
-    if((iconPath = [_infoPlist valueForKeyPath:@"CFBundleIconFiles"][0]) &&
-       (icon = [UIImage imageNamed:iconPath inBundle:bundle compatibleWithTraitCollection:nil])) {
-        return icon;
+    @try {
+        if((iconPath = [_infoPlist valueForKeyPath:@"CFBundleIcons"][@"CFBundlePrimaryIcon"]) && [iconPath isKindOfClass:NSString.class] &&
+           (icon = [UIImage imageNamed:iconPath inBundle:bundle compatibleWithTraitCollection:nil])) {
+            return icon;
+        }
     }
-    
-    if((iconPath = [_infoPlist valueForKeyPath:@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"]) &&
-       (icon = [UIImage imageNamed:iconPath inBundle:bundle compatibleWithTraitCollection:nil])) {
-        return icon;
+    @catch (NSException *exception) {
+        NSLog(@"Failed to get icon from info.plist: %@", exception.reason);
     }
 
-    return [UIImage imageNamed:@"DefaultIcon"];
+    if(!icon) {
+        icon = [UIImage imageNamed:@"DefaultIcon"];
+    }
+        
+    _cachedIcon = icon;
+    return icon;
 
 }
 
@@ -314,6 +352,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
         [fm moveItemAtPath:backupPath toPath:execPath error:&err];
     }
     
+    bool is32bit = false;
     if (needPatch) {
         __block bool has64bitSlice = NO;
         NSString *error = LCParseMachO(execPath.UTF8String, false, ^(const char *path, struct mach_header_64 *header, int fd, void* filePtr) {
@@ -326,7 +365,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
                 }
             }
         });
-        self.is32bit = !has64bitSlice;
+        is32bit = !has64bitSlice;
         LCPatchAppBundleFixupARM64eSlice([NSURL fileURLWithPath:appPath]);
         
         if (error) {
@@ -339,8 +378,16 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
         
         [self save];
     }
+#if !is32BitSupported
+    if(is32bit) {
+        completetionHandler(NO, @"32-bit app is NOT supported!");
+        return;
+    }
+#else
+    self.is32Bit = is32bit;
+#endif
 
-    if (!LCUtils.certificatePassword || self.is32bit || self.dontSign) {
+    if (!LCUtils.certificatePassword || is32bit || self.dontSign) {
         [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SigningInProgress"];
         completetionHandler(YES, nil);
         return;
@@ -616,7 +663,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     _info[@"LCContainers"] = containerInfo;
     [self save];
 }
-
+#if is32BitSupported
 - (bool)is32bit {
     if(_info[@"is32bit"] != nil) {
         return [_info[@"is32bit"] boolValue];
@@ -629,7 +676,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     [self save];
     
 }
-
+#endif
 - (bool)dontSign {
     if(_info[@"dontSign"] != nil) {
         return [_info[@"dontSign"] boolValue];
@@ -641,6 +688,19 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     _info[@"dontSign"] = [NSNumber numberWithBool:dontSign];
     [self save];
     
+}
+
+- (NSString *)jitLaunchScriptJs {
+    return _info[@"jitLaunchScriptJs"];
+}
+
+- (void)setJitLaunchScriptJs:(NSString *)jitLaunchScriptJs {
+    if (jitLaunchScriptJs.length > 0) {
+        _info[@"jitLaunchScriptJs"] = jitLaunchScriptJs;
+    } else {
+        [_info removeObjectForKey:@"jitLaunchScriptJs"];
+    }
+    if (!_autoSaveDisabled) [self save];
 }
 
 - (bool)spoofSDKVersion {

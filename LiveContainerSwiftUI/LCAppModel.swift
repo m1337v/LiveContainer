@@ -5,6 +5,9 @@ protocol LCAppModelDelegate {
     func closeNavigationView()
     func changeAppVisibility(app : LCAppModel)
     func jitLaunch() async
+    func jitLaunch(withScript script: String) async
+    func jitLaunch(withPID pid: Int) async
+    func jitLaunch(withPID pid: Int, withScript script: String) async
     func showRunWhenMultitaskAlert() async -> Bool?
 }
 
@@ -28,9 +31,9 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var uiDefaultDataFolder : String?
     @Published var uiContainers : [LCContainer]
     @Published var uiSelectedContainer : LCContainer?
-    
+#if is32BitSupported
     @Published var uiIs32bit : Bool
-    
+#endif
     @Published var uiTweakFolder : String? {
         didSet {
             appInfo.tweakFolder = uiTweakFolder
@@ -91,6 +94,12 @@ class LCAppModel: ObservableObject, Hashable {
         }
     }
     
+    @Published var jitLaunchScriptJs: String? {
+        didSet {
+            appInfo.jitLaunchScriptJs = jitLaunchScriptJs
+        }
+    }
+
     @Published var uiSpoofSDKVersion : Bool {
         didSet {
             appInfo.spoofSDKVersion = uiSpoofSDKVersion
@@ -272,9 +281,11 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiTweakLoaderInjectFailed = appInfo.info()["LCTweakLoaderCantInject"] as? Bool ?? false
         self.uiDontLoadTweakLoader = appInfo.dontLoadTweakLoader
         self.uiDontSign = appInfo.dontSign
+        self.jitLaunchScriptJs = appInfo.jitLaunchScriptJs
         self.uiSpoofSDKVersion = appInfo.spoofSDKVersion
-        
+#if is32BitSupported
         self.uiIs32bit = appInfo.is32bit
+#endif
         
         // MARK: GPS Addon Section
         self.uiSpoofGPS = appInfo.spoofGPS
@@ -327,9 +338,6 @@ class LCAppModel: ObservableObject, Hashable {
         }
         
         var multitask = multitask
-        if(appInfo.isJITNeeded && multitask) {
-            multitask = false
-        }
         
         if multitask && !uiIsShared {
             throw "It's not possible to multitask with private apps."
@@ -414,9 +422,41 @@ class LCAppModel: ObservableObject, Hashable {
         
 
         UserDefaults.standard.set(uiSelectedContainer?.folderName, forKey: "selectedContainer")
-
-        if appInfo.isJITNeeded || appInfo.is32bit {
-            await delegate?.jitLaunch()
+        var is32bit = false
+        
+        #if is32BitSupported
+        is32bit = appInfo.is32bit
+        #endif
+        if appInfo.isJITNeeded || is32bit {
+            if multitask, #available(iOS 17.4, *) {
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                    LCUtils.launchMultitaskGuestApp(withPIDCallback: appInfo.displayName(), pidCompletionHandler: { pidNumber, error in
+                        if let error {
+                            continuation.resume(throwing: error)
+                            return
+                        }
+                        guard let pidNumber = pidNumber else {
+                            continuation.resume(throwing: "Failed to obtain PID from LiveProcess")
+                            return
+                        }
+                        Task {
+                            if let scriptData = self.jitLaunchScriptJs, !scriptData.isEmpty {
+                                await self.delegate?.jitLaunch(withPID: pidNumber.intValue, withScript: scriptData)
+                            } else {
+                                await self.delegate?.jitLaunch(withPID: pidNumber.intValue)
+                            }
+                            continuation.resume()
+                        }
+                    })
+                }
+            } else {
+                // Non-multitask JIT flow remains unchanged
+                if let scriptData = jitLaunchScriptJs, !scriptData.isEmpty {
+                    await delegate?.jitLaunch(withScript: scriptData)
+                } else {
+                    await delegate?.jitLaunch()
+                }
+            }
         } else if multitask, #available(iOS 16.0, *) {
             try await LCUtils.launchMultitaskGuestApp(appInfo.displayName())
         } else {

@@ -33,6 +33,7 @@ int dyld_get_program_sdk_version(void);
 + (BOOL)launchToGuestApp;
 + (BOOL)launchToGuestAppWithURL:(NSURL *)url;
 + (void)launchMultitaskGuestApp:(NSString *)displayName completionHandler:(void (^)(NSError *error))completionHandler API_AVAILABLE(ios(16.0));
++ (void)launchMultitaskGuestAppWithPIDCallback:(NSString *)displayName pidCompletionHandler:(void (^)(NSNumber *pid, NSError *error))completionHandler API_AVAILABLE(ios(16.0));
 + (NSString*)getContainerUsingLCSchemeWithFolderName:(NSString*)folderName;
 
 + (NSProgress *)signAppBundleWithZSign:(NSURL *)path completionHandler:(void (^)(BOOL success, NSError *error))completionHandler;

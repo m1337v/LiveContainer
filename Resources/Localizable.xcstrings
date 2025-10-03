@@ -58,6 +58,12 @@
             "value" : "Adicionar à Tela Inicial"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить на экран \"Домой\""
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -133,7 +139,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "일부 앱이 멀티태스킹 중입니다. 이 앱을 실행할 경우 멀티태스킹 중인 앱은 닫힙니다."
+            "value" : "일부 앱이 멀티태스킹 중입니다. 이 앱을 실행할 경우 멀티태스킹 중인 앱이 모두 닫힙니다."
           }
         },
         "pl" : {
@@ -146,6 +152,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Alguns aplicativos estão sendo executados no modo multitarefa. Executar este aplicativo irá encerrar os outros. Deseja continuar?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Некоторые приложения работают в режиме многозадачности. Запуск этого приложения завершит их работу. Продолжить?"
           }
         },
         "sv" : {
@@ -237,6 +249,12 @@
             "value" : "Tem certeza de que deseja desinstalar %@?"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вы действительно хотите удалить %@?"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -324,6 +342,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Confirmar Desinstalação"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подтвердить удаление"
           }
         },
         "sv" : {
@@ -415,6 +439,12 @@
             "value" : "Copiar URL de Inicialização"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Копировать Url запуска"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -504,6 +534,12 @@
             "value" : "Criar Clipe de Aplicativo"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создать блиц-приложение"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -578,7 +614,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 데이터 폴더도 같이 삭제하시겠습니까? 데이터를 유지할 경우 나중에 다시 사용할 수 있습니다."
+            "value" : "%@ 데이터 폴더도 함께 삭제하시겠습니까? 데이터를 유지할 경우 나중에 다시 사용할 수 있습니다."
           }
         },
         "pl" : {
@@ -591,6 +627,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Você quer também apagar a pasta de dados de %@? Você pode mantê-la para uso futuro."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Хотите ли вы также удалить папку данных от %@? Вы можете её оставить для дальнейшего использования."
           }
         },
         "sv" : {
@@ -682,6 +724,12 @@
             "value" : "Apagar Pasta de Dados"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить папку данных"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -769,6 +817,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Executar sem JIT"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запустить без JIT"
           }
         },
         "sv" : {
@@ -860,6 +914,12 @@
             "value" : "Multitarefa"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Многозадачность"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -947,6 +1007,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A Pasta de dados ainda não foi criada"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папка данных ещё не создана"
           }
         },
         "sv" : {
@@ -1038,6 +1104,12 @@
             "value" : "Abrir Pasta de Dados"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть папку данных"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1125,6 +1197,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Executar"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запустить"
           }
         },
         "sv" : {
@@ -1216,6 +1294,12 @@
             "value" : "Salvar Ícone do Aplicativo"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить иконку приложения"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1303,6 +1387,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Desinstalar"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить"
           }
         },
         "sv" : {
@@ -1394,6 +1484,12 @@
             "value" : "Por favor, use sua maneira favorita para habilitar JIT para o contêiner atual."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пожалуйста, используйте ваш любимый способ, чтобы включить jit для текущего LiveContainer."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1483,6 +1579,12 @@
             "value" : "Esperando por JIT"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ожидание JIT"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1570,6 +1672,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Abortar instalação"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Прервать установку"
           }
         },
         "sv" : {
@@ -1793,6 +1901,36 @@
             }
           }
         },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld приложений всего"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld приложений всего"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld приложение"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld приложений"
+                }
+              }
+            }
+          }
+        },
         "sv" : {
           "variations" : {
             "plural" : {
@@ -1924,6 +2062,12 @@
             "value" : "Falha ao inicializar 'AppInfo'!"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось инициализировать AppInfo!"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2011,6 +2155,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aplicativo Não Encontrado."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приложение не найдено."
           }
         },
         "sv" : {
@@ -2102,6 +2252,12 @@
             "value" : "Pacote do aplicativo não encontrado."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пакет приложения не найден."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2176,7 +2332,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LiveContainer2에서 앱을 사용하려면 공유 앱으로 변환하세요"
+            "value" : "LiveContainer2에서 앱을 사용하려면, LiveContainer에서 앱을 공유 앱으로 변환해주세요."
           }
         },
         "pl" : {
@@ -2189,6 +2345,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Converta Aplicativos em Aplicativos Compartilhados para Usá-los no segundo contêiner"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Конвертировать приложения в общие приложения для использования их во втором LiveContainer'е"
           }
         },
         "sv" : {
@@ -2265,7 +2427,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "URL 또는 URL Scheme을 입력하세요"
+            "value" : "URL 또는 URL Scheme을 입력하세요."
           }
         },
         "pl" : {
@@ -2278,6 +2440,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Insira a URL ou Tema da URL"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Введите URL-адрес или схему URL"
           }
         },
         "sv" : {
@@ -2369,6 +2537,12 @@
             "value" : "Aplicativos Escondidos"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скрытые приложения"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2456,6 +2630,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Esconder um aplicativo nas configurações."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скройте приложение в его настройках."
           }
         },
         "sv" : {
@@ -2547,6 +2727,12 @@
             "value" : "Falha ao ler 'Info.plist' do aplicativo."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать Info.plist приложения."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2634,6 +2820,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Instalar como um novo aplicativo"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установить как новый"
           }
         },
         "sv" : {
@@ -2725,6 +2917,12 @@
             "value" : "Instalação"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установка"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2812,6 +3010,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Instalar Arquivo IPA"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установить файл IPA"
           }
         },
         "sv" : {
@@ -2903,6 +3107,12 @@
             "value" : "Instalar pela URL"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установить из URL"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2990,6 +3200,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Existe um aplicativo existente com o mesmo identificador de pacote de outro aplicativo. Substitua um deles ou instale como novo."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Уже установлено другое приложение с тем же ИД пакета. Хотите ли вы его обновить, либо установить в качестве нового?"
           }
         },
         "sv" : {
@@ -3081,6 +3297,12 @@
             "value" : "Pressione o botão '+' para instalar aplicativos."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажмите на кнопку '+', чтобы установить приложения."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3168,6 +3390,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Insira a URL de Instalação"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пожалуйста, введите URL установки"
           }
         },
         "sv" : {
@@ -3259,6 +3487,12 @@
             "value" : "Falha ao acessar IPA"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось получить доступ к IPA"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3333,7 +3567,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "기본 LiveContainer에서 앱을 관리하세요"
+            "value" : "LiveContainer에서 앱을 관리하세요."
           }
         },
         "pl" : {
@@ -3346,6 +3580,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gerenciar aplicativos no contêiner primário"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Управляйте приложениями в основном LiveContainer"
           }
         },
         "sv" : {
@@ -3437,6 +3677,12 @@
             "value" : "Meus aplicativos"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мои приложения"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3524,6 +3770,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Abrir Link"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть ссылку"
           }
         },
         "sv" : {
@@ -3615,6 +3867,12 @@
             "value" : "Esquema \"%@\" não pôde ser aberto por qualquer aplicativo instalado no contêiner."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Схема \"%@\" не может быть открыта ни одним установленным приложением."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3704,6 +3962,12 @@
             "value" : "Aplicativo foi assinado com sucesso, porém o LiveContainer foi incapaz de assinar os seguintes arquivos. Você consegue utilizar o aplicativo, mas não possua expectativas de que não irá encerrar involuntariamente até certo ponto."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приложение было успешно подписано, но LiveContainer не смог подписать следующие файлы. Вы сможете воспользоваться приложением, но делайте это на свой страх и риск."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3763,6 +4027,12 @@
             "value" : "Nom (A-Z)"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nome (A–Z)"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3785,6 +4055,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nome (A—Z)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Имя (A-Z)"
           }
         },
         "vi" : {
@@ -3828,6 +4104,12 @@
             "value" : "Personnalisé"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personalizzata"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3837,7 +4119,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "커스텀"
+            "value" : "사용자 지정"
           }
         },
         "pl" : {
@@ -3850,6 +4132,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Personalizado"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Настраиваемый"
           }
         },
         "vi" : {
@@ -3894,6 +4182,12 @@
             "value" : "Réarranger"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Riordina"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3903,7 +4197,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "재정렬"
+            "value" : "순서 변경"
           }
         },
         "pl" : {
@@ -3916,6 +4210,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reorganizar"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переставить"
           }
         },
         "vi" : {
@@ -3959,6 +4259,12 @@
             "value" : "Cela réinitialisera l'ordre de tri personnalisé à l'ordre alphabétique."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa opzione resetta l'ordinamento personalizzato all'ordine alfabetico."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3981,6 +4287,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Isto vai redefinir a ordem de classificação personalizada para a ordem alfabética."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это сбросит настроенный порядок сортировки на порядок по алфавиту."
           }
         },
         "vi" : {
@@ -4024,6 +4336,12 @@
             "value" : "Date d'installation"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data di Installazione"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4046,6 +4364,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Data de Instalação"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дата установки"
           }
         },
         "vi" : {
@@ -4089,6 +4413,12 @@
             "value" : "Dernier ouvert"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ultima apertura"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4111,6 +4441,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aberto Pela Última Vez"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дата последнего открытия"
           }
         },
         "vi" : {
@@ -4155,6 +4491,12 @@
             "value" : "Nom (Z-A)"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nome (Z–A)"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4177,6 +4519,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nome (Z—A)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Имя (Z-A)"
           }
         },
         "vi" : {
@@ -4248,6 +4596,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Por favor, forneça um arquivo IPA para ser instalado."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Укажите файл IPA для установки."
           }
         },
         "sv" : {
@@ -4339,6 +4693,12 @@
             "value" : "A URL de entrada é inválido. Verifique-a e tente novamente."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Введенный URL некорректен. Проверьте его и попробуйте ещё раз"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4426,6 +4786,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Travar a Orientação da Tela"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Блокировка ориентации"
           }
         },
         "sv" : {
@@ -4517,6 +4883,12 @@
             "value" : "Horizontal"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Альбомная"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4604,6 +4976,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vertical"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Портретная"
           }
         },
         "sv" : {
@@ -4695,6 +5073,12 @@
             "value" : "Os dados deste aplicativo estão, atualmente, localizados em %@. Abra e mova %@ para a tela nomeada 'Meus Aplicativos' e tente de novo."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Данные этого приложения сейчас находятся в %@. Откройте %@ и запустите его на экране «Мои приложения» и повторите попытку."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4782,6 +5166,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pasta do Pacote"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папка пакета"
           }
         },
         "sv" : {
@@ -4873,6 +5263,12 @@
             "value" : "Não injetar TweakLoader"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не встраивать TweakLoader"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4960,6 +5356,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Não carregar 'TweakLoader'"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не загружать TweakLoader"
           }
         },
         "sv" : {
@@ -5051,6 +5453,12 @@
             "value" : "Corrigir Erros"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправления"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5140,6 +5548,12 @@
             "value" : "(Antigo) Corrigir 'File Picker'"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(Устаревшее) Починить меню выбора файлов"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5214,7 +5628,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "파일 선택기가 ‘열기’ 버튼을 누른 후 응답하지 않을 경우, 앱이 강제로 'Inbox'에 파일을 복사하도록 하여 문제를 해결할 수 있습니다. 복사한 파일은 앱 데이터 폴더 안에 있는 'Inbox' 폴더에 나타날 수 있습니다."
+            "value" : "파일 선택기에서 '열기' 버튼을 누르고 응답이 없을 때, 강제로 파일을 복사합니다. 복사한 파일은 앱 데이터 폴더 안에 있는 'Inbox' 폴더에 나타날 수 있습니다."
           }
         },
         "pl" : {
@@ -5227,6 +5641,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ative esta opção caso o 'File Picker' não fazer nada quando o botão 'Abrir' é pressionado."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправить не отвечающее меню выбора файлов при нажатии \"открыть\", заставляя это приложение копировать файлы в папку \"Inbox\" в папке данных приложения."
           }
         },
         "sv" : {
@@ -5265,16 +5685,52 @@
       "comment" : "new file picker fix",
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إصلاح منتقي الملفات"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dateiauswahl reparieren"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fix File Picker"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corriger le sélecteur de fichiers"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ripara Selettore File"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "ファイル選択を修正"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일 선택기 문제 해결"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправить выбор файлов"
           }
         },
         "zh-Hans" : {
@@ -5288,16 +5744,52 @@
     "lc.appSettings.fixLocalNotification" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إصلاح الإشعارات المحلية"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokale Benachrichtigungen reparieren"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fix Local Notifications"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corriger les notifications locales"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ripara Notifiche Locali"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "ローカル通知を修正"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로컬 알림 문제 해결"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправить локальные уведомления"
           }
         },
         "zh-Hans" : {
@@ -5363,6 +5855,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Forçar Assinatura"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Принудительно подписать"
           }
         },
         "sv" : {
@@ -5454,6 +5952,12 @@
             "value" : "Tente assinar o aplicativo novamente se ele falhar para iniciar com um erro como \"Assinatura Inválida\". Se o erro permanecer, renove o Certificado JIT-Less."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Попробуйте подписать заново, если это приложение не сможет запуститься с ошибкой о неправильной подписи. Если это не поможет, обновите сертификат режима JIT-less."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5528,7 +6032,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SDK를 속일 경우 시스템 라이브러리를 앱이 만들어진 SDK 버전으로 강제로 실행합니다."
+            "value" : "강제로 앱이 만들어진 SDK 버전으로 시스템 라이브러리를 실행합니다."
           }
         },
         "pl" : {
@@ -5541,6 +6045,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Falsificar a versão do SDK força as bibliotecas do sistema a funcionarem com a versão do SDK que o aplicativo foi criado."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Замена версии SDK заставляет системные библиотеки работать с версией SDK, с которой было собрано приложение."
           }
         },
         "sv" : {
@@ -5632,6 +6142,12 @@
             "value" : "Esconder Aplicativo"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скрыть приложение"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5719,6 +6235,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Para esconder os aplicativos completamente, ative o 'Modo de Ocultação Robusto' nas configurações."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чтобы полностью скрыть приложения, включите строгий режим скрытия в настройках."
           }
         },
         "sv" : {
@@ -5810,6 +6332,12 @@
             "value" : "Esconder o LiveContainer do Dyld Api"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скрыть LiveContainer от Dyld"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5899,6 +6427,12 @@
             "value" : "Talvez ajude a ignorar a detecção de injeção de alguns aplicativos."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Может помочь обойти обнаружение инъекции для некоторых приложений."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5927,6 +6461,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "可能有助於繞過一些應用程式的注入檢測。"
+          }
+        }
+      }
+    },
+    "lc.appSettings.jit26.script" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT Launch Script"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT启动脚本"
+          }
+        }
+      }
+    },
+    "lc.appSettings.jit26.scriptDesc" : {
+      "comment" : "lc.appSettings.jit26.scriptDesc",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An JavaScript file passed to StikDebug when JIT launching the app."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在带JIT启动时传递给StikDebug的脚本"
+          }
+        }
+      }
+    },
+    "lc.appSettings.jit26.scriptLoaded" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Script Loaded"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已选择脚本"
           }
         }
       }
@@ -5986,6 +6572,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Abrir com JIT"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запустить с JIT"
           }
         },
         "sv" : {
@@ -6077,6 +6669,12 @@
             "value" : "LiveContainer tentará adquirir a permissão para obter a compilação 'JIT' antes de iniciar o aplicativo."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer попытается получить разрешение JIT перед запуском приложения."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6166,6 +6764,12 @@
             "value" : "Bloquear Aplicativo"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заблокировать приложение"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6253,6 +6857,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nova Pasta de Dados"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новая папка данных"
           }
         },
         "sv" : {
@@ -6391,6 +7001,12 @@
             "value" : "Este aplicativo não está assinado, você quer assiná-lo mesmo assim?"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это приложение не подписано, вы всё равно хотите подписать его?"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6478,6 +7094,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Falsificar Versão do SDK"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заменить версию SDK"
           }
         },
         "sv" : {
@@ -6569,6 +7191,12 @@
             "value" : "Converter para 'Aplicativo Privado'"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Преобразовать в приватное приложение"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6656,6 +7284,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mover a Pasta de Documentos Privada deste aplicativo permite você acessar os arquivos e modificações no aplicativo 'Arquivos', mas não se poderá mais abrir este aplicativo em outros contêineres."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перемещение данного приложения в папку личных документов даст доступ к его данным и твикам в приложении \"Файлы\", но вы потеряете возможность запустить это приложение в других LiveContainer."
           }
         },
         "sv" : {
@@ -6747,6 +7381,12 @@
             "value" : "Converter para 'Aplicativo Compartilhado'"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Преобразовать в общее приложение"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6834,6 +7474,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mover este aplicativo para os Aplicativos Agrupados irá permitir outros que outros contêineres executem o aplicativo com todos os seus dados e ajustes preservados. Se você quer acessar os dados e os ajustes do aplicativo novamente por meio do aplicativo de arquivos, por favor, mova-o de volta."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перемещение данного приложения в App Group позволит другим LiveContainer запускать это приложение, сохранив все данные и твики. Если вам снова понадобится доступ к данным и твикам приложения, переместите его обратно."
           }
         },
         "sv" : {
@@ -6925,6 +7571,12 @@
             "value" : "Pasta de Ajustes"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папка твиков"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6960,16 +7612,52 @@
     "lc.appSettings.useLCBundleId" : {
       "extractionState" : "manual",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "استخدام مُعرف مجموعة LiveContainer"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benutze die Bundle-ID des LiveContainers"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Use LiveContainer's Bundle ID"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utiliser l'ID du bundle de LiveContainer"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa il Bundle ID di LiveContainer"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "LiveContainerのバンドル識別子を使用"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer 번들 ID 사용"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использовать ИД пакета LiveContainer"
           }
         },
         "zh-Hans" : {
@@ -7022,7 +7710,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LiveContainer 번들 식별자를 메인 번들 덮어쓸 때 사용하여 문제를 해결합니다."
+            "value" : "메인 번들을 LiveContainer 번들 식별자로 덮어씌워서 문제를 해결합니다."
           }
         },
         "pl" : {
@@ -7035,6 +7723,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Esta opção corrige estes erros usando o identificador do pacote do LiveContainer para substituir o pacote principal."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправляет некоторые проблемы использованием ИД пакета LiveContainer'а в ходе перезаписи основного пакета."
           }
         },
         "sv" : {
@@ -7126,6 +7820,12 @@
             "value" : "Certificado ADP"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сертификат ADP"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7213,6 +7913,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Auto"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автоматически"
           }
         },
         "sv" : {
@@ -7304,6 +8010,12 @@
             "value" : "Cancelar"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отмена"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7391,6 +8103,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fechar"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Закрыть"
           }
         },
         "sv" : {
@@ -7482,6 +8200,12 @@
             "value" : "Contêineres"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Контейнеры"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7569,6 +8293,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Continuar"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продолжить"
           }
         },
         "sv" : {
@@ -7660,6 +8390,12 @@
             "value" : "Copiar"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Копировать"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7747,6 +8483,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Corrigir"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Верно"
           }
         },
         "sv" : {
@@ -7838,6 +8580,12 @@
             "value" : "Dados"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Данные"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7897,6 +8645,12 @@
             "value" : "Par défaut"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7919,6 +8673,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Padrão"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По-умолчанию"
           }
         },
         "vi" : {
@@ -7990,6 +8750,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Deletar"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить"
           }
         },
         "sv" : {
@@ -8081,6 +8847,12 @@
             "value" : "Desativado"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отключено"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8168,6 +8940,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Concluído"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готово"
           }
         },
         "sv" : {
@@ -8259,6 +9037,12 @@
             "value" : "Insira o nome da nova pasta"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Введите имя новой папки"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8346,6 +9130,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Digite o novo nome"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Введите новое название"
           }
         },
         "sv" : {
@@ -8437,6 +9227,12 @@
             "value" : "Erro"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ошибка"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8524,6 +9320,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Linguagem"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Язык"
           }
         },
         "sv" : {
@@ -8615,6 +9417,12 @@
             "value" : "Carregando…"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузка…"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8702,6 +9510,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Variado"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Прочее"
           }
         },
         "sv" : {
@@ -8793,6 +9607,12 @@
             "value" : "Mover"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переместить"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8882,6 +9702,12 @@
             "value" : "Não"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8910,6 +9736,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "否"
+          }
+        }
+      }
+    },
+    "lc.common.noFileSelected" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No file selected"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未选择文件"
           }
         }
       }
@@ -8969,6 +9812,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nenhum"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет"
           }
         },
         "sv" : {
@@ -9060,6 +9909,12 @@
             "value" : "OK"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ОК"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9149,6 +10004,12 @@
             "value" : "Renomear"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переименовать"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9208,6 +10069,12 @@
             "value" : "Réinitialiser"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9232,6 +10099,12 @@
             "value" : "Redefinir"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сброс"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9242,6 +10115,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重置"
+          }
+        }
+      }
+    },
+    "lc.common.select" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择"
           }
         }
       }
@@ -9273,6 +10163,12 @@
             "value" : "Statistiques"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Statistiche"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9295,6 +10191,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Estatísticas"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Статистика"
           }
         },
         "vi" : {
@@ -9366,6 +10268,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sucesso"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Успех"
           }
         },
         "sv" : {
@@ -9457,6 +10365,12 @@
             "value" : "Desconhecido"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неизвестно"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9546,6 +10460,12 @@
             "value" : "Sim"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Да"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9620,7 +10540,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "기본 LiveContainer입니다"
+            "value" : "기본 LiveContainer입니다."
           }
         },
         "pl" : {
@@ -9633,6 +10553,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Este é o contêiner padrão"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это контейнер по умолчанию"
           }
         },
         "sv" : {
@@ -9724,6 +10650,12 @@
             "value" : "Nome da Pasta do Contêiner"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Имя папки контейнера"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9811,6 +10743,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nome do Contêiner"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Название контейнера"
           }
         },
         "sv" : {
@@ -9902,6 +10840,12 @@
             "value" : "LiveContainer usará o contêiner padrão quando nenhum contêiner é especificado."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer будет использовать контейнер по умолчанию, когда ничего не указано."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9989,6 +10933,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Remover Dados"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить данные"
           }
         },
         "sv" : {
@@ -10080,6 +11030,12 @@
             "value" : "Deseja remover todos os dados do contêiner?"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вы хотите удалить все данные этого контейнера?"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10154,7 +11110,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "사용 중인 컨테이너입니다"
+            "value" : "사용 중인 컨테이너입니다."
           }
         },
         "pl" : {
@@ -10167,6 +11123,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Este contêiner já está sendo usado"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот контейнер в настоящее время используется"
           }
         },
         "sv" : {
@@ -10258,6 +11220,12 @@
             "value" : "Contêiner está em uso por %@."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Контейнер на данный момент используется %@."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10345,6 +11313,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Isolar Aplicativos Agrupados"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изоляция группы приложений"
           }
         },
         "sv" : {
@@ -10436,6 +11410,12 @@
             "value" : "Não há corrente o suficiente para o grupo de acesso."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недостаточно групп доступа к связке ключей."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10523,6 +11503,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Preferências do Contêiner"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Настройки контейнера"
           }
         },
         "sv" : {
@@ -10614,6 +11600,12 @@
             "value" : "Remover Contêiner"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить контейнер"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10701,6 +11693,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Você quer remover este contêiner?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вы хотите удалить этот контейнер?"
           }
         },
         "sv" : {
@@ -10792,6 +11790,12 @@
             "value" : "Deseja remover a corrente-chave deste contêiner?"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вы хотите удалить связку ключей этого контейнера?"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10879,6 +11883,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Selecionar Contêineres Inutilizados"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрать неиспользуемые контейнеры"
           }
         },
         "sv" : {
@@ -10970,6 +11980,12 @@
             "value" : "Nenhuma pasta de dados inutilizada."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет неиспользуемых папок данных."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11057,6 +12073,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aplicativo desconhecido"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неизвестное приложение"
           }
         },
         "sv" : {
@@ -11148,6 +12170,12 @@
             "value" : "Definir Como Contêiner Padrão"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установить как контейнер по умолчанию"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11176,6 +12204,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定為預設容器"
+          }
+        }
+      }
+    },
+    "lc.container.spoofIdentifierForVendor" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spoof identifierForVendor"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "伪造identifierForVendor"
           }
         }
       }
@@ -11235,6 +12280,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Não é possível adicionar mais de 3 contêineres."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нельзя добавить больше трёх контейнеров."
           }
         },
         "sv" : {
@@ -11326,6 +12377,12 @@
             "value" : "Desvincular Do Aplicativo"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отвязать от приложения"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11413,6 +12470,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Baixando"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скачивание"
           }
         },
         "sv" : {
@@ -11504,6 +12567,12 @@
             "value" : "Tem certeza que deseja alternar para %@? Fazer tal ação encerrará este aplicativo."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вы точно хотите переключиться на %@? Переключившись, вы завершите работу текущего приложения."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11591,6 +12660,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aplicativo %@ não encontrado."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приложение \"%@\" не найдено."
           }
         },
         "sv" : {
@@ -11682,6 +12757,12 @@
             "value" : "Aplicativo Atual"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Текущее приложение"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11756,7 +12837,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@에서 실행"
+            "value" : "%@로 열기"
           }
         },
         "pl" : {
@@ -11769,6 +12850,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Abrir No %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть во %@"
           }
         },
         "sv" : {
@@ -11792,7 +12879,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在%@中打开"
+            "value" : "在%@2中打开"
           }
         },
         "zh-Hant" : {
@@ -11845,7 +12932,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "웹페이지를 열고, 앱을 실행할 경우 현재 앱이 종료됩니다. 유니버셜 링크(Universal Links)를 지원할 경우 현재 앱 안에서 열 수 있습니다."
+            "value" : "웹페이지를 열고, 앱을 실행할 경우 현재 앱이 종료됩니다. 유니버셜 링크를 지원할 경우 현재 앱 안에서 여는 것을 시도할 수 있습니다."
           }
         },
         "pl" : {
@@ -11858,6 +12945,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tem certeza que deseja abrir esta página da web e iniciar um aplicativo? Isso encerrará o aplicativo atual. Você pode tentar abri-lo no aplicativo atual se ele suporta Links Universais."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вы уверены, что вы хотите открыть веб-страницу и запустить приложение? Это действие закроет это приложение. Вы можете попробовать открыть страницу в текущем приложении, если оно поддерживает Универсальные Ссылки."
           }
         },
         "sv" : {
@@ -11949,6 +13042,12 @@
             "value" : "Por favor, reinicie o LiveContainer para instalar aplicativos."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пожалуйста, перезапустите LiveContainer, чтобы установить приложение."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12036,6 +13135,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Configure o modo JIT-Less (requer SideStore/AltStore) nas configurações para usar o LiveContainer.\n\n**Verifique a página de diagnóstico do modo JIT-Less nas configurações se você encontrar problemas ativando-o.**\n\nPressione o sinal de '+' para adicionar e instalar aplicativos.\n\nPressione e segure o aplicativo para alterar sua configuração, corrigir erros e adicionar aplicativos à tela de início."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Если вы собираетесь использовать LiveContainer без JIT, установите режим JIT-less в настройках.\n\n**Воспользуйтесь диагностикой режима JIT-less в настройках, если вы сталкиваетесь с проблемами.**\n\nНажмите на кнопку '+', чтобы установить приложение.\n\nНажмите и удерживайте приложение для настроек и исправлений, связанных с ним, а также чтобы добавить его на домашний экран."
           }
         },
         "sv" : {
@@ -12127,6 +13232,12 @@
             "value" : "**Verifique as [Perguntas frequentes do LiveContainer](https://github.com/khanhduytran0/LiveContainer/issues/265) para as possíveis soluções para seus problemas.**\n\nSe você encontrar um erro técnico ou um problema na compatibilidade do LiveContainer por favor relate isso na [Página de problemas no GitHub](https://github.com/khanhduytran0/LiveContainer/issues)."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "**Загляните в [ЧАВО LiveContainer'а](https://github.com/khanhduytran0/LiveContainer/issues/265) для решений на частые проблемы**\n                      \nЕсли вы обнаружили баг и проблему с совместимостью, то отправьте его на [GitHub issues](https://github.com/khanhduytran0/LiveContainer/issues)."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12214,6 +13325,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ajuda do LiveContainer"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Помощь по LiveContainer"
           }
         },
         "sv" : {
@@ -12305,6 +13422,12 @@
             "value" : "Arquivo de Titularidade"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл с entitlements"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12392,6 +13515,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aplicativos Agrupados Acessíveis"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступен ли App Group"
           }
         },
         "sv" : {
@@ -12483,6 +13612,12 @@
             "value" : "ID dos Aplicativos Agrupados"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ИД App Group"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12572,6 +13707,12 @@
             "value" : "Identificador do Pacote"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ИД пакета"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12646,7 +13787,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "예상 번들 식별자"
+            "value" : "예상 번들 식별자:"
           }
         },
         "pl" : {
@@ -12659,6 +13800,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Identificador do Pacote Esperado"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ожидаемый ИД пакета"
           }
         },
         "sv" : {
@@ -12735,7 +13882,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "인증서 데이터를 발견하였습니다"
+            "value" : "인증서 데이터"
           }
         },
         "pl" : {
@@ -12748,6 +13895,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dados do Certificado Encontrados"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обнаружены данные сертификата"
           }
         },
         "sv" : {
@@ -12839,6 +13992,12 @@
             "value" : "Expirado"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отозвано"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12926,6 +14085,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "'Status' do Certificado"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Статус сертификата"
           }
         },
         "sv" : {
@@ -13017,6 +14182,12 @@
             "value" : "Válido"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Действует"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13092,7 +14263,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "인증서가 유효하지 않습니다"
+            "value" : "인증서 만료 날짜:"
           }
         },
         "pl" : {
@@ -13105,6 +14276,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Certificado Inválido Após"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сертификат не действителен после"
           }
         },
         "sv" : {
@@ -13181,7 +14358,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "인증서 최근 업데이트 날짜"
+            "value" : "인증서 업데이트 날짜"
           }
         },
         "pl" : {
@@ -13194,6 +14371,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Data da Atualização Mais Recente do Certificado"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дата последнего обновления сертификата"
           }
         },
         "sv" : {
@@ -13270,7 +14453,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "인증서 비밀번호를 발견하였습니다"
+            "value" : "인증서 비밀번호"
           }
         },
         "pl" : {
@@ -13283,6 +14466,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Senha do Certificado Encontrada"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обнаружен пароль сертификата"
           }
         },
         "sv" : {
@@ -13374,6 +14563,12 @@
             "value" : "Verificando"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверка"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13463,6 +14658,12 @@
             "value" : "Obter Ajuda"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Получить помощь"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13537,7 +14738,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "스토어"
+            "value" : "설치 방식"
           }
         },
         "pl" : {
@@ -13550,6 +14751,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Armazenar"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Магазин"
           }
         },
         "sv" : {
@@ -13639,6 +14846,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ID do Time"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ID команды"
           }
         },
         "sv" : {
@@ -13789,6 +15002,12 @@
             "value" : "Teste para o JIT-Less Aprovado"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тест режима JIT-Less пройден"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13878,6 +15097,12 @@
             "value" : "Copiar PID"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скопировать ИД процесса"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13965,6 +15190,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Habilitar PIP"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включить PIP"
           }
         },
         "sv" : {
@@ -14057,6 +15288,12 @@
             "value" : "Escala"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Масштаб"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14144,6 +15381,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Este aplicativo foi encerrado."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это приложение было закрыто."
           }
         },
         "sv" : {
@@ -14235,6 +15478,12 @@
             "value" : "Sobre Mim"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обо мне"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14322,6 +15571,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sucesso ao mover."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перемещение успешно."
           }
         },
         "sv" : {
@@ -14413,6 +15668,12 @@
             "value" : "Existem arquivos na sua pasta de aplicativos agrupados compartilhados. Mova-os primeiro e tente novamente."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В общем App Group присутствуют файлы. Сначала переместите их, затем попробуйте снова."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14502,6 +15763,12 @@
             "value" : "Existem arquivos na pasta de aplicativos agrupados privados. Mova-os primeiro e tente novamente."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В приватном App Group присутствуют файлы. Сначала переместите их, затем попробуйте снова."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14576,7 +15843,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "비공개 앱 그룹을 공유 문서 폴더로 이동"
+            "value" : "'비공개 앱 그룹'을 '공유 문서 폴더'로 이동"
           }
         },
         "pl" : {
@@ -14589,6 +15856,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mover Aplicativos Agrupados Privados para a Pasta de Documentos Compartilhados"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переместить приватный App Group в папку общих документов"
           }
         },
         "sv" : {
@@ -14665,7 +15938,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "공유 앱 그룹 파일을 비공개 문서 폴더로 이동"
+            "value" : "'공유 앱 그룹 파일'을 '비공개 문서 폴더'로 이동"
           }
         },
         "pl" : {
@@ -14678,6 +15951,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mover Arquivos da Pasta de Aplicativos Agrupados para a Pasta de Documentos Privados"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переместить файлы из общего App Group в личную папку документов"
           }
         },
         "sv" : {
@@ -14739,6 +16018,12 @@
             "value" : "Quitter automatiquement le mode PiP"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Termina Automaticamente la Modalità PiP"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14761,6 +16046,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Encerrar Automaticamente o Modo PiP"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автоматически заканчивать режим \"картинка в картинке\""
           }
         },
         "vi" : {
@@ -14819,7 +16110,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "기본으로 멀티태스킹 모드로 실행"
+            "value" : "항상 멀티태스킹 모드로 실행"
           }
         },
         "pl" : {
@@ -14832,6 +16123,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Executar Aplicativo no Modo Multitarefa por Padrão"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запускать в режиме многозадачности по умолчанию"
           }
         },
         "sv" : {
@@ -14893,6 +16190,12 @@
             "value" : "Barre de fenêtre du bas"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Barra Finestra Inferiore"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14915,6 +16218,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Barra de Janela Inferior"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Полоса окна снизу"
           }
         },
         "vi" : {
@@ -14987,6 +16296,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ID do pacote do LiveContainer, \"%@\", não corresponde ao Identificador de aplicações em legitimidade, que espera que o ID do pacote seja \"%@\". Algumas funções podem não estar disponíveis."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ИД пакета LiveContainer'а, \"%@\", не совпадает с entitlement \"application-Identifier\", который должен был иметь ожидаемое значение \"%@\". Некоторые функции могут быть ограничены."
           }
         },
         "sv" : {
@@ -15076,6 +16391,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Limpar Pastas de Dados Inutilizadas"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очистить неиспользуемые папки данных"
           }
         },
         "sv" : {
@@ -15209,6 +16530,24 @@
             }
           }
         },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Vuoi eliminare %lld cartella dati inutilizzata?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Vuoi eliminare le cartelle di dati inutilizzati %lld?"
+                }
+              }
+            }
+          }
+        },
         "ja" : {
           "variations" : {
             "plural" : {
@@ -15276,6 +16615,36 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "Deseja apagar as pastas de dados %lld inutilizadas?"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Вы хотите удалить %lld неиспользуемых папки данных?"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Вы хотите удалить %lld неиспользуемых папок данных?"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Вы хотите удалить %lld неиспользуемую папку данных?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Вы хотите удалить %lld неиспользуемых папок данных?"
                 }
               }
             }
@@ -15412,6 +16781,12 @@
             "value" : "Limpar Corrente-Chave"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очистить связку ключей"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15501,6 +16876,12 @@
             "value" : "Se a conta de alguns aplicativos não pode ser sincronizada entre contêineres, talvez seja porque ela ainda está armazenada na corrente-chave privada atual do LiveContainer. Limpar esta corrente resolverá este erro, mas talvez retire o seu cadastro em algumas de suas contas. Deseja continuar?"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Если в каком-то приложении вы в системе и не в системе на разных LiveContainer'ах, то причина может заключаться в использовании данным приложением личной связки ключей текущего LiveContainer'а. Очистка связки ключей может помочь, но вы можете выйти из некоторых своих аккаунтов. Продолжить?"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15588,6 +16969,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gerenciamento de Dados"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Управление данными"
           }
         },
         "sv" : {
@@ -15702,6 +17089,12 @@
             "value" : "Largeur du Dock"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Larghezza Dock"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15724,6 +17117,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Largura da Doca"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ширина дока"
           }
         },
         "vi" : {
@@ -15795,6 +17194,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Não Assinar Novos Aplicativos"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не подписывать новые приложения"
           }
         },
         "sv" : {
@@ -15886,6 +17291,12 @@
             "value" : "O LiveContainer não assinará novos aplicativos até que esta opção esteja desligada. Quaisquer aplicativos que serão instalados quando esta opção estiver ligada permanecerão sem assinatura."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пока эта опция включена, LiveContainer не будет подписывать новые приложения. Приложения, установленные с этой включенной опцией, останутся неподписанными."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15975,6 +17386,12 @@
             "value" : "Cores dinâmicas"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Динамические цвета"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16049,7 +17466,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "앱 목록에 있는 앱 상자 색을 앱 아이콘 색상에 맞춥니다"
+            "value" : "앱 목록에 있는 앱 상자 색을 앱 아이콘 색상에 맞춥니다."
           }
         },
         "pl" : {
@@ -16062,6 +17479,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ativar cores dinâmicas para o contorno dos aplicativos"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включить динамичную расцветку карточек приложений"
           }
         },
         "sv" : {
@@ -16153,6 +17576,12 @@
             "value" : "Você deve importar certificado ADP antes de testar o modo JIT-Less."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вы должны импортировать сертификат, прежде чем вы проверите режим JIT-less."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16242,6 +17671,12 @@
             "value" : "Enquadrar Ícone do Atalho"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Окантовать иконки блиц-приложений"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16316,7 +17751,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "설치한 앱 아이콘에 LiveContainer 아이콘을 합성합니다. 합성된 아이콘은 App Clip으로 홈 화면에 추가하는 앱 아이콘에 사용됩니다."
+            "value" : "설치한 앱 아이콘에 LiveContainer 아이콘을 합성합니다. 합성된 아이콘은 App Clip으로 앱을 홈 화면에 추가할 경우 보여집니다."
           }
         },
         "pl" : {
@@ -16329,6 +17764,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Enquadre os ícones de atalho com o ícone do LiveContainer."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Окантовать иконки ярлыков приложений иконкой LiveContainer'а."
           }
         },
         "sv" : {
@@ -16366,6 +17807,12 @@
     "lc.settings.importCertFromBuiltinSideStore" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "استيراد الشهادة من SideStore المُدمج"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16382,6 +17829,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Importer un certificat depuis le SideStore intégré"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importa Certificato da SideStore integrato"
           }
         },
         "ja" : {
@@ -16408,6 +17861,12 @@
             "value" : "Importar Certificado da SideStore Integrada"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Импортировать сертификат из встроенного SideStore"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16425,6 +17884,12 @@
     "lc.settings.importCertFromBuiltinSideStore.certNotFounndErr" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لم يتم العثور على الشهادة. هل سجلت الدخول إلى SideStore المُدمج؟"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16441,6 +17906,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Certificat introuvable. Vous êtes-vous connecté au SideStore intégré ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificato non trovato. Hai eseguito l'accesso al SideStore integrato?"
           }
         },
         "ja" : {
@@ -16465,6 +17936,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Certificado não encontrado. Você fez 'login' na SideStore integrada?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сертификат не найден. Вы вошли в аккаунт во встроенном SideStore?"
           }
         },
         "vi" : {
@@ -16508,6 +17985,12 @@
             "value" : "SideStore intégré détecté. Voulez-vous importer un certificat à partir de celui-ci ?"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rilevato SideStore incorporato. Vuoi importare il certificato da lì?"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16530,6 +18013,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SideStore integrada detectada. Gostaria de importar o certificado dela?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обнаружен встроенный SideStore. Хотите ли вы импортировать сертификат оттуда?"
           }
         },
         "vi" : {
@@ -16601,6 +18090,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Importar Certificado"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Импортировать сертификат"
           }
         },
         "sv" : {
@@ -16692,6 +18187,12 @@
             "value" : "Para usar o modo JIT-Less sem a AltStore/SideStore, você deve importar, especificamente, o certificado usado para assinar o LiveContainer. Deseja continuar?"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чтобы включить режим JIT-less без AltStore/SideStore, вам потребуется указать сертификат, которым вы подписали LiveContainer. Продолжить?"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16781,6 +18282,12 @@
             "value" : "Importar Certificado De %@"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Импортировать сертификат из %@"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16855,7 +18362,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "인증서 비밀번호를 입력해주세요"
+            "value" : "인증서 비밀번호를 입력해주세요."
           }
         },
         "pl" : {
@@ -16868,6 +18375,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Insira a Senha do Seu Certificado"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пожалуйста, введите пароль данного сертификата"
           }
         },
         "sv" : {
@@ -17071,6 +18584,12 @@
             "value" : "interface"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "интерфейс"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17158,6 +18677,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Falha ao validar certificado. Por favor, verifique a senha e se o devido certificado está sendo usando para assinar o LiveContainer."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось подтвердить сертификат. Пожалуйста, проверьте его пароль и убедитесь, что именно он был использован при подписи LiveContainer'а."
           }
         },
         "sv" : {
@@ -17249,6 +18774,12 @@
             "value" : "Endereço"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Адрес"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17336,6 +18867,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Configure o seu habilitador JIT. Permissão da Conexão Local é necessário."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите свой включатель JIT. Может потребоваться разрешение на доступ к локальной сети."
           }
         },
         "sv" : {
@@ -17427,6 +18964,12 @@
             "value" : "Habilitador JIT"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включатель JIT"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17516,6 +19059,12 @@
             "value" : "JIT-Less"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT-less"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17590,7 +19139,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "JIT-Less 사용 시 JIT 없이 LiveContainer 사용이 가능합니다."
+            "value" : "LiveContainer를 사용하려면 JIT가 필요합니다. JIT 없이 사용하려면 JIT-Less을 활성화하세요."
           }
         },
         "pl" : {
@@ -17603,6 +19152,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "O modo JIT-Less permite que LiveContainer seja usado sem a necessidade do JIT. "
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Режим JIT-less позволяет вам использовать LiveContainer без разрешения JIT."
           }
         },
         "sv" : {
@@ -17694,6 +19249,12 @@
             "value" : "Diagnóstico do Modo JIT-Less"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Диагностика режима JIT-less"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17778,6 +19339,12 @@
           }
         },
         "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UDID"
+          }
+        },
+        "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "UDID"
@@ -18071,14 +19638,14 @@
                 "plural" : {
                   "one" : {
                     "stringUnit" : {
-                      "state" : "new",
-                      "value" : ""
+                      "state" : "translated",
+                      "value" : "%arg cartella dati"
                     }
                   },
                   "other" : {
                     "stringUnit" : {
-                      "state" : "new",
-                      "value" : ""
+                      "state" : "translated",
+                      "value" : "%arg cartelle dati"
                     }
                   }
                 }
@@ -18291,6 +19858,78 @@
                     "stringUnit" : {
                       "state" : "translated",
                       "value" : "%arg pastas de ajustes"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перемещены %#@arg1@ и %#@arg2@."
+          },
+          "substitutions" : {
+            "arg1" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "few" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg папки с данными"
+                    }
+                  },
+                  "many" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg папок с данными"
+                    }
+                  },
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg папка с данными"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg папок с данными"
+                    }
+                  }
+                }
+              }
+            },
+            "arg2" : {
+              "argNum" : 2,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "few" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg папки с твиками"
+                    }
+                  },
+                  "many" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg папок с твиками"
+                    }
+                  },
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg папка с твиками"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg папок с твиками"
                     }
                   }
                 }
@@ -18546,7 +20185,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "지저분한 폴더 앱 그룹 밖으로 이동"
+            "value" : "'앱 그룹' 밖으로 '지저분한 폴더' 이동"
           }
         },
         "pl" : {
@@ -18559,6 +20198,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mover Pastas Penduradas para Fora do Grupo de Aplicativos"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Убрать свисающие паки из App Group"
           }
         },
         "sv" : {
@@ -18650,6 +20295,12 @@
             "value" : "Múltiplos Contêineres"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Несколько LiveContainer'ов"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18739,6 +20390,12 @@
             "value" : "O contêiner secundário está assinado com um certificado diferente do contêiner primário, então não funcionará. Por favor, instale o contêiner secundário com o mesmo certificado usado para assinar o contêiner primário."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Второй LiveContainer подписан сертификатом, отличным от использованного с основным LiveContainer; он не будет работать. Переустановите второй LiveContainer с тем же аккаунтом, который вы использовали для подписи первого."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18813,7 +20470,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "여러 LiveContainer를 설치한 후 앱을 공유 앱으로 변환하면, 데이터와 설정을 유지한 채 모든 LiveContainer에서 해당 앱을 열 수 있습니다."
+            "value" : "LiveContainer로 설치한 앱을 공유 앱으로 변환하면, 두번째 LiveContainer에서도 데이터와 설정을 유지한 채 해당 앱을 열 수 있습니다."
           }
         },
         "pl" : {
@@ -18826,6 +20483,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ao instalar múltiplos contêineres, e converter os aplicativos em Aplicativos Compartilhados, você consegue abrir um aplicativo entre todos os contêineres com a maioria de seus dados e configurações."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установив несколько LiveContainer'ов, вы сможете открывать приложения, преобразованные в общие, на всех LiveContainer'ах с сохранением большинства данных и настроек."
           }
         },
         "sv" : {
@@ -18917,6 +20580,12 @@
             "value" : "Instalar Outro Contêiner"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установить ещё один LiveContainer"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18976,6 +20645,12 @@
             "value" : "Installer avec le SideStore intégré"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installa con SideStore integrato"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18998,6 +20673,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Instalar com SideStore Integrada"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использовать встроенный SideStore"
           }
         },
         "vi" : {
@@ -19056,7 +20737,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LiveContainer2 IPA가 생성되면 %@(으)로 설치해주세요."
+            "value" : "LiveContainer2 다운로드가 완료되면, %@(으)로 설치해주세요."
           }
         },
         "pl" : {
@@ -19069,6 +20750,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "O contêiner atual irá gerar o arquivo IPA para outro contêiner. Por favor, compartilhe-o para %@ para concluir a instalação. Deseja continuar?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer создаст файл IPA для другого LiveContainer'а. Поделитесь им с %@, чтобы завершить установку. Хотите продолжить?"
           }
         },
         "sv" : {
@@ -19145,7 +20832,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "두번째 LiveContainer입니다"
+            "value" : "두번째 LiveContainer입니다."
           }
         },
         "pl" : {
@@ -19158,6 +20845,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Este é o segundo contêiner"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это второй LiveContainer"
           }
         },
         "sv" : {
@@ -19249,6 +20942,12 @@
             "value" : "Reinstalar Contêiner Secundário"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переустановить другой LiveContainer"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -19336,6 +21035,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Modo Multitarefa"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Режим многозадачности"
           }
         },
         "sv" : {
@@ -19427,6 +21132,12 @@
             "value" : "Janela Nativa"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нативное окно"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -19514,6 +21225,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Janela Virtual"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Виртуальное окно"
           }
         },
         "sv" : {
@@ -19605,6 +21322,12 @@
             "value" : "Nenhuma pasta de dados para remover. Todas as pastas de dados estão em uso."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не были удалены никакие папки данных. Все находятся в использовании."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -19664,6 +21387,12 @@
             "value" : "LiveContainer n'est pas signé avec un certificat de développement, donc LiveContainer ne fonctionnera pas du tout. Veuillez signer LiveContainer avec un certificat de développement."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer non è firmato con un certificato development quindi LiveContainer non funzionerà. Firma LiveContainer con un certificato development."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -19686,6 +21415,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "O LiveContainer não está assinado com um certificado de desenvolvimento, então o LiveContainer não irá funcionar. Por favor, assine o LiveContainer com um certificado de desenvolvimento."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer не был подписан с сертификатом разработчика; LiveContainer не сможет работать. Пожалуйста, переподпишите его с действительным сертификатом."
           }
         },
         "vi" : {
@@ -19757,6 +21492,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Recarregar o Certificado de %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновить сертификат от %@"
           }
         },
         "sv" : {
@@ -19848,6 +21589,12 @@
             "value" : "Remover Certificado"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить сертификат"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -19935,6 +21682,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Não será possível instalar aplicativos após remover o certificado. Deseja continuar?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вы не сможете устанавливать новые приложения после удаления сертификата. Хотите продолжить?"
           }
         },
         "sv" : {
@@ -20079,6 +21832,12 @@
             "value" : "Sempre Abrir a URL no Aplicativo Atual"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Всегда открывать URL в текущем приложении"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -20153,7 +21912,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "URL 열 때 앱 선택 없이 바로 열고 싶다면 이 옵션을 활성화하면 됩니다."
+            "value" : "앱 선택 없이 URL을 바로 열고 싶은 경우 활성화해주세요."
           }
         },
         "pl" : {
@@ -20166,6 +21925,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Por padrão, LiveContainer perguntará como você deseja abrir uma URL. Habilite esta configuração para automaticamente abrir uma URL no aplicativo atual."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По умолчанию LiveContauner будет у вас спрашивать, как открыть данный URL. Включите это, чтобы автоматически открывать URL в текущем приложении."
           }
         },
         "sv" : {
@@ -20257,6 +22022,12 @@
             "value" : "Alternar Aplicativo Sem Perguntar"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переключать приложения без подтверждения"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -20331,7 +22102,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 옵션을 활성화할 경우 앱이 경고 없이 바로 전환됩니다. 저장하지 않은 데이터는 삭제됩니다."
+            "value" : "이 옵션을 활성화할 경우 경고 없이 앱이 바로 전환됩니다. 저장하지 않은 데이터는 지워집니다."
           }
         },
         "pl" : {
@@ -20344,6 +22115,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Normalmente, o LiveContainer irá perguntar se você quer mesmo trocar de aplicativo. Ative esta opção para trocar de aplicativo imediatamente. Qualquer dado não salvo será perdido."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По умолчанию LiveContainer будет спрашивать вас перед переключением приложений. Включите эту опцию, чтобы переключать приложения немедленно. Все несохраненные данных могут быть потеряны."
           }
         },
         "sv" : {
@@ -20435,6 +22212,12 @@
             "value" : "Modo de Ocultação Robusta"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Режим строгого скрытия"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -20509,7 +22292,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 모드를 활성화할 경우, 앱 목록 하단에 '총 n개'를 연속으로 세 번 눌러야만 숨긴 앱을 실행할 수 있습니다."
+            "value" : "활성화할 경우, 앱 목록 하단에 '총 n개'를 연속으로 세 번 눌러야 숨긴 앱이 보입니다."
           }
         },
         "pl" : {
@@ -20522,6 +22305,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ativar esta opção irá fazer com que apenas aplicativos escondidos serão autorizados ao executa-los ao clicar três vezes no contador de aplicativos instalados."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включение этого режима позволит вам просмотреть скрытые приложения тройным нажатием на счётчик установленных приложений."
           }
         },
         "sv" : {
@@ -20613,6 +22402,12 @@
             "value" : "Testar modo JIT-Less"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверка JIT-Less режима"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -20700,6 +22495,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Método de instalação não suportado. Por favor, use AltStore ou SideStore para configurar este recurso."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неподдерживаемый способ установки. Используйте AltStore или SideStore для установки данной функции."
           }
         },
         "sv" : {
@@ -20791,6 +22592,12 @@
             "value" : "Por favor, não use o LiveContainer para pirataria."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не пользуйтесь LiveContainer'ом для пиратства."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -20865,7 +22672,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "앱 서명 과정 중 LiveContainer가 충돌하면서 앱이 손상됐을 수 있습니다. 앱을 재설치하거나 다른 서명(signer)을 이용해주세요."
+            "value" : "앱 서명 과정 중 LiveContainer가 충돌하면서 앱이 손상됐을 수 있습니다. 앱을 재설치하거나 다른 사이드로딩 방식을 이용해주세요."
           }
         },
         "pl" : {
@@ -20878,6 +22685,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "O LiveContainer falhou durante a última vez em que houve o processo de assinar um aplicativo, e o aplicativo pode estar corrompido. Por favor, considere reinstalar o aplicativo ou trocar para outro assinador."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кажется, что LiveContainer неожиданно завершил работу во время подписи приложения. Пожалуйста, переустановите то приложение или выберите другой метод подписи."
           }
         },
         "sv" : {
@@ -20954,7 +22767,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "앱이 최신 인증서로 서명되었지만, 코드 서명(code signature)이 유효하지 않습니다. JIT-Less 모드 진단을 통해서 JIT-Less 설정에 문제가 있는지 확인해주세요."
+            "value" : "앱이 최신 인증서로 서명되었지만, 코드 서명이 유효하지 않습니다. JIT-Less 모드 진단을 통해서 JIT-Less 설정에 문제가 있는지 확인해주세요."
           }
         },
         "pl" : {
@@ -20967,6 +22780,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "O aplicativo está assinado com o certificado mais recente, mas a sua assinatura do código é inválido. Por favor, acesse a página do diagnóstico do modo JIT-Less e verifique se há algo de errado com a sua configuração."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это приложение подписано последним сертификатом, но его подпись кода неправильна. Откройте диагностику режима JIT-less для выяснения причины."
           }
         },
         "sv" : {
@@ -21058,6 +22877,12 @@
             "value" : "Falha ao encontrar certificado. Por favor, verifique a página de diagnóstico do modo JIT-Less e verifique se tem algum erro com a sua configuração do JIT-Less."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось найти сертификат для подписи. Откройте диагностику режима JIT-less для выяснения причины."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -21145,6 +22970,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aplicativos"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приложения"
           }
         },
         "sv" : {
@@ -21236,6 +23067,12 @@
             "value" : "Configurações"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Настройки"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -21325,6 +23162,12 @@
             "value" : "Ajustes"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Твики"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -21399,7 +23242,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 폴더는 개별 폴더입니다. 설치한 앱에 할당할 경우 해당 앱에만 트윅이 적용됩니다."
+            "value" : "이 폴더는 개별 폴더입니다. 이곳에 트윅을 추가하고, 앱 설정에서 이 폴더를 선택하면, 그 앱에만 트윅이 적용됩니다."
           }
         },
         "pl" : {
@@ -21412,6 +23255,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Esta é a pasta específica do aplicativo. Configure a página de ajustes e o aplicativo do usuário vai selecioná-los recursivamente."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это папка твиков для отдельного приложения. Выберите его в настройках приложения, и оно применит их рекурсивно."
           }
         },
         "sv" : {
@@ -21503,6 +23352,12 @@
             "value" : "Esta é a pasta global. Todas as configurações colocadas aqui vão ser injetadas para todos os aplicativos do usuário. Crie uma pasta nova se você quer usar ajustes específicos para o aplicativo."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это глобальная папка. Все твики, расположенные в ней, будут применяться ко всем гостевым приложениям. Создайте новую папку для добавления твиков к отдельному приложению."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -21590,6 +23445,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Importar Ajuste"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Импортировать твик"
           }
         },
         "sv" : {
@@ -21681,6 +23542,12 @@
             "value" : "Nova Pasta"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новая папка"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -21768,6 +23635,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ não é um arquivo."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ не файл."
           }
         },
         "sv" : {
@@ -21859,6 +23732,12 @@
             "value" : "Falha ao assinar o pacote."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось инициировать подписание пакета."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -21946,6 +23825,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Autenticação Necessária."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Требует аутентификация."
           }
         },
         "sv" : {
@@ -22037,6 +23922,12 @@
             "value" : "Esta página pode ser aberta em \"%@\", deseja continuar?"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта веб-страница не может быть открыта в \"%@\", всё равно продолжить?"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -22126,6 +24017,12 @@
             "value" : "Esta página está tentando executar \"%@\", deseja continuar?"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта веб-страница пытается запустить \"%@\", продолжить?"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -22213,6 +24110,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Executar Aplicativo"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запустить приложение"
           }
         },
         "sv" : {

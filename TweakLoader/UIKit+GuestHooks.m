@@ -230,7 +230,8 @@ void LCOpenWebPage(NSString* webPageUrlString, NSString* originalUrl) {
     }];
 
     forEachInstalledNotCurrentLC(NO, ^(NSString * scheme, BOOL* isBreak) {
-        UIAlertAction* openlc2Action = [UIAlertAction actionWithTitle:@"lc.guestTweak.openInLc %@".loc style:UIAlertActionStyleDefault handler:^(UIAlertAction * action) {
+        UIAlertAction* openlc2Action = [UIAlertAction actionWithTitle:[@"lc.guestTweak.openInLc %@" localizeWithFormat:scheme] style:UIAlertActionStyleDefault handler:^(UIAlertAction * action) {
+            newUrlComp.scheme = scheme;
             [UIApplication.sharedApplication openURL:newUrlComp.URL options:@{} completionHandler:nil];
             window.windowScene = nil;
         }];

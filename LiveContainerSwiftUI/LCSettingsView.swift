@@ -54,7 +54,9 @@ struct LCSettingsView: View {
     
     @AppStorage("LCLoadTweaksToSelf") var injectToLCItelf = false
     @AppStorage("LCIgnoreJITOnLaunch") var ignoreJITOnLaunch = false
+    #if is32BitSupported
     @AppStorage("selected32BitLayer") var liveExec32Path : String = ""
+    #endif
     @AppStorage("LCKeepSelectedWhenQuit") var keepSelectedWhenQuit = false
     @AppStorage("LCWaitForDebugger") var waitForDebugger = false
     
@@ -367,12 +369,14 @@ struct LCSettingsView: View {
                         } label: {
                             Text("Reset Symbol Offsets")
                         }
+                        #if is32BitSupported
                         HStack {
                             Text("LiveExec32 .app path")
                             Spacer()
                             TextField("", text: $liveExec32Path)
                                 .multilineTextAlignment(.trailing)
                         }
+                        #endif
                     } header: {
                         Text("Developer Settings")
                     } footer: {
