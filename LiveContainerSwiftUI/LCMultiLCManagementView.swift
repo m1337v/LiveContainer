@@ -50,6 +50,8 @@ struct InstallAnotherLCButton : View {
 }
 
 struct LCMultiLCManagementView : View, InstallAnotherLCButtonDelegate {
+    @AppStorage("LCMultiAllowGameCategory") var useGameCategory = true
+    @AppStorage("LCMultiAllowGameMode") var allowGameMode = true
     @State var errorShow = false
     @State var errorInfo = ""
     @State var successShow = false
@@ -63,6 +65,14 @@ struct LCMultiLCManagementView : View, InstallAnotherLCButtonDelegate {
     
     var body: some View {
         List {
+            Section {
+                Toggle(isOn: $useGameCategory) {
+                    Text("lc.settings.multiLCInstall.useGameCategory".loc)
+                }
+                Toggle(isOn: $allowGameMode) {
+                    Text("lc.settings.multiLCInstall.allowGameMode".loc)
+                }
+            }
             InstallAnotherLCButton(lcName: "LiveContainer2", delegate: self)
             InstallAnotherLCButton(lcName: "LiveContainer3", delegate: self)
         }
@@ -108,7 +118,14 @@ struct LCMultiLCManagementView : View, InstallAnotherLCButtonDelegate {
         }
         
         do {
-            let packedIpaUrl = try LCUtils.archiveIPA(withBundleName: name)
+            var keysToExclude: [String] = []
+            if !useGameCategory {
+                keysToExclude.append("LSApplicationCategoryType")
+            }
+            if !allowGameMode {
+                keysToExclude.append(contentsOf: ["GCSupportsGameMode", "LSSupportsGameMode"])
+            }
+            let packedIpaUrl = try LCUtils.archiveIPA(withBundleName: name, excludingInfoPlistKeys: keysToExclude)
             
             shareURL = packedIpaUrl
             

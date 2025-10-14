@@ -26,7 +26,7 @@ int dyld_get_program_sdk_version(void);
 @interface LCUtils : NSObject
 
 + (void)validateJITLessSetupWithCompletionHandler:(void (^)(BOOL success, NSError *error))completionHandler;
-+ (NSURL *)archiveIPAWithBundleName:(NSString*)newBundleName error:(NSError **)error;
++ (NSURL *)archiveIPAWithBundleName:(NSString*)newBundleName excludingInfoPlistKeys:(NSArray *)keysToExclude error:(NSError **)error;
 + (NSData *)certificateData;
 + (NSString *)certificatePassword;
 

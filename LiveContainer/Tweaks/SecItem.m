@@ -16,7 +16,12 @@ OSStatus (*orig_SecItemAdd)(CFDictionaryRef attributes, CFTypeRef *result) = Sec
 OSStatus (*orig_SecItemCopyMatching)(CFDictionaryRef query, CFTypeRef *result) = SecItemCopyMatching;
 OSStatus (*orig_SecItemUpdate)(CFDictionaryRef query, CFDictionaryRef attributesToUpdate) = SecItemUpdate;
 OSStatus (*orig_SecItemDelete)(CFDictionaryRef query) = SecItemDelete;
-
+SecKeyRef (*orig_SecKeyCreateRandomKey)(CFDictionaryRef parameters, CFErrorRef *error) = SecKeyCreateRandomKey;
+SecKeyRef (*orig_SecKeyCreateWithData)(CFDataRef keyData, CFDictionaryRef parameters, CFErrorRef *error) = SecKeyCreateWithData;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+OSStatus (*orig_SecKeyGeneratePair)(CFDictionaryRef query, SecKeyRef *publicKey, SecKeyRef *privateKey) = SecKeyGeneratePair;
+#pragma clang diagnostic pop
 NSString* accessGroup = nil;
 NSString* containerId = nil;
 
@@ -73,6 +78,43 @@ OSStatus new_SecItemDelete(CFDictionaryRef query){
     return status;
 }
 
+SecKeyRef new_SecKeyCreateRandomKey(CFDictionaryRef parameters, CFErrorRef *error) {
+    NSMutableDictionary *paramsCopy = ((__bridge NSDictionary *)parameters).mutableCopy;
+    paramsCopy[(__bridge id)kSecAttrAccessGroup] = accessGroup;
+    SecKeyRef key = orig_SecKeyCreateRandomKey((__bridge CFDictionaryRef)paramsCopy, error);
+    if(!key && error && *error) {
+        CFRelease(*error);
+        *error = NULL;
+        key = orig_SecKeyCreateRandomKey(parameters, error);
+    }
+    
+    return key;
+}
+
+SecKeyRef new_SecKeyCreateWithData(CFDataRef keyData, CFDictionaryRef parameters, CFErrorRef *error) {
+    NSMutableDictionary *paramsCopy = ((__bridge NSDictionary *)parameters).mutableCopy;
+    paramsCopy[(__bridge id)kSecAttrAccessGroup] = accessGroup;
+    SecKeyRef key = orig_SecKeyCreateWithData(keyData, (__bridge CFDictionaryRef)paramsCopy, error);
+    if(!key && error && *error) {
+        CFRelease(*error);
+        *error = NULL;
+        key = orig_SecKeyCreateWithData(keyData, parameters, error);
+    }
+    
+    return key;
+}
+
+OSStatus new_SecKeyGeneratePair(CFDictionaryRef parameters, SecKeyRef *publicKey, SecKeyRef *privateKey) {
+    NSMutableDictionary *queryCopy = ((__bridge NSDictionary *)parameters).mutableCopy;
+    queryCopy[(__bridge id)kSecAttrAccessGroup] = accessGroup;
+    OSStatus status = orig_SecKeyGeneratePair((__bridge CFDictionaryRef)queryCopy, publicKey, privateKey);
+    if(status == errSecParam) {
+        return orig_SecKeyGeneratePair(parameters, publicKey, privateKey);
+    }
+    
+    return status;
+}
+
 void SecItemGuestHooksInit(void)  {
 
     containerId = [NSString stringWithUTF8String:getenv("HOME")].lastPathComponent;
@@ -104,4 +146,7 @@ void SecItemGuestHooksInit(void)  {
     litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, SecItemCopyMatching, new_SecItemCopyMatching, nil);
     litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, SecItemUpdate, new_SecItemUpdate, nil);
     litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, SecItemDelete, new_SecItemDelete, nil);
+    litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, SecKeyCreateRandomKey, new_SecKeyCreateRandomKey, nil);
+    litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, SecKeyCreateWithData, new_SecKeyCreateWithData, nil);
+    litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, SecKeyGeneratePair, new_SecKeyGeneratePair, nil);
 }

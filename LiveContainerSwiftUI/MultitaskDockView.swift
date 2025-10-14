@@ -676,6 +676,16 @@ class AppInfoProvider {
         }
     }
     
+    @objc public func minimizeAllWindows() {
+        DispatchQueue.main.async {
+            self.apps.forEach { app in
+                if let vc = app.view?._viewControllerForAncestor() as? DecoratedAppSceneViewController {
+                    vc.minimizeWindow()
+                }
+            }
+        }
+    }
+    
     @objc public func toggleDockCollapse() {
         DispatchQueue.main.async {
             self.isCollapsed.toggle()
@@ -793,6 +803,11 @@ public struct MultitaskDockSwiftView: View {
                         CollapseButtonView()
                             .onTapGesture {
                                 dockManager.toggleDockCollapse()
+                            }
+                        
+                        MinimizeAllButtonView()
+                            .onTapGesture {
+                                dockManager.minimizeAllWindows()
                             }
                         
                         ForEach(dockManager.apps) { app in
@@ -994,6 +1009,28 @@ struct CollapseButtonView: View {
                 .stroke(Color.white.opacity(0.2), lineWidth: 1)
         )
         .animation(.spring(response: MultitaskDockManager.Constants.longAnimationDuration, dampingFraction: MultitaskDockManager.Constants.standardSpringDamping), value: dockManager.adaptiveButtonSize)
+    }
+}
+
+// MARK: - Minimize All Button View
+@available(iOS 16.0, *)
+struct MinimizeAllButtonView: View {
+    @EnvironmentObject var dockManager: MultitaskDockManager
+    
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.gray.opacity(0.8))
+                .frame(width: dockManager.adaptiveButtonSize, height: dockManager.adaptiveButtonSize)
+            
+            Image(systemName: "rectangle.stack.badge.minus")
+                .foregroundColor(.white)
+                .font(.system(size: dockManager.adaptiveButtonSize * 0.4, weight: .semibold))
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+        )
     }
 }
 

@@ -238,43 +238,47 @@ struct LCSettingsView: View {
                 }
                 
                 if #available(iOS 16.1, *) {
-                    if(UIApplication.shared.supportsMultipleScenes) {
-                        Picker(selection: $multitaskMode) {
-                            Text("lc.settings.multitaskMode.virtualWindow".loc).tag(MultitaskMode.virtualWindow)
-                            Text("lc.settings.multitaskMode.nativeWindow".loc).tag(MultitaskMode.nativeWindow)
-                        } label: {
-                            Text("lc.settings.multitaskMode".loc)
-                        }
-                    }
-                    Toggle(isOn: $launchInMultitaskMode) {
-                        Text("lc.settings.autoLaunchInMultitaskMode".loc)
-                    }
-                    
-                    if multitaskMode == .virtualWindow {
-                        Toggle(isOn: $launchMultitaskMaximized) {
-                            Text("lc.settings.launchMultitaskMaximized".loc)
-                        }
-                        Toggle(isOn: $autoEndPiP) {
-                            Text("lc.settings.autoEndPiP".loc)
-                        }
-                        Toggle(isOn: $bottomWindowBar) {
-                            Text("lc.settings.bottomWindowBar".loc)
-                        }
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("lc.settings.dockWidth".loc)
-                                    .foregroundColor(.primary)
-                                Spacer()
-                                Text("\(Int(dockWidth))px")
-                                    .foregroundColor(.secondary)
-                                    .font(.caption)
+                    Section {
+                        if(UIApplication.shared.supportsMultipleScenes) {
+                            Picker(selection: $multitaskMode) {
+                                Text("lc.settings.multitaskMode.virtualWindow".loc).tag(MultitaskMode.virtualWindow)
+                                Text("lc.settings.multitaskMode.nativeWindow".loc).tag(MultitaskMode.nativeWindow)
+                            } label: {
+                                Text("lc.settings.multitaskMode".loc)
                             }
-                            Slider(value: $dockWidth, in: 60...110) {
-                                Text("lc.settings.dockWidth".loc)
-                            }
-                            .tint(.accentColor)
                         }
-                        .padding(.vertical, 4)
+                        Toggle(isOn: $launchInMultitaskMode) {
+                            Text("lc.settings.autoLaunchInMultitaskMode".loc)
+                        }
+                        
+                        if multitaskMode == .virtualWindow {
+                            Toggle(isOn: $launchMultitaskMaximized) {
+                                Text("lc.settings.launchMultitaskMaximized".loc)
+                            }
+                            Toggle(isOn: $autoEndPiP) {
+                                Text("lc.settings.autoEndPiP".loc)
+                            }
+                            Toggle(isOn: $bottomWindowBar) {
+                                Text("lc.settings.bottomWindowBar".loc)
+                            }
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Text("lc.settings.dockWidth".loc)
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                    Text("\(Int(dockWidth))px")
+                                        .foregroundColor(.secondary)
+                                        .font(.caption)
+                                }
+                                Slider(value: $dockWidth, in: 60...110) {
+                                    Text("lc.settings.dockWidth".loc)
+                                }
+                                .tint(.accentColor)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    } footer: {
+                        Text("lc.settings.multitaskDesc".loc)
                     }
                 }
                 

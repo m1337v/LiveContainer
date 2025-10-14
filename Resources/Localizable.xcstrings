@@ -19382,6 +19382,23 @@
         }
       }
     },
+    "lc.settings.launchMultitaskMaximized" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximized Multitask Window by Default"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mặc định Mở rộng Tối đa Cửa sổ Đa nhiệm"
+          }
+        }
+      }
+    },
     "lc.settings.moveDanglingFolderComplete %lld %lld" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -20618,6 +20635,23 @@
         }
       }
     },
+    "lc.settings.multiLCInstall.allowGameMode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow Game Mode"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cho phép Chế độ Trò chơi"
+          }
+        }
+      }
+    },
     "lc.settings.multiLCInstall.installWithBuiltInSideStore" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -20691,6 +20725,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用内置SideStore安装"
+          }
+        }
+      }
+    },
+    "lc.settings.multiLCInstall.useGameCategory" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set Category as Game"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đặt Danh mục là Trò chơi"
           }
         }
       }
@@ -20976,6 +21027,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新下載另一個LiveContainer"
+          }
+        }
+      }
+    },
+    "lc.settings.multitaskDesc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Multitask Mode allows you to open multiple apps at the same time. Convert your apps to Shared Apps to use them in this mode."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chế độ Đa nhiệm cho phép bạn mở nhiều app cùng lúc. Chuyển các app thành Được Chia sẻ để dùng chúng trong chế độ này."
           }
         }
       }
