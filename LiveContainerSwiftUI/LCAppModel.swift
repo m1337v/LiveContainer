@@ -26,12 +26,6 @@ class LCAppModel: ObservableObject, Hashable {
     }
     @Published var uiIsHidden : Bool
     @Published var uiIsLocked : Bool
-    @Published var uiIsFavorite : Bool {
-        didSet {
-            appInfo.isFavorite = uiIsFavorite
-            DataManager.shared.model.objectWillChange.send()
-        }
-    }
     @Published var uiIsShared : Bool
     @Published var uiDefaultDataFolder : String?
     @Published var uiContainers : [LCContainer]
@@ -126,7 +120,6 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiIsJITNeeded = appInfo.isJITNeeded
         self.uiIsHidden = appInfo.isHidden
         self.uiIsLocked = appInfo.isLocked
-        self.uiIsFavorite = appInfo.isFavorite
         self.uiIsShared = appInfo.isShared
         self.uiSelectedLanguage = appInfo.selectedLanguage ?? ""
         self.uiDefaultDataFolder = appInfo.dataUUID

@@ -556,7 +556,7 @@ struct LCSourcesView: View {
                     }
                 }
             }
-            .navigationTitle("lc.sources.title".loc)
+            .navigationTitle("lc.tabView.sources".loc)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     if viewModel.isRefreshingAll {
@@ -773,7 +773,7 @@ private struct ManageSourcesSheet: View {
                 
                 Section {
                     VStack(alignment: .leading, spacing: 12) {
-                        TextField("lc.sources.addSourcePlaceholder".loc, text: $manualSourceValue)
+                        TextField("https://example.com/source.json", text: $manualSourceValue)
                             .textContentType(.URL)
                             .keyboardType(.URL)
                             .autocapitalization(.none)
@@ -817,7 +817,7 @@ private struct ManageSourcesSheet: View {
             ),
             presenting: sourcePendingRemoval
         ) { item in
-            Button("lc.sources.removeConfirmation.remove".loc, role: .destructive) {
+            Button("lc.common.remove".loc, role: .destructive) {
                 viewModel.removeSource(item)
                 sourcePendingRemoval = nil
             }
@@ -1050,7 +1050,7 @@ private struct LCSourceAppBanner: View {
             Button {
                 installAction(app)
             } label: {
-                Text("lc.sources.install".loc)
+                Text("lc.common.install".loc)
                     .bold()
                     .foregroundColor(.white)
                     .lineLimit(1)

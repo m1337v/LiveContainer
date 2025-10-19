@@ -204,10 +204,6 @@ struct LCAppSettingsView: View {
                     Task { await model.setLocked(newLockState: newValue) }
                 })
 
-                Toggle(isOn: $model.uiIsFavorite) {
-                    Text("lc.appSettings.favorite".loc)
-                }
-
                 if model.uiIsLocked {
                     Toggle(isOn: $model.uiIsHidden) {
                         Text("lc.appSettings.hideApp".loc)
