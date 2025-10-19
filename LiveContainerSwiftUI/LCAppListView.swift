@@ -694,6 +694,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
             finalNewApp.fixFilePickerNew = appToReplace.appInfo.fixFilePickerNew
             finalNewApp.fixLocalNotification = appToReplace.appInfo.fixLocalNotification
             finalNewApp.lastLaunched = appToReplace.appInfo.lastLaunched
+            finalNewApp.jitLaunchScriptJs = appToReplace.appInfo.jitLaunchScriptJs
             finalNewApp.autoSaveDisabled = false
             finalNewApp.save()
         } else {

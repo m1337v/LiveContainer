@@ -8,16 +8,6 @@
 			<key>Type</key>
 			<string>PSToggleSwitchSpecifier</string>
 			<key>Title</key>
-			<string>Liquid Glass</string>
-			<key>Key</key>
-			<string>com.apple.SwiftUI.IgnoreSolariumLinkedOnCheck</string>
-			<key>DefaultValue</key>
-			<false/>
-		</dict>
-		<dict>
-			<key>Type</key>
-			<string>PSToggleSwitchSpecifier</string>
-			<key>Title</key>
 			<string>Wait For Debugger</string>
 			<key>Key</key>
 			<string>LCWaitForDebugger</string>

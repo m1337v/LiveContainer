@@ -545,4 +545,3 @@ struct LCAppSkeletonBanner: View {
     }
     
 }
-

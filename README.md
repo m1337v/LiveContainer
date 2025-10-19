@@ -203,9 +203,11 @@ Open Xcode, edit `DEVELOPMENT_TEAM[config=Debug]` in `xcconfigs/Global.xcconfig`
 - [xpn's blogpost: Restoring Dyld Memory Loading](https://blog.xpnsec.com/restoring-dyld-memory-loading)
 - [LinusHenze's CFastFind](https://github.com/pinauten/PatchfinderUtils/blob/master/Sources/CFastFind/CFastFind.c): [MIT license](https://github.com/pinauten/PatchfinderUtils/blob/master/LICENSE)
 - [litehook](https://github.com/opa334/litehook): [MIT license](https://github.com/opa334/litehook/blob/main/LICENSE)
-- @haxi0 for icon
+- @haxi0 & @m1337v for icon
 - @Vishram1123 for the initial shortcut implementation.
 - @hugeBlack for SwiftUI contribution
 - @Staubgeborener for automatic AltStore/SideStore source updater
 - @fkunn1326 for improved app hiding
 - @slds1 for dynamic color feature
+- @Vishram1123 for iOS 26+ JIT Script Support
+- @StephenDev0 for AltStore source support
