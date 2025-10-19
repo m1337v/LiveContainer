@@ -102,6 +102,14 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
             }
         }
     }
+
+    var filteredFavoriteApps: [LCAppModel] {
+        filteredApps.filter { $0.uiIsFavorite }
+    }
+
+    var filteredNonFavoriteApps: [LCAppModel] {
+        filteredApps.filter { !$0.uiIsFavorite }
+    }
     
     var filteredHiddenApps: [LCAppModel] {
         let apps = sortedHiddenApps
@@ -132,14 +140,40 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
                 })
                 .hidden()
                 
-                LazyVStack {
-                    ForEach(filteredApps, id: \.self) { app in
-                        LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames)
+                if !filteredFavoriteApps.isEmpty {
+                    LazyVStack {
+                        HStack {
+                            Text("lc.appList.favorites".loc)
+                                .font(.system(.title2).bold())
+                            Spacer()
+                        }
+                        
+                        ForEach(filteredFavoriteApps, id: \.self) { app in
+                            LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames)
+                        }
+                        .transition(.scale)
                     }
-                    .transition(.scale)
+                    .padding([.horizontal, .top])
+                    .animation(searchContext.isTyping ? nil : .easeInOut, value: filteredFavoriteApps)
                 }
-                .padding()
-                .animation(searchContext.isTyping ? nil : .easeInOut, value: filteredApps)
+                
+                if !filteredNonFavoriteApps.isEmpty {
+                    LazyVStack {
+                        HStack {
+                            Text("lc.appList.otherApps".loc)
+                                .font(.system(.title2).bold())
+                            Spacer()
+                        }
+                        ForEach(filteredNonFavoriteApps, id: \.self) { app in
+                            LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames)
+                        }
+                        .transition(.scale)
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, filteredFavoriteApps.isEmpty ? 16 : 0)
+                    .padding(.bottom)
+                    .animation(searchContext.isTyping ? nil : .easeInOut, value: filteredNonFavoriteApps)
+                }
 
                 VStack {
                     if LCUtils.appGroupUserDefault.bool(forKey: "LCStrictHiding") {

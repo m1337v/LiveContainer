@@ -62,6 +62,15 @@ struct LCAppBanner : View {
                 VStack (alignment: .leading, content: {
                     HStack {
                         Text(appInfo.displayName()).font(.system(size: 16)).bold()
+                        if model.uiIsFavorite {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 8))
+                                .foregroundColor(.white)
+                                .frame(width: 16, height:16)
+                                .background(
+                                    Capsule().fill(Color(UIColor.systemYellow))
+                                )
+                        }
                         if model.uiIsShared {
                             Image(systemName: "arrowshape.turn.up.left.fill")
                                 .font(.system(size: 8))
@@ -193,6 +202,11 @@ struct LCAppBanner : View {
                     
                 } else {
                     Text(appInfo.relativeBundlePath)
+                }
+                Button {
+                    model.uiIsFavorite.toggle()
+                } label: {
+                    Label(model.uiIsFavorite ? "lc.appBanner.removeFavorite".loc : "lc.appBanner.addFavorite".loc, systemImage: model.uiIsFavorite ? "star.slash" : "star")
                 }
                 if !model.uiIsShared {
                     if model.uiSelectedContainer != nil {
@@ -482,4 +496,3 @@ struct LCAppSkeletonBanner: View {
     }
     
 }
-

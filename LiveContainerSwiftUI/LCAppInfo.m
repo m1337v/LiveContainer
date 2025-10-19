@@ -484,6 +484,19 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     
 }
 
+- (bool)isFavorite {
+    if(_info[@"isFavorite"] != nil) {
+        return [_info[@"isFavorite"] boolValue];
+    } else {
+        return NO;
+    }
+}
+- (void)setIsFavorite:(bool)isFavorite {
+    _info[@"isFavorite"] = [NSNumber numberWithBool:isFavorite];
+    [self save];
+    
+}
+
 - (bool)doSymlinkInbox {
     if(_info[@"doSymlinkInbox"] != nil) {
         return [_info[@"doSymlinkInbox"] boolValue];

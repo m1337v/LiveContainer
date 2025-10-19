@@ -18,6 +18,7 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property bool isJITNeeded;
 @property bool isLocked;
 @property bool isHidden;
+@property bool isFavorite;
 @property bool doSymlinkInbox;
 @property bool hideLiveContainer;
 @property bool dontLoadTweakLoader;
