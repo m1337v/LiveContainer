@@ -23230,40 +23230,6 @@
         }
       }
     },
-    "lc.sources.manage.recommended" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recommended Sources"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "推荐源"
-          }
-        }
-      }
-    },
-    "lc.sources.manage.recommended.empty" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No recommended sources available."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无可用的推荐源。"
-          }
-        }
-      }
-    },
     "lc.sources.refresh" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -23379,23 +23345,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此源中无App。"
-          }
-        }
-      }
-    },
-    "lc.tabView.sources" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sources"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "源"
           }
         }
       }
@@ -23586,6 +23535,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定"
+          }
+        }
+      }
+    },
+    "lc.tabView.sources" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sources"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "源"
           }
         }
       }

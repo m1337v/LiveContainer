@@ -59,6 +59,7 @@ struct LCPath {
 }
 
 class SharedModel: ObservableObject {
+    @Published var selectedTab: LCTabIdentifier = .apps
     @Published var isHiddenAppUnlocked = false
     @Published var developerMode = false
     // 0= not installed, 2=current liveContainer is not the primary one
