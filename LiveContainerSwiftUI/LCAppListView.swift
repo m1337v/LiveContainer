@@ -850,7 +850,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         }
     }
     
-    func launchAppWithBundleId(bundleId : String, container : String?) async {
+    func launchAppWithBundleId(bundleId : String, container : String?, forceJIT: Bool? = nil) async {
         if bundleId == "" {
             return
         }
@@ -895,9 +895,9 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
 
         do {            
             if #available(iOS 16.0, *), launchInMultitaskMode && appFound.uiIsShared {
-                try await appFound.runApp(multitask: true, containerFolderName: container)
+                try await appFound.runApp(multitask: true, containerFolderName: container, forceJIT: forceJIT)
             } else {
-                try await appFound.runApp(multitask: false, containerFolderName: container)
+                try await appFound.runApp(multitask: false, containerFolderName: container, forceJIT: forceJIT)
             }
         } catch {
             errorInfo = error.localizedDescription
@@ -1012,15 +1012,22 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
             if let components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
                 var bundleId : String? = nil
                 var containerName : String? = nil
+                var forceJIT: Bool? = nil
                 for queryItem in components.queryItems ?? [] {
                     if queryItem.name == "bundle-name", let bundleId1 = queryItem.value {
                         bundleId = bundleId1
                     } else if queryItem.name == "container-folder-name", let containerName1 = queryItem.value {
                         containerName = containerName1
+                    } else if queryItem.name == "jit", let forceJIT1 = queryItem.value {
+                        if forceJIT1 == "true" {
+                            forceJIT = true
+                        } else if forceJIT1 == "false" {
+                            forceJIT = false
+                        }
                     }
                 }
                 if let bundleId, bundleId != "ui"{
-                    Task { await launchAppWithBundleId(bundleId: bundleId, container: containerName) }
+                    Task { await launchAppWithBundleId(bundleId: bundleId, container: containerName, forceJIT: forceJIT) }
                 }
             }
         } else if url.host == "install" {

@@ -156,7 +156,7 @@ class LCAppModel: ObservableObject, Hashable {
         hasher.combine(ObjectIdentifier(self))
     }
     
-    func runApp(multitask: Bool = false, containerFolderName : String? = nil, bundleIdOverride : String? = nil) async throws{
+    func runApp(multitask: Bool = false, containerFolderName : String? = nil, bundleIdOverride : String? = nil, forceJIT: Bool? = nil) async throws{
         if isAppRunning {
             return
         }
@@ -251,7 +251,11 @@ class LCAppModel: ObservableObject, Hashable {
         #if is32BitSupported
         is32bit = appInfo.is32bit
         #endif
-        if appInfo.isJITNeeded || is32bit {
+        var jitNeeded = appInfo.isJITNeeded
+        if let forceJIT {
+            jitNeeded = forceJIT
+        }
+        if jitNeeded || is32bit {
             if multitask, #available(iOS 17.4, *) {
                 try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                     LCUtils.launchMultitaskGuestApp(withPIDCallback: appInfo.displayName(), pidCompletionHandler: { pidNumber, error in
