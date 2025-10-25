@@ -29,6 +29,27 @@ body:
       description: To retrieve LiveContainer version, go to LiveContainer settings, then scroll to the bottom of the page.
     validations:
       required: true
+  - type: checkboxes
+    attributes:
+      label: Verify steps
+      options:
+        - label: I downloaded LiveContainer from releases / actions section or LiveContainer's AltStore source.
+        - label: I have the latest LiveContainer.
+        - label: I installed LiveContainer through AltStore/SideStore/TrollStore or I'm confident that I signed LiveContainer correctly with all required entitlements.
+        - label: I have tried to sideload the app normally through **free** sideloaders and I **did not** encounter the same problem
+    validations:
+      required: true
+  - type: textarea
+    id: app-name
+    attributes:
+      label: The name, version the app having issues
+      description: Please put the **exact** name and version of the app having issues here. If the app is open-source please also provide link to the repo.
+  - type: textarea
+    id: crash-log
+    attributes:
+      label: Crash Log
+      description: If a crash happened, please upload the crash log in iOS settings - Privacy Security - Analytics Improvements - Analytics Data - Search LiveContainer. **Do not copy and paste.** Instead, please change .ips to .txt and upload it.
+
   - type: textarea
     id: other-info
     attributes:
