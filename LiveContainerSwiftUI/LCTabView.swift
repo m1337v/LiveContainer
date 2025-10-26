@@ -8,7 +8,7 @@
 import Foundation
 import SwiftUI
 
-private enum LCTabIdentifier: Hashable {
+public enum LCTabIdentifier: Hashable {
     case sources
     case apps
     case tweaks
@@ -28,16 +28,14 @@ struct LCTabView: View {
     @State var shouldToggleMainWindowOpen = false
     @Environment(\.scenePhase) var scenePhase
     let pub = NotificationCenter.default.publisher(for: UIScene.didDisconnectNotification)
-    @State private var selectedTab: LCTabIdentifier = .apps
+
     
     var body: some View {
         Group {
             let appListView = LCAppListView(appDataFolderNames: $appDataFolderNames, tweakFolderNames: $tweakFolderNames)
-            let sourcesView = LCSourcesView(onInstallComplete: {
-                selectedTab = .apps
-            })
+            let sourcesView = LCSourcesView()
             if #available(iOS 19.0, *), SharedModel.isLiquidGlassSearchEnabled {
-                TabView(selection: $selectedTab) {
+                TabView(selection: $sharedModel.selectedTab) {
                     Tab("lc.tabView.sources".loc, systemImage: "books.vertical", value: LCTabIdentifier.sources) {
                         sourcesView
                     }
@@ -58,7 +56,7 @@ struct LCTabView: View {
                     }
                 }
             } else {
-                TabView(selection: $selectedTab) {
+                TabView(selection: $sharedModel.selectedTab) {
                     sourcesView
                         .tabItem {
                             Label("lc.tabView.sources".loc, systemImage: "books.vertical")

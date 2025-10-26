@@ -300,7 +300,6 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             [lcUserDefaults removeObjectForKey:@"hostUrlScheme"];
             urlScheme = [hostScheme stringByAppendingPathExtension:urlScheme];
         }
-        [LCSharedUtils setContainerUsingByLC:urlScheme folderName:dataUUID auditToken:0];
     }
     
     NSError *error;
@@ -404,6 +403,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     }
     
     setenv("CFFIXED_USER_HOME", newHomePath.UTF8String, 1);
+    newTmpPath = [newTmpPath stringByAppendingPathComponent:@"."];
     setenv("HOME", newHomePath.UTF8String, 1);
     setenv("TMPDIR", newTmpPath.UTF8String, 1);
 
@@ -417,6 +417,9 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     NSString* containerInfoPath = [newHomePath stringByAppendingPathComponent:@"LCContainerInfo.plist"];
     guestContainerInfo = [NSDictionary dictionaryWithContentsOfFile:containerInfoPath];
     
+    if(isSharedBundle) {
+        [LCSharedUtils setContainerUsingByLC:lcAppUrlScheme folderName:dataUUID auditToken:0];
+    }
     // Overwrite NSBundle
     overwriteMainNSBundle(appBundle);
 

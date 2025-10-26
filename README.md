@@ -15,7 +15,16 @@
 
 - LiveContainer is an app launcher (not emulator or hypervisor) that allows you to run iOS apps inside it.
 - Allows you to install unlimited apps (3 app/10 app id free developer account limit does not apply here!), can have multiple versions of an app installed with multiple data containers.
-- When JIT is available, codesign is entirely bypassed, no need to sign your apps before installing. Otherwise, app will be signed with the same certificate used by LiveContainer.
+- When JIT is available, codesign is entirely bypassed, no need to sign your apps before installing. Otherwise, app will be signed with the same certificate u
+
+> [!CAUTION]
+> **Important Notice Regarding Third-Party Builds of LiveContainer**
+>
+> We have recently noticed the appearance of certain closed-source third-party builds of LiveContainer. Please be aware that all your apps are installed within LiveContainer, which means these third-party builds **have full access to your data, including sensitive information such as keychain items and login credentials**. 
+>
+> For instance, if you log into YouTube within such a LiveContainer, the third-party build will have complete access to your YouTube (Google) account credentials. Please avoid using these close-source builds unless you have absolute trust in their developers or are able to personally review the source code and build yourself. 
+> 
+> Furthermore, please note that we do not provide any support for issues of these third-party builds.
 
 >[!Note]
 It’s recommended to follow the following steps to set up JIT-Less mode for using LiveContainer without JIT. If you encounter any issues, please review #265 first before reporting them.

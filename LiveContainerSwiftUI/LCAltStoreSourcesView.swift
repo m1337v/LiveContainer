@@ -153,23 +153,8 @@ final class AltStoreSourcesViewModel: ObservableObject {
     @Published private(set) var sources: [SourceItem] = []
     @Published var isRefreshingAll = false
     private let defaultsKey = "LCAltStoreSourceURLs"
-    private let defaultSourceStrings = [
-        "https://altstore.oatmealdome.me",
-        "https://flyinghead.github.io/flycast-builds/altstore.json",
-        "https://pokemmo.com/altstore/",
-        "https://alt.getutm.app"
-    ]
+
     private let cacheDirectoryName = "AltStoreSourceCache"
-    
-    var recommendedSources: [SourceItem] {
-        defaultSourceStrings.compactMap { rawValue in
-            guard let url = URL(string: rawValue) else { return nil }
-            if let existing = sources.first(where: { $0.url == url }) {
-                return existing
-            }
-            return SourceItem(url: url)
-        }
-    }
     
     init() {
         loadStoredSources()
@@ -496,7 +481,6 @@ private extension Color {
 }
 
 struct LCSourcesView: View {
-    let onInstallComplete: (() -> Void)?
     @StateObject private var viewModel = AltStoreSourcesViewModel()
     @State private var errorMessage: String?
     @State private var sourcePendingRemoval: AltStoreSourcesViewModel.SourceItem?
@@ -504,9 +488,6 @@ struct LCSourcesView: View {
     @State private var expandedSources: Set<URL> = []
     @State private var isManagingSources = false
     
-    init(onInstallComplete: (() -> Void)? = nil) {
-        self.onInstallComplete = onInstallComplete
-    }
     
     var body: some View {
         NavigationView {
@@ -587,7 +568,7 @@ struct LCSourcesView: View {
             get: { sourcePendingRemoval != nil },
             set: { if !$0 { sourcePendingRemoval = nil } })
         ) {
-            Button("lc.sources.removeConfirmation.remove".loc, role: .destructive) {
+            Button("lc.common.remove".loc, role: .destructive) {
                 if let sourcePendingRemoval {
                     viewModel.removeSource(sourcePendingRemoval)
                 }
@@ -636,6 +617,9 @@ struct LCSourcesView: View {
         .onChange(of: viewModel.sources) { newSources in
             let newSet = Set(newSources.map { $0.id })
             expandedSources = expandedSources.intersection(newSet)
+        }
+        .onOpenURL { url in
+            handleURL(url: url)
         }
     }
     
@@ -698,7 +682,7 @@ struct LCSourcesView: View {
         }
         UIApplication.shared.open(installURL)
         withAnimation {
-            onInstallComplete?()
+            DataManager.shared.model.selectedTab = .apps
         }
     }
     
@@ -708,6 +692,23 @@ struct LCSourcesView: View {
                 expandedSources.remove(id)
             } else {
                 expandedSources.insert(id)
+            }
+        }
+    }
+    
+    func handleURL(url : URL) {
+        if url.host == "source" {
+            if let components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+                var sourceUrl : String? = nil
+                for queryItem in components.queryItems ?? [] {
+                    if queryItem.name == "url", let installUrl1 = queryItem.value {
+                        sourceUrl = installUrl1
+                    }
+                }
+                if let sourceUrl {
+                    DataManager.shared.model.selectedTab = .sources
+                    Task { await handleAddSource(sourceUrl) }
+                }
             }
         }
     }
@@ -756,19 +757,6 @@ private struct ManageSourcesSheet: View {
                     }
                 } header: {
                     Text("lc.sources.manage.current".loc)
-                }
-                
-                Section {
-                    ForEach(viewModel.recommendedSources, id: \.id) { item in
-                        recommendedRow(for: item)
-                    }
-                } header: {
-                    Text("lc.sources.manage.recommended".loc)
-                } footer: {
-                    if viewModel.recommendedSources.isEmpty {
-                        Text("lc.sources.manage.recommended.empty".loc)
-                            .foregroundStyle(.secondary)
-                    }
                 }
                 
                 Section {
@@ -828,35 +816,6 @@ private struct ManageSourcesSheet: View {
             Text("lc.sources.removeConfirmation.message %@".localizeWithFormat(item.displayName))
         }
         .navigationViewStyle(StackNavigationViewStyle())
-    }
-    
-    private func recommendedRow(for item: AltStoreSourcesViewModel.SourceItem) -> some View {
-        let isAlreadyAdded = viewModel.sources.contains(where: { $0.url == item.url })
-        return HStack(spacing: 12) {
-            SourceIconView(url: resolvedIconURL(for: item))
-                .frame(width: 36, height: 36)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.displayName)
-                    .bold()
-                Text(item.url.absoluteString)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
-            Spacer()
-            if isAlreadyAdded {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-            } else {
-                Button("lc.sources.addSource".loc) {
-                    Task {
-                        _ = await onAdd(item.url.absoluteString)
-                    }
-                }
-                .buttonStyle(.bordered)
-            }
-        }
     }
     
     private func resolvedIconURL(for item: AltStoreSourcesViewModel.SourceItem) -> URL? {
