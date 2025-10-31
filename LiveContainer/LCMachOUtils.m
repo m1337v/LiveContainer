@@ -128,8 +128,10 @@ int LCPatchExecSlice(const char *path, struct mach_header_64 *header, bool doInj
     if(!codeSignatureCommandFound) {
         freeLoadCommandCountLeft -= 0x10;
     }
-    if(!hasDylibCommand && freeLoadCommandCountLeft >= sizeof(struct dylib_command)) {
-        freeLoadCommandCountLeft -= sizeof(struct dylib_command);
+    
+    int idDylibCommandSize = sizeof(struct dylib_command) + rnd32((uint32_t)strlen(basename((char*)path)) + 1, 8);
+    if(!hasDylibCommand && freeLoadCommandCountLeft >= idDylibCommandSize) {
+        freeLoadCommandCountLeft -= idDylibCommandSize;
         insertDylibCommand(LC_ID_DYLIB, path, header);
     }
 
