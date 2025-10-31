@@ -484,7 +484,7 @@ struct LCSourcesView: View {
     @StateObject private var viewModel = AltStoreSourcesViewModel()
     @State private var errorMessage: String?
     @State private var sourcePendingRemoval: AltStoreSourcesViewModel.SourceItem?
-    @ObservedObject private var searchContext = SearchContext()
+    @ObservedObject public var searchContext = SearchContext()
     @State private var expandedSources: Set<URL> = []
     @State private var isManagingSources = false
     
@@ -913,7 +913,7 @@ private struct AltStoreSourceSectionView: View {
                 )
             } else if let source = item.source, isExpanded || isFiltering {
                 VStack(spacing: 12) {
-                    ForEach(filteredApps) { app in
+                    ForEach(filteredApps[0..<min(50, filteredApps.count)]) { app in
                         LCSourceAppBanner(app: app, source: source, installAction: onInstall)
                     }
                     if filteredApps.isEmpty {
@@ -923,6 +923,11 @@ private struct AltStoreSourceSectionView: View {
                                 .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
+                    } else if filteredApps.count > 50 {
+                        Text("lc.sources.section.tooManyApps".loc)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             } else if item.isLoading {
