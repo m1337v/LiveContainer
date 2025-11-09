@@ -40,6 +40,11 @@ body:
     validations:
       required: true
   - type: textarea
+    id: crash-log
+    attributes:
+      label: Crash Log
+      description: If a crash happened, please upload the crash log in iOS settings - Privacy Security - Analytics Improvements - Analytics Data - Search LiveContainer. **Do not copy and paste.** Instead, please change .ips to .txt and upload it.
+  - type: textarea
     id: other-info
     attributes:
       label: Other info
