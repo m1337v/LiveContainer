@@ -124,6 +124,15 @@ void hideLiveContainerImageCallback(const struct mach_header* header, intptr_t v
     }
 }
 
+void* getDSCAddr(void) {
+    task_dyld_info_data_t dyldInfo;
+    
+    uint32_t count = TASK_DYLD_INFO_COUNT;
+    task_info(mach_task_self_, TASK_DYLD_INFO, (task_info_t)&dyldInfo, &count);
+    struct dyld_all_image_infos *infos = (struct dyld_all_image_infos *)dyldInfo.all_image_info_addr;
+    return (void*)infos->sharedCacheBaseAddress;
+}
+
 void* getCachedSymbol(NSString* symbolName, mach_header_u* header) {
     NSDictionary* symbolOffsetDict = [NSUserDefaults.lcSharedDefaults objectForKey:@"symbolOffsetCache"][symbolName];
     if(!symbolOffsetDict) {

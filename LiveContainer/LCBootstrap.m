@@ -225,6 +225,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     NSFileManager *fm = NSFileManager.defaultManager;
     NSString *docPath = [fm URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask]
         .lastObject.path;
+    NSURL *libraryURL = [fm URLsForDirectory:NSLibraryDirectory inDomains:NSUserDomainMask].firstObject;
     
     NSURL *appGroupFolder = nil;
     
@@ -404,12 +405,32 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     setenv("TMPDIR", newTmpPath.UTF8String, 1);
 
     // Setup directories
-    NSArray *dirList = @[@"Library/Caches", @"Documents", @"SystemData"];
+    NSArray *dirList = @[@"Library/Caches", @"Library/Cookies", @"Documents", @"SystemData"];
     for (NSString *dir in dirList) {
         NSString *dirPath = [newHomePath stringByAppendingPathComponent:dir];
         [fm createDirectoryAtPath:dirPath withIntermediateDirectories:YES attributes:nil error:nil];
     }
     
+    if(!isLiveProcess) {
+        // symlink Cookies folder
+        // https://github.com/apple-oss-distributions/WebKit/blob/0c8cf3581e5c01d970ea411128007c9325ba2d48/Source/WebKit/Shared/Cocoa/SandboxUtilities.mm#L56
+        // unfortunately we cannot hook sandbox_container_path_for_pid, so we symlink Cookies folder in normal mode
+        // see NSFileManager+GuestHooks.m for more info
+        NSURL *cookies2URL = [libraryURL URLByAppendingPathComponent:@"Cookies2"];
+        NSURL *cookiesURL = [libraryURL URLByAppendingPathComponent:@"Cookies"];
+        NSString* appCookiesPath = [newHomePath stringByAppendingPathComponent:@"Library/Cookies"];
+        BOOL isDir = NO;
+        if (![fm fileExistsAtPath:cookies2URL.path isDirectory:&isDir]) {
+            if([fm fileExistsAtPath:cookiesURL.path isDirectory:&isDir]) {
+                [fm moveItemAtURL:cookiesURL toURL:cookies2URL error:nil];
+            } else {
+                [fm createDirectoryAtURL:cookies2URL withIntermediateDirectories:YES attributes:nil error:nil];
+            }
+        }
+        remove(cookiesURL.path.UTF8String);
+        symlink(appCookiesPath.UTF8String, cookiesURL.path.UTF8String);
+        
+    }
     NSString* containerInfoPath = [newHomePath stringByAppendingPathComponent:@"LCContainerInfo.plist"];
     guestContainerInfo = [NSDictionary dictionaryWithContentsOfFile:containerInfoPath];
     
@@ -709,6 +730,30 @@ int LiveContainerMain(int argc, char *argv[]) {
                 [lcUserDefaults setObject:appError forKey:@"error"];
                 // potentially unrecovable state, exit now
                 return 1;
+            }
+        }
+    }
+    
+    if(isLiveProcess) {
+        NSLog(@"LiveProcess should not launch lcui!");
+        return 0;
+    }
+    
+    // put back cookies
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSURL *libraryURL = [fm URLsForDirectory:NSLibraryDirectory inDomains:NSUserDomainMask].firstObject;;
+    NSURL *cookies2URL = [libraryURL URLByAppendingPathComponent:@"Cookies2"];
+    
+    BOOL isDir = NO;
+    if ([fm fileExistsAtPath:cookies2URL.path isDirectory:&isDir] && isDir) {
+        NSError *error = nil;
+        NSURL *cookiesURL  = [libraryURL URLByAppendingPathComponent:@"Cookies"];
+        // Remove old Caches folder if exists
+        if ([fm fileExistsAtPath:cookiesURL.path]) {
+            if ([fm removeItemAtURL:cookiesURL error:&error]) {
+                [fm moveItemAtURL:cookies2URL toURL:cookiesURL error:&error];
+            } else{
+                NSLog(@"Failed to remove old Cookies folder: %@", error);
             }
         }
     }
