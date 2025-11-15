@@ -323,12 +323,14 @@ class AppInfoProvider {
     }
     
     private func setupDockView() {
-        let dockView = AnyView(MultitaskDockSwiftView()
-            .environmentObject(self))
-        
-        hostingController = UIHostingController(rootView: dockView)
-        hostingController?.view.autoresizingMask = [.flexibleTopMargin, .flexibleLeftMargin, .flexibleRightMargin, .flexibleBottomMargin]
-        hostingController?.view.backgroundColor = .clear
+        DispatchQueue.main.async {
+            let dockView = AnyView(MultitaskDockSwiftView()
+                .environmentObject(self))
+            
+            self.hostingController = UIHostingController(rootView: dockView)
+            self.hostingController?.view.autoresizingMask = [.flexibleTopMargin, .flexibleLeftMargin, .flexibleRightMargin, .flexibleBottomMargin]
+            self.hostingController?.view.backgroundColor = .clear
+        }
     }
 
     private func updateDockFrame(animated: Bool = true) {
