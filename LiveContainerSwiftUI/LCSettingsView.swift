@@ -48,6 +48,8 @@ struct LCSettingsView: View {
     @AppStorage("LCLaunchMultitaskMaximized") var launchMultitaskMaximized = false
     @AppStorage("LCMultitaskBottomWindowBar", store: LCUtils.appGroupUserDefault) var bottomWindowBar = false
     @AppStorage("LCAutoEndPiP", store: LCUtils.appGroupUserDefault) var autoEndPiP = false
+    @AppStorage("LCSkipTerminatedScreen", store: LCUtils.appGroupUserDefault) var skipTerminatedScreen = false
+    @AppStorage("LCRestartTerminatedApp", store: LCUtils.appGroupUserDefault) var restartTerminatedApp = false
     @AppStorage("LCDockWidth", store: LCUtils.appGroupUserDefault) var dockWidth: Double = 80
     
     @State var store : Store = .Unknown
@@ -238,6 +240,14 @@ struct LCSettingsView: View {
                             }
                             Toggle(isOn: $autoEndPiP) {
                                 Text("lc.settings.autoEndPiP".loc)
+                            }
+                            Toggle(isOn: $skipTerminatedScreen) {
+                                Text("lc.settings.skipTerminatedScreen".loc)
+                            }
+                            if skipTerminatedScreen {
+                                Toggle(isOn: $restartTerminatedApp) {
+                                    Text("lc.settings.restartTerminatedApp".loc)
+                                }
                             }
                             Toggle(isOn: $bottomWindowBar) {
                                 Text("lc.settings.bottomWindowBar".loc)
