@@ -49,6 +49,7 @@ int dyld_get_program_sdk_version(void);
 + (NSString *)storeInstallURLScheme;
 + (NSString *)getVersionInfo;
 + (NSString *)liveProcessBundleIdentifier;
++ (NSData*)bookmarkForURL:(NSURL*) url;
 @end
 
 @interface NSUserDefaults(LiveContainer)

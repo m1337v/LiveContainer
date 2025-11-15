@@ -34,6 +34,7 @@ struct LCAppSettingsView: View {
     @StateObject private var moveToAppGroupAlert = YesNoHelper()
     @StateObject private var moveToPrivateDocAlert = YesNoHelper()
     @StateObject private var signUnsignedAlert = YesNoHelper()
+    @State var choosingStorage = false
     
     @State private var errorShow = false
     @State private var errorInfo = ""
@@ -119,6 +120,11 @@ struct LCAppSettingsView: View {
                         Task{ await createFolder() }
                     } label: {
                         Text("lc.appSettings.newDataFolder".loc)
+                    }
+                    Button {
+                        choosingStorage = true
+                    } label: {
+                        Text("lc.appSettings.selectExternalStorage".loc)
                     }
                     if(!model.uiIsShared) {
                         Button {
@@ -420,6 +426,9 @@ struct LCAppSettingsView: View {
         .sheet(isPresented: $selectUnusedContainerSheetShow) {
             LCSelectContainerView(isPresent: $selectUnusedContainerSheetShow, delegate: self)
         }
+        .fileImporter(isPresented: $choosingStorage, allowedContentTypes: [.folder]) { result in
+            Task { await importDataStorage(result: result) }
+        }
     }
 
     func createFolder() async {
@@ -469,6 +478,65 @@ struct LCAppSettingsView: View {
         }
         appInfo.containers = model.uiContainers;
         newContainer.makeLCContainerInfoPlist(appIdentifier: appInfo.bundleIdentifier()!, keychainGroupId: freeKeyChainGroup)
+    }
+    
+    func importDataStorage(result: Result<URL, any Error>) async {
+        do {
+            let url = try result.get()
+            guard url.startAccessingSecurityScopedResource() else {
+                errorInfo = "unable to access directory, startAccessingSecurityScopedResource returns false"
+                errorShow = true
+                return
+            }
+            let path = url.path
+            let fm = FileManager.default
+            let _ = try fm.contentsOfDirectory(atPath: path)
+
+            guard let bookmark = LCUtils.bookmark(for: url) else {
+//                LCUtils.appGroupUserDefault.set(bookmark, forKey: "externalStorageBookMark")
+                errorInfo = "Unable to generate a bookmark for the selected URL!"
+                errorShow = true
+                return
+            }
+            
+            var container: LCContainer? = nil
+            if fm.fileExists(atPath: url.appendingPathComponent("LCContainerInfo.plist").path) {
+                let plistInfo = try PropertyListSerialization.propertyList(from: Data(contentsOf: url.appendingPathComponent("LCContainerInfo.plist")), format: nil)
+                if let plistInfo = plistInfo as? [String : Any] {
+                    let name = plistInfo["folderName"] as? String ?? url.lastPathComponent
+                    container = LCContainer(infoDict: ["folderName": url.lastPathComponent, "name": name, "bookmarkData":bookmark], isShared: false)
+                }
+            }
+            if container == nil {
+                // it's an empty folder, we assign a new keychain group to it.
+                container = LCContainer(infoDict: ["folderName": url.lastPathComponent, "name": url.lastPathComponent, "bookmarkData": bookmark], isShared: false)
+                // assign keychain group
+                var keychainGroupSet : Set<Int> = Set(minimumCapacity: 3)
+                for i in 0..<SharedModel.keychainAccessGroupCount {
+                    keychainGroupSet.insert(i)
+                }
+                for container in model.uiContainers {
+                    keychainGroupSet.remove(container.keychainGroupId)
+                }
+                guard let freeKeyChainGroup = keychainGroupSet.randomElement() else {
+                    errorInfo = "lc.container.notEnoughKeychainGroup".loc
+                    errorShow = true
+                    return
+                }
+                
+//                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    if container!.bookmarkResolved {
+                        container!.makeLCContainerInfoPlist(appIdentifier: appInfo.bundleIdentifier()!, keychainGroupId: freeKeyChainGroup)
+                    }
+//                }
+            }
+            model.uiContainers.append(container!)
+            appInfo.containers = model.uiContainers;
+
+        } catch {
+            errorInfo = error.localizedDescription
+            errorShow = true
+        }
     }
 
     func moveToAppGroup() async {
