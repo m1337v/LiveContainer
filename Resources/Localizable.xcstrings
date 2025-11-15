@@ -16104,40 +16104,6 @@
         }
       }
     },
-    "lc.settings.skipTerminatedScreen" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Skip terminated screen"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "跳过终止提示"
-          }
-        }
-      }
-    },
-    "lc.settings.restartTerminatedApp" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restart app automatically after termination"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "终止后自动重新启动应用"
-          }
-        }
-      }
-    },
     "lc.settings.autoLaunchInMultitaskMode" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -21884,6 +21850,23 @@
         }
       }
     },
+    "lc.settings.restartTerminatedApp" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restart app automatically after termination"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "终止后自动重新启动应用"
+          }
+        }
+      }
+    },
     "lc.settings.signer.desc" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -22313,6 +22296,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "LiveContainer在切換App時預設會向你確認。啟用此選項來直接切換，所有未儲存的資料將會遺失。"
+          }
+        }
+      }
+    },
+    "lc.settings.skipTerminatedScreen" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip terminated screen"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳过终止提示"
           }
         }
       }
@@ -23379,6 +23379,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此源中无App。"
+          }
+        }
+      }
+    },
+    "lc.sources.section.tooManyApps" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are too many apps in current repository, please use search instead."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前仓库App过多，请使用搜索功能。"
           }
         }
       }
