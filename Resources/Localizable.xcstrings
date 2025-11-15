@@ -16104,6 +16104,40 @@
         }
       }
     },
+    "lc.settings.skipTerminatedScreen" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip terminated screen"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳过终止提示"
+          }
+        }
+      }
+    },
+    "lc.settings.restartTerminatedApp" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restart app automatically after termination"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "终止后自动重新启动应用"
+          }
+        }
+      }
+    },
     "lc.settings.autoLaunchInMultitaskMode" : {
       "extractionState" : "stale",
       "localizations" : {

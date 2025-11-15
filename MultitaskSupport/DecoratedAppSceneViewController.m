@@ -332,7 +332,9 @@ void UIKitFixesInit(void) {
 }
 
 - (void)appSceneVCAppDidExit:(AppSceneViewController*)vc {
-    if(_isAppTerminationRequested) {
+    BOOL skipTerminationScreen = [NSUserDefaults.lcSharedDefaults boolForKey:@"LCSkipTerminatedScreen"];
+    BOOL isManual = _isAppTerminationRequested;
+    if(isManual || skipTerminationScreen) {
         
         MultitaskDockManager *dock = [MultitaskDockManager shared];
         [dock removeRunningApp:self.dataUUID];
@@ -343,6 +345,10 @@ void UIKitFixesInit(void) {
         } completion:^(BOOL b){
             [self.view removeFromSuperview];
         }];
+        
+        if(skipTerminationScreen) {
+            [MultitaskRelaunchManager scheduleRelaunchIfNeededWithBundleId:self.appSceneVC.bundleId dataUUID:self.dataUUID isManualTermination:isManual];
+        }
     } else {
         UILabel *label = [[UILabel alloc] initWithFrame:self.view.bounds];
         label.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
