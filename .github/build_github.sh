@@ -1,5 +1,5 @@
 # copy lc
-wget https://github.com/hugeBlack/SideStore/releases/download/dylibify/dylibify
+wget https://github.com/LiveContainer/SideStore/releases/download/dylibify/dylibify
 chmod +x dylibify
 brew install ldid
 
@@ -41,7 +41,7 @@ mv ./tmp/SideStore.framework Payload/LiveContainer.app/Frameworks
 
 # download SideStore
 cd tmp
-wget https://github.com/hugeBlack/SideStore/releases/download/nightly/SideStore.ipa
+wget https://github.com/LiveContainer/SideStore/releases/download/nightly/SideStore.ipa
 unzip SideStore.ipa
 cd ..
 
@@ -50,6 +50,7 @@ mv ./tmp/Payload/SideStore.app ./Payload/LiveContainer.app/Frameworks/SideStoreA
 ./dylibify ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore.dylib
 rm ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore
 mv ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore.dylib ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore
+ldid -S"" ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore
 cp ./.github/sidelc/LCAppInfo.plist ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/
 
 # copy intents
