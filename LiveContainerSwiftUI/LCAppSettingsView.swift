@@ -532,6 +532,13 @@ struct LCAppSettingsView: View {
             }
             model.uiContainers.append(container!)
             appInfo.containers = model.uiContainers;
+            if model.uiSelectedContainer == nil {
+                model.uiSelectedContainer = container;
+            }
+            if model.uiDefaultDataFolder == nil {
+                model.uiDefaultDataFolder = url.lastPathComponent
+                appInfo.dataUUID = url.lastPathComponent
+            }
 
         } catch {
             errorInfo = error.localizedDescription
