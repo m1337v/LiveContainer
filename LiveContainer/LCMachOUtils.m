@@ -3,6 +3,7 @@
 @import MachO;
 #import "../litehook/src/litehook.h"
 #import "LCUtils.h"
+#include "dyld_cache_format.h"
 
 static uint32_t rnd32(uint32_t v, uint32_t r) {
     r--;
@@ -159,8 +160,10 @@ int LCPatchExecSlice(const char *path, struct mach_header_64 *header, bool doInj
     if(!codeSignatureCommandFound) {
         freeLoadCommandCountLeft -= 0x10;
     }
-    if(!hasDylibCommand && freeLoadCommandCountLeft >= sizeof(struct dylib_command)) {
-        freeLoadCommandCountLeft -= sizeof(struct dylib_command);
+    
+    int idDylibCommandSize = sizeof(struct dylib_command) + rnd32((uint32_t)strlen(basename((char*)path)) + 1, 8);
+    if(!hasDylibCommand && freeLoadCommandCountLeft >= idDylibCommandSize) {
+        freeLoadCommandCountLeft -= idDylibCommandSize;
         insertDylibCommand(LC_ID_DYLIB, path, header);
     }
 
@@ -339,18 +342,22 @@ void LCChangeMachOUUID(struct mach_header_64 *header) {
 
 const uint8_t* LCGetMachOUUID(struct mach_header_64 *header) {
     if (!header) return NULL;
-
-    // Find load commands
-    const struct load_command* command = (const struct load_command*)(header + 1);
-
-    // Iterate through load commands to find LC_SYMTAB
-    for(uint32_t i = 0; i < header->ncmds; i++) {
-        if(command->cmd == LC_UUID) {
-            return ((const struct uuid_command*)command)->uuid;
+    if(*(uint32_t*)header != 0x646c7964) { // dyld
+        // Find load commands
+        const struct load_command* command = (const struct load_command*)(header + 1);
+        
+        // Iterate through load commands to find LC_SYMTAB
+        for(uint32_t i = 0; i < header->ncmds; i++) {
+            if(command->cmd == LC_UUID) {
+                return ((const struct uuid_command*)command)->uuid;
+            }
+            command = (const struct load_command*)((void *)command + command->cmdsize);
         }
-        command = (const struct load_command*)((void *)command + command->cmdsize);
+        return NULL;
+    } else {
+        struct dyld_cache_header* dsc_header = (struct dyld_cache_header*)header;
+        return dsc_header->uuid;
     }
-    return NULL;
 }
 
 uint64_t LCFindSymbolOffset(const char *basePath, const char *symbol) {

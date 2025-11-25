@@ -91,9 +91,11 @@ struct MultitaskAppWindow : View {
     @State var show = true
     @State var pid = 0
     @State var appInfo : MultitaskAppInfo? = nil
+    @State private var hasScheduledAutoClose = false
+    @State private var didRequestManualClose = false
     @EnvironmentObject var sceneDelegate: SceneDelegate
     @Environment(\.openWindow) var openWindow
-    @Environment(\.scenePhase) var scenePhase
+    @AppStorage("LCSkipTerminatedScreen", store: LCUtils.appGroupUserDefault) var skipTerminatedScreen = false
     let pub = NotificationCenter.default.publisher(for: UIScene.didDisconnectNotification)
     init(id: String) {
         guard let appInfo = MultitaskWindowManager.appDict[id] else {
@@ -125,15 +127,26 @@ struct MultitaskAppWindow : View {
                 }
             }
             
+        } else if skipTerminatedScreen, appInfo != nil {
+            Color.clear
+                .ignoresSafeArea(.all, edges: .all)
+                .onAppear {
+                    guard !didRequestManualClose else { return }
+                    if let appInfo {
+                        MultitaskRelaunchManager.scheduleRelaunchIfNeeded(bundleId: appInfo.bundleId, dataUUID: appInfo.dataUUID, isManualTermination: false)
+                    }
+                    if !hasScheduledAutoClose {
+                        hasScheduledAutoClose = true
+                        DispatchQueue.main.async {
+                            requestSceneDestruction(isManual: false)
+                        }
+                    }
+                }
         } else {
             VStack {
                 Text("lc.multitaskAppWindow.appTerminated".loc)
                 Button("lc.common.close".loc) {
-                    if let session = sceneDelegate.window?.windowScene?.session {
-                        UIApplication.shared.requestSceneSessionDestruction(session, options: nil) { e in
-                            print(e)
-                        }
-                    }
+                    requestSceneDestruction(isManual: true)
                 }
             }.onAppear() {
                 // appInfo == nil indicates this is the first scene opened in this launch. We don't want this so we open lc's main scene and close this view
@@ -141,23 +154,14 @@ struct MultitaskAppWindow : View {
                 // also we have to keep the view open for a little bit otherwise lc will be killed by iOS
                 if appInfo == nil {
                     if DataManager.shared.model.mainWindowOpened {
-                        if let session = sceneDelegate.window?.windowScene?.session {
-                            UIApplication.shared.requestSceneSessionDestruction(session, options: nil) { e in
-                                print(e)
-                            }
-                        }
-
+                        requestSceneDestruction()
                     } else {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                             if !DataManager.shared.model.mainWindowOpened {
                                 openWindow(id: "Main")
                             }
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                if let session = sceneDelegate.window?.windowScene?.session {
-                                    UIApplication.shared.requestSceneSessionDestruction(session, options: nil) { e in
-                                        print(e)
-                                    }
-                                }
+                                requestSceneDestruction()
                             }
 
                         }
@@ -166,5 +170,73 @@ struct MultitaskAppWindow : View {
             }
 
         }
+    }
+    
+    private func requestSceneDestruction(isManual: Bool = false) {
+        if isManual {
+            didRequestManualClose = true
+        }
+        guard let session = sceneDelegate.window?.windowScene?.session else { return }
+        UIApplication.shared.requestSceneSessionDestruction(session, options: nil) { error in
+            print(error)
+        }
+    }
+}
+
+@objcMembers
+class MultitaskRelaunchManager: NSObject {
+    private static var pendingKeys: Set<String> = []
+    private static let pendingLock = NSLock()
+    
+    @objc static func scheduleRelaunchIfNeeded(bundleId: String, dataUUID: String, isManualTermination: Bool) {
+        let defaults = LCUtils.appGroupUserDefault
+        guard defaults.bool(forKey: "LCSkipTerminatedScreen"),
+              defaults.bool(forKey: "LCRestartTerminatedApp"),
+              !isManualTermination else { return }
+        
+        let key = "\(bundleId)#\(dataUUID)"
+        guard markPendingIfNeeded(key: key) else { return }
+        
+        Task {
+            defer { clearPending(key: key) }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            await relaunchApp(bundleId: bundleId, dataUUID: dataUUID)
+        }
+    }
+    
+    private static func markPendingIfNeeded(key: String) -> Bool {
+        pendingLock.lock()
+        defer { pendingLock.unlock() }
+        if pendingKeys.contains(key) {
+            return false
+        }
+        pendingKeys.insert(key)
+        return true
+    }
+    
+    private static func clearPending(key: String) {
+        pendingLock.lock()
+        pendingKeys.remove(key)
+        pendingLock.unlock()
+    }
+    
+    private static func relaunchApp(bundleId: String, dataUUID: String) async {
+        guard let appModel = await MainActor.run(body: { lookupAppModel(bundleId: bundleId) }) else {
+            return
+        }
+        
+        do {
+            try await appModel.runApp(multitask: true, containerFolderName: dataUUID)
+        } catch {
+            print("Failed to restart \(bundleId): \(error)")
+        }
+    }
+    
+    @MainActor private static func lookupAppModel(bundleId: String) -> LCAppModel? {
+        let sharedModel = DataManager.shared.model
+        if let app = sharedModel.apps.first(where: { $0.appInfo.relativeBundlePath == bundleId }) {
+            return app
+        }
+        return sharedModel.hiddenApps.first(where: { $0.appInfo.relativeBundlePath == bundleId })
     }
 }

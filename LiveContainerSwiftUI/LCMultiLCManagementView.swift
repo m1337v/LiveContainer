@@ -50,8 +50,8 @@ struct InstallAnotherLCButton : View {
 }
 
 struct LCMultiLCManagementView : View, InstallAnotherLCButtonDelegate {
-    @AppStorage("LCMultiAllowGameCategory") var useGameCategory = true
-    @AppStorage("LCMultiAllowGameMode") var allowGameMode = true
+    @AppStorage("LCMultiAllowGameCategory") var useGameCategory = false
+    @AppStorage("LCMultiAllowGameMode") var allowGameMode = false
     @State var errorShow = false
     @State var errorInfo = ""
     @State var successShow = false

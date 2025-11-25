@@ -152,8 +152,9 @@ class AppInfoProvider {
         // MARK: - Margins & Padding
         static let adaptiveWidthVerticalMargin: CGFloat = 20.0
         static let dockVerticalMargin: CGFloat = 30.0
-        static let iconAreaVerticalPadding: CGFloat = 60.0
-        static let collapsedHeightExtraPadding: CGFloat = 30.0
+        static let dockContentSpacing: CGFloat = 8.0
+        static let dockVerticalPadding: CGFloat = 30.0
+        // Extra padding is derived from dockVerticalPadding to match the SwiftUI layout exactly
         
         // MARK: - Ratios & Factors
         static let iconToWidthRatio: CGFloat = 0.75
@@ -214,10 +215,13 @@ class AppInfoProvider {
         
         let userWidth = originalDockWidth
         let iconSize = calculateIconSize(for: userWidth)
-        let requiredHeight = CGFloat(apps.count) * iconSize + Constants.iconAreaVerticalPadding
+        let requiredHeight = expandedDockHeight(for: userWidth, iconSize: iconSize)
         
-        if requiredHeight > maxSafeHeight {
-            let maxAllowedIconSize = (maxSafeHeight - Constants.iconAreaVerticalPadding) / CGFloat(apps.count)
+        if requiredHeight > maxSafeHeight && !apps.isEmpty {
+            let buttonSize = calculateButtonSize(for: userWidth)
+            let baseHeight = expandedDockBaseHeight(for: userWidth, buttonSize: buttonSize)
+            let availableForIcons = maxSafeHeight - baseHeight
+            let maxAllowedIconSize = availableForIcons / CGFloat(apps.count)
             
             let targetIconSize = max(Constants.minAdaptiveIconSize, maxAllowedIconSize)
             
@@ -233,6 +237,29 @@ class AppInfoProvider {
     private func calculateIconSize(for width: CGFloat) -> CGFloat {
         let iconSize = width * Constants.iconToWidthRatio
         return max(Constants.minAdaptiveIconSize, min(Constants.maxIconSize, iconSize))
+    }
+
+    private func calculateButtonSize(for width: CGFloat) -> CGFloat {
+        let targetSize = width * Constants.collapsedButtonToWidthRatio
+        return max(Constants.minCollapsedButtonSize, min(Constants.maxCollapsedButtonSize, targetSize))
+    }
+
+    private func expandedDockBaseHeight(for width: CGFloat, buttonSize: CGFloat) -> CGFloat {
+        let spacingCount = max(self.apps.count + 1, 0)
+        let totalSpacingHeight = CGFloat(spacingCount) * Constants.dockContentSpacing
+        return Constants.dockVerticalPadding + buttonSize * 2 + totalSpacingHeight
+    }
+
+    private func expandedDockHeight(for width: CGFloat, iconSize: CGFloat) -> CGFloat {
+        let buttonSize = calculateButtonSize(for: width)
+        let baseHeight = expandedDockBaseHeight(for: width, buttonSize: buttonSize)
+        let iconHeight = CGFloat(self.apps.count) * iconSize
+        return baseHeight + iconHeight
+    }
+
+    private func collapsedDockHeight(for width: CGFloat) -> CGFloat {
+        let buttonSize = calculateButtonSize(for: width)
+        return Constants.dockVerticalPadding + buttonSize
     }
     
 
@@ -296,12 +323,14 @@ class AppInfoProvider {
     }
     
     private func setupDockView() {
-        let dockView = AnyView(MultitaskDockSwiftView()
-            .environmentObject(self))
-        
-        hostingController = UIHostingController(rootView: dockView)
-        hostingController?.view.autoresizingMask = [.flexibleTopMargin, .flexibleLeftMargin, .flexibleRightMargin, .flexibleBottomMargin]
-        hostingController?.view.backgroundColor = .clear
+        DispatchQueue.main.async {
+            let dockView = AnyView(MultitaskDockSwiftView()
+                .environmentObject(self))
+            
+            self.hostingController = UIHostingController(rootView: dockView)
+            self.hostingController?.view.autoresizingMask = [.flexibleTopMargin, .flexibleLeftMargin, .flexibleRightMargin, .flexibleBottomMargin]
+            self.hostingController?.view.backgroundColor = .clear
+        }
     }
 
     private func updateDockFrame(animated: Bool = true) {
@@ -332,13 +361,11 @@ class AppInfoProvider {
 
     private func calculateTargetDockHeight(forWidth width: CGFloat) -> CGFloat {
         if isCollapsed {
-            let targetSize = width * Constants.collapsedButtonToWidthRatio
-            let buttonSize = max(Constants.minCollapsedButtonSize, min(Constants.maxCollapsedButtonSize, targetSize))
-            let collapsedHeight = buttonSize + Constants.collapsedHeightExtraPadding
+            let collapsedHeight = collapsedDockHeight(for: width)
             return max(Constants.minCollapsedHeight, collapsedHeight)
         } else {
-            let currentIconSize = self.adaptiveIconSize
-            return CGFloat(self.apps.count) * currentIconSize + Constants.iconAreaVerticalPadding
+            let currentIconSize = calculateIconSize(for: width)
+            return expandedDockHeight(for: width, iconSize: currentIconSize)
         }
     }
 

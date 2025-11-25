@@ -363,6 +363,13 @@ class LCAppModel: ObservableObject, Hashable {
                 }
             }
         }
+        let currentDataFolder = containerFolderName ?? uiSelectedContainer?.folderName
+        
+        if multitask,
+           let currentDataFolder,
+           bringExistingMultitaskWindowIfNeeded(dataUUID: currentDataFolder) {
+            return
+        }
         
         // this is rerouted to bringing app to front, so not needed here?
 //        if(MultitaskManager.isUsing(container: uiSelectedContainer!.folderName)) {
@@ -385,18 +392,9 @@ class LCAppModel: ObservableObject, Hashable {
         
         // ask user if they want to terminate all multitasking apps
         if MultitaskManager.isMultitasking() && !multitask {
-            if #available(iOS 16.0, *), let currentDataFolder = containerFolderName != nil ? containerFolderName : uiSelectedContainer?.folderName,
-               MultitaskManager.isUsing(container: currentDataFolder) {
-                var found = false
-                if #available(iOS 16.1, *) {
-                    found = MultitaskWindowManager.openExistingAppWindow(dataUUID: currentDataFolder)
-                }
-                if !found {
-                    found = MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: currentDataFolder)
-                }
-                if found {
-                    return
-                }
+            if let currentDataFolder,
+               bringExistingMultitaskWindowIfNeeded(dataUUID: currentDataFolder) {
+                return
             }
             
             guard let ans = await delegate?.showRunWhenMultitaskAlert(), ans else {
@@ -606,5 +604,17 @@ class LCAppModel: ObservableObject, Hashable {
             }
         }
         
+    }
+    
+    private func bringExistingMultitaskWindowIfNeeded(dataUUID: String) -> Bool {
+        guard #available(iOS 16.0, *) else { return false }
+        var found = false
+        if #available(iOS 16.1, *) {
+            found = MultitaskWindowManager.openExistingAppWindow(dataUUID: dataUUID)
+        }
+        if !found {
+            found = MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: dataUUID)
+        }
+        return found
     }
 }
