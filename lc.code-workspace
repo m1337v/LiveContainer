@@ -8,6 +8,9 @@
 		},
 		{
 			"path": "../lc-resources/Project-X"
+		},
+		{
+			"path": "../lc-resources"
 		}
 	],
 	"settings": {}

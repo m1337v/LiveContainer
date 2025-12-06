@@ -722,40 +722,54 @@ static void setupImageSpoofingResources() {
         NSLog(@"[LC] 🖼️ No user image specified, using default gradient");
     }
 
-    // Create static image fallback (either from user image or default)
+    // CRITICAL FIX: If no user image, DON'T create gradient/text placeholder
+    // Instead, keep using whatever we have (previous frame or create black buffer)
     if (!sourceImage) {
-        // Create default gradient image
-        UIGraphicsBeginImageContextWithOptions(targetResolution, YES, 1.0);
-        CGContextRef uigraphicsContext = UIGraphicsGetCurrentContext();
-        if (uigraphicsContext) {
-            // Blue gradient background
-            CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-            CGFloat colors[] = { 0.2, 0.4, 0.8, 1.0, 0.1, 0.2, 0.4, 1.0 };
-            CGFloat locations[] = {0.0, 1.0};
-            CGGradientRef gradient = CGGradientCreateWithColorComponents(colorSpace, colors, locations, 2);
-            CGContextDrawLinearGradient(uigraphicsContext, gradient, CGPointMake(0,0), CGPointMake(0,targetResolution.height), 0);
-            CGGradientRelease(gradient);
-            CGColorSpaceRelease(colorSpace);
-
-            // Add text
-            NSString *text = @"LiveContainer\nCamera Spoof\nSelect Image in Settings";
-            NSMutableParagraphStyle *paragraphStyle = [[NSMutableParagraphStyle alloc] init];
-            paragraphStyle.alignment = NSTextAlignmentCenter;
-            NSDictionary *attrs = @{ 
-                NSFontAttributeName: [UIFont boldSystemFontOfSize:targetResolution.width * 0.04], 
-                NSForegroundColorAttributeName: [UIColor whiteColor],
-                NSParagraphStyleAttributeName: paragraphStyle
-            };
-            CGSize textSize = [text sizeWithAttributes:attrs];
-            CGRect textRect = CGRectMake((targetResolution.width - textSize.width) / 2, (targetResolution.height - textSize.height) / 2, textSize.width, textSize.height);
-            [text drawInRect:textRect withAttributes:attrs];
-            sourceImage = UIGraphicsGetImageFromCurrentImageContext();
+        // Check if we already have a valid buffer to use as fallback
+        if (staticImageSpoofBuffer) {
+            NSLog(@"[LC] 🔄 No user image - keeping existing static buffer as fallback");
+            return;
         }
-        UIGraphicsEndImageContext();
         
-        if (sourceImage) {
-            createStaticImageFromUIImage(sourceImage); 
+        // Check if we have lastGoodSpoofedPixelBuffer
+        if (lastGoodSpoofedPixelBuffer) {
+            NSLog(@"[LC] 🔄 No user image - using lastGoodSpoofedPixelBuffer as fallback");
+            staticImageSpoofBuffer = CVPixelBufferRetain(lastGoodSpoofedPixelBuffer);
+            return;
         }
+        
+        // LAST RESORT: Create a simple BLACK buffer (no text, no gradient)
+        NSLog(@"[LC] ⚠️ No fallback available - creating black buffer (no text)");
+        
+        NSDictionary *pixelBufferAttributes = @{
+            (NSString*)kCVPixelBufferCGImageCompatibilityKey : @YES,
+            (NSString*)kCVPixelBufferCGBitmapContextCompatibilityKey : @YES,
+            (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
+        };
+
+        CVReturn cvRet = CVPixelBufferCreate(kCFAllocatorDefault, 
+                                         (size_t)targetResolution.width, (size_t)targetResolution.height, 
+                                         kCVPixelFormatType_32BGRA,
+                                         (__bridge CFDictionaryRef)pixelBufferAttributes, &staticImageSpoofBuffer);
+        
+        if (cvRet == kCVReturnSuccess && staticImageSpoofBuffer) {
+            CVPixelBufferLockBaseAddress(staticImageSpoofBuffer, 0);
+            void *pxdata = CVPixelBufferGetBaseAddress(staticImageSpoofBuffer);
+            size_t bytesPerRow = CVPixelBufferGetBytesPerRow(staticImageSpoofBuffer);
+            
+            // Fill with black (no text, no gradient) - like CaptureJailed pattern
+            memset(pxdata, 0, bytesPerRow * (size_t)targetResolution.height);
+            
+            CVPixelBufferUnlockBaseAddress(staticImageSpoofBuffer, 0);
+            
+            NSLog(@"[LC] ✅ Black fallback buffer created (no visible text)");
+            
+            CMVideoFormatDescriptionRef tempFormatDesc = NULL;
+            CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, staticImageSpoofBuffer, &tempFormatDesc);
+            updateLastGoodSpoofedFrame(staticImageSpoofBuffer, tempFormatDesc);
+            if (tempFormatDesc) CFRelease(tempFormatDesc);
+        }
+        return;
     }
 }
 
@@ -2063,10 +2077,34 @@ static NSString* fourCCToString(OSType fourCC) {
 
         if (spoofCameraEnabled) {
             CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
-            if (spoofedFrame && self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-                [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:spoofedFrame fromConnection:connection];
+            if (spoofedFrame) {
+                if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
+                    [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:spoofedFrame fromConnection:connection];
+                }
+                CFRelease(spoofedFrame);
+            } else {
+                // FALLBACK: Use lastGoodSpoofedPixelBuffer instead of real camera (NEVER show real camera)
+                if (lastGoodSpoofedPixelBuffer) {
+                    CMVideoFormatDescriptionRef videoInfo = NULL;
+                    CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, lastGoodSpoofedPixelBuffer, &videoInfo);
+                    if (videoInfo) {
+                        CMSampleTimingInfo timing = {0};
+                        timing.duration = CMTimeMake(1, 30);
+                        timing.presentationTimeStamp = CMTimeMakeWithSeconds(CACurrentMediaTime(), 1000000);
+                        timing.decodeTimeStamp = kCMTimeInvalid;
+                        
+                        CMSampleBufferRef fallbackFrame = nil;
+                        if (CMSampleBufferCreateForImageBuffer(kCFAllocatorDefault, lastGoodSpoofedPixelBuffer, true, NULL, NULL, videoInfo, &timing, &fallbackFrame) == noErr && fallbackFrame) {
+                            if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
+                                [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:fallbackFrame fromConnection:connection];
+                            }
+                            CFRelease(fallbackFrame);
+                        }
+                        CFRelease(videoInfo);
+                    }
+                }
+                // If fallback fails, drop the frame entirely (never show real camera)
             }
-            if (spoofedFrame) CFRelease(spoofedFrame);
         } else {
             if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
                 [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:sampleBuffer fromConnection:connection];
@@ -2477,11 +2515,33 @@ static void cleanupPhotoCache(void) {
                 }
                 CFRelease(spoofedFrame);
             } else {
-                NSLog(@"[LC] ❌ SimpleSpoofDelegate: Failed to create spoofed frame %d", frameCounter);
-                // FALLBACK: Pass through original
-                if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-                    [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:sampleBuffer fromConnection:connection];
-                    NSLog(@"[LC] ⚠️ SimpleSpoofDelegate: Passed through original frame %d", frameCounter);
+                NSLog(@"[LC] ❌ SimpleSpoofDelegate: Failed to create spoofed frame %d - trying lastGoodSpoofedPixelBuffer", frameCounter);
+                // FALLBACK: Use lastGoodSpoofedPixelBuffer instead of real camera (NEVER show real camera)
+                CMSampleBufferRef fallbackFrame = nil;
+                if (lastGoodSpoofedPixelBuffer) {
+                    CMVideoFormatDescriptionRef videoInfo = NULL;
+                    CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, lastGoodSpoofedPixelBuffer, &videoInfo);
+                    if (videoInfo) {
+                        CMSampleTimingInfo timing = {0};
+                        timing.duration = CMTimeMake(1, 30);
+                        timing.presentationTimeStamp = CMTimeMakeWithSeconds(CACurrentMediaTime(), 1000000);
+                        timing.decodeTimeStamp = kCMTimeInvalid;
+                        
+                        OSStatus status = CMSampleBufferCreateForImageBuffer(kCFAllocatorDefault, lastGoodSpoofedPixelBuffer, true, NULL, NULL, videoInfo, &timing, &fallbackFrame);
+                        CFRelease(videoInfo);
+                        
+                        if (status == noErr && fallbackFrame) {
+                            if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
+                                [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:fallbackFrame fromConnection:connection];
+                                NSLog(@"[LC] ⚠️ SimpleSpoofDelegate: Used lastGoodSpoofedPixelBuffer for frame %d", frameCounter);
+                            }
+                            CFRelease(fallbackFrame);
+                        }
+                    }
+                }
+                // If fallback also fails, drop the frame entirely (never show real camera)
+                if (!fallbackFrame) {
+                    NSLog(@"[LC] ⚠️ SimpleSpoofDelegate: Dropped frame %d - no fallback available (protecting real camera)", frameCounter);
                 }
             }
         } else {
@@ -2494,13 +2554,34 @@ static void cleanupPhotoCache(void) {
         }
     } @catch (NSException *exception) {
         NSLog(@"[LC] ❌ SimpleSpoofDelegate: Exception in frame %d: %@", frameCounter, exception);
-        // On exception, always try to pass through original
+        // On exception, try to use lastGoodSpoofedPixelBuffer (NEVER show real camera)
         @try {
-            if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-                [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:sampleBuffer fromConnection:connection];
+            if (lastGoodSpoofedPixelBuffer && self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
+                CMVideoFormatDescriptionRef videoInfo = NULL;
+                CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, lastGoodSpoofedPixelBuffer, &videoInfo);
+                if (videoInfo) {
+                    CMSampleTimingInfo timing = {0};
+                    timing.duration = CMTimeMake(1, 30);
+                    timing.presentationTimeStamp = CMTimeMakeWithSeconds(CACurrentMediaTime(), 1000000);
+                    timing.decodeTimeStamp = kCMTimeInvalid;
+                    
+                    CMSampleBufferRef fallbackFrame = nil;
+                    OSStatus status = CMSampleBufferCreateForImageBuffer(kCFAllocatorDefault, lastGoodSpoofedPixelBuffer, true, NULL, NULL, videoInfo, &timing, &fallbackFrame);
+                    CFRelease(videoInfo);
+                    
+                    if (status == noErr && fallbackFrame) {
+                        [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:fallbackFrame fromConnection:connection];
+                        CFRelease(fallbackFrame);
+                        NSLog(@"[LC] ⚠️ SimpleSpoofDelegate: Exception recovery - used lastGoodSpoofedPixelBuffer for frame %d", frameCounter);
+                    } else {
+                        NSLog(@"[LC] ⚠️ SimpleSpoofDelegate: Exception recovery failed - dropped frame %d", frameCounter);
+                    }
+                }
+            } else {
+                NSLog(@"[LC] ⚠️ SimpleSpoofDelegate: Exception recovery - no lastGoodSpoofedPixelBuffer, dropped frame %d", frameCounter);
             }
         } @catch (NSException *innerException) {
-            NSLog(@"[LC] ❌❌ SimpleSpoofDelegate: Double exception in frame %d - giving up: %@", frameCounter, innerException);
+            NSLog(@"[LC] ❌❌ SimpleSpoofDelegate: Double exception in frame %d - dropped frame: %@", frameCounter, innerException);
         }
     }
 }
@@ -3299,14 +3380,38 @@ static const void *SpoofDisplayTimerKey = &SpoofDisplayTimerKey;
         spoofLayer.videoGravity = self.videoGravity;
     }
 
-    // Create and display a spoofed frame
+    // CRITICAL: Always try to get a frame, never show placeholder
     CMSampleBufferRef spoofedBuffer = createSpoofedSampleBuffer();
+    
+    // FALLBACK: If createSpoofedSampleBuffer failed, use lastGoodSpoofedPixelBuffer
+    if (!spoofedBuffer && lastGoodSpoofedPixelBuffer) {
+        CMVideoFormatDescriptionRef formatDesc = NULL;
+        OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, 
+                                                                       lastGoodSpoofedPixelBuffer, 
+                                                                       &formatDesc);
+        if (status == noErr && formatDesc) {
+            CMSampleTimingInfo timingInfo = {
+                .duration = CMTimeMake(1, 30),
+                .presentationTimeStamp = CMTimeMakeWithSeconds(CACurrentMediaTime(), NSEC_PER_SEC),
+                .decodeTimeStamp = kCMTimeInvalid
+            };
+            CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault, 
+                                                     lastGoodSpoofedPixelBuffer, 
+                                                     formatDesc, 
+                                                     &timingInfo, 
+                                                     &spoofedBuffer);
+            CFRelease(formatDesc);
+        }
+    }
+    
     if (spoofedBuffer) {
         if (spoofLayer.isReadyForMoreMediaData) {
             [spoofLayer enqueueSampleBuffer:spoofedBuffer];
         }
         CFRelease(spoofedBuffer);
     }
+    // CRITICAL: Never show anything if we don't have frames - just skip this frame
+    // This prevents the blue gradient/text placeholder from ever appearing
 }
 
 - (void)stopRobustSpoofedPreview {
@@ -3562,56 +3667,45 @@ void AVFoundationGuestHooksInit(void) {
             setupVideoSpoofingResources();
         }
 
-        // Create emergency fallback if needed
+        // Create emergency fallback if needed - CRITICAL: Use BLACK buffer, not gradient/text
         if (!lastGoodSpoofedPixelBuffer) {
-        NSLog(@"[LC] ⚠️ Creating emergency fallback buffer");
-        
-        // IMPROVEMENT: Create emergency buffer in multiple formats
-        OSType emergencyFormat = kCVPixelFormatType_32BGRA; // Start with BGRA
-        CVPixelBufferRef emergencyPixelBuffer = NULL;
-        CGSize emergencySize = targetResolution;
-
-        NSDictionary *pixelAttributes = @{
-            (NSString*)kCVPixelBufferCGImageCompatibilityKey : @YES,
-            (NSString*)kCVPixelBufferCGBitmapContextCompatibilityKey : @YES,
-            (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
-        };
-        
-        CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
-                                            (size_t)emergencySize.width, (size_t)emergencySize.height,
-                                            emergencyFormat,
-                                            (__bridge CFDictionaryRef)pixelAttributes,
-                                            &emergencyPixelBuffer);
-
-        if (status == kCVReturnSuccess && emergencyPixelBuffer) {
-            CVPixelBufferLockBaseAddress(emergencyPixelBuffer, 0);
-            void *baseAddress = CVPixelBufferGetBaseAddress(emergencyPixelBuffer);
-            CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-            CGContextRef cgContext = CGBitmapContextCreate(baseAddress,
-                                                        emergencySize.width, emergencySize.height,
-                                                        8, CVPixelBufferGetBytesPerRow(emergencyPixelBuffer), colorSpace,
-                                                        kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
-            if (cgContext) {
-                // Create more subtle emergency pattern (blue gradient instead of magenta)
-                CGFloat colors[] = { 0.2, 0.4, 0.8, 1.0, 0.1, 0.2, 0.4, 1.0 };
-                CGFloat locations[] = {0.0, 1.0};
-                CGGradientRef gradient = CGGradientCreateWithColorComponents(colorSpace, colors, locations, 2);
-                CGContextDrawLinearGradient(cgContext, gradient, CGPointMake(0,0), CGPointMake(0,emergencySize.height), 0);
-                CGGradientRelease(gradient);
-                CGContextRelease(cgContext);
-            }
-            CGColorSpaceRelease(colorSpace);
-            CVPixelBufferUnlockBaseAddress(emergencyPixelBuffer, 0);
-
-            CMVideoFormatDescriptionRef emergencyFormatDesc = NULL;
-            CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, emergencyPixelBuffer, &emergencyFormatDesc);
-            updateLastGoodSpoofedFrame(emergencyPixelBuffer, emergencyFormatDesc);
+            NSLog(@"[LC] ⚠️ Creating emergency fallback buffer (BLACK, no text)");
             
-            if (emergencyFormatDesc) CFRelease(emergencyFormatDesc);
-            CVPixelBufferRelease(emergencyPixelBuffer);
-            NSLog(@"[LC] Emergency BGRA buffer created");
+            CVPixelBufferRef emergencyPixelBuffer = NULL;
+            CGSize emergencySize = targetResolution;
+
+            NSDictionary *pixelAttributes = @{
+                (NSString*)kCVPixelBufferCGImageCompatibilityKey : @YES,
+                (NSString*)kCVPixelBufferCGBitmapContextCompatibilityKey : @YES,
+                (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
+            };
+            
+            CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
+                                                (size_t)emergencySize.width, (size_t)emergencySize.height,
+                                                kCVPixelFormatType_32BGRA,
+                                                (__bridge CFDictionaryRef)pixelAttributes,
+                                                &emergencyPixelBuffer);
+
+            if (status == kCVReturnSuccess && emergencyPixelBuffer) {
+                CVPixelBufferLockBaseAddress(emergencyPixelBuffer, 0);
+                void *baseAddress = CVPixelBufferGetBaseAddress(emergencyPixelBuffer);
+                size_t bytesPerRow = CVPixelBufferGetBytesPerRow(emergencyPixelBuffer);
+                
+                // CRITICAL FIX: Fill with BLACK instead of gradient with text
+                // This follows the CaptureJailed pattern - never show placeholder graphics
+                memset(baseAddress, 0, bytesPerRow * (size_t)emergencySize.height);
+                
+                CVPixelBufferUnlockBaseAddress(emergencyPixelBuffer, 0);
+
+                CMVideoFormatDescriptionRef emergencyFormatDesc = NULL;
+                CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, emergencyPixelBuffer, &emergencyFormatDesc);
+                updateLastGoodSpoofedFrame(emergencyPixelBuffer, emergencyFormatDesc);
+                
+                if (emergencyFormatDesc) CFRelease(emergencyFormatDesc);
+                CVPixelBufferRelease(emergencyPixelBuffer);
+                NSLog(@"[LC] ✅ Emergency BLACK buffer created (no text/gradient)");
+            }
         }
-    }
 
         // Setup video resources if enabled
         // if (spoofCameraEnabled && spoofCameraVideoPath && spoofCameraVideoPath.length > 0) {
