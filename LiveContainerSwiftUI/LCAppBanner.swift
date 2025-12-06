@@ -129,7 +129,7 @@ struct LCAppBanner : View {
                     }
                     
                     HStack {
-                        Text("\(appInfo.version()) - \(appInfo.bundleIdentifier()!)")
+                        Text("\(appInfo.version() ?? "") - \(appInfo.bundleIdentifier()!)")
                             .font(.system(size: 12))
                             .foregroundColor(.gray)
                         Spacer()
