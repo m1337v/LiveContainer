@@ -670,12 +670,16 @@ static CMSampleBufferRef createSpoofedSampleBuffer() {
             return NULL;
         }
         
-        if (sampleBuffer) {
+        // IMPROVEMENT: Validate sample buffer before returning (TTtest pattern)
+        if (sampleBuffer && CMSampleBufferIsValid(sampleBuffer)) {
             updateLastGoodSpoofedFrame(CMSampleBufferGetImageBuffer(sampleBuffer), CMSampleBufferGetFormatDescription(sampleBuffer));
-            NSLog(@"[LC] ✅ createSpoofedSampleBuffer: Sample buffer created successfully");
+            NSLog(@"[LC] ✅ createSpoofedSampleBuffer: Sample buffer created and validated successfully");
+            return sampleBuffer;
+        } else {
+            NSLog(@"[LC] ❌ createSpoofedSampleBuffer: Sample buffer validation failed");
+            if (sampleBuffer) CFRelease(sampleBuffer);
+            return NULL;
         }
-
-        return sampleBuffer;
         
     } @catch (NSException *exception) {
         NSLog(@"[LC] ❌ Exception in createSpoofedSampleBuffer: %@", exception);
@@ -1179,7 +1183,14 @@ static Float64 g_videoDataRate = 0;
         return NULL;
     }
     
-    NSLog(@"[LC] [GetFrame] ✅ Sample buffer created successfully");
+    // IMPROVEMENT: Validate sample buffer before returning (TTtest pattern)
+    if (!CMSampleBufferIsValid(newSampleBuffer)) {
+        NSLog(@"[LC] [GetFrame] ❌ Sample buffer validation failed");
+        CFRelease(newSampleBuffer);
+        return NULL;
+    }
+    
+    NSLog(@"[LC] [GetFrame] ✅ Sample buffer created and validated successfully");
     return newSampleBuffer;
 }
 
@@ -1200,6 +1211,13 @@ static NSString* fourCCToString(OSType fourCC) {
     
     if (!spoofCameraEnabled || !frameExtractionPlayer || !playerIsReady) {
         return NULL;
+    }
+    
+    // CRITICAL: During loop transition, return the cached transition frame
+    if (g_isLooping && g_loopTransitionFrame) {
+        NSLog(@"[LC] [GetFrame] 🔄 Loop transition: using cached frame");
+        CVPixelBufferRetain(g_loopTransitionFrame);
+        return g_loopTransitionFrame;
     }
     
     // CRITICAL: Get video bitrate (like cj)
@@ -1338,6 +1356,13 @@ static NSString* fourCCToString(OSType fourCC) {
             g_lastExtractionTime = currentTime;
         }
         
+        // CRITICAL: Update g_lastGoodFrame for loop transitions
+        if (g_lastGoodFrame) {
+            CVPixelBufferRelease(g_lastGoodFrame);
+        }
+        g_lastGoodFrame = pixelBuffer;
+        CVPixelBufferRetain(g_lastGoodFrame);
+        
         // Scale if needed
         size_t width = CVPixelBufferGetWidth(pixelBuffer);
         size_t height = CVPixelBufferGetHeight(pixelBuffer);
@@ -1351,13 +1376,74 @@ static NSString* fourCCToString(OSType fourCC) {
         return pixelBuffer;
     }
     
-    NSLog(@"[LC] [GetFrame] ❌ Frame extraction failed");
-    return g_highBitrateCache ? (CVPixelBufferRetain(g_highBitrateCache), g_highBitrateCache) : NULL;
+    NSLog(@"[LC] [GetFrame] ❌ Frame extraction failed - using fallback");
+    
+    // CRITICAL: Prioritize loop transition frame, then high bitrate cache, then g_lastGoodFrame
+    if (g_loopTransitionFrame) {
+        NSLog(@"[LC] [GetFrame] 🔄 Using loop transition frame as fallback");
+        CVPixelBufferRetain(g_loopTransitionFrame);
+        return g_loopTransitionFrame;
+    }
+    if (g_highBitrateCache) {
+        CVPixelBufferRetain(g_highBitrateCache);
+        return g_highBitrateCache;
+    }
+    if (g_lastGoodFrame) {
+        CVPixelBufferRetain(g_lastGoodFrame);
+        return g_lastGoodFrame;
+    }
+    return NULL;
+}
+
+// IMPROVEMENT: Track video file modification date for hot-reload detection (inspired by VCAM pattern)
+static NSDate *g_lastVideoModificationDate = nil;
+
+// Check if video file has been modified since last load
++ (BOOL)hasVideoFileChanged:(NSString *)path {
+    if (!path || path.length == 0) return NO;
+    
+    NSFileManager *fm = [NSFileManager defaultManager];
+    if (![fm fileExistsAtPath:path]) return NO;
+    
+    NSDictionary *attrs = [fm attributesOfItemAtPath:path error:nil];
+    NSDate *modDate = attrs[NSFileModificationDate];
+    
+    if (!modDate) return NO;
+    
+    // Check for .new marker file (VCAM-style hot reload signal)
+    NSString *markerPath = [path stringByAppendingString:@".new"];
+    BOOL hasMarker = [fm fileExistsAtPath:markerPath];
+    if (hasMarker) {
+        // Remove marker and force reload
+        [fm removeItemAtPath:markerPath error:nil];
+        NSLog(@"[LC] [GetFrame] 🔄 Hot reload marker detected, forcing video reload");
+        return YES;
+    }
+    
+    if (!g_lastVideoModificationDate) {
+        g_lastVideoModificationDate = modDate;
+        return NO; // First load
+    }
+    
+    BOOL changed = ![modDate isEqualToDate:g_lastVideoModificationDate];
+    if (changed) {
+        NSLog(@"[LC] [GetFrame] 🔄 Video file modified: old=%@ new=%@", g_lastVideoModificationDate, modDate);
+        g_lastVideoModificationDate = modDate;
+    }
+    return changed;
 }
 
 + (void)setCurrentVideoPath:(NSString *)path {
-    if ([path isEqualToString:currentVideoPath]) {
-        return; // Already set
+    // Check if path changed OR if file was modified (hot-reload support)
+    BOOL pathChanged = ![path isEqualToString:currentVideoPath];
+    BOOL fileChanged = [self hasVideoFileChanged:path];
+    
+    if (!pathChanged && !fileChanged) {
+        return; // No changes
+    }
+    
+    if (fileChanged && !pathChanged) {
+        NSLog(@"[LC] [GetFrame] 🔄 Video file changed, reloading player");
     }
     
     currentVideoPath = path;
@@ -1405,6 +1491,14 @@ static NSString* fourCCToString(OSType fourCC) {
         CVPixelBufferRelease(g_highBitrateCache);
         g_highBitrateCache = NULL;
     }
+    
+    // Clean up loop transition frame
+    if (g_loopTransitionFrame) {
+        CVPixelBufferRelease(g_loopTransitionFrame);
+        g_loopTransitionFrame = NULL;
+    }
+    g_isLooping = NO;
+    
     g_lastExtractionTime = 0;
     g_videoDataRate = 0;
 
@@ -1414,9 +1508,23 @@ static NSString* fourCCToString(OSType fourCC) {
     playerIsReady = NO;
 }
 
+// IMPROVEMENT: Track loop transition to avoid black frames
+static BOOL g_isLooping = NO;
+static CVPixelBufferRef g_loopTransitionFrame = NULL;
+
 // CRITICAL FIX: Add looping handler
 + (void)playerItemDidReachEnd:(NSNotification *)notification {
     NSLog(@"[LC] [GetFrame] 🔄 Video reached end, restarting for loop");
+    
+    // CRITICAL: Set looping flag to use cached frame during transition
+    g_isLooping = YES;
+    
+    // Cache the last good frame for seamless transition
+    if (g_lastGoodFrame && !g_loopTransitionFrame) {
+        g_loopTransitionFrame = g_lastGoodFrame;
+        CVPixelBufferRetain(g_loopTransitionFrame);
+        NSLog(@"[LC] [GetFrame] 🔄 Cached loop transition frame");
+    }
     
     if (frameExtractionPlayer && frameExtractionPlayer.currentItem) {
         // Seek back to beginning
@@ -1424,8 +1532,20 @@ static NSString* fourCCToString(OSType fourCC) {
             if (finished) {
                 NSLog(@"[LC] [GetFrame] ✅ Video looped successfully");
                 [frameExtractionPlayer play];
+                
+                // Give a brief moment for frames to become available
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    g_isLooping = NO;
+                    // Release transition frame after loop completes
+                    if (g_loopTransitionFrame) {
+                        CVPixelBufferRelease(g_loopTransitionFrame);
+                        g_loopTransitionFrame = NULL;
+                    }
+                    NSLog(@"[LC] [GetFrame] ✅ Loop transition complete");
+                });
             } else {
                 NSLog(@"[LC] [GetFrame] ❌ Video loop seek failed");
+                g_isLooping = NO;
             }
         }];
     }
