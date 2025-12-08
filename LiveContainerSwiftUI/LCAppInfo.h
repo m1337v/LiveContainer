@@ -70,6 +70,10 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 // SSL section
 @property bool bypassSSLPinning;
 
+// Device Addon Section
+@property bool deviceSpoofingEnabled;
+@property (nonatomic) NSString* deviceSpoofProfile;
+
 - (void)setBundlePath:(NSString*)newBundlePath;
 - (NSMutableDictionary*)info;
 - (UIImage*)icon;

@@ -1048,4 +1048,30 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     [self save];
 }
 
+// MARK: Device Addon Section
+- (bool)deviceSpoofingEnabled {
+    if(_info[@"deviceSpoofingEnabled"] != nil) {
+        return [_info[@"deviceSpoofingEnabled"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setDeviceSpoofingEnabled:(bool)enabled {
+    _info[@"deviceSpoofingEnabled"] = [NSNumber numberWithBool:enabled];
+    [self save];
+}
+
+- (NSString *)deviceSpoofProfile {
+    return _info[@"deviceSpoofProfile"];
+}
+
+- (void)setDeviceSpoofProfile:(NSString *)profile {
+    if (profile) {
+        _info[@"deviceSpoofProfile"] = profile;
+    } else {
+        [_info removeObjectForKey:@"deviceSpoofProfile"];
+    }
+    [self save];
+}
+
 @end

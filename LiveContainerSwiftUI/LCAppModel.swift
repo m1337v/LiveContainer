@@ -226,7 +226,19 @@ class LCAppModel: ObservableObject, Hashable {
         }
     }
 
-    // MARK: Identifier Addon
+    // MARK: Device Spoofing Addon
+    @Published var uiDeviceSpoofingEnabled: Bool {
+        didSet {
+            appInfo.deviceSpoofingEnabled = uiDeviceSpoofingEnabled
+        }
+    }
+    @Published var uiDeviceSpoofProfile: String {
+        didSet {
+            appInfo.deviceSpoofProfile = uiDeviceSpoofProfile
+        }
+    }
+    
+    // Legacy identifier spoofing fields (deprecated, kept for backward compatibility)
     @Published var uiSpoofDevice = false
     @Published var uiSpoofDeviceModel = "iPhone15,2"
     @Published var uiSpoofSystemVersion = "17.2"
@@ -315,6 +327,10 @@ class LCAppModel: ObservableObject, Hashable {
 
         // MARK: SSL Addon Section
         self.uiBypassSSLPinning = appInfo.bypassSSLPinning
+
+        // MARK: Device Addon Section
+        self.uiDeviceSpoofingEnabled = appInfo.deviceSpoofingEnabled
+        self.uiDeviceSpoofProfile = appInfo.deviceSpoofProfile ?? "iPhone 15 Pro Max"
 
         for container in uiContainers {
             if container.folderName == uiDefaultDataFolder {

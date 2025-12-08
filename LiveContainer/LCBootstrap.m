@@ -17,6 +17,7 @@
 #include "../litehook/src/litehook.h"
 #import "Tweaks/Tweaks.h"
 #include <mach-o/ldsyms.h>
+#import "Tweaks/DeviceSpoofing.h"
 
 static int (*appMain)(int, char**);
 NSUserDefaults *lcUserDefaults;
@@ -304,6 +305,8 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     
     NSError *error;
 
+
+
     // Setup tweak loader
     NSString *tweakFolder = nil;
     if (isSharedBundle) {
@@ -450,6 +453,17 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         NSFMGuestHooksInit();
         initDead10ccFix();
     }
+    
+    // Initialize device spoofing if enabled
+    if([guestAppInfo[@"deviceSpoofingEnabled"] boolValue]) {
+        NSString *deviceProfile = guestAppInfo[@"deviceSpoofProfile"];
+        if (deviceProfile) {
+            LCSetDeviceProfile(deviceProfile);
+        }
+        LCSetDeviceSpoofingEnabled(YES);
+        DeviceSpoofingGuestHooksInit();
+    }
+    
     // ignore setting handler from guest app
     litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, NSSetUncaughtExceptionHandler, hook_do_nothing, nil);
     

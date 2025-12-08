@@ -1902,6 +1902,34 @@ extension AVAssetExportSession.Status {
 
 // MARK: Device Section
 
+// MARK: - Device Profile Helper
+struct DeviceProfileInfo {
+    let model: String
+    let memory: String
+    let version: String
+}
+
+func getProfileInfo(for profileName: String) -> DeviceProfileInfo {
+    switch profileName {
+    case "iPhone 15 Pro Max":
+        return DeviceProfileInfo(model: "iPhone16,2", memory: "8 GB", version: "17.4")
+    case "iPhone 15 Pro":
+        return DeviceProfileInfo(model: "iPhone16,1", memory: "8 GB", version: "17.4")
+    case "iPhone 14 Pro Max":
+        return DeviceProfileInfo(model: "iPhone15,3", memory: "6 GB", version: "17.4")
+    case "iPhone 14 Pro":
+        return DeviceProfileInfo(model: "iPhone15,2", memory: "6 GB", version: "17.4")
+    case "iPhone 13 Pro Max":
+        return DeviceProfileInfo(model: "iPhone14,3", memory: "6 GB", version: "17.4")
+    case "iPhone 13 Pro":
+        return DeviceProfileInfo(model: "iPhone14,2", memory: "6 GB", version: "17.4")
+    case "iPad Pro 12.9 (6th gen)":
+        return DeviceProfileInfo(model: "iPad14,5", memory: "16 GB", version: "17.4")
+    default:
+        return DeviceProfileInfo(model: "Unknown", memory: "Unknown", version: "Unknown")
+    }
+}
+
 // MARK: - Device Spoofing Section
 struct DeviceSpoofingSection: View {
     // Device Spoofing bindings
@@ -2579,7 +2607,77 @@ struct LCAppSettingsView: View {
                 Text("Security Settings")
             }
 
-            // MARK: Identifier Section
+            // MARK: Device Spoofing (Profile-Based)
+            Section {
+                Toggle(isOn: $model.uiDeviceSpoofingEnabled) {
+                    HStack {
+                        Image(systemName: "iphone")
+                            .foregroundColor(.blue)
+                            .frame(width: 20)
+                        Text("Device Spoofing")
+                    }
+                }
+                
+                if model.uiDeviceSpoofingEnabled {
+                    // Device Profile Selection
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Device Profile")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Picker("Device Profile", selection: $model.uiDeviceSpoofProfile) {
+                            Text("iPhone 15 Pro Max").tag("iPhone 15 Pro Max")
+                            Text("iPhone 15 Pro").tag("iPhone 15 Pro")
+                            Text("iPhone 14 Pro Max").tag("iPhone 14 Pro Max")
+                            Text("iPhone 14 Pro").tag("iPhone 14 Pro")
+                            Text("iPhone 13 Pro Max").tag("iPhone 13 Pro Max")
+                            Text("iPhone 13 Pro").tag("iPhone 13 Pro")
+                            Text("iPad Pro 12.9 (6th gen)").tag("iPad Pro 12.9 (6th gen)")
+                        }
+                        .pickerStyle(MenuPickerStyle())
+                    }
+                    
+                    // Profile Info
+                    let profileInfo = getProfileInfo(for: model.uiDeviceSpoofProfile)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Model:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .frame(width: 60, alignment: .leading)
+                            Text(profileInfo.model)
+                                .font(.caption)
+                                .foregroundColor(.primary)
+                        }
+                        HStack {
+                            Text("Memory:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .frame(width: 60, alignment: .leading)
+                            Text(profileInfo.memory)
+                                .font(.caption)
+                                .foregroundColor(.primary)
+                        }
+                        HStack {
+                            Text("iOS:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .frame(width: 60, alignment: .leading)
+                            Text(profileInfo.version)
+                                .font(.caption)
+                                .foregroundColor(.primary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            } header: {
+                Text("Device Fingerprinting Protection")
+            } footer: {
+                if model.uiDeviceSpoofingEnabled {
+                    Text("Spoofs sysctlbyname, sysctl, uname, UIDevice, and NSProcessInfo to protect against device fingerprinting.")
+                }
+            }
+
+            // MARK: Identifier Section (Legacy)
             DeviceSpoofingSection(
                 spoofDevice: $model.uiSpoofDevice,
                 spoofDeviceModel: $model.uiSpoofDeviceModel,
