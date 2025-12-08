@@ -1907,26 +1907,43 @@ struct DeviceProfileInfo {
     let model: String
     let memory: String
     let version: String
+    let chip: String
 }
 
 func getProfileInfo(for profileName: String) -> DeviceProfileInfo {
     switch profileName {
+    // iOS 18.x - iPhone 16 Series
+    case "iPhone 16 Pro Max":
+        return DeviceProfileInfo(model: "iPhone17,2", memory: "8 GB", version: "18.1", chip: "A18 Pro")
+    case "iPhone 16 Pro":
+        return DeviceProfileInfo(model: "iPhone17,1", memory: "8 GB", version: "18.1", chip: "A18 Pro")
+    case "iPhone 16":
+        return DeviceProfileInfo(model: "iPhone17,3", memory: "8 GB", version: "18.1", chip: "A18")
+    // iOS 17.x - iPhone 15 Series
     case "iPhone 15 Pro Max":
-        return DeviceProfileInfo(model: "iPhone16,2", memory: "8 GB", version: "17.4")
+        return DeviceProfileInfo(model: "iPhone16,2", memory: "8 GB", version: "17.6.1", chip: "A17 Pro")
     case "iPhone 15 Pro":
-        return DeviceProfileInfo(model: "iPhone16,1", memory: "8 GB", version: "17.4")
+        return DeviceProfileInfo(model: "iPhone16,1", memory: "8 GB", version: "17.6.1", chip: "A17 Pro")
+    // iOS 17.x - iPhone 14 Series
     case "iPhone 14 Pro Max":
-        return DeviceProfileInfo(model: "iPhone15,3", memory: "6 GB", version: "17.4")
+        return DeviceProfileInfo(model: "iPhone15,3", memory: "6 GB", version: "17.6.1", chip: "A16 Bionic")
     case "iPhone 14 Pro":
-        return DeviceProfileInfo(model: "iPhone15,2", memory: "6 GB", version: "17.4")
+        return DeviceProfileInfo(model: "iPhone15,2", memory: "6 GB", version: "17.6.1", chip: "A16 Bionic")
+    // iOS 17.x - iPhone 13 Series
     case "iPhone 13 Pro Max":
-        return DeviceProfileInfo(model: "iPhone14,3", memory: "6 GB", version: "17.4")
+        return DeviceProfileInfo(model: "iPhone14,3", memory: "6 GB", version: "17.6.1", chip: "A15 Bionic")
     case "iPhone 13 Pro":
-        return DeviceProfileInfo(model: "iPhone14,2", memory: "6 GB", version: "17.4")
+        return DeviceProfileInfo(model: "iPhone14,2", memory: "6 GB", version: "17.6.1", chip: "A15 Bionic")
+    // iPad Pro M4 (iPadOS 18.x)
+    case "iPad Pro 13-inch (M4)":
+        return DeviceProfileInfo(model: "iPad16,5", memory: "16 GB", version: "18.1", chip: "M4")
+    case "iPad Pro 11-inch (M4)":
+        return DeviceProfileInfo(model: "iPad16,3", memory: "8 GB", version: "18.1", chip: "M4")
+    // iPad Pro M2 (iPadOS 17.x)
     case "iPad Pro 12.9 (6th gen)":
-        return DeviceProfileInfo(model: "iPad14,5", memory: "16 GB", version: "17.4")
+        return DeviceProfileInfo(model: "iPad14,5", memory: "16 GB", version: "17.6.1", chip: "M2")
     default:
-        return DeviceProfileInfo(model: "Unknown", memory: "Unknown", version: "Unknown")
+        return DeviceProfileInfo(model: "Unknown", memory: "Unknown", version: "Unknown", chip: "Unknown")
     }
 }
 
@@ -2625,13 +2642,27 @@ struct LCAppSettingsView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Picker("Device Profile", selection: $model.uiDeviceSpoofProfile) {
-                            Text("iPhone 15 Pro Max").tag("iPhone 15 Pro Max")
-                            Text("iPhone 15 Pro").tag("iPhone 15 Pro")
-                            Text("iPhone 14 Pro Max").tag("iPhone 14 Pro Max")
-                            Text("iPhone 14 Pro").tag("iPhone 14 Pro")
-                            Text("iPhone 13 Pro Max").tag("iPhone 13 Pro Max")
-                            Text("iPhone 13 Pro").tag("iPhone 13 Pro")
-                            Text("iPad Pro 12.9 (6th gen)").tag("iPad Pro 12.9 (6th gen)")
+                            // iOS 18.x - iPhone 16 Series
+                            Section(header: Text("iOS 18.x")) {
+                                Text("iPhone 16 Pro Max").tag("iPhone 16 Pro Max")
+                                Text("iPhone 16 Pro").tag("iPhone 16 Pro")
+                                Text("iPhone 16").tag("iPhone 16")
+                            }
+                            // iOS 17.x - iPhone 15 Series
+                            Section(header: Text("iOS 17.x")) {
+                                Text("iPhone 15 Pro Max").tag("iPhone 15 Pro Max")
+                                Text("iPhone 15 Pro").tag("iPhone 15 Pro")
+                                Text("iPhone 14 Pro Max").tag("iPhone 14 Pro Max")
+                                Text("iPhone 14 Pro").tag("iPhone 14 Pro")
+                                Text("iPhone 13 Pro Max").tag("iPhone 13 Pro Max")
+                                Text("iPhone 13 Pro").tag("iPhone 13 Pro")
+                            }
+                            // iPad Pro
+                            Section(header: Text("iPad")) {
+                                Text("iPad Pro 13-inch (M4)").tag("iPad Pro 13-inch (M4)")
+                                Text("iPad Pro 11-inch (M4)").tag("iPad Pro 11-inch (M4)")
+                                Text("iPad Pro 12.9 (6th gen)").tag("iPad Pro 12.9 (6th gen)")
+                            }
                         }
                         .pickerStyle(MenuPickerStyle())
                     }
@@ -2666,6 +2697,15 @@ struct LCAppSettingsView: View {
                                 .font(.caption)
                                 .foregroundColor(.primary)
                         }
+                        HStack {
+                            Text("Chip:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .frame(width: 60, alignment: .leading)
+                            Text(profileInfo.chip)
+                                .font(.caption)
+                                .foregroundColor(.primary)
+                        }
                     }
                     .padding(.vertical, 4)
                 }
@@ -2673,7 +2713,7 @@ struct LCAppSettingsView: View {
                 Text("Device Fingerprinting Protection")
             } footer: {
                 if model.uiDeviceSpoofingEnabled {
-                    Text("Spoofs sysctlbyname, sysctl, uname, UIDevice, and NSProcessInfo to protect against device fingerprinting.")
+                    Text("Spoofs sysctlbyname, sysctl, uname, UIDevice, UIScreen, NSProcessInfo, and ASIdentifierManager to protect against device fingerprinting.")
                 }
             }
 
