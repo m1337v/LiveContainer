@@ -12,7 +12,7 @@
 #import <mach/mach_host.h>
 #import <objc/runtime.h>
 #import <dlfcn.h>
-#import "../../litehook/src/litehook.h"
+#import "../../fishhook/fishhook.h"
 
 #pragma mark - Device Profiles
 
@@ -189,6 +189,12 @@ static uint32_t getSpoofedCPUCoreCount(void) {
 #pragma mark - uname Hook
 
 static int hook_uname(struct utsname *name) {
+    // Safety check - if original function not set, call system directly
+    if (!orig_uname) {
+        orig_uname = (int (*)(struct utsname *))dlsym(RTLD_DEFAULT, "uname");
+        if (!orig_uname) return -1;
+    }
+    
     int result = orig_uname(name);
     
     if (result != 0 || !g_deviceSpoofingEnabled || !name) {
@@ -216,9 +222,34 @@ static int hook_uname(struct utsname *name) {
 #pragma mark - sysctlbyname Hook
 
 static int hook_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+    // Safety check - if original function not set, call system directly
+    if (!orig_sysctlbyname) {
+        orig_sysctlbyname = (int (*)(const char *, void *, size_t *, void *, size_t))dlsym(RTLD_DEFAULT, "sysctlbyname");
+        if (!orig_sysctlbyname) return -1;
+    }
+    
     int result = orig_sysctlbyname(name, oldp, oldlenp, newp, newlen);
     
-    if (result != 0 || !g_deviceSpoofingEnabled || !name || !oldp || !oldlenp || *oldlenp == 0) {
+    if (result != 0 || !g_deviceSpoofingEnabled || !name) {
+        return result;
+    }
+    
+    // Handle size query case (oldp is NULL, oldlenp is not)
+    // Apps call sysctlbyname with NULL oldp first to get required buffer size
+    if (!oldp && oldlenp) {
+        // Return spoofed size for known keys
+        if (strcmp(name, "hw.machine") == 0 || strcmp(name, "hw.model") == 0 || strcmp(name, "hw.product") == 0) {
+            const char *spoofedValue = (strcmp(name, "hw.model") == 0) ? getSpoofedHardwareModel() : getSpoofedMachineModel();
+            if (spoofedValue) {
+                *oldlenp = strlen(spoofedValue) + 1;
+                return 0;
+            }
+        }
+        return result;
+    }
+    
+    // Normal case - oldp and oldlenp both provided
+    if (!oldp || !oldlenp || *oldlenp == 0) {
         return result;
     }
     
@@ -319,6 +350,12 @@ static int hook_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void
 #pragma mark - sysctl Hook
 
 static int hook_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+    // Safety check - if original function not set, call system directly
+    if (!orig_sysctl) {
+        orig_sysctl = (int (*)(int *, u_int, void *, size_t *, void *, size_t))dlsym(RTLD_DEFAULT, "sysctl");
+        if (!orig_sysctl) return -1;
+    }
+    
     int result = orig_sysctl(name, namelen, oldp, oldlenp, newp, newlen);
     
     if (result != 0 || !g_deviceSpoofingEnabled || namelen < 2 || !oldp || !oldlenp || *oldlenp == 0) {
@@ -612,27 +649,22 @@ void LCSetSpoofedPhysicalMemory(uint64_t memory) {
 void DeviceSpoofingGuestHooksInit(void) {
     NSLog(@"[LC] Initializing device spoofing hooks...");
     
-    // Hook system functions using litehook
-    orig_uname = (int (*)(struct utsname *))dlsym(RTLD_DEFAULT, "uname");
-    orig_sysctlbyname = (int (*)(const char *, void *, size_t *, void *, size_t))dlsym(RTLD_DEFAULT, "sysctlbyname");
-    orig_sysctl = (int (*)(int *, u_int, void *, size_t *, void *, size_t))dlsym(RTLD_DEFAULT, "sysctl");
+    // Hook C functions using fishhook (symbol rebinding - works without JIT)
+    // This is safer than litehook which requires JIT to modify executable memory
+    struct rebinding rebindings[] = {
+        {"uname", (void *)hook_uname, (void **)&orig_uname},
+        {"sysctlbyname", (void *)hook_sysctlbyname, (void **)&orig_sysctlbyname},
+        {"sysctl", (void *)hook_sysctl, (void **)&orig_sysctl},
+    };
     
-    if (orig_uname) {
-        litehook_hook_function(orig_uname, hook_uname);
-        NSLog(@"[LC] Hooked uname");
+    int result = rebind_symbols(rebindings, sizeof(rebindings)/sizeof(rebindings[0]));
+    if (result == 0) {
+        NSLog(@"[LC] Hooked uname, sysctlbyname, sysctl via fishhook");
+    } else {
+        NSLog(@"[LC] Warning: fishhook rebind_symbols failed with code %d", result);
     }
     
-    if (orig_sysctlbyname) {
-        litehook_hook_function(orig_sysctlbyname, hook_sysctlbyname);
-        NSLog(@"[LC] Hooked sysctlbyname");
-    }
-    
-    if (orig_sysctl) {
-        litehook_hook_function(orig_sysctl, hook_sysctl);
-        NSLog(@"[LC] Hooked sysctl");
-    }
-    
-    // Hook UIDevice methods
+    // Hook UIDevice methods using method swizzling (works without JIT)
     Class UIDeviceClass = objc_getClass("UIDevice");
     if (UIDeviceClass) {
         Method modelMethod = class_getInstanceMethod(UIDeviceClass, @selector(model));
@@ -654,7 +686,7 @@ void DeviceSpoofingGuestHooksInit(void) {
         NSLog(@"[LC] Hooked UIDevice methods");
     }
     
-    // Hook NSProcessInfo methods
+    // Hook NSProcessInfo methods using method swizzling (works without JIT)
     Class NSProcessInfoClass = objc_getClass("NSProcessInfo");
     if (NSProcessInfoClass) {
         Method physicalMemoryMethod = class_getInstanceMethod(NSProcessInfoClass, @selector(physicalMemory));
