@@ -290,6 +290,11 @@ static BOOL g_lowPowerModeValue = NO;
 static struct timeval g_spoofedBootTime = {0, 0}; // Spoofed boot time
 static BOOL g_bootTimeSpoofingEnabled = NO;
 
+// User-Agent spoofing
+static NSString *g_spoofedUserAgent = nil;
+static NSString *g_customUserAgent = nil;
+static BOOL g_userAgentSpoofingEnabled = NO;
+
 #pragma mark - Original Function Pointers
 
 static int (*orig_uname)(struct utsname *name) = NULL;
@@ -318,6 +323,18 @@ static CGRect (*orig_UIScreen_nativeBounds)(id self, SEL _cmd) = NULL;
 
 // ASIdentifierManager method IMPs
 static NSUUID* (*orig_ASIdentifierManager_advertisingIdentifier)(id self, SEL _cmd) = NULL;
+
+// WKWebView method IMPs
+static NSString* (*orig_WKWebView_customUserAgent)(id self, SEL _cmd) = NULL;
+static void (*orig_WKWebView_setCustomUserAgent)(id self, SEL _cmd, NSString *userAgent) = NULL;
+
+// NSMutableURLRequest method IMPs
+static void (*orig_NSMutableURLRequest_setValue_forHTTPHeaderField)(id self, SEL _cmd, NSString *value, NSString *field) = NULL;
+static void (*orig_NSMutableURLRequest_setAllHTTPHeaderFields)(id self, SEL _cmd, NSDictionary *headerFields) = NULL;
+
+// NSURLSessionConfiguration method IMPs
+static NSDictionary* (*orig_NSURLSessionConfiguration_HTTPAdditionalHeaders)(id self, SEL _cmd) = NULL;
+static void (*orig_NSURLSessionConfiguration_setHTTPAdditionalHeaders)(id self, SEL _cmd, NSDictionary *headers) = NULL;
 
 // UIDevice battery method IMPs
 static float (*orig_UIDevice_batteryLevel)(id self, SEL _cmd) = NULL;
@@ -451,6 +468,42 @@ static const char* getSpoofedGPUName(void) {
         return g_currentProfile->gpuName;
     }
     return NULL;
+}
+
+static NSString* getSpoofedUserAgent(void) {
+    // Custom user agent takes priority
+    if (g_customUserAgent) {
+        return g_customUserAgent;
+    }
+    
+    // Generate user agent based on current profile
+    if (g_currentProfile) {
+        // User-Agent format: Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1
+        NSString *deviceType = @"iPhone";
+        NSString *cpuType = @"iPhone OS";
+        
+        if (strncmp(g_currentProfile->modelIdentifier, "iPad", 4) == 0) {
+            deviceType = @"iPad";
+            cpuType = @"CPU OS";
+        }
+        
+        // Convert version string (e.g., "18.1") to underscore format (e.g., "18_1")
+        NSString *versionStr = @(g_currentProfile->systemVersion);
+        NSString *versionUnderscore = [versionStr stringByReplacingOccurrencesOfString:@"." withString:@"_"];
+        
+        // Get Safari/WebKit version based on iOS version
+        NSString *safariVersion = versionStr;
+        NSString *webKitVersion = @"605.1.15";
+        
+        // Build the User-Agent string
+        g_spoofedUserAgent = [NSString stringWithFormat:
+            @"Mozilla/5.0 (%@; %@ %@ like Mac OS X) AppleWebKit/%@ (KHTML, like Gecko) Version/%@ Mobile/15E148 Safari/604.1",
+            deviceType, cpuType, versionUnderscore, webKitVersion, safariVersion];
+        
+        return g_spoofedUserAgent;
+    }
+    
+    return nil;
 }
 
 #pragma mark - uname Hook
@@ -1236,6 +1289,125 @@ static kern_return_t hook_host_statistics64(host_t host, host_flavor_t flavor, h
     return result;
 }
 
+#pragma mark - User-Agent Hooks
+
+// Hook WKWebView customUserAgent getter
+static NSString* hook_WKWebView_customUserAgent(id self, SEL _cmd) {
+    if (!g_deviceSpoofingEnabled) {
+        if (orig_WKWebView_customUserAgent) return orig_WKWebView_customUserAgent(self, _cmd);
+        return nil;
+    }
+    
+    // Check if a custom user agent was already set on this webview
+    NSString *existingUA = nil;
+    if (orig_WKWebView_customUserAgent) {
+        existingUA = orig_WKWebView_customUserAgent(self, _cmd);
+    }
+    
+    // If no custom UA is set, return our spoofed one
+    if (!existingUA || existingUA.length == 0) {
+        return getSpoofedUserAgent();
+    }
+    
+    return existingUA;
+}
+
+// Hook WKWebView customUserAgent setter to intercept and modify
+static void hook_WKWebView_setCustomUserAgent(id self, SEL _cmd, NSString *userAgent) {
+    if (!g_deviceSpoofingEnabled) {
+        if (orig_WKWebView_setCustomUserAgent) orig_WKWebView_setCustomUserAgent(self, _cmd, userAgent);
+        return;
+    }
+    
+    // If app is setting a custom UA, let it through but modify it to match our device
+    // Some apps check for specific strings in the UA
+    NSString *spoofedUA = getSpoofedUserAgent();
+    if (spoofedUA && (!userAgent || userAgent.length == 0)) {
+        userAgent = spoofedUA;
+    }
+    
+    if (orig_WKWebView_setCustomUserAgent) {
+        orig_WKWebView_setCustomUserAgent(self, _cmd, userAgent);
+    }
+}
+
+// Hook NSMutableURLRequest setValue:forHTTPHeaderField: to intercept User-Agent
+static void hook_NSMutableURLRequest_setValue_forHTTPHeaderField(id self, SEL _cmd, NSString *value, NSString *field) {
+    if (g_deviceSpoofingEnabled && field && [field caseInsensitiveCompare:@"User-Agent"] == NSOrderedSame) {
+        NSString *spoofedUA = getSpoofedUserAgent();
+        if (spoofedUA) {
+            value = spoofedUA;
+        }
+    }
+    
+    if (orig_NSMutableURLRequest_setValue_forHTTPHeaderField) {
+        orig_NSMutableURLRequest_setValue_forHTTPHeaderField(self, _cmd, value, field);
+    }
+}
+
+// Hook NSMutableURLRequest setAllHTTPHeaderFields: to intercept User-Agent in bulk headers
+static void hook_NSMutableURLRequest_setAllHTTPHeaderFields(id self, SEL _cmd, NSDictionary *headerFields) {
+    if (g_deviceSpoofingEnabled && headerFields) {
+        NSString *spoofedUA = getSpoofedUserAgent();
+        if (spoofedUA) {
+            NSMutableDictionary *modifiedHeaders = [headerFields mutableCopy];
+            
+            // Find and replace User-Agent (case-insensitive key search)
+            for (NSString *key in headerFields.allKeys) {
+                if ([key caseInsensitiveCompare:@"User-Agent"] == NSOrderedSame) {
+                    modifiedHeaders[key] = spoofedUA;
+                    break;
+                }
+            }
+            
+            headerFields = modifiedHeaders;
+        }
+    }
+    
+    if (orig_NSMutableURLRequest_setAllHTTPHeaderFields) {
+        orig_NSMutableURLRequest_setAllHTTPHeaderFields(self, _cmd, headerFields);
+    }
+}
+
+// Hook NSURLSessionConfiguration HTTPAdditionalHeaders getter
+static NSDictionary* hook_NSURLSessionConfiguration_HTTPAdditionalHeaders(id self, SEL _cmd) {
+    NSDictionary *headers = nil;
+    if (orig_NSURLSessionConfiguration_HTTPAdditionalHeaders) {
+        headers = orig_NSURLSessionConfiguration_HTTPAdditionalHeaders(self, _cmd);
+    }
+    
+    if (!g_deviceSpoofingEnabled) {
+        return headers;
+    }
+    
+    NSString *spoofedUA = getSpoofedUserAgent();
+    if (!spoofedUA) {
+        return headers;
+    }
+    
+    // Add or replace User-Agent in the returned headers
+    NSMutableDictionary *modifiedHeaders = headers ? [headers mutableCopy] : [NSMutableDictionary dictionary];
+    modifiedHeaders[@"User-Agent"] = spoofedUA;
+    
+    return modifiedHeaders;
+}
+
+// Hook NSURLSessionConfiguration HTTPAdditionalHeaders setter
+static void hook_NSURLSessionConfiguration_setHTTPAdditionalHeaders(id self, SEL _cmd, NSDictionary *headers) {
+    if (g_deviceSpoofingEnabled) {
+        NSString *spoofedUA = getSpoofedUserAgent();
+        if (spoofedUA) {
+            NSMutableDictionary *modifiedHeaders = headers ? [headers mutableCopy] : [NSMutableDictionary dictionary];
+            modifiedHeaders[@"User-Agent"] = spoofedUA;
+            headers = modifiedHeaders;
+        }
+    }
+    
+    if (orig_NSURLSessionConfiguration_setHTTPAdditionalHeaders) {
+        orig_NSURLSessionConfiguration_setHTTPAdditionalHeaders(self, _cmd, headers);
+    }
+}
+
 #pragma mark - Public API
 
 void LCSetDeviceSpoofingEnabled(BOOL enabled) {
@@ -1512,7 +1684,42 @@ void LCInitializeFingerprintProtection(void) {
     g_spoofedThermalState = 0; // Nominal
     g_spoofLowPowerMode = YES;
     g_lowPowerModeValue = NO;
+    // Enable User-Agent spoofing by default
+    g_userAgentSpoofingEnabled = YES;
     NSLog(@"[LC] Fingerprint protection initialized with randomized values");
+}
+
+#pragma mark - User-Agent Spoofing API
+
+void LCSetSpoofedUserAgent(NSString *userAgent) {
+    g_customUserAgent = [userAgent copy];
+    g_userAgentSpoofingEnabled = (userAgent != nil);
+    NSLog(@"[LC] Set custom User-Agent: %@", userAgent ?: @"(disabled)");
+}
+
+void LCSetUserAgentSpoofingEnabled(BOOL enabled) {
+    g_userAgentSpoofingEnabled = enabled;
+    NSLog(@"[LC] User-Agent spoofing %@", enabled ? @"enabled" : @"disabled");
+}
+
+BOOL LCIsUserAgentSpoofingEnabled(void) {
+    return g_userAgentSpoofingEnabled;
+}
+
+NSString *LCGetCurrentUserAgent(void) {
+    return getSpoofedUserAgent();
+}
+
+void LCUpdateUserAgentForProfile(void) {
+    // Auto-update User-Agent based on current device profile
+    if (g_customUserAgent) {
+        // Don't override if custom UA is already set
+        return;
+    }
+    NSString *autoUA = getSpoofedUserAgent();
+    if (autoUA) {
+        NSLog(@"[LC] Auto-generated User-Agent for profile: %@", autoUA);
+    }
 }
 
 #pragma mark - Initialization
@@ -1669,6 +1876,30 @@ void DeviceSpoofingGuestHooksInit(void) {
             method_setImplementation(advertisingIdentifierMethod, (IMP)hook_ASIdentifierManager_advertisingIdentifier);
         }
         NSLog(@"[LC] Hooked ASIdentifierManager methods (advertisingIdentifier)");
+    }
+    
+    // Hook WKWebView for User-Agent spoofing
+    Class WKWebViewClass = objc_getClass("WKWebView");
+    if (WKWebViewClass) {
+        Method customUserAgentMethod = class_getInstanceMethod(WKWebViewClass, @selector(customUserAgent));
+        
+        if (customUserAgentMethod) {
+            orig_WKWebView_customUserAgent = (NSString* (*)(id, SEL))method_getImplementation(customUserAgentMethod);
+            method_setImplementation(customUserAgentMethod, (IMP)hook_WKWebView_customUserAgent);
+        }
+        NSLog(@"[LC] Hooked WKWebView methods (customUserAgent)");
+    }
+    
+    // Hook NSMutableURLRequest for User-Agent header injection
+    Class NSMutableURLRequestClass = objc_getClass("NSMutableURLRequest");
+    if (NSMutableURLRequestClass) {
+        Method setValueMethod = class_getInstanceMethod(NSMutableURLRequestClass, @selector(setValue:forHTTPHeaderField:));
+        
+        if (setValueMethod) {
+            orig_NSMutableURLRequest_setValue_forHTTPHeaderField = (void (*)(id, SEL, NSString *, NSString *))method_getImplementation(setValueMethod);
+            method_setImplementation(setValueMethod, (IMP)hook_NSMutableURLRequest_setValue_forHTTPHeaderField);
+        }
+        NSLog(@"[LC] Hooked NSMutableURLRequest methods (setValue:forHTTPHeaderField:)");
     }
     
     // Initialize fingerprint protection with randomized values

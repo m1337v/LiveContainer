@@ -92,6 +92,13 @@ void LCSetSpoofedDiskSpace(uint64_t freeSpace, uint64_t totalSpace);
 // Initialize all fingerprint protection with random values
 void LCInitializeFingerprintProtection(void);
 
+// User-Agent spoofing
+void LCSetSpoofedUserAgent(NSString *userAgent);   // Set custom User-Agent (nil to use auto-generated)
+void LCSetUserAgentSpoofingEnabled(BOOL enabled);  // Enable/disable User-Agent spoofing
+BOOL LCIsUserAgentSpoofingEnabled(void);           // Check if User-Agent spoofing is enabled
+NSString *LCGetCurrentUserAgent(void);             // Get current spoofed User-Agent string
+void LCUpdateUserAgentForProfile(void);            // Auto-update User-Agent based on device profile
+
 // Random generation helpers
 NSString *LCGenerateRandomUUID(void);
 NSString *LCGenerateRandomMACAddress(void);
