@@ -11,6 +11,8 @@
 #import <sys/utsname.h>
 #import <sys/sysctl.h>
 #import <sys/time.h>
+#import <sys/mount.h>
+#import <sys/param.h>
 #import <mach/mach.h>
 #import <mach/mach_host.h>
 #import <mach/mach_time.h>
@@ -18,6 +20,7 @@
 #import <dlfcn.h>
 #import <AdSupport/AdSupport.h>
 #import <CommonCrypto/CommonDigest.h>
+#import <WebKit/WebKit.h>
 #import "../../fishhook/fishhook.h"
 
 #pragma mark - Device Profiles - iOS 18.x (iPhone 16 Series)
@@ -77,6 +80,85 @@ const LCDeviceProfile kDeviceProfileiPhone16 = {
     .screenHeight = 852,
     .chipName = "Apple A18",
     .gpuName = "Apple A18 GPU"
+};
+
+#pragma mark - Device Profiles - iOS 26.x (iPhone 17 Series - Predicted)
+
+// iPhone 17 Pro Max (iOS 26.x) - Predicted specs based on Apple patterns
+const LCDeviceProfile kDeviceProfileiPhone17ProMax = {
+    .modelIdentifier = "iPhone18,2",
+    .hardwareModel = "D104AP",
+    .marketingName = "iPhone 17 Pro Max",
+    .systemVersion = "26.0",
+    .buildVersion = "24A5264n",
+    .kernelVersion = "Darwin Kernel Version 26.0.0: Wed Sep 10 22:15:30 PDT 2025; root:xnu-12000.1.1~1/RELEASE_ARM64_T8150",
+    .kernelRelease = "26.0.0",
+    .physicalMemory = 12884901888ULL, // 12GB
+    .cpuCoreCount = 6,
+    .performanceCores = 2,
+    .efficiencyCores = 4,
+    .screenScale = 3.0,
+    .screenWidth = 460,
+    .screenHeight = 998,
+    .chipName = "Apple A19 Pro",
+    .gpuName = "Apple A19 Pro GPU"
+};
+
+const LCDeviceProfile kDeviceProfileiPhone17Pro = {
+    .modelIdentifier = "iPhone18,1",
+    .hardwareModel = "D103AP",
+    .marketingName = "iPhone 17 Pro",
+    .systemVersion = "26.0",
+    .buildVersion = "24A5264n",
+    .kernelVersion = "Darwin Kernel Version 26.0.0: Wed Sep 10 22:15:30 PDT 2025; root:xnu-12000.1.1~1/RELEASE_ARM64_T8150",
+    .kernelRelease = "26.0.0",
+    .physicalMemory = 12884901888ULL, // 12GB
+    .cpuCoreCount = 6,
+    .performanceCores = 2,
+    .efficiencyCores = 4,
+    .screenScale = 3.0,
+    .screenWidth = 420,
+    .screenHeight = 912,
+    .chipName = "Apple A19 Pro",
+    .gpuName = "Apple A19 Pro GPU"
+};
+
+const LCDeviceProfile kDeviceProfileiPhone17 = {
+    .modelIdentifier = "iPhone18,3",
+    .hardwareModel = "D57AP",
+    .marketingName = "iPhone 17",
+    .systemVersion = "26.0",
+    .buildVersion = "24A5264n",
+    .kernelVersion = "Darwin Kernel Version 26.0.0: Wed Sep 10 22:15:30 PDT 2025; root:xnu-12000.1.1~1/RELEASE_ARM64_T8140",
+    .kernelRelease = "26.0.0",
+    .physicalMemory = 8589934592ULL, // 8GB
+    .cpuCoreCount = 6,
+    .performanceCores = 2,
+    .efficiencyCores = 4,
+    .screenScale = 3.0,
+    .screenWidth = 402,
+    .screenHeight = 874,
+    .chipName = "Apple A19",
+    .gpuName = "Apple A19 GPU"
+};
+
+const LCDeviceProfile kDeviceProfileiPhone17Air = {
+    .modelIdentifier = "iPhone18,4",
+    .hardwareModel = "D58AP",
+    .marketingName = "iPhone 17 Air",
+    .systemVersion = "26.0",
+    .buildVersion = "24A5264n",
+    .kernelVersion = "Darwin Kernel Version 26.0.0: Wed Sep 10 22:15:30 PDT 2025; root:xnu-12000.1.1~1/RELEASE_ARM64_T8140",
+    .kernelRelease = "26.0.0",
+    .physicalMemory = 8589934592ULL, // 8GB
+    .cpuCoreCount = 6,
+    .performanceCores = 2,
+    .efficiencyCores = 4,
+    .screenScale = 3.0,
+    .screenWidth = 402,
+    .screenHeight = 874,
+    .chipName = "Apple A19",
+    .gpuName = "Apple A19 GPU"
 };
 
 #pragma mark - Device Profiles - iOS 17.x (iPhone 15 Series)
@@ -295,6 +377,20 @@ static NSString *g_spoofedUserAgent = nil;
 static NSString *g_customUserAgent = nil;
 static BOOL g_userAgentSpoofingEnabled = NO;
 
+// Storage spoofing - using marketing units (1000-based) like Apple
+#define LC_BYTES_PER_GB (1000ULL * 1000ULL * 1000ULL)
+#define LC_DEFAULT_BLOCK_SIZE (4096ULL)
+
+static BOOL g_storageSpoofingEnabled = NO;
+static uint64_t g_spoofedStorageTotal = 0;     // Total storage in bytes (0 = use real)
+static uint64_t g_spoofedStorageFree = 0;      // Free storage in bytes (0 = use real)
+static NSString *g_spoofedStorageCapacityGB = nil;  // e.g., "128" for 128GB
+static NSString *g_spoofedStorageFreeGB = nil;      // e.g., "45.2" for 45.2GB free
+
+// Canvas/WebGL/Audio fingerprint protection
+static BOOL g_canvasFingerprintProtectionEnabled = NO;
+static NSInteger g_fingerprintNoiseSeed = 0;  // Per-session consistent noise seed
+
 #pragma mark - Original Function Pointers
 
 static int (*orig_uname)(struct utsname *name) = NULL;
@@ -357,6 +453,13 @@ static int (*orig_clock_gettime)(clockid_t clk_id, struct timespec *tp) = NULL;
 // Memory info function pointers
 static kern_return_t (*orig_host_statistics)(host_t host, host_flavor_t flavor, host_info_t host_info_out, mach_msg_type_number_t *host_info_outCnt) = NULL;
 static kern_return_t (*orig_host_statistics64)(host_t host, host_flavor_t flavor, host_info64_t host_info_out, mach_msg_type_number_t *host_info_outCnt) = NULL;
+
+// Storage spoofing function pointers
+static int (*orig_statfs)(const char *path, struct statfs *buf) = NULL;
+static int (*orig_statfs64)(const char *path, struct statfs *buf) = NULL;
+
+// NSFileManager method IMPs for storage
+static NSDictionary* (*orig_NSFileManager_attributesOfFileSystemForPath)(id self, SEL _cmd, NSString *path, NSError **error) = NULL;
 
 #pragma mark - Helper Functions
 
@@ -917,18 +1020,45 @@ static NSUUID* hook_UIDevice_identifierForVendor(id self, SEL _cmd) {
         return [[NSUUID alloc] init];
     }
     
-    // Return spoofed vendor ID if set
-    if (g_spoofedVendorID) {
+    // Return spoofed vendor ID if explicitly set
+    if (g_spoofedVendorID && g_spoofedVendorID.length > 0) {
         NSUUID *uuid = [[NSUUID alloc] initWithUUIDString:g_spoofedVendorID];
-        if (uuid) return uuid;
+        if (uuid) {
+            NSLog(@"[LC] Returning explicitly set IDFV: %@", g_spoofedVendorID);
+            return uuid;
+        }
     }
     
-    // Generate a consistent spoofed UUID based on the app bundle ID
-    // This ensures the same app always gets the same vendor ID
+    // Generate a consistent spoofed UUID based on:
+    // 1. App bundle ID (or vendor portion for same-vendor apps)
+    // 2. Device profile (so changing profile changes IDFV)
+    // 3. A salt to make it unique per LiveContainer instance
     NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier] ?: @"com.unknown.app";
-    const char *cstr = [bundleID UTF8String];
-    unsigned char hash[16];
-    CC_MD5(cstr, (CC_LONG)strlen(cstr), hash);
+    
+    // Extract vendor portion (first two parts of bundle ID)
+    NSArray *components = [bundleID componentsSeparatedByString:@"."];
+    NSString *vendorPortion = bundleID;
+    if (components.count >= 2) {
+        vendorPortion = [NSString stringWithFormat:@"%@.%@", components[0], components[1]];
+    }
+    
+    // Include profile name for uniqueness
+    NSString *profileName = g_currentProfileName ?: @"default";
+    
+    // Generate a salt based on the LiveContainer's own identifier
+    NSString *lcIdentifier = [[NSBundle mainBundle] bundleIdentifier] ?: @"lc";
+    
+    // Combine all factors
+    NSString *seedString = [NSString stringWithFormat:@"IDFV_%@_%@_%@_SALT2025", vendorPortion, profileName, lcIdentifier];
+    const char *cstr = [seedString UTF8String];
+    
+    // Use SHA256 for better distribution (truncate to 16 bytes for UUID)
+    unsigned char hash[CC_SHA256_DIGEST_LENGTH];
+    CC_SHA256(cstr, (CC_LONG)strlen(cstr), hash);
+    
+    // Set UUID version 4 (random) and variant bits for RFC 4122 compliance
+    hash[6] = (hash[6] & 0x0F) | 0x40; // Version 4
+    hash[8] = (hash[8] & 0x3F) | 0x80; // Variant 1
     
     // Format as UUID (8-4-4-4-12)
     NSString *uuidString = [NSString stringWithFormat:@"%02X%02X%02X%02X-%02X%02X-%02X%02X-%02X%02X-%02X%02X%02X%02X%02X%02X",
@@ -938,6 +1068,7 @@ static NSUUID* hook_UIDevice_identifierForVendor(id self, SEL _cmd) {
                            hash[8], hash[9],
                            hash[10], hash[11], hash[12], hash[13], hash[14], hash[15]];
     
+    NSLog(@"[LC] Generated IDFV for vendor '%@' with profile '%@': %@", vendorPortion, profileName, uuidString);
     return [[NSUUID alloc] initWithUUIDString:uuidString];
 }
 
@@ -1408,6 +1539,384 @@ static void hook_NSURLSessionConfiguration_setHTTPAdditionalHeaders(id self, SEL
     }
 }
 
+#pragma mark - Storage Spoofing Hooks
+
+// Helper function to get spoofed storage values
+static void getSpoofedStorageValues(uint64_t *totalBytes, uint64_t *freeBytes) {
+    if (!totalBytes || !freeBytes) return;
+    
+    // Initialize with zeros
+    *totalBytes = 0;
+    *freeBytes = 0;
+    
+    if (!g_storageSpoofingEnabled) return;
+    
+    // Use direct byte values if set
+    if (g_spoofedStorageTotal > 0) {
+        *totalBytes = g_spoofedStorageTotal;
+        *freeBytes = g_spoofedStorageFree > 0 ? g_spoofedStorageFree : (g_spoofedStorageTotal / 3); // Default 33% free
+        return;
+    }
+    
+    // Otherwise use GB string values
+    if (g_spoofedStorageCapacityGB) {
+        double totalGB = [g_spoofedStorageCapacityGB doubleValue];
+        if (totalGB > 0) {
+            *totalBytes = (uint64_t)(totalGB * LC_BYTES_PER_GB);
+            
+            if (g_spoofedStorageFreeGB) {
+                double freeGB = [g_spoofedStorageFreeGB doubleValue];
+                *freeBytes = (uint64_t)(freeGB * LC_BYTES_PER_GB);
+            } else {
+                // Default to ~30% free space
+                *freeBytes = (uint64_t)(*totalBytes * 0.30);
+            }
+        }
+    }
+}
+
+// Helper to calculate block count from bytes
+static uint64_t calculateStorageBlockCount(uint64_t bytes, uint32_t blockSize) {
+    if (blockSize == 0) blockSize = LC_DEFAULT_BLOCK_SIZE;
+    return (bytes + blockSize - 1) / blockSize;
+}
+
+// Hook statfs to spoof storage info
+static int hook_statfs(const char *path, struct statfs *buf) {
+    if (!orig_statfs) {
+        orig_statfs = (int (*)(const char *, struct statfs *))dlsym(RTLD_DEFAULT, "statfs");
+        if (!orig_statfs) return -1;
+    }
+    
+    int result = orig_statfs(path, buf);
+    
+    if (result != 0 || !buf || !g_deviceSpoofingEnabled || !g_storageSpoofingEnabled) {
+        return result;
+    }
+    
+    // Only spoof for main filesystem paths
+    if (path && (strcmp(path, "/") == 0 || 
+                 strcmp(path, "/var") == 0 || 
+                 strcmp(path, "/private/var") == 0 ||
+                 strncmp(path, "/var/mobile", 11) == 0 ||
+                 strncmp(path, "/private/var/mobile", 19) == 0)) {
+        
+        uint64_t totalBytes, freeBytes;
+        getSpoofedStorageValues(&totalBytes, &freeBytes);
+        
+        if (totalBytes > 0 && buf->f_bsize > 0) {
+            buf->f_blocks = calculateStorageBlockCount(totalBytes, buf->f_bsize);
+            buf->f_bfree = calculateStorageBlockCount(freeBytes, buf->f_bsize);
+            buf->f_bavail = buf->f_bfree;
+        }
+    }
+    
+    return result;
+}
+
+// Hook statfs64 (64-bit variant)
+static int hook_statfs64(const char *path, struct statfs *buf) {
+    if (!orig_statfs64) {
+        orig_statfs64 = (int (*)(const char *, struct statfs *))dlsym(RTLD_DEFAULT, "statfs64");
+        if (!orig_statfs64) {
+            // Fallback to statfs if statfs64 not available
+            return hook_statfs(path, buf);
+        }
+    }
+    
+    int result = orig_statfs64(path, buf);
+    
+    if (result != 0 || !buf || !g_deviceSpoofingEnabled || !g_storageSpoofingEnabled) {
+        return result;
+    }
+    
+    // Only spoof for main filesystem paths
+    if (path && (strcmp(path, "/") == 0 || 
+                 strcmp(path, "/var") == 0 || 
+                 strcmp(path, "/private/var") == 0 ||
+                 strncmp(path, "/var/mobile", 11) == 0 ||
+                 strncmp(path, "/private/var/mobile", 19) == 0)) {
+        
+        uint64_t totalBytes, freeBytes;
+        getSpoofedStorageValues(&totalBytes, &freeBytes);
+        
+        if (totalBytes > 0 && buf->f_bsize > 0) {
+            buf->f_blocks = calculateStorageBlockCount(totalBytes, buf->f_bsize);
+            buf->f_bfree = calculateStorageBlockCount(freeBytes, buf->f_bsize);
+            buf->f_bavail = buf->f_bfree;
+        }
+    }
+    
+    return result;
+}
+
+// Hook NSFileManager attributesOfFileSystemForPath:error:
+static NSDictionary* hook_NSFileManager_attributesOfFileSystemForPath(id self, SEL _cmd, NSString *path, NSError **error) {
+    NSDictionary *originalAttrs = nil;
+    if (orig_NSFileManager_attributesOfFileSystemForPath) {
+        originalAttrs = orig_NSFileManager_attributesOfFileSystemForPath(self, _cmd, path, error);
+    }
+    
+    if (!originalAttrs || !g_deviceSpoofingEnabled || !g_storageSpoofingEnabled) {
+        return originalAttrs;
+    }
+    
+    uint64_t totalBytes, freeBytes;
+    getSpoofedStorageValues(&totalBytes, &freeBytes);
+    
+    if (totalBytes == 0) {
+        return originalAttrs;
+    }
+    
+    NSMutableDictionary *modifiedAttrs = [originalAttrs mutableCopy];
+    modifiedAttrs[NSFileSystemSize] = @(totalBytes);
+    modifiedAttrs[NSFileSystemFreeSize] = @(freeBytes);
+    
+    return modifiedAttrs;
+}
+
+#pragma mark - Canvas/WebGL/Audio Fingerprint Protection
+
+// JavaScript injection for canvas, WebGL, and audio fingerprint protection
+// Based on Project-X CanvasFingerprintHooks approach
+static NSString *getCanvasFingerprintProtectionScript(void) {
+    return @"(function() {\n"
+        "    if (window.__lcFingerprintProtection) return;\n"
+        "    window.__lcFingerprintProtection = true;\n"
+        "\n"
+        "    // Canvas 2D Fingerprint Protection\n"
+        "    const origToDataURL = HTMLCanvasElement.prototype.toDataURL;\n"
+        "    const origToBlob = HTMLCanvasElement.prototype.toBlob;\n"
+        "    const origGetImageData = CanvasRenderingContext2D.prototype.getImageData;\n"
+        "\n"
+        "    function addNoise(canvas) {\n"
+        "        try {\n"
+        "            const ctx = canvas.getContext('2d');\n"
+        "            if (!ctx) return;\n"
+        "            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);\n"
+        "            const pixels = imageData.data;\n"
+        "            for (let i = 0; i < pixels.length; i += 4) {\n"
+        "                if (Math.random() < 0.02) {\n"
+        "                    pixels[i] = Math.max(0, Math.min(255, pixels[i] + (Math.random() < 0.5 ? -1 : 1)));\n"
+        "                    pixels[i+1] = Math.max(0, Math.min(255, pixels[i+1] + (Math.random() < 0.5 ? -1 : 1)));\n"
+        "                    pixels[i+2] = Math.max(0, Math.min(255, pixels[i+2] + (Math.random() < 0.5 ? -1 : 1)));\n"
+        "                }\n"
+        "            }\n"
+        "            ctx.putImageData(imageData, 0, 0);\n"
+        "        } catch (e) {}\n"
+        "    }\n"
+        "\n"
+        "    HTMLCanvasElement.prototype.toDataURL = function() {\n"
+        "        addNoise(this);\n"
+        "        return origToDataURL.apply(this, arguments);\n"
+        "    };\n"
+        "\n"
+        "    HTMLCanvasElement.prototype.toBlob = function(callback) {\n"
+        "        addNoise(this);\n"
+        "        return origToBlob.apply(this, arguments);\n"
+        "    };\n"
+        "\n"
+        "    CanvasRenderingContext2D.prototype.getImageData = function() {\n"
+        "        const imageData = origGetImageData.apply(this, arguments);\n"
+        "        const pixels = imageData.data;\n"
+        "        for (let i = 0; i < pixels.length; i += 4) {\n"
+        "            if (Math.random() < 0.02) {\n"
+        "                pixels[i] = Math.max(0, Math.min(255, pixels[i] + (Math.random() < 0.5 ? -1 : 1)));\n"
+        "                pixels[i+1] = Math.max(0, Math.min(255, pixels[i+1] + (Math.random() < 0.5 ? -1 : 1)));\n"
+        "                pixels[i+2] = Math.max(0, Math.min(255, pixels[i+2] + (Math.random() < 0.5 ? -1 : 1)));\n"
+        "            }\n"
+        "        }\n"
+        "        return imageData;\n"
+        "    };\n"
+        "\n"
+        "    // WebGL Fingerprint Protection (WebGL1 & WebGL2)\n"
+        "    const spoofedVendor = 'Apple Inc.';\n"
+        "    const spoofedRenderer = 'Apple GPU';\n"
+        "\n"
+        "    function hookWebGLContext(prototype) {\n"
+        "        if (!prototype) return;\n"
+        "\n"
+        "        const origReadPixels = prototype.readPixels;\n"
+        "        prototype.readPixels = function(x, y, width, height, format, type, pixels) {\n"
+        "            origReadPixels.apply(this, arguments);\n"
+        "            if (pixels instanceof Uint8Array) {\n"
+        "                for (let i = 0; i < pixels.length; i += 4) {\n"
+        "                    if (Math.random() < 0.02) {\n"
+        "                        pixels[i] = Math.max(0, Math.min(255, pixels[i] + (Math.random() < 0.5 ? -1 : 1)));\n"
+        "                        pixels[i+1] = Math.max(0, Math.min(255, pixels[i+1] + (Math.random() < 0.5 ? -1 : 1)));\n"
+        "                        pixels[i+2] = Math.max(0, Math.min(255, pixels[i+2] + (Math.random() < 0.5 ? -1 : 1)));\n"
+        "                    }\n"
+        "                }\n"
+        "            }\n"
+        "        };\n"
+        "\n"
+        "        const origGetParameter = prototype.getParameter;\n"
+        "        prototype.getParameter = function(param) {\n"
+        "            if (param === 37445) return spoofedVendor;\n"
+        "            if (param === 37446) return spoofedRenderer;\n"
+        "            if (param === this.MAX_TEXTURE_SIZE) return 4096 + Math.floor(Math.random() * 10);\n"
+        "            if (param === this.MAX_RENDERBUFFER_SIZE) return 4096 + Math.floor(Math.random() * 10);\n"
+        "            if (param === this.MAX_VIEWPORT_DIMS) {\n"
+        "                const result = origGetParameter.call(this, param);\n"
+        "                if (result) result[0] += Math.floor(Math.random() * 10);\n"
+        "                return result;\n"
+        "            }\n"
+        "            return origGetParameter.call(this, param);\n"
+        "        };\n"
+        "\n"
+        "        const origGetSupportedExtensions = prototype.getSupportedExtensions;\n"
+        "        prototype.getSupportedExtensions = function() {\n"
+        "            const exts = origGetSupportedExtensions.call(this) || [];\n"
+        "            return exts.slice().sort(() => Math.random() - 0.5);\n"
+        "        };\n"
+        "\n"
+        "        const origGetShaderPrecisionFormat = prototype.getShaderPrecisionFormat;\n"
+        "        prototype.getShaderPrecisionFormat = function() {\n"
+        "            const res = origGetShaderPrecisionFormat.apply(this, arguments);\n"
+        "            if (res && typeof res === 'object') {\n"
+        "                res.precision += Math.floor(Math.random() * 2);\n"
+        "            }\n"
+        "            return res;\n"
+        "        };\n"
+        "    }\n"
+        "\n"
+        "    if (window.WebGLRenderingContext) {\n"
+        "        hookWebGLContext(WebGLRenderingContext.prototype);\n"
+        "    }\n"
+        "    if (window.WebGL2RenderingContext) {\n"
+        "        hookWebGLContext(WebGL2RenderingContext.prototype);\n"
+        "    }\n"
+        "\n"
+        "    // Audio Fingerprint Protection\n"
+        "    if (window.AnalyserNode) {\n"
+        "        const origGetFloatFrequencyData = AnalyserNode.prototype.getFloatFrequencyData;\n"
+        "        AnalyserNode.prototype.getFloatFrequencyData = function(array) {\n"
+        "            origGetFloatFrequencyData.call(this, array);\n"
+        "            for (let i = 0; i < array.length; i++) {\n"
+        "                array[i] += (Math.random() - 0.5) * 0.1;\n"
+        "            }\n"
+        "        };\n"
+        "\n"
+        "        const origGetByteFrequencyData = AnalyserNode.prototype.getByteFrequencyData;\n"
+        "        AnalyserNode.prototype.getByteFrequencyData = function(array) {\n"
+        "            origGetByteFrequencyData.call(this, array);\n"
+        "            for (let i = 0; i < array.length; i++) {\n"
+        "                array[i] = Math.max(0, Math.min(255, array[i] + Math.floor((Math.random() - 0.5) * 2)));\n"
+        "            }\n"
+        "        };\n"
+        "    }\n"
+        "\n"
+        "    if (window.AudioBuffer) {\n"
+        "        const origGetChannelData = AudioBuffer.prototype.getChannelData;\n"
+        "        AudioBuffer.prototype.getChannelData = function() {\n"
+        "            const data = origGetChannelData.apply(this, arguments);\n"
+        "            for (let i = 0; i < data.length; i += 100) {\n"
+        "                data[i] += (Math.random() - 0.5) * 0.0001;\n"
+        "            }\n"
+        "            return data;\n"
+        "        };\n"
+        "    }\n"
+        "\n"
+        "    // Font Fingerprint Protection\n"
+        "    if (window.CanvasRenderingContext2D) {\n"
+        "        const origMeasureText = CanvasRenderingContext2D.prototype.measureText;\n"
+        "        CanvasRenderingContext2D.prototype.measureText = function(text) {\n"
+        "            const result = origMeasureText.apply(this, arguments);\n"
+        "            const width = result.width * (1 + (Math.random() - 0.5) * 0.01);\n"
+        "            Object.defineProperty(result, 'width', { value: width, writable: false });\n"
+        "            return result;\n"
+        "        };\n"
+        "    }\n"
+        "\n"
+        "    // Navigator Fonts API (if available)\n"
+        "    if (window.navigator && window.navigator.fonts && window.navigator.fonts.query) {\n"
+        "        const origAvailableFonts = window.navigator.fonts.query;\n"
+        "        window.navigator.fonts.query = function() {\n"
+        "            return origAvailableFonts.apply(this, arguments).then(fonts => {\n"
+        "                return fonts.slice().sort(() => Math.random() - 0.5);\n"
+        "            });\n"
+        "        };\n"
+        "    }\n"
+        "\n"
+        "    // Recursive iframe injection with MutationObserver\n"
+        "    function injectAllFrames(win) {\n"
+        "        try {\n"
+        "            if (win.__lcFingerprintProtection) return;\n"
+        "            win.eval('(' + arguments.callee.toString() + ')(window)');\n"
+        "        } catch (e) {}\n"
+        "        for (let i = 0; i < win.frames.length; i++) {\n"
+        "            try { injectAllFrames(win.frames[i]); } catch (e) {}\n"
+        "        }\n"
+        "    }\n"
+        "\n"
+        "    const observer = new MutationObserver(function(mutations) {\n"
+        "        mutations.forEach(function(mutation) {\n"
+        "            mutation.addedNodes.forEach(function(node) {\n"
+        "                if (node.tagName === 'IFRAME') {\n"
+        "                    try { injectAllFrames(node.contentWindow); } catch (e) {}\n"
+        "                }\n"
+        "            });\n"
+        "        });\n"
+        "    });\n"
+        "    observer.observe(document, { childList: true, subtree: true });\n"
+        "\n"
+        "    console.log('[LiveContainer] Canvas, Audio, WebGL, WebGL2, and Font fingerprint protection enabled');\n"
+        "})();";
+}
+
+// Hook for WKUserContentController to inject fingerprint protection script
+static void (*orig_WKUserContentController_addUserScript)(id self, SEL _cmd, WKUserScript *userScript) = NULL;
+
+static void hook_WKUserContentController_addUserScript(id self, SEL _cmd, WKUserScript *userScript) {
+    if (orig_WKUserContentController_addUserScript) {
+        orig_WKUserContentController_addUserScript(self, _cmd, userScript);
+    }
+}
+
+// Inject fingerprint protection into WKWebView on initialization
+static id (*orig_WKWebView_initWithFrame_configuration)(id self, SEL _cmd, CGRect frame, WKWebViewConfiguration *configuration) = NULL;
+
+static id hook_WKWebView_initWithFrame_configuration(id self, SEL _cmd, CGRect frame, WKWebViewConfiguration *configuration) {
+    // Call original first
+    id result = nil;
+    if (orig_WKWebView_initWithFrame_configuration) {
+        result = orig_WKWebView_initWithFrame_configuration(self, _cmd, frame, configuration);
+    }
+    
+    // Inject fingerprint protection if enabled
+    if (result && g_deviceSpoofingEnabled && g_canvasFingerprintProtectionEnabled) {
+        @try {
+            WKUserContentController *contentController = configuration.userContentController;
+            if (!contentController) {
+                contentController = [[WKUserContentController alloc] init];
+                configuration.userContentController = contentController;
+            }
+            
+            // Check if script already injected
+            BOOL alreadyInjected = NO;
+            for (WKUserScript *script in contentController.userScripts) {
+                if ([script.source containsString:@"__lcFingerprintProtection"]) {
+                    alreadyInjected = YES;
+                    break;
+                }
+            }
+            
+            if (!alreadyInjected) {
+                NSString *scriptSource = getCanvasFingerprintProtectionScript();
+                WKUserScript *script = [[WKUserScript alloc] initWithSource:scriptSource
+                                                              injectionTime:WKUserScriptInjectionTimeAtDocumentStart
+                                                           forMainFrameOnly:NO];
+                [contentController addUserScript:script];
+                NSLog(@"[LC] Injected canvas fingerprint protection script");
+            }
+        } @catch (NSException *e) {
+            NSLog(@"[LC] Failed to inject fingerprint protection: %@", e);
+        }
+    }
+    
+    return result;
+}
+
 #pragma mark - Public API
 
 void LCSetDeviceSpoofingEnabled(BOOL enabled) {
@@ -1426,6 +1935,11 @@ void LCSetDeviceProfile(NSString *profileName) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         profileMap = @{
+            // iOS 26.x - iPhone 17 Series
+            @"iPhone 17 Pro Max": [NSValue valueWithPointer:&kDeviceProfileiPhone17ProMax],
+            @"iPhone 17 Pro": [NSValue valueWithPointer:&kDeviceProfileiPhone17Pro],
+            @"iPhone 17": [NSValue valueWithPointer:&kDeviceProfileiPhone17],
+            @"iPhone 17 Air": [NSValue valueWithPointer:&kDeviceProfileiPhone17Air],
             // iOS 18.x - iPhone 16 Series
             @"iPhone 16 Pro Max": [NSValue valueWithPointer:&kDeviceProfileiPhone16ProMax],
             @"iPhone 16 Pro": [NSValue valueWithPointer:&kDeviceProfileiPhone16Pro],
@@ -1463,6 +1977,31 @@ NSString *LCGetCurrentDeviceProfile(void) {
 
 NSDictionary<NSString *, NSDictionary *> *LCGetAvailableDeviceProfiles(void) {
     return @{
+        // iOS 26.x - iPhone 17 Series
+        @"iPhone 17 Pro Max": @{
+            @"model": @"iPhone18,2",
+            @"memory": @"12 GB",
+            @"version": @"26.0",
+            @"chip": @"A19 Pro"
+        },
+        @"iPhone 17 Pro": @{
+            @"model": @"iPhone18,1",
+            @"memory": @"12 GB",
+            @"version": @"26.0",
+            @"chip": @"A19 Pro"
+        },
+        @"iPhone 17": @{
+            @"model": @"iPhone18,3",
+            @"memory": @"8 GB",
+            @"version": @"26.0",
+            @"chip": @"A19"
+        },
+        @"iPhone 17 Air": @{
+            @"model": @"iPhone18,4",
+            @"memory": @"8 GB",
+            @"version": @"26.0",
+            @"chip": @"A19"
+        },
         // iOS 18.x - iPhone 16 Series
         @"iPhone 16 Pro Max": @{
             @"model": @"iPhone17,2",
@@ -1644,34 +2183,236 @@ void LCSetUptimeOffset(NSTimeInterval offset) {
     mach_timebase_info_data_t timebase;
     mach_timebase_info(&timebase);
     g_machTimeOffset = (uint64_t)(offset * 1e9) * timebase.denom / timebase.numer;
-    NSLog(@"[LC] Set uptime offset: %.0f seconds", offset);
+    
+    // Update boot time to match the new uptime
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    g_spoofedBootTime.tv_sec = now.tv_sec - (time_t)offset;
+    g_spoofedBootTime.tv_usec = arc4random_uniform(1000000);
+    g_bootTimeSpoofingEnabled = YES;
+    
+    NSLog(@"[LC] Set uptime offset: %.0f seconds (boot time: %ld)", offset, (long)g_spoofedBootTime.tv_sec);
 }
 
 void LCRandomizeUptime(void) {
-    // Randomize uptime to be 1-7 days
-    NSTimeInterval offset = (arc4random_uniform(6) + 1) * 86400.0;
+    // Randomize uptime to be 1-14 days (increased range for better variability)
+    NSTimeInterval offset = (arc4random_uniform(14) + 1) * 86400.0;
     offset += arc4random_uniform(86400); // Add random hours/minutes/seconds
+    offset += arc4random_uniform(3600);  // Add extra random minutes
+    offset += arc4random_uniform(60);    // Add extra random seconds
     LCSetUptimeOffset(offset);
 }
 
+void LCSetSpoofedBootTime(time_t bootTimestamp) {
+    g_spoofedBootTime.tv_sec = bootTimestamp;
+    g_spoofedBootTime.tv_usec = arc4random_uniform(1000000);
+    g_bootTimeSpoofingEnabled = YES;
+    
+    // Calculate and update uptime offset to match
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    g_uptimeOffset = (NSTimeInterval)(now.tv_sec - bootTimestamp);
+    
+    // Update mach time offset
+    mach_timebase_info_data_t timebase;
+    mach_timebase_info(&timebase);
+    g_machTimeOffset = (uint64_t)(g_uptimeOffset * 1e9) * timebase.denom / timebase.numer;
+    
+    NSLog(@"[LC] Set spoofed boot time: %ld (uptime: %.0f seconds)", (long)bootTimestamp, g_uptimeOffset);
+}
+
+time_t LCGetSpoofedBootTime(void) {
+    if (g_bootTimeSpoofingEnabled) {
+        return g_spoofedBootTime.tv_sec;
+    }
+    // Return current boot time if not spoofing
+    struct timeval boottime;
+    size_t len = sizeof(boottime);
+    int mib[2] = {CTL_KERN, KERN_BOOTTIME};
+    if (sysctl(mib, 2, &boottime, &len, NULL, 0) == 0) {
+        return boottime.tv_sec;
+    }
+    return 0;
+}
+
+NSTimeInterval LCGetSpoofedUptime(void) {
+    if (g_uptimeOffset > 0) {
+        struct timeval now;
+        gettimeofday(&now, NULL);
+        return (NSTimeInterval)(now.tv_sec - g_spoofedBootTime.tv_sec);
+    }
+    return [[NSProcessInfo processInfo] systemUptime];
+}
+
+#pragma mark - Storage Spoofing API
+
+void LCSetStorageSpoofingEnabled(BOOL enabled) {
+    g_storageSpoofingEnabled = enabled;
+    NSLog(@"[LC] Storage spoofing %@", enabled ? @"enabled" : @"disabled");
+}
+
+BOOL LCIsStorageSpoofingEnabled(void) {
+    return g_storageSpoofingEnabled;
+}
+
+void LCSetSpoofedStorageCapacity(NSString *capacityGB) {
+    g_spoofedStorageCapacityGB = [capacityGB copy];
+    
+    // Also update the byte values
+    if (capacityGB) {
+        double totalGB = [capacityGB doubleValue];
+        g_spoofedStorageTotal = (uint64_t)(totalGB * LC_BYTES_PER_GB);
+    } else {
+        g_spoofedStorageTotal = 0;
+    }
+    
+    NSLog(@"[LC] Set spoofed storage capacity: %@ GB (%llu bytes)", capacityGB ?: @"disabled", g_spoofedStorageTotal);
+}
+
+void LCSetSpoofedStorageFree(NSString *freeGB) {
+    g_spoofedStorageFreeGB = [freeGB copy];
+    
+    // Also update the byte values
+    if (freeGB) {
+        double free = [freeGB doubleValue];
+        g_spoofedStorageFree = (uint64_t)(free * LC_BYTES_PER_GB);
+    } else {
+        g_spoofedStorageFree = 0;
+    }
+    
+    NSLog(@"[LC] Set spoofed free storage: %@ GB (%llu bytes)", freeGB ?: @"disabled", g_spoofedStorageFree);
+}
+
+void LCSetSpoofedStorageBytes(uint64_t totalBytes, uint64_t freeBytes) {
+    g_spoofedStorageTotal = totalBytes;
+    g_spoofedStorageFree = freeBytes;
+    
+    // Also update the GB string values
+    if (totalBytes > 0) {
+        double totalGB = (double)totalBytes / LC_BYTES_PER_GB;
+        g_spoofedStorageCapacityGB = [NSString stringWithFormat:@"%.0f", totalGB];
+    } else {
+        g_spoofedStorageCapacityGB = nil;
+    }
+    
+    if (freeBytes > 0) {
+        double freeGB = (double)freeBytes / LC_BYTES_PER_GB;
+        g_spoofedStorageFreeGB = [NSString stringWithFormat:@"%.1f", freeGB];
+    } else {
+        g_spoofedStorageFreeGB = nil;
+    }
+    
+    NSLog(@"[LC] Set spoofed storage: %llu total / %llu free bytes", totalBytes, freeBytes);
+}
+
+NSDictionary *LCGenerateStorageForCapacity(NSString *capacityGB) {
+    double totalGB = [capacityGB doubleValue];
+    double freePercent;
+    
+    // Calculate realistic free space based on capacity
+    if (totalGB <= 64) {
+        // 64GB devices typically have less free space (15-30%)
+        freePercent = (arc4random_uniform(15) + 15) / 100.0;
+    } else if (totalGB <= 128) {
+        // 128GB devices (25-40%)
+        freePercent = (arc4random_uniform(15) + 25) / 100.0;
+    } else if (totalGB <= 256) {
+        // 256GB devices (35-55%)
+        freePercent = (arc4random_uniform(20) + 35) / 100.0;
+    } else {
+        // 512GB+ devices (45-65%)
+        freePercent = (arc4random_uniform(20) + 45) / 100.0;
+    }
+    
+    double freeGB = totalGB * freePercent;
+    // Add some variability to the decimal points
+    freeGB += (arc4random_uniform(10) / 10.0);
+    // Round to one decimal place
+    freeGB = round(freeGB * 10) / 10;
+    
+    return @{
+        @"TotalStorage": capacityGB,
+        @"FreeStorage": [NSString stringWithFormat:@"%.1f", freeGB],
+        @"TotalBytes": @((uint64_t)(totalGB * LC_BYTES_PER_GB)),
+        @"FreeBytes": @((uint64_t)(freeGB * LC_BYTES_PER_GB)),
+        @"FilesystemType": @"APFS"
+    };
+}
+
+NSString *LCRandomizeStorageCapacity(void) {
+    // Weighted distribution based on common iPhone storage configurations
+    int randomValue = arc4random_uniform(100);
+    NSString *capacity;
+    
+    if (randomValue < 20) {
+        capacity = @"64";   // 20% - 64GB
+    } else if (randomValue < 55) {
+        capacity = @"128";  // 35% - 128GB (most common)
+    } else if (randomValue < 80) {
+        capacity = @"256";  // 25% - 256GB
+    } else if (randomValue < 95) {
+        capacity = @"512";  // 15% - 512GB
+    } else {
+        capacity = @"1024"; // 5% - 1TB
+    }
+    
+    return capacity;
+}
+
+void LCRandomizeStorage(void) {
+    NSString *capacity = LCRandomizeStorageCapacity();
+    NSDictionary *storage = LCGenerateStorageForCapacity(capacity);
+    
+    LCSetSpoofedStorageCapacity(storage[@"TotalStorage"]);
+    LCSetSpoofedStorageFree(storage[@"FreeStorage"]);
+    g_storageSpoofingEnabled = YES;
+    
+    NSLog(@"[LC] Randomized storage: %@ GB total, %@ GB free", 
+          storage[@"TotalStorage"], storage[@"FreeStorage"]);
+}
+
+uint64_t LCGetSpoofedStorageTotal(void) {
+    return g_spoofedStorageTotal;
+}
+
+uint64_t LCGetSpoofedStorageFree(void) {
+    return g_spoofedStorageFree;
+}
+
+NSString *LCGetSpoofedStorageCapacityGB(void) {
+    return g_spoofedStorageCapacityGB;
+}
+
+NSString *LCGetSpoofedStorageFreeGB(void) {
+    return g_spoofedStorageFreeGB;
+}
+
+// Legacy function - kept for compatibility
 void LCSetSpoofedDiskSpace(uint64_t freeSpace, uint64_t totalSpace) {
-    g_spoofedDiskFreeSpace = freeSpace;
-    g_spoofedDiskTotalSpace = totalSpace;
-    NSLog(@"[LC] Set spoofed disk space: %llu free / %llu total", freeSpace, totalSpace);
+    LCSetSpoofedStorageBytes(totalSpace, freeSpace);
+    g_storageSpoofingEnabled = YES;
 }
 
 void LCRandomizeBattery(void) {
-    // Random battery level between 20% and 95%
-    float level = 0.20f + (arc4random_uniform(76) / 100.0f);
+    // Random battery level between 15% and 98% (wider range)
+    float level = 0.15f + (arc4random_uniform(84) / 100.0f);
     g_spoofedBatteryLevel = level;
     // Random state: 1=Unknown, 2=Unplugged, 3=Charging, 4=Full
-    g_spoofedBatteryState = 2; // Most common: Unplugged
-    NSLog(@"[LC] Randomized battery: %.0f%% (Unplugged)", level * 100);
+    // Weighted: 70% Unplugged, 25% Charging, 5% Full
+    int stateRoll = arc4random_uniform(100);
+    if (stateRoll < 70) {
+        g_spoofedBatteryState = 2; // Unplugged
+    } else if (stateRoll < 95) {
+        g_spoofedBatteryState = 3; // Charging
+    } else {
+        g_spoofedBatteryState = 4; // Full
+    }
+    NSLog(@"[LC] Randomized battery: %.0f%% (State: %ld)", level * 100, (long)g_spoofedBatteryState);
 }
 
 void LCRandomizeBrightness(void) {
-    // Random brightness between 30% and 80%
-    float brightness = 0.30f + (arc4random_uniform(51) / 100.0f);
+    // Random brightness between 20% and 90% (wider range)
+    float brightness = 0.20f + (arc4random_uniform(71) / 100.0f);
     g_spoofedBrightness = brightness;
     NSLog(@"[LC] Randomized brightness: %.0f%%", brightness * 100);
 }
@@ -1681,12 +2422,26 @@ void LCInitializeFingerprintProtection(void) {
     LCRandomizeUptime();
     LCRandomizeBattery();
     LCRandomizeBrightness();
-    g_spoofedThermalState = 0; // Nominal
+    LCRandomizeStorage();
+    g_spoofedThermalState = arc4random_uniform(2); // Nominal or Fair
     g_spoofLowPowerMode = YES;
-    g_lowPowerModeValue = NO;
+    g_lowPowerModeValue = (arc4random_uniform(100) < 20); // 20% chance of low power mode
     // Enable User-Agent spoofing by default
     g_userAgentSpoofingEnabled = YES;
-    NSLog(@"[LC] Fingerprint protection initialized with randomized values");
+    // Enable canvas fingerprint protection by default
+    g_canvasFingerprintProtectionEnabled = YES;
+    NSLog(@"[LC] Fingerprint protection initialized with randomized values (Canvas protection: ON)");
+}
+
+#pragma mark - Canvas Fingerprint Protection API
+
+void LCSetCanvasFingerprintProtectionEnabled(BOOL enabled) {
+    g_canvasFingerprintProtectionEnabled = enabled;
+    NSLog(@"[LC] Canvas fingerprint protection %@", enabled ? @"enabled" : @"disabled");
+}
+
+BOOL LCIsCanvasFingerprintProtectionEnabled(void) {
+    return g_canvasFingerprintProtectionEnabled;
 }
 
 #pragma mark - User-Agent Spoofing API
@@ -1736,11 +2491,13 @@ void DeviceSpoofingGuestHooksInit(void) {
         {"clock_gettime", (void *)hook_clock_gettime, (void **)&orig_clock_gettime},
         {"host_statistics", (void *)hook_host_statistics, (void **)&orig_host_statistics},
         {"host_statistics64", (void *)hook_host_statistics64, (void **)&orig_host_statistics64},
+        {"statfs", (void *)hook_statfs, (void **)&orig_statfs},
+        {"statfs64", (void *)hook_statfs64, (void **)&orig_statfs64},
     };
     
     int result = rebind_symbols(rebindings, sizeof(rebindings)/sizeof(rebindings[0]));
     if (result == 0) {
-        NSLog(@"[LC] Hooked C functions via fishhook (uname, sysctl*, mach_absolute_time, clock_gettime, host_statistics*)");
+        NSLog(@"[LC] Hooked C functions via fishhook (uname, sysctl*, mach_absolute_time, clock_gettime, host_statistics*, statfs*)");
     } else {
         NSLog(@"[LC] Warning: fishhook rebind_symbols failed with code %d", result);
     }
@@ -1878,7 +2635,19 @@ void DeviceSpoofingGuestHooksInit(void) {
         NSLog(@"[LC] Hooked ASIdentifierManager methods (advertisingIdentifier)");
     }
     
-    // Hook WKWebView for User-Agent spoofing
+    // Hook NSFileManager for storage spoofing
+    Class NSFileManagerClass = objc_getClass("NSFileManager");
+    if (NSFileManagerClass) {
+        Method attributesMethod = class_getInstanceMethod(NSFileManagerClass, @selector(attributesOfFileSystemForPath:error:));
+        
+        if (attributesMethod) {
+            orig_NSFileManager_attributesOfFileSystemForPath = (NSDictionary* (*)(id, SEL, NSString *, NSError **))method_getImplementation(attributesMethod);
+            method_setImplementation(attributesMethod, (IMP)hook_NSFileManager_attributesOfFileSystemForPath);
+        }
+        NSLog(@"[LC] Hooked NSFileManager methods (attributesOfFileSystemForPath:error:)");
+    }
+    
+    // Hook WKWebView for User-Agent spoofing and canvas fingerprint protection
     Class WKWebViewClass = objc_getClass("WKWebView");
     if (WKWebViewClass) {
         Method customUserAgentMethod = class_getInstanceMethod(WKWebViewClass, @selector(customUserAgent));
@@ -1887,7 +2656,15 @@ void DeviceSpoofingGuestHooksInit(void) {
             orig_WKWebView_customUserAgent = (NSString* (*)(id, SEL))method_getImplementation(customUserAgentMethod);
             method_setImplementation(customUserAgentMethod, (IMP)hook_WKWebView_customUserAgent);
         }
-        NSLog(@"[LC] Hooked WKWebView methods (customUserAgent)");
+        
+        // Hook initWithFrame:configuration: for canvas fingerprint protection injection
+        Method initMethod = class_getInstanceMethod(WKWebViewClass, @selector(initWithFrame:configuration:));
+        if (initMethod) {
+            orig_WKWebView_initWithFrame_configuration = (id (*)(id, SEL, CGRect, WKWebViewConfiguration *))method_getImplementation(initMethod);
+            method_setImplementation(initMethod, (IMP)hook_WKWebView_initWithFrame_configuration);
+        }
+        
+        NSLog(@"[LC] Hooked WKWebView methods (customUserAgent, initWithFrame:configuration:)");
     }
     
     // Hook NSMutableURLRequest for User-Agent header injection

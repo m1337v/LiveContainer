@@ -1912,6 +1912,15 @@ struct DeviceProfileInfo {
 
 func getProfileInfo(for profileName: String) -> DeviceProfileInfo {
     switch profileName {
+    // iOS 26.x - iPhone 17 Series
+    case "iPhone 17 Pro Max":
+        return DeviceProfileInfo(model: "iPhone18,2", memory: "12 GB", version: "26.0", chip: "A19 Pro")
+    case "iPhone 17 Pro":
+        return DeviceProfileInfo(model: "iPhone18,1", memory: "12 GB", version: "26.0", chip: "A19 Pro")
+    case "iPhone 17":
+        return DeviceProfileInfo(model: "iPhone18,3", memory: "8 GB", version: "26.0", chip: "A19")
+    case "iPhone 17 Air":
+        return DeviceProfileInfo(model: "iPhone18,4", memory: "8 GB", version: "26.0", chip: "A19")
     // iOS 18.x - iPhone 16 Series
     case "iPhone 16 Pro Max":
         return DeviceProfileInfo(model: "iPhone17,2", memory: "8 GB", version: "18.1", chip: "A18 Pro")
@@ -2642,6 +2651,13 @@ struct LCAppSettingsView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Picker("Device Profile", selection: $model.uiDeviceSpoofProfile) {
+                            // iOS 26.x - iPhone 17 Series
+                            Section(header: Text("iOS 26.x")) {
+                                Text("iPhone 17 Pro Max").tag("iPhone 17 Pro Max")
+                                Text("iPhone 17 Pro").tag("iPhone 17 Pro")
+                                Text("iPhone 17").tag("iPhone 17")
+                                Text("iPhone 17 Air").tag("iPhone 17 Air")
+                            }
                             // iOS 18.x - iPhone 16 Series
                             Section(header: Text("iOS 18.x")) {
                                 Text("iPhone 16 Pro Max").tag("iPhone 16 Pro Max")

@@ -33,16 +33,24 @@ typedef struct {
     const char *gpuName;            // e.g., "Apple GPU"
 } LCDeviceProfile;
 
-// Available device profiles - iOS 18.x / 26.x compatible
+// Available device profiles - iOS 26.x / 18.x / 17.x compatible
+// iOS 26.x - iPhone 17 Series
+extern const LCDeviceProfile kDeviceProfileiPhone17ProMax;
+extern const LCDeviceProfile kDeviceProfileiPhone17Pro;
+extern const LCDeviceProfile kDeviceProfileiPhone17;
+extern const LCDeviceProfile kDeviceProfileiPhone17Air;
+// iOS 18.x - iPhone 16 Series
 extern const LCDeviceProfile kDeviceProfileiPhone16ProMax;
 extern const LCDeviceProfile kDeviceProfileiPhone16Pro;
 extern const LCDeviceProfile kDeviceProfileiPhone16;
+// iOS 17.x - iPhone 15/14/13 Series
 extern const LCDeviceProfile kDeviceProfileiPhone15ProMax;
 extern const LCDeviceProfile kDeviceProfileiPhone15Pro;
 extern const LCDeviceProfile kDeviceProfileiPhone14ProMax;
 extern const LCDeviceProfile kDeviceProfileiPhone14Pro;
 extern const LCDeviceProfile kDeviceProfileiPhone13ProMax;
 extern const LCDeviceProfile kDeviceProfileiPhone13Pro;
+// iPad Pro
 extern const LCDeviceProfile kDeviceProfileiPadPro13_M4;
 extern const LCDeviceProfile kDeviceProfileiPadPro11_M4;
 extern const LCDeviceProfile kDeviceProfileiPadPro12_9_6th;
@@ -78,16 +86,38 @@ void LCRandomizeBattery(void);
 void LCSetSpoofedBrightness(float brightness);     // 0.0-1.0
 void LCRandomizeBrightness(void);
 
-// Fingerprint spoofing - Uptime (critical fingerprinting vector!)
+// Fingerprint spoofing - Uptime/Boot Time (critical fingerprinting vectors!)
 void LCSetUptimeOffset(NSTimeInterval offset);     // Offset in seconds to add to uptime
 void LCRandomizeUptime(void);                      // Randomize uptime to 1-7 days
+void LCSetSpoofedBootTime(time_t bootTimestamp);   // Set specific boot time (Unix timestamp)
+time_t LCGetSpoofedBootTime(void);                 // Get current spoofed boot time
+NSTimeInterval LCGetSpoofedUptime(void);           // Get current spoofed uptime
 
 // Fingerprint spoofing - Thermal/Power state
 void LCSetSpoofedThermalState(NSInteger state);    // 0=Nominal, 1=Fair, 2=Serious, 3=Critical
 void LCSetSpoofedLowPowerMode(BOOL enabled, BOOL value);
 
-// Fingerprint spoofing - Disk space
+// Storage spoofing - based on Project-X StorageManager approach
+void LCSetStorageSpoofingEnabled(BOOL enabled);
+BOOL LCIsStorageSpoofingEnabled(void);
+void LCSetSpoofedStorageCapacity(NSString *capacityGB);  // e.g., "128" for 128GB
+void LCSetSpoofedStorageFree(NSString *freeGB);          // e.g., "45.2" for 45.2GB free
+void LCSetSpoofedStorageBytes(uint64_t totalBytes, uint64_t freeBytes);
+NSDictionary *LCGenerateStorageForCapacity(NSString *capacityGB);  // Generate realistic storage values
+NSString *LCRandomizeStorageCapacity(void);              // Get random capacity (64/128/256/512/1024)
+void LCRandomizeStorage(void);                           // Randomize storage with realistic values
+uint64_t LCGetSpoofedStorageTotal(void);
+uint64_t LCGetSpoofedStorageFree(void);
+NSString *LCGetSpoofedStorageCapacityGB(void);
+NSString *LCGetSpoofedStorageFreeGB(void);
+
+// Legacy disk space function (kept for compatibility)
 void LCSetSpoofedDiskSpace(uint64_t freeSpace, uint64_t totalSpace);
+
+// Canvas/WebGL/Audio Fingerprint Protection
+// Injects JavaScript into WKWebView to protect against browser fingerprinting
+void LCSetCanvasFingerprintProtectionEnabled(BOOL enabled);
+BOOL LCIsCanvasFingerprintProtectionEnabled(void);
 
 // Initialize all fingerprint protection with random values
 void LCInitializeFingerprintProtection(void);
