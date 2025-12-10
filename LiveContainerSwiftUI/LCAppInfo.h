@@ -74,6 +74,33 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property bool deviceSpoofingEnabled;
 @property (nonatomic) NSString* deviceSpoofProfile;
 
+// Legacy Device & Identifier Spoofing Section
+@property bool legacySpoofDevice;
+@property (nonatomic) NSString* legacySpoofDeviceModel;
+@property (nonatomic) NSString* legacySpoofSystemVersion;
+@property (nonatomic) NSString* legacySpoofDeviceName;
+@property (nonatomic) NSString* legacySpoofCarrierName;
+@property (nonatomic) NSString* legacySpoofCustomCarrier;
+@property bool legacySpoofBattery;
+@property double legacySpoofBatteryLevel;
+@property bool legacySpoofMemory;
+@property int legacySpoofMemorySize;
+@property bool legacySpoofIdentifiers;
+@property (nonatomic) NSString* legacySpoofVendorID;
+@property (nonatomic) NSString* legacySpoofAdvertisingID;
+@property bool legacySpoofAdTrackingEnabled;
+@property (nonatomic) NSString* legacySpoofInstallationID;
+@property (nonatomic) NSString* legacySpoofMACAddress;
+@property bool legacySpoofFingerprint;
+@property bool legacySpoofScreen;
+@property double legacySpoofScreenScale;
+@property (nonatomic) NSString* legacySpoofScreenSize;
+@property bool legacySpoofTimezone;
+@property (nonatomic) NSString* legacySpoofTimezoneValue;
+@property bool legacySpoofLanguage;
+@property (nonatomic) NSString* legacySpoofPrimaryLanguage;
+@property (nonatomic) NSString* legacySpoofRegion;
+
 - (void)setBundlePath:(NSString*)newBundlePath;
 - (NSMutableDictionary*)info;
 - (UIImage*)icon;

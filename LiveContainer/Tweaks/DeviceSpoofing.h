@@ -119,6 +119,35 @@ void LCSetSpoofedDiskSpace(uint64_t freeSpace, uint64_t totalSpace);
 void LCSetCanvasFingerprintProtectionEnabled(BOOL enabled);
 BOOL LCIsCanvasFingerprintProtectionEnabled(void);
 
+// Device name and carrier spoofing
+void LCSetSpoofedDeviceName(NSString *deviceName);  // e.g., "John's iPhone"
+NSString *LCGetSpoofedDeviceName(void);
+void LCSetSpoofedCarrierName(NSString *carrierName);  // e.g., "Verizon"
+NSString *LCGetSpoofedCarrierName(void);
+
+// Identifier spoofing - IDFV/IDFA
+void LCSetSpoofedVendorID(NSString *vendorID);    // Identifier for Vendor (IDFV)
+NSString *LCGetSpoofedVendorID(void);
+void LCSetSpoofedAdvertisingID(NSString *advertisingID);  // Identifier for Advertising (IDFA)
+NSString *LCGetSpoofedAdvertisingID(void);
+void LCSetSpoofedAdTrackingEnabled(BOOL enabled);  // Ad tracking limit
+BOOL LCGetSpoofedAdTrackingEnabled(void);
+void LCSetSpoofedInstallationID(NSString *installationID);  // App installation ID
+NSString *LCGetSpoofedInstallationID(void);
+void LCSetSpoofedMACAddress(NSString *macAddress);  // MAC address (02:00:00:xx:xx:xx format)
+NSString *LCGetSpoofedMACAddress(void);
+
+// Battery spoofing
+void LCSetSpoofedBatteryLevel(float level);  // 0.0 to 1.0
+float LCGetSpoofedBatteryLevel(void);
+void LCSetSpoofedBatteryState(NSInteger state);  // UIDeviceBatteryState values
+NSInteger LCGetSpoofedBatteryState(void);
+
+// Screen/brightness spoofing
+void LCSetSpoofedScreenScale(CGFloat scale);  // Not implemented - use device profile
+void LCSetSpoofedBrightness(float brightness);  // 0.0 to 1.0
+float LCGetSpoofedBrightness(void);
+
 // Initialize all fingerprint protection with random values
 void LCInitializeFingerprintProtection(void);
 
@@ -132,5 +161,6 @@ void LCUpdateUserAgentForProfile(void);            // Auto-update User-Agent bas
 // Random generation helpers
 NSString *LCGenerateRandomUUID(void);
 NSString *LCGenerateRandomMACAddress(void);
+NSString *LCGenerateRandomInstallationID(int length);
 
 #endif /* DeviceSpoofing_h */

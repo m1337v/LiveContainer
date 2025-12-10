@@ -353,10 +353,15 @@ static NSString *g_customDeviceModel = nil;
 static NSString *g_customSystemVersion = nil;
 static NSString *g_customBuildVersion = nil;
 static uint64_t g_customPhysicalMemory = 0;
+static NSString *g_customDeviceName = nil;      // Custom device name (e.g., "John's iPhone")
+static NSString *g_customCarrierName = nil;     // Custom carrier name
 
 // Identifier spoofing
 static NSString *g_spoofedVendorID = nil;
 static NSString *g_spoofedAdvertisingID = nil;
+static NSString *g_spoofedInstallationID = nil;  // App installation ID
+static NSString *g_spoofedMACAddress = nil;      // Spoofed MAC address
+static BOOL g_spoofedAdTrackingEnabled = YES;    // Advertising tracking limit
 
 // Fingerprint spoofing state
 static float g_spoofedBatteryLevel = -1.0f;  // -1 means use real value
@@ -419,10 +424,12 @@ static CGRect (*orig_UIScreen_nativeBounds)(id self, SEL _cmd) = NULL;
 
 // ASIdentifierManager method IMPs
 static NSUUID* (*orig_ASIdentifierManager_advertisingIdentifier)(id self, SEL _cmd) = NULL;
+static BOOL (*orig_ASIdentifierManager_isAdvertisingTrackingEnabled)(id self, SEL _cmd) = NULL;
 
 // WKWebView method IMPs
 static NSString* (*orig_WKWebView_customUserAgent)(id self, SEL _cmd) = NULL;
 static void (*orig_WKWebView_setCustomUserAgent)(id self, SEL _cmd, NSString *userAgent) = NULL;
+static NSString* (*orig_WKWebViewConfiguration_applicationNameForUserAgent)(id self, SEL _cmd) = NULL;
 
 // NSMutableURLRequest method IMPs
 static void (*orig_NSMutableURLRequest_setValue_forHTTPHeaderField)(id self, SEL _cmd, NSString *value, NSString *field) = NULL;
@@ -594,14 +601,67 @@ static NSString* getSpoofedUserAgent(void) {
         NSString *versionStr = @(g_currentProfile->systemVersion);
         NSString *versionUnderscore = [versionStr stringByReplacingOccurrencesOfString:@"." withString:@"_"];
         
-        // Get Safari/WebKit version based on iOS version
-        NSString *safariVersion = versionStr;
-        NSString *webKitVersion = @"605.1.15";
+        // Get proper WebKit/Safari version based on iOS version
+        // WebKit versions are tied to iOS releases
+        NSString *safariVersion = nil;
+        NSString *webKitVersion = nil;
+        NSString *buildNumber = nil;
         
-        // Build the User-Agent string
+        // Extract major version
+        int majorVersion = [[versionStr componentsSeparatedByString:@"."].firstObject intValue];
+        
+        // Map iOS version to WebKit/Safari version
+        // Reference: https://en.wikipedia.org/wiki/Safari_version_history
+        if (majorVersion >= 26) {
+            // iOS 26.x (hypothetical)
+            safariVersion = @"26.0";
+            webKitVersion = @"620.1.15";
+            buildNumber = @"22A5307f";
+        } else if (majorVersion >= 18) {
+            // iOS 18.x
+            safariVersion = @"18.0";
+            webKitVersion = @"619.1.26";
+            buildNumber = @"22A3354";
+        } else if (majorVersion >= 17) {
+            // iOS 17.x
+            if ([versionStr hasPrefix:@"17.6"]) {
+                safariVersion = @"17.6";
+                webKitVersion = @"618.3.11";
+                buildNumber = @"21G93";
+            } else if ([versionStr hasPrefix:@"17.5"]) {
+                safariVersion = @"17.5";
+                webKitVersion = @"618.2.12";
+                buildNumber = @"21F90";
+            } else if ([versionStr hasPrefix:@"17.4"]) {
+                safariVersion = @"17.4";
+                webKitVersion = @"618.1.15";
+                buildNumber = @"21E219";
+            } else {
+                safariVersion = @"17.0";
+                webKitVersion = @"617.1.17";
+                buildNumber = @"21A329";
+            }
+        } else if (majorVersion >= 16) {
+            // iOS 16.x
+            safariVersion = @"16.6";
+            webKitVersion = @"616.3.14";
+            buildNumber = @"20G75";
+        } else if (majorVersion >= 15) {
+            // iOS 15.x
+            safariVersion = @"15.6";
+            webKitVersion = @"615.3.12";
+            buildNumber = @"19G82";
+        } else {
+            // Fallback
+            safariVersion = versionStr;
+            webKitVersion = @"605.1.15";
+            buildNumber = @"15E148";
+        }
+        
+        // Build the User-Agent string matching real Safari format
         g_spoofedUserAgent = [NSString stringWithFormat:
-            @"Mozilla/5.0 (%@; %@ %@ like Mac OS X) AppleWebKit/%@ (KHTML, like Gecko) Version/%@ Mobile/15E148 Safari/604.1",
-            deviceType, cpuType, versionUnderscore, webKitVersion, safariVersion];
+            @"Mozilla/5.0 (%@; %@ %@ like Mac OS X) AppleWebKit/%@ (KHTML, like Gecko) Version/%@ Mobile/%@ Safari/%@",
+            deviceType, cpuType, versionUnderscore, webKitVersion, safariVersion, buildNumber, webKitVersion];
         
         return g_spoofedUserAgent;
     }
@@ -1014,6 +1074,39 @@ static NSString* hook_UIDevice_systemName(id self, SEL _cmd) {
     return @"iOS";
 }
 
+static NSString* hook_UIDevice_name(id self, SEL _cmd) {
+    // Return custom device name if set
+    if (g_deviceSpoofingEnabled && g_customDeviceName && g_customDeviceName.length > 0) {
+        return g_customDeviceName;
+    }
+    
+    // Generate a realistic device name based on profile
+    if (g_deviceSpoofingEnabled && g_currentProfile) {
+        // Generate names like "John's iPhone" or "iPhone"
+        static NSArray *firstNames = nil;
+        static dispatch_once_t onceToken;
+        dispatch_once(&onceToken, ^{
+            firstNames = @[@"Alex", @"Sam", @"Jordan", @"Taylor", @"Casey", 
+                          @"Morgan", @"Riley", @"Avery", @"Quinn", @"Drew"];
+        });
+        
+        // Use a consistent name based on some seed
+        NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier] ?: @"app";
+        NSUInteger nameIndex = [bundleID hash] % firstNames.count;
+        NSString *firstName = firstNames[nameIndex];
+        
+        NSString *deviceType = @"iPhone";
+        if (strncmp(g_currentProfile->modelIdentifier, "iPad", 4) == 0) {
+            deviceType = @"iPad";
+        }
+        
+        return [NSString stringWithFormat:@"%@'s %@", firstName, deviceType];
+    }
+    
+    if (orig_UIDevice_name) return orig_UIDevice_name(self, _cmd);
+    return @"iPhone";
+}
+
 static NSUUID* hook_UIDevice_identifierForVendor(id self, SEL _cmd) {
     if (!g_deviceSpoofingEnabled) {
         if (orig_UIDevice_identifierForVendor) return orig_UIDevice_identifierForVendor(self, _cmd);
@@ -1224,7 +1317,7 @@ static NSUUID* hook_ASIdentifierManager_advertisingIdentifier(id self, SEL _cmd)
     }
     
     // Return spoofed advertising ID if set
-    if (g_spoofedAdvertisingID) {
+    if (g_spoofedAdvertisingID && g_spoofedAdvertisingID.length > 0) {
         NSUUID *uuid = [[NSUUID alloc] initWithUUIDString:g_spoofedAdvertisingID];
         if (uuid) return uuid;
     }
@@ -1232,6 +1325,18 @@ static NSUUID* hook_ASIdentifierManager_advertisingIdentifier(id self, SEL _cmd)
     // Return zeroed UUID (same as when "Limit Ad Tracking" is enabled)
     // This is the safest approach for privacy
     return [[NSUUID alloc] initWithUUIDString:@"00000000-0000-0000-0000-000000000000"];
+}
+
+static BOOL hook_ASIdentifierManager_isAdvertisingTrackingEnabled(id self, SEL _cmd) {
+    if (!g_deviceSpoofingEnabled) {
+        if (orig_ASIdentifierManager_isAdvertisingTrackingEnabled) {
+            return orig_ASIdentifierManager_isAdvertisingTrackingEnabled(self, _cmd);
+        }
+        return NO;
+    }
+    
+    // Return the spoofed value (default: NO for privacy)
+    return g_spoofedAdTrackingEnabled;
 }
 
 #pragma mark - Battery Hooks
@@ -1450,16 +1555,57 @@ static void hook_WKWebView_setCustomUserAgent(id self, SEL _cmd, NSString *userA
         return;
     }
     
-    // If app is setting a custom UA, let it through but modify it to match our device
-    // Some apps check for specific strings in the UA
+    // Always set our spoofed UA to ensure consistency
     NSString *spoofedUA = getSpoofedUserAgent();
-    if (spoofedUA && (!userAgent || userAgent.length == 0)) {
+    if (spoofedUA) {
         userAgent = spoofedUA;
     }
     
     if (orig_WKWebView_setCustomUserAgent) {
         orig_WKWebView_setCustomUserAgent(self, _cmd, userAgent);
     }
+}
+
+// Hook WKWebViewConfiguration applicationNameForUserAgent to append spoofed app name
+static NSString* hook_WKWebViewConfiguration_applicationNameForUserAgent(id self, SEL _cmd) {
+    if (!g_deviceSpoofingEnabled || !g_userAgentSpoofingEnabled) {
+        if (orig_WKWebViewConfiguration_applicationNameForUserAgent) {
+            return orig_WKWebViewConfiguration_applicationNameForUserAgent(self, _cmd);
+        }
+        return nil;
+    }
+    
+    // Return a consistent application name based on the profile
+    // This is appended to the default WebKit user agent
+    if (g_currentProfile) {
+        // Format: Version/X.X Mobile/BUILDNUM Safari/XXX.X.XX
+        NSString *versionStr = @(g_currentProfile->systemVersion);
+        int majorVersion = [[versionStr componentsSeparatedByString:@"."].firstObject intValue];
+        
+        NSString *buildNumber = @"15E148";
+        NSString *safariVersion = @"605.1.15";
+        
+        if (majorVersion >= 26) {
+            buildNumber = @"22A5307f";
+            safariVersion = @"620.1.15";
+        } else if (majorVersion >= 18) {
+            buildNumber = @"22A3354";
+            safariVersion = @"619.1.26";
+        } else if (majorVersion >= 17) {
+            buildNumber = @"21G93";
+            safariVersion = @"618.3.11";
+        } else if (majorVersion >= 16) {
+            buildNumber = @"20G75";
+            safariVersion = @"616.3.14";
+        }
+        
+        return [NSString stringWithFormat:@"Version/%@ Mobile/%@ Safari/%@", versionStr, buildNumber, safariVersion];
+    }
+    
+    if (orig_WKWebViewConfiguration_applicationNameForUserAgent) {
+        return orig_WKWebViewConfiguration_applicationNameForUserAgent(self, _cmd);
+    }
+    return nil;
 }
 
 // Hook NSMutableURLRequest setValue:forHTTPHeaderField: to intercept User-Agent
@@ -2121,51 +2267,6 @@ void LCSetSpoofedPhysicalMemory(uint64_t memory) {
     g_customPhysicalMemory = memory;
 }
 
-void LCSetSpoofedVendorID(NSString *vendorID) {
-    g_spoofedVendorID = [vendorID copy];
-    NSLog(@"[LC] Set spoofed vendor ID: %@", vendorID);
-}
-
-void LCSetSpoofedAdvertisingID(NSString *advertisingID) {
-    g_spoofedAdvertisingID = [advertisingID copy];
-    NSLog(@"[LC] Set spoofed advertising ID: %@", advertisingID);
-}
-
-NSString *LCGenerateRandomUUID(void) {
-    return [[NSUUID UUID] UUIDString];
-}
-
-NSString *LCGenerateRandomMACAddress(void) {
-    // Generate random MAC address with locally administered bit set
-    uint8_t mac[6];
-    arc4random_buf(mac, 6);
-    
-    // Set locally administered bit (bit 1 of first byte)
-    mac[0] |= 0x02;
-    // Clear multicast bit (bit 0 of first byte)
-    mac[0] &= 0xFE;
-    
-    return [NSString stringWithFormat:@"%02X:%02X:%02X:%02X:%02X:%02X",
-            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]];
-}
-
-#pragma mark - Fingerprint Spoofing API
-
-void LCSetSpoofedBatteryLevel(float level) {
-    g_spoofedBatteryLevel = level;
-    NSLog(@"[LC] Set spoofed battery level: %.0f%%", level * 100);
-}
-
-void LCSetSpoofedBatteryState(NSInteger state) {
-    g_spoofedBatteryState = state;
-    NSLog(@"[LC] Set spoofed battery state: %ld", (long)state);
-}
-
-void LCSetSpoofedBrightness(float brightness) {
-    g_spoofedBrightness = brightness;
-    NSLog(@"[LC] Set spoofed brightness: %.2f", brightness);
-}
-
 void LCSetSpoofedThermalState(NSInteger state) {
     g_spoofedThermalState = state;
     NSLog(@"[LC] Set spoofed thermal state: %ld", (long)state);
@@ -2444,6 +2545,136 @@ BOOL LCIsCanvasFingerprintProtectionEnabled(void) {
     return g_canvasFingerprintProtectionEnabled;
 }
 
+#pragma mark - Device Name and Identifier API
+
+void LCSetSpoofedDeviceName(NSString *deviceName) {
+    g_customDeviceName = [deviceName copy];
+    NSLog(@"[LC] Set spoofed device name: %@", deviceName ?: @"(auto)");
+}
+
+NSString *LCGetSpoofedDeviceName(void) {
+    return g_customDeviceName;
+}
+
+void LCSetSpoofedCarrierName(NSString *carrierName) {
+    g_customCarrierName = [carrierName copy];
+    NSLog(@"[LC] Set spoofed carrier name: %@", carrierName ?: @"(auto)");
+}
+
+NSString *LCGetSpoofedCarrierName(void) {
+    return g_customCarrierName;
+}
+
+void LCSetSpoofedVendorID(NSString *vendorID) {
+    g_spoofedVendorID = [vendorID copy];
+    NSLog(@"[LC] Set spoofed vendor ID (IDFV): %@", vendorID ?: @"(auto)");
+}
+
+NSString *LCGetSpoofedVendorID(void) {
+    return g_spoofedVendorID;
+}
+
+void LCSetSpoofedAdvertisingID(NSString *advertisingID) {
+    g_spoofedAdvertisingID = [advertisingID copy];
+    NSLog(@"[LC] Set spoofed advertising ID (IDFA): %@", advertisingID ?: @"(zeroed)");
+}
+
+NSString *LCGetSpoofedAdvertisingID(void) {
+    return g_spoofedAdvertisingID;
+}
+
+void LCSetSpoofedAdTrackingEnabled(BOOL enabled) {
+    g_spoofedAdTrackingEnabled = enabled;
+    NSLog(@"[LC] Set ad tracking enabled: %@", enabled ? @"YES" : @"NO");
+}
+
+BOOL LCGetSpoofedAdTrackingEnabled(void) {
+    return g_spoofedAdTrackingEnabled;
+}
+
+void LCSetSpoofedInstallationID(NSString *installationID) {
+    g_spoofedInstallationID = [installationID copy];
+    NSLog(@"[LC] Set spoofed installation ID: %@", installationID ?: @"(auto)");
+}
+
+NSString *LCGetSpoofedInstallationID(void) {
+    return g_spoofedInstallationID;
+}
+
+void LCSetSpoofedMACAddress(NSString *macAddress) {
+    g_spoofedMACAddress = [macAddress copy];
+    NSLog(@"[LC] Set spoofed MAC address: %@", macAddress ?: @"(auto)");
+}
+
+NSString *LCGetSpoofedMACAddress(void) {
+    return g_spoofedMACAddress;
+}
+
+#pragma mark - Battery API
+
+void LCSetSpoofedBatteryLevel(float level) {
+    g_spoofedBatteryLevel = level;
+    NSLog(@"[LC] Set spoofed battery level: %.0f%%", level * 100);
+}
+
+float LCGetSpoofedBatteryLevel(void) {
+    return g_spoofedBatteryLevel;
+}
+
+void LCSetSpoofedBatteryState(NSInteger state) {
+    g_spoofedBatteryState = state;
+    NSLog(@"[LC] Set spoofed battery state: %ld", (long)state);
+}
+
+NSInteger LCGetSpoofedBatteryState(void) {
+    return g_spoofedBatteryState;
+}
+
+#pragma mark - Screen API
+
+void LCSetSpoofedScreenScale(CGFloat scale) {
+    // Screen scale is part of profile, this would override it
+    // Currently not implemented as profile defines screen characteristics
+    NSLog(@"[LC] Screen scale override not implemented (use device profile instead)");
+}
+
+void LCSetSpoofedBrightness(float brightness) {
+    g_spoofedBrightness = brightness;
+    NSLog(@"[LC] Set spoofed brightness: %.0f%%", brightness * 100);
+}
+
+float LCGetSpoofedBrightness(void) {
+    return g_spoofedBrightness;
+}
+
+#pragma mark - Random UUID/MAC Generation
+
+NSString *LCGenerateRandomUUID(void) {
+    return [[NSUUID UUID] UUIDString];
+}
+
+NSString *LCGenerateRandomMACAddress(void) {
+    // Generate a random locally-administered MAC address (bit 1 of first byte set)
+    uint8_t mac[6];
+    for (int i = 0; i < 6; i++) {
+        mac[i] = arc4random_uniform(256);
+    }
+    // Set locally administered bit and clear multicast bit
+    mac[0] = (mac[0] | 0x02) & 0xFE;
+    
+    return [NSString stringWithFormat:@"%02X:%02X:%02X:%02X:%02X:%02X",
+            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]];
+}
+
+NSString *LCGenerateRandomInstallationID(int length) {
+    static const char charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    NSMutableString *result = [NSMutableString stringWithCapacity:length];
+    for (int i = 0; i < length; i++) {
+        [result appendFormat:@"%c", charset[arc4random_uniform((uint32_t)strlen(charset))]];
+    }
+    return result;
+}
+
 #pragma mark - User-Agent Spoofing API
 
 void LCSetSpoofedUserAgent(NSString *userAgent) {
@@ -2508,6 +2739,7 @@ void DeviceSpoofingGuestHooksInit(void) {
         Method modelMethod = class_getInstanceMethod(UIDeviceClass, @selector(model));
         Method systemVersionMethod = class_getInstanceMethod(UIDeviceClass, @selector(systemVersion));
         Method systemNameMethod = class_getInstanceMethod(UIDeviceClass, @selector(systemName));
+        Method nameMethod = class_getInstanceMethod(UIDeviceClass, @selector(name));
         Method identifierForVendorMethod = class_getInstanceMethod(UIDeviceClass, @selector(identifierForVendor));
         Method batteryLevelMethod = class_getInstanceMethod(UIDeviceClass, @selector(batteryLevel));
         Method batteryStateMethod = class_getInstanceMethod(UIDeviceClass, @selector(batteryState));
@@ -2525,6 +2757,10 @@ void DeviceSpoofingGuestHooksInit(void) {
             orig_UIDevice_systemName = (NSString* (*)(id, SEL))method_getImplementation(systemNameMethod);
             method_setImplementation(systemNameMethod, (IMP)hook_UIDevice_systemName);
         }
+        if (nameMethod) {
+            orig_UIDevice_name = (NSString* (*)(id, SEL))method_getImplementation(nameMethod);
+            method_setImplementation(nameMethod, (IMP)hook_UIDevice_name);
+        }
         if (identifierForVendorMethod) {
             orig_UIDevice_identifierForVendor = (NSUUID* (*)(id, SEL))method_getImplementation(identifierForVendorMethod);
             method_setImplementation(identifierForVendorMethod, (IMP)hook_UIDevice_identifierForVendor);
@@ -2541,7 +2777,7 @@ void DeviceSpoofingGuestHooksInit(void) {
             orig_UIDevice_isBatteryMonitoringEnabled = (BOOL (*)(id, SEL))method_getImplementation(batteryMonitoringEnabledMethod);
             method_setImplementation(batteryMonitoringEnabledMethod, (IMP)hook_UIDevice_isBatteryMonitoringEnabled);
         }
-        NSLog(@"[LC] Hooked UIDevice methods (model, systemVersion, systemName, identifierForVendor, battery*)");
+        NSLog(@"[LC] Hooked UIDevice methods (model, systemVersion, systemName, name, identifierForVendor, battery*)");
     }
     
     // Hook NSProcessInfo methods using method swizzling
@@ -2627,12 +2863,17 @@ void DeviceSpoofingGuestHooksInit(void) {
     Class ASIdentifierManagerClass = objc_getClass("ASIdentifierManager");
     if (ASIdentifierManagerClass) {
         Method advertisingIdentifierMethod = class_getInstanceMethod(ASIdentifierManagerClass, @selector(advertisingIdentifier));
+        Method isAdvertisingTrackingEnabledMethod = class_getInstanceMethod(ASIdentifierManagerClass, @selector(isAdvertisingTrackingEnabled));
         
         if (advertisingIdentifierMethod) {
             orig_ASIdentifierManager_advertisingIdentifier = (NSUUID* (*)(id, SEL))method_getImplementation(advertisingIdentifierMethod);
             method_setImplementation(advertisingIdentifierMethod, (IMP)hook_ASIdentifierManager_advertisingIdentifier);
         }
-        NSLog(@"[LC] Hooked ASIdentifierManager methods (advertisingIdentifier)");
+        if (isAdvertisingTrackingEnabledMethod) {
+            orig_ASIdentifierManager_isAdvertisingTrackingEnabled = (BOOL (*)(id, SEL))method_getImplementation(isAdvertisingTrackingEnabledMethod);
+            method_setImplementation(isAdvertisingTrackingEnabledMethod, (IMP)hook_ASIdentifierManager_isAdvertisingTrackingEnabled);
+        }
+        NSLog(@"[LC] Hooked ASIdentifierManager methods (advertisingIdentifier, isAdvertisingTrackingEnabled)");
     }
     
     // Hook NSFileManager for storage spoofing
@@ -2651,10 +2892,15 @@ void DeviceSpoofingGuestHooksInit(void) {
     Class WKWebViewClass = objc_getClass("WKWebView");
     if (WKWebViewClass) {
         Method customUserAgentMethod = class_getInstanceMethod(WKWebViewClass, @selector(customUserAgent));
+        Method setCustomUserAgentMethod = class_getInstanceMethod(WKWebViewClass, @selector(setCustomUserAgent:));
         
         if (customUserAgentMethod) {
             orig_WKWebView_customUserAgent = (NSString* (*)(id, SEL))method_getImplementation(customUserAgentMethod);
             method_setImplementation(customUserAgentMethod, (IMP)hook_WKWebView_customUserAgent);
+        }
+        if (setCustomUserAgentMethod) {
+            orig_WKWebView_setCustomUserAgent = (void (*)(id, SEL, NSString *))method_getImplementation(setCustomUserAgentMethod);
+            method_setImplementation(setCustomUserAgentMethod, (IMP)hook_WKWebView_setCustomUserAgent);
         }
         
         // Hook initWithFrame:configuration: for canvas fingerprint protection injection
@@ -2664,7 +2910,19 @@ void DeviceSpoofingGuestHooksInit(void) {
             method_setImplementation(initMethod, (IMP)hook_WKWebView_initWithFrame_configuration);
         }
         
-        NSLog(@"[LC] Hooked WKWebView methods (customUserAgent, initWithFrame:configuration:)");
+        NSLog(@"[LC] Hooked WKWebView methods (customUserAgent, setCustomUserAgent:, initWithFrame:configuration:)");
+    }
+    
+    // Hook WKWebViewConfiguration for applicationNameForUserAgent
+    Class WKWebViewConfigurationClass = objc_getClass("WKWebViewConfiguration");
+    if (WKWebViewConfigurationClass) {
+        Method appNameMethod = class_getInstanceMethod(WKWebViewConfigurationClass, @selector(applicationNameForUserAgent));
+        
+        if (appNameMethod) {
+            orig_WKWebViewConfiguration_applicationNameForUserAgent = (NSString* (*)(id, SEL))method_getImplementation(appNameMethod);
+            method_setImplementation(appNameMethod, (IMP)hook_WKWebViewConfiguration_applicationNameForUserAgent);
+        }
+        NSLog(@"[LC] Hooked WKWebViewConfiguration methods (applicationNameForUserAgent)");
     }
     
     // Hook NSMutableURLRequest for User-Agent header injection
