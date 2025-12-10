@@ -238,32 +238,132 @@ class LCAppModel: ObservableObject, Hashable {
         }
     }
     
-    // Legacy identifier spoofing fields (deprecated, kept for backward compatibility)
-    @Published var uiSpoofDevice = false
-    @Published var uiSpoofDeviceModel = "iPhone15,2"
-    @Published var uiSpoofSystemVersion = "17.2"
-    @Published var uiSpoofDeviceName = "iPhone"
-    @Published var uiSpoofCarrierName = "Verizon"
-    @Published var uiSpoofCustomCarrier = ""
-    @Published var uiSpoofBattery = false
-    @Published var uiSpoofBatteryLevel = 0.85
-    @Published var uiSpoofMemory = false
-    @Published var uiSpoofMemorySize = 6
-    @Published var uiSpoofIdentifiers = false
-    @Published var uiSpoofVendorID = "12345678-1234-1234-1234-123456789012"
-    @Published var uiSpoofAdvertisingID = "87654321-4321-4321-4321-210987654321"
-    @Published var uiSpoofAdTrackingEnabled = true
-    @Published var uiSpoofInstallationID = "DEFAULT12345678"
-    @Published var uiSpoofMACAddress = "02:00:00:00:00:00"
-    @Published var uiSpoofFingerprint = false
-    @Published var uiSpoofScreen = false
-    @Published var uiSpoofScreenScale = 3.0
-    @Published var uiSpoofScreenSize = "1179x2556"
-    @Published var uiSpoofTimezone = false
-    @Published var uiSpoofTimezoneValue = "America/New_York"
-    @Published var uiSpoofLanguage = false
-    @Published var uiSpoofPrimaryLanguage = "en"
-    @Published var uiSpoofRegion = "US"
+    // Legacy identifier spoofing fields
+    @Published var uiSpoofDevice: Bool {
+        didSet {
+            appInfo.legacySpoofDevice = uiSpoofDevice
+        }
+    }
+    @Published var uiSpoofDeviceModel: String {
+        didSet {
+            appInfo.legacySpoofDeviceModel = uiSpoofDeviceModel
+        }
+    }
+    @Published var uiSpoofSystemVersion: String {
+        didSet {
+            appInfo.legacySpoofSystemVersion = uiSpoofSystemVersion
+        }
+    }
+    @Published var uiSpoofDeviceName: String {
+        didSet {
+            appInfo.legacySpoofDeviceName = uiSpoofDeviceName
+        }
+    }
+    @Published var uiSpoofCarrierName: String {
+        didSet {
+            appInfo.legacySpoofCarrierName = uiSpoofCarrierName
+        }
+    }
+    @Published var uiSpoofCustomCarrier: String {
+        didSet {
+            appInfo.legacySpoofCustomCarrier = uiSpoofCustomCarrier
+        }
+    }
+    @Published var uiSpoofBattery: Bool {
+        didSet {
+            appInfo.legacySpoofBattery = uiSpoofBattery
+        }
+    }
+    @Published var uiSpoofBatteryLevel: Double {
+        didSet {
+            appInfo.legacySpoofBatteryLevel = uiSpoofBatteryLevel
+        }
+    }
+    @Published var uiSpoofMemory: Bool {
+        didSet {
+            appInfo.legacySpoofMemory = uiSpoofMemory
+        }
+    }
+    @Published var uiSpoofMemorySize: Int {
+        didSet {
+            appInfo.legacySpoofMemorySize = Int32(uiSpoofMemorySize)
+        }
+    }
+    @Published var uiSpoofIdentifiers: Bool {
+        didSet {
+            appInfo.legacySpoofIdentifiers = uiSpoofIdentifiers
+        }
+    }
+    @Published var uiSpoofVendorID: String {
+        didSet {
+            appInfo.legacySpoofVendorID = uiSpoofVendorID
+        }
+    }
+    @Published var uiSpoofAdvertisingID: String {
+        didSet {
+            appInfo.legacySpoofAdvertisingID = uiSpoofAdvertisingID
+        }
+    }
+    @Published var uiSpoofAdTrackingEnabled: Bool {
+        didSet {
+            appInfo.legacySpoofAdTrackingEnabled = uiSpoofAdTrackingEnabled
+        }
+    }
+    @Published var uiSpoofInstallationID: String {
+        didSet {
+            appInfo.legacySpoofInstallationID = uiSpoofInstallationID
+        }
+    }
+    @Published var uiSpoofMACAddress: String {
+        didSet {
+            appInfo.legacySpoofMACAddress = uiSpoofMACAddress
+        }
+    }
+    @Published var uiSpoofFingerprint: Bool {
+        didSet {
+            appInfo.legacySpoofFingerprint = uiSpoofFingerprint
+        }
+    }
+    @Published var uiSpoofScreen: Bool {
+        didSet {
+            appInfo.legacySpoofScreen = uiSpoofScreen
+        }
+    }
+    @Published var uiSpoofScreenScale: Double {
+        didSet {
+            appInfo.legacySpoofScreenScale = uiSpoofScreenScale
+        }
+    }
+    @Published var uiSpoofScreenSize: String {
+        didSet {
+            appInfo.legacySpoofScreenSize = uiSpoofScreenSize
+        }
+    }
+    @Published var uiSpoofTimezone: Bool {
+        didSet {
+            appInfo.legacySpoofTimezone = uiSpoofTimezone
+        }
+    }
+    @Published var uiSpoofTimezoneValue: String {
+        didSet {
+            appInfo.legacySpoofTimezoneValue = uiSpoofTimezoneValue
+        }
+    }
+    @Published var uiSpoofLanguage: Bool {
+        didSet {
+            appInfo.legacySpoofLanguage = uiSpoofLanguage
+        }
+    }
+    @Published var uiSpoofPrimaryLanguage: String {
+        didSet {
+            appInfo.legacySpoofPrimaryLanguage = uiSpoofPrimaryLanguage
+        }
+    }
+    @Published var uiSpoofRegion: String {
+        didSet {
+            appInfo.legacySpoofRegion = uiSpoofRegion
+        }
+    }
 
     var delegate : LCAppModelDelegate?
     
@@ -331,6 +431,33 @@ class LCAppModel: ObservableObject, Hashable {
         // MARK: Device Addon Section
         self.uiDeviceSpoofingEnabled = appInfo.deviceSpoofingEnabled
         self.uiDeviceSpoofProfile = appInfo.deviceSpoofProfile ?? "iPhone 15 Pro Max"
+        
+        // MARK: Legacy Device & Identifier Spoofing Section
+        self.uiSpoofDevice = appInfo.legacySpoofDevice
+        self.uiSpoofDeviceModel = appInfo.legacySpoofDeviceModel ?? "iPhone15,2"
+        self.uiSpoofSystemVersion = appInfo.legacySpoofSystemVersion ?? "17.2"
+        self.uiSpoofDeviceName = appInfo.legacySpoofDeviceName ?? "iPhone"
+        self.uiSpoofCarrierName = appInfo.legacySpoofCarrierName ?? "Verizon"
+        self.uiSpoofCustomCarrier = appInfo.legacySpoofCustomCarrier ?? ""
+        self.uiSpoofBattery = appInfo.legacySpoofBattery
+        self.uiSpoofBatteryLevel = appInfo.legacySpoofBatteryLevel
+        self.uiSpoofMemory = appInfo.legacySpoofMemory
+        self.uiSpoofMemorySize = Int(appInfo.legacySpoofMemorySize)
+        self.uiSpoofIdentifiers = appInfo.legacySpoofIdentifiers
+        self.uiSpoofVendorID = appInfo.legacySpoofVendorID ?? "12345678-1234-1234-1234-123456789012"
+        self.uiSpoofAdvertisingID = appInfo.legacySpoofAdvertisingID ?? "87654321-4321-4321-4321-210987654321"
+        self.uiSpoofAdTrackingEnabled = appInfo.legacySpoofAdTrackingEnabled
+        self.uiSpoofInstallationID = appInfo.legacySpoofInstallationID ?? "DEFAULT12345678"
+        self.uiSpoofMACAddress = appInfo.legacySpoofMACAddress ?? "02:00:00:00:00:00"
+        self.uiSpoofFingerprint = appInfo.legacySpoofFingerprint
+        self.uiSpoofScreen = appInfo.legacySpoofScreen
+        self.uiSpoofScreenScale = appInfo.legacySpoofScreenScale
+        self.uiSpoofScreenSize = appInfo.legacySpoofScreenSize ?? "1179x2556"
+        self.uiSpoofTimezone = appInfo.legacySpoofTimezone
+        self.uiSpoofTimezoneValue = appInfo.legacySpoofTimezoneValue ?? "America/New_York"
+        self.uiSpoofLanguage = appInfo.legacySpoofLanguage
+        self.uiSpoofPrimaryLanguage = appInfo.legacySpoofPrimaryLanguage ?? "en"
+        self.uiSpoofRegion = appInfo.legacySpoofRegion ?? "US"
 
         for container in uiContainers {
             if container.folderName == uiDefaultDataFolder {

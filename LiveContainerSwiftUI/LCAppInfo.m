@@ -1074,4 +1074,319 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     [self save];
 }
 
+// MARK: - Legacy Device & Identifier Spoofing Section
+
+- (bool)legacySpoofDevice {
+    if(_info[@"legacySpoofDevice"] != nil) {
+        return [_info[@"legacySpoofDevice"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setLegacySpoofDevice:(bool)enabled {
+    _info[@"legacySpoofDevice"] = [NSNumber numberWithBool:enabled];
+    [self save];
+}
+
+- (NSString *)legacySpoofDeviceModel {
+    return _info[@"legacySpoofDeviceModel"] ?: @"iPhone15,2";
+}
+
+- (void)setLegacySpoofDeviceModel:(NSString *)model {
+    if (model) {
+        _info[@"legacySpoofDeviceModel"] = model;
+    } else {
+        [_info removeObjectForKey:@"legacySpoofDeviceModel"];
+    }
+    [self save];
+}
+
+- (NSString *)legacySpoofSystemVersion {
+    return _info[@"legacySpoofSystemVersion"] ?: @"17.2";
+}
+
+- (void)setLegacySpoofSystemVersion:(NSString *)version {
+    if (version) {
+        _info[@"legacySpoofSystemVersion"] = version;
+    } else {
+        [_info removeObjectForKey:@"legacySpoofSystemVersion"];
+    }
+    [self save];
+}
+
+- (NSString *)legacySpoofDeviceName {
+    return _info[@"legacySpoofDeviceName"] ?: @"iPhone";
+}
+
+- (void)setLegacySpoofDeviceName:(NSString *)name {
+    if (name) {
+        _info[@"legacySpoofDeviceName"] = name;
+    } else {
+        [_info removeObjectForKey:@"legacySpoofDeviceName"];
+    }
+    [self save];
+}
+
+- (NSString *)legacySpoofCarrierName {
+    return _info[@"legacySpoofCarrierName"] ?: @"Verizon";
+}
+
+- (void)setLegacySpoofCarrierName:(NSString *)carrier {
+    if (carrier) {
+        _info[@"legacySpoofCarrierName"] = carrier;
+    } else {
+        [_info removeObjectForKey:@"legacySpoofCarrierName"];
+    }
+    [self save];
+}
+
+- (NSString *)legacySpoofCustomCarrier {
+    return _info[@"legacySpoofCustomCarrier"] ?: @"";
+}
+
+- (void)setLegacySpoofCustomCarrier:(NSString *)carrier {
+    if (carrier) {
+        _info[@"legacySpoofCustomCarrier"] = carrier;
+    } else {
+        [_info removeObjectForKey:@"legacySpoofCustomCarrier"];
+    }
+    [self save];
+}
+
+- (bool)legacySpoofBattery {
+    if(_info[@"legacySpoofBattery"] != nil) {
+        return [_info[@"legacySpoofBattery"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setLegacySpoofBattery:(bool)enabled {
+    _info[@"legacySpoofBattery"] = [NSNumber numberWithBool:enabled];
+    [self save];
+}
+
+- (double)legacySpoofBatteryLevel {
+    if(_info[@"legacySpoofBatteryLevel"] != nil) {
+        return [_info[@"legacySpoofBatteryLevel"] doubleValue];
+    }
+    return 0.85;
+}
+
+- (void)setLegacySpoofBatteryLevel:(double)level {
+    _info[@"legacySpoofBatteryLevel"] = [NSNumber numberWithDouble:level];
+    [self save];
+}
+
+- (bool)legacySpoofMemory {
+    if(_info[@"legacySpoofMemory"] != nil) {
+        return [_info[@"legacySpoofMemory"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setLegacySpoofMemory:(bool)enabled {
+    _info[@"legacySpoofMemory"] = [NSNumber numberWithBool:enabled];
+    [self save];
+}
+
+- (int)legacySpoofMemorySize {
+    if(_info[@"legacySpoofMemorySize"] != nil) {
+        return [_info[@"legacySpoofMemorySize"] intValue];
+    }
+    return 6;
+}
+
+- (void)setLegacySpoofMemorySize:(int)size {
+    _info[@"legacySpoofMemorySize"] = [NSNumber numberWithInt:size];
+    [self save];
+}
+
+- (bool)legacySpoofIdentifiers {
+    if(_info[@"legacySpoofIdentifiers"] != nil) {
+        return [_info[@"legacySpoofIdentifiers"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setLegacySpoofIdentifiers:(bool)enabled {
+    _info[@"legacySpoofIdentifiers"] = [NSNumber numberWithBool:enabled];
+    [self save];
+}
+
+- (NSString *)legacySpoofVendorID {
+    return _info[@"legacySpoofVendorID"] ?: @"12345678-1234-1234-1234-123456789012";
+}
+
+- (void)setLegacySpoofVendorID:(NSString *)vendorID {
+    if (vendorID) {
+        _info[@"legacySpoofVendorID"] = vendorID;
+    } else {
+        [_info removeObjectForKey:@"legacySpoofVendorID"];
+    }
+    [self save];
+}
+
+- (NSString *)legacySpoofAdvertisingID {
+    return _info[@"legacySpoofAdvertisingID"] ?: @"87654321-4321-4321-4321-210987654321";
+}
+
+- (void)setLegacySpoofAdvertisingID:(NSString *)advertisingID {
+    if (advertisingID) {
+        _info[@"legacySpoofAdvertisingID"] = advertisingID;
+    } else {
+        [_info removeObjectForKey:@"legacySpoofAdvertisingID"];
+    }
+    [self save];
+}
+
+- (bool)legacySpoofAdTrackingEnabled {
+    if(_info[@"legacySpoofAdTrackingEnabled"] != nil) {
+        return [_info[@"legacySpoofAdTrackingEnabled"] boolValue];
+    }
+    return YES;
+}
+
+- (void)setLegacySpoofAdTrackingEnabled:(bool)enabled {
+    _info[@"legacySpoofAdTrackingEnabled"] = [NSNumber numberWithBool:enabled];
+    [self save];
+}
+
+- (NSString *)legacySpoofInstallationID {
+    return _info[@"legacySpoofInstallationID"] ?: @"DEFAULT12345678";
+}
+
+- (void)setLegacySpoofInstallationID:(NSString *)installationID {
+    if (installationID) {
+        _info[@"legacySpoofInstallationID"] = installationID;
+    } else {
+        [_info removeObjectForKey:@"legacySpoofInstallationID"];
+    }
+    [self save];
+}
+
+- (NSString *)legacySpoofMACAddress {
+    return _info[@"legacySpoofMACAddress"] ?: @"02:00:00:00:00:00";
+}
+
+- (void)setLegacySpoofMACAddress:(NSString *)macAddress {
+    if (macAddress) {
+        _info[@"legacySpoofMACAddress"] = macAddress;
+    } else {
+        [_info removeObjectForKey:@"legacySpoofMACAddress"];
+    }
+    [self save];
+}
+
+- (bool)legacySpoofFingerprint {
+    if(_info[@"legacySpoofFingerprint"] != nil) {
+        return [_info[@"legacySpoofFingerprint"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setLegacySpoofFingerprint:(bool)enabled {
+    _info[@"legacySpoofFingerprint"] = [NSNumber numberWithBool:enabled];
+    [self save];
+}
+
+- (bool)legacySpoofScreen {
+    if(_info[@"legacySpoofScreen"] != nil) {
+        return [_info[@"legacySpoofScreen"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setLegacySpoofScreen:(bool)enabled {
+    _info[@"legacySpoofScreen"] = [NSNumber numberWithBool:enabled];
+    [self save];
+}
+
+- (double)legacySpoofScreenScale {
+    if(_info[@"legacySpoofScreenScale"] != nil) {
+        return [_info[@"legacySpoofScreenScale"] doubleValue];
+    }
+    return 3.0;
+}
+
+- (void)setLegacySpoofScreenScale:(double)scale {
+    _info[@"legacySpoofScreenScale"] = [NSNumber numberWithDouble:scale];
+    [self save];
+}
+
+- (NSString *)legacySpoofScreenSize {
+    return _info[@"legacySpoofScreenSize"] ?: @"1179x2556";
+}
+
+- (void)setLegacySpoofScreenSize:(NSString *)size {
+    if (size) {
+        _info[@"legacySpoofScreenSize"] = size;
+    } else {
+        [_info removeObjectForKey:@"legacySpoofScreenSize"];
+    }
+    [self save];
+}
+
+- (bool)legacySpoofTimezone {
+    if(_info[@"legacySpoofTimezone"] != nil) {
+        return [_info[@"legacySpoofTimezone"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setLegacySpoofTimezone:(bool)enabled {
+    _info[@"legacySpoofTimezone"] = [NSNumber numberWithBool:enabled];
+    [self save];
+}
+
+- (NSString *)legacySpoofTimezoneValue {
+    return _info[@"legacySpoofTimezoneValue"] ?: @"America/New_York";
+}
+
+- (void)setLegacySpoofTimezoneValue:(NSString *)timezone {
+    if (timezone) {
+        _info[@"legacySpoofTimezoneValue"] = timezone;
+    } else {
+        [_info removeObjectForKey:@"legacySpoofTimezoneValue"];
+    }
+    [self save];
+}
+
+- (bool)legacySpoofLanguage {
+    if(_info[@"legacySpoofLanguage"] != nil) {
+        return [_info[@"legacySpoofLanguage"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setLegacySpoofLanguage:(bool)enabled {
+    _info[@"legacySpoofLanguage"] = [NSNumber numberWithBool:enabled];
+    [self save];
+}
+
+- (NSString *)legacySpoofPrimaryLanguage {
+    return _info[@"legacySpoofPrimaryLanguage"] ?: @"en";
+}
+
+- (void)setLegacySpoofPrimaryLanguage:(NSString *)language {
+    if (language) {
+        _info[@"legacySpoofPrimaryLanguage"] = language;
+    } else {
+        [_info removeObjectForKey:@"legacySpoofPrimaryLanguage"];
+    }
+    [self save];
+}
+
+- (NSString *)legacySpoofRegion {
+    return _info[@"legacySpoofRegion"] ?: @"US";
+}
+
+- (void)setLegacySpoofRegion:(NSString *)region {
+    if (region) {
+        _info[@"legacySpoofRegion"] = region;
+    } else {
+        [_info removeObjectForKey:@"legacySpoofRegion"];
+    }
+    [self save];
+}
+
 @end
