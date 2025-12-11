@@ -119,6 +119,16 @@ void LCSetSpoofedDiskSpace(uint64_t freeSpace, uint64_t totalSpace);
 void LCSetCanvasFingerprintProtectionEnabled(BOOL enabled);
 BOOL LCIsCanvasFingerprintProtectionEnabled(void);
 
+// iCloud/CloudKit Privacy Protection
+// Blocks iCloud account fingerprinting and CloudKit access
+void LCSetICloudPrivacyProtectionEnabled(BOOL enabled);
+BOOL LCIsICloudPrivacyProtectionEnabled(void);
+
+// Siri Privacy Protection  
+// Blocks Siri authorization and vocabulary access
+void LCSetSiriPrivacyProtectionEnabled(BOOL enabled);
+BOOL LCIsSiriPrivacyProtectionEnabled(void);
+
 // Device name and carrier spoofing
 void LCSetSpoofedDeviceName(NSString *deviceName);  // e.g., "John's iPhone"
 NSString *LCGetSpoofedDeviceName(void);

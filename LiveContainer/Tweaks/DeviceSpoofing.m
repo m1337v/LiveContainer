@@ -396,6 +396,10 @@ static NSString *g_spoofedStorageFreeGB = nil;      // e.g., "45.2" for 45.2GB f
 static BOOL g_canvasFingerprintProtectionEnabled = NO;
 static NSInteger g_fingerprintNoiseSeed = 0;  // Per-session consistent noise seed
 
+// iCloud/CloudKit/Siri privacy protection
+static BOOL g_iCloudPrivacyProtectionEnabled = NO;
+static BOOL g_siriPrivacyProtectionEnabled = NO;
+
 #pragma mark - Original Function Pointers
 
 static int (*orig_uname)(struct utsname *name) = NULL;
@@ -2063,6 +2067,175 @@ static id hook_WKWebView_initWithFrame_configuration(id self, SEL _cmd, CGRect f
     return result;
 }
 
+#pragma mark - iCloud/CloudKit Privacy Protection Hooks
+
+// NSFileManager ubiquityIdentityToken hook - blocks iCloud account fingerprinting
+static id (*orig_NSFileManager_ubiquityIdentityToken)(id self, SEL _cmd) = NULL;
+static id hook_NSFileManager_ubiquityIdentityToken(id self, SEL _cmd) {
+    if (g_iCloudPrivacyProtectionEnabled) {
+        NSLog(@"[LC] Blocking ubiquityIdentityToken access (iCloud fingerprint protection)");
+        return nil;
+    }
+    if (orig_NSFileManager_ubiquityIdentityToken) {
+        return orig_NSFileManager_ubiquityIdentityToken(self, _cmd);
+    }
+    return nil;
+}
+
+// CKContainer accountStatusWithCompletionHandler hook
+static void (*orig_CKContainer_accountStatusWithCompletionHandler)(id self, SEL _cmd, void (^completionHandler)(NSInteger, NSError *)) = NULL;
+static void hook_CKContainer_accountStatusWithCompletionHandler(id self, SEL _cmd, void (^completionHandler)(NSInteger, NSError *)) {
+    if (g_iCloudPrivacyProtectionEnabled) {
+        NSLog(@"[LC] Blocking CKContainer accountStatus (returning no account)");
+        if (completionHandler) {
+            // CKAccountStatusNoAccount = 1
+            NSError *error = [NSError errorWithDomain:@"CKErrorDomain" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"iCloud access denied"}];
+            completionHandler(1, error);
+        }
+        return;
+    }
+    if (orig_CKContainer_accountStatusWithCompletionHandler) {
+        orig_CKContainer_accountStatusWithCompletionHandler(self, _cmd, completionHandler);
+    }
+}
+
+// CKContainer defaultContainer hook
+static id (*orig_CKContainer_defaultContainer)(id self, SEL _cmd) = NULL;
+static id hook_CKContainer_defaultContainer(id self, SEL _cmd) {
+    if (g_iCloudPrivacyProtectionEnabled) {
+        NSLog(@"[LC] Blocking CKContainer defaultContainer access");
+        return nil;
+    }
+    if (orig_CKContainer_defaultContainer) {
+        return orig_CKContainer_defaultContainer(self, _cmd);
+    }
+    return nil;
+}
+
+// CKContainer containerWithIdentifier hook
+static id (*orig_CKContainer_containerWithIdentifier)(id self, SEL _cmd, NSString *identifier) = NULL;
+static id hook_CKContainer_containerWithIdentifier(id self, SEL _cmd, NSString *identifier) {
+    if (g_iCloudPrivacyProtectionEnabled) {
+        NSLog(@"[LC] Blocking CKContainer containerWithIdentifier: %@", identifier);
+        return nil;
+    }
+    if (orig_CKContainer_containerWithIdentifier) {
+        return orig_CKContainer_containerWithIdentifier(self, _cmd, identifier);
+    }
+    return nil;
+}
+
+// CKContainer fetchUserRecordIDWithCompletionHandler hook
+static void (*orig_CKContainer_fetchUserRecordIDWithCompletionHandler)(id self, SEL _cmd, void (^completionHandler)(id, NSError *)) = NULL;
+static void hook_CKContainer_fetchUserRecordIDWithCompletionHandler(id self, SEL _cmd, void (^completionHandler)(id, NSError *)) {
+    if (g_iCloudPrivacyProtectionEnabled) {
+        NSLog(@"[LC] Blocking CKContainer fetchUserRecordID");
+        if (completionHandler) {
+            // CKErrorNotAuthenticated = 9
+            NSError *error = [NSError errorWithDomain:@"CKErrorDomain" code:9 userInfo:@{NSLocalizedDescriptionKey: @"User authentication failed"}];
+            completionHandler(nil, error);
+        }
+        return;
+    }
+    if (orig_CKContainer_fetchUserRecordIDWithCompletionHandler) {
+        orig_CKContainer_fetchUserRecordIDWithCompletionHandler(self, _cmd, completionHandler);
+    }
+}
+
+// CKContainer requestApplicationPermission hook
+static void (*orig_CKContainer_requestApplicationPermission)(id self, SEL _cmd, NSUInteger permission, void (^completionHandler)(NSInteger, NSError *)) = NULL;
+static void hook_CKContainer_requestApplicationPermission(id self, SEL _cmd, NSUInteger permission, void (^completionHandler)(NSInteger, NSError *)) {
+    if (g_iCloudPrivacyProtectionEnabled) {
+        NSLog(@"[LC] Blocking CKContainer requestApplicationPermission");
+        if (completionHandler) {
+            // CKErrorPermissionFailure = 10, CKApplicationPermissionStatusDenied = 2
+            NSError *error = [NSError errorWithDomain:@"CKErrorDomain" code:10 userInfo:@{NSLocalizedDescriptionKey: @"iCloud permission denied"}];
+            completionHandler(2, error);
+        }
+        return;
+    }
+    if (orig_CKContainer_requestApplicationPermission) {
+        orig_CKContainer_requestApplicationPermission(self, _cmd, permission, completionHandler);
+    }
+}
+
+// CKDatabase fetchRecordWithID hook
+static void (*orig_CKDatabase_fetchRecordWithID)(id self, SEL _cmd, id recordID, void (^completionHandler)(id, NSError *)) = NULL;
+static void hook_CKDatabase_fetchRecordWithID(id self, SEL _cmd, id recordID, void (^completionHandler)(id, NSError *)) {
+    if (g_iCloudPrivacyProtectionEnabled) {
+        NSLog(@"[LC] Blocking CKDatabase fetchRecordWithID");
+        if (completionHandler) {
+            NSError *error = [NSError errorWithDomain:@"CKErrorDomain" code:10 userInfo:@{NSLocalizedDescriptionKey: @"iCloud access denied"}];
+            completionHandler(nil, error);
+        }
+        return;
+    }
+    if (orig_CKDatabase_fetchRecordWithID) {
+        orig_CKDatabase_fetchRecordWithID(self, _cmd, recordID, completionHandler);
+    }
+}
+
+// CKDatabase performQuery hook
+static void (*orig_CKDatabase_performQuery)(id self, SEL _cmd, id query, id zoneID, void (^completionHandler)(NSArray *, NSError *)) = NULL;
+static void hook_CKDatabase_performQuery(id self, SEL _cmd, id query, id zoneID, void (^completionHandler)(NSArray *, NSError *)) {
+    if (g_iCloudPrivacyProtectionEnabled) {
+        NSLog(@"[LC] Blocking CKDatabase performQuery");
+        if (completionHandler) {
+            NSError *error = [NSError errorWithDomain:@"CKErrorDomain" code:10 userInfo:@{NSLocalizedDescriptionKey: @"iCloud access denied"}];
+            completionHandler(nil, error);
+        }
+        return;
+    }
+    if (orig_CKDatabase_performQuery) {
+        orig_CKDatabase_performQuery(self, _cmd, query, zoneID, completionHandler);
+    }
+}
+
+#pragma mark - Siri Privacy Protection Hooks
+
+// INPreferences requestSiriAuthorization hook
+static void (*orig_INPreferences_requestSiriAuthorization)(id self, SEL _cmd, void (^handler)(NSInteger)) = NULL;
+static void hook_INPreferences_requestSiriAuthorization(id self, SEL _cmd, void (^handler)(NSInteger)) {
+    if (g_siriPrivacyProtectionEnabled) {
+        NSLog(@"[LC] Blocking Siri authorization request");
+        if (handler) {
+            // INSiriAuthorizationStatusDenied = 2
+            handler(2);
+        }
+        return;
+    }
+    if (orig_INPreferences_requestSiriAuthorization) {
+        orig_INPreferences_requestSiriAuthorization(self, _cmd, handler);
+    }
+}
+
+// INPreferences siriAuthorizationStatus hook
+static NSInteger (*orig_INPreferences_siriAuthorizationStatus)(id self, SEL _cmd) = NULL;
+static NSInteger hook_INPreferences_siriAuthorizationStatus(id self, SEL _cmd) {
+    if (g_siriPrivacyProtectionEnabled) {
+        NSLog(@"[LC] Returning denied Siri authorization status");
+        // INSiriAuthorizationStatusDenied = 2
+        return 2;
+    }
+    if (orig_INPreferences_siriAuthorizationStatus) {
+        return orig_INPreferences_siriAuthorizationStatus(self, _cmd);
+    }
+    return 0; // INSiriAuthorizationStatusNotDetermined
+}
+
+// INVocabulary sharedVocabulary hook
+static id (*orig_INVocabulary_sharedVocabulary)(id self, SEL _cmd) = NULL;
+static id hook_INVocabulary_sharedVocabulary(id self, SEL _cmd) {
+    if (g_siriPrivacyProtectionEnabled) {
+        NSLog(@"[LC] Blocking INVocabulary sharedVocabulary");
+        return nil;
+    }
+    if (orig_INVocabulary_sharedVocabulary) {
+        return orig_INVocabulary_sharedVocabulary(self, _cmd);
+    }
+    return nil;
+}
+
 #pragma mark - Public API
 
 void LCSetDeviceSpoofingEnabled(BOOL enabled) {
@@ -2545,6 +2718,28 @@ BOOL LCIsCanvasFingerprintProtectionEnabled(void) {
     return g_canvasFingerprintProtectionEnabled;
 }
 
+#pragma mark - iCloud/CloudKit Privacy Protection API
+
+void LCSetICloudPrivacyProtectionEnabled(BOOL enabled) {
+    g_iCloudPrivacyProtectionEnabled = enabled;
+    NSLog(@"[LC] iCloud/CloudKit privacy protection %@", enabled ? @"enabled" : @"disabled");
+}
+
+BOOL LCIsICloudPrivacyProtectionEnabled(void) {
+    return g_iCloudPrivacyProtectionEnabled;
+}
+
+#pragma mark - Siri Privacy Protection API
+
+void LCSetSiriPrivacyProtectionEnabled(BOOL enabled) {
+    g_siriPrivacyProtectionEnabled = enabled;
+    NSLog(@"[LC] Siri privacy protection %@", enabled ? @"enabled" : @"disabled");
+}
+
+BOOL LCIsSiriPrivacyProtectionEnabled(void) {
+    return g_siriPrivacyProtectionEnabled;
+}
+
 #pragma mark - Device Name and Identifier API
 
 void LCSetSpoofedDeviceName(NSString *deviceName) {
@@ -2935,6 +3130,95 @@ void DeviceSpoofingGuestHooksInit(void) {
             method_setImplementation(setValueMethod, (IMP)hook_NSMutableURLRequest_setValue_forHTTPHeaderField);
         }
         NSLog(@"[LC] Hooked NSMutableURLRequest methods (setValue:forHTTPHeaderField:)");
+    }
+    
+    // Hook NSFileManager for ubiquityIdentityToken (iCloud fingerprint protection)
+    Class NSFileManagerClass2 = objc_getClass("NSFileManager");
+    if (NSFileManagerClass2) {
+        Method ubiquityTokenMethod = class_getInstanceMethod(NSFileManagerClass2, @selector(ubiquityIdentityToken));
+        if (ubiquityTokenMethod) {
+            orig_NSFileManager_ubiquityIdentityToken = (id (*)(id, SEL))method_getImplementation(ubiquityTokenMethod);
+            method_setImplementation(ubiquityTokenMethod, (IMP)hook_NSFileManager_ubiquityIdentityToken);
+        }
+        NSLog(@"[LC] Hooked NSFileManager methods (ubiquityIdentityToken)");
+    }
+    
+    // Hook CKContainer for iCloud/CloudKit privacy protection
+    Class CKContainerClass = objc_getClass("CKContainer");
+    if (CKContainerClass) {
+        Method accountStatusMethod = class_getInstanceMethod(CKContainerClass, @selector(accountStatusWithCompletionHandler:));
+        Method defaultContainerMethod = class_getClassMethod(CKContainerClass, @selector(defaultContainer));
+        Method containerWithIdMethod = class_getClassMethod(CKContainerClass, @selector(containerWithIdentifier:));
+        Method fetchUserRecordMethod = class_getInstanceMethod(CKContainerClass, @selector(fetchUserRecordIDWithCompletionHandler:));
+        Method requestPermissionMethod = class_getInstanceMethod(CKContainerClass, @selector(requestApplicationPermission:completionHandler:));
+        
+        if (accountStatusMethod) {
+            orig_CKContainer_accountStatusWithCompletionHandler = (void (*)(id, SEL, void (^)(NSInteger, NSError *)))method_getImplementation(accountStatusMethod);
+            method_setImplementation(accountStatusMethod, (IMP)hook_CKContainer_accountStatusWithCompletionHandler);
+        }
+        if (defaultContainerMethod) {
+            orig_CKContainer_defaultContainer = (id (*)(id, SEL))method_getImplementation(defaultContainerMethod);
+            method_setImplementation(defaultContainerMethod, (IMP)hook_CKContainer_defaultContainer);
+        }
+        if (containerWithIdMethod) {
+            orig_CKContainer_containerWithIdentifier = (id (*)(id, SEL, NSString *))method_getImplementation(containerWithIdMethod);
+            method_setImplementation(containerWithIdMethod, (IMP)hook_CKContainer_containerWithIdentifier);
+        }
+        if (fetchUserRecordMethod) {
+            orig_CKContainer_fetchUserRecordIDWithCompletionHandler = (void (*)(id, SEL, void (^)(id, NSError *)))method_getImplementation(fetchUserRecordMethod);
+            method_setImplementation(fetchUserRecordMethod, (IMP)hook_CKContainer_fetchUserRecordIDWithCompletionHandler);
+        }
+        if (requestPermissionMethod) {
+            orig_CKContainer_requestApplicationPermission = (void (*)(id, SEL, NSUInteger, void (^)(NSInteger, NSError *)))method_getImplementation(requestPermissionMethod);
+            method_setImplementation(requestPermissionMethod, (IMP)hook_CKContainer_requestApplicationPermission);
+        }
+        NSLog(@"[LC] Hooked CKContainer methods (iCloud/CloudKit privacy protection)");
+    }
+    
+    // Hook CKDatabase for CloudKit query protection
+    Class CKDatabaseClass = objc_getClass("CKDatabase");
+    if (CKDatabaseClass) {
+        Method fetchRecordMethod = class_getInstanceMethod(CKDatabaseClass, @selector(fetchRecordWithID:completionHandler:));
+        Method performQueryMethod = class_getInstanceMethod(CKDatabaseClass, @selector(performQuery:inZoneWithID:completionHandler:));
+        
+        if (fetchRecordMethod) {
+            orig_CKDatabase_fetchRecordWithID = (void (*)(id, SEL, id, void (^)(id, NSError *)))method_getImplementation(fetchRecordMethod);
+            method_setImplementation(fetchRecordMethod, (IMP)hook_CKDatabase_fetchRecordWithID);
+        }
+        if (performQueryMethod) {
+            orig_CKDatabase_performQuery = (void (*)(id, SEL, id, id, void (^)(NSArray *, NSError *)))method_getImplementation(performQueryMethod);
+            method_setImplementation(performQueryMethod, (IMP)hook_CKDatabase_performQuery);
+        }
+        NSLog(@"[LC] Hooked CKDatabase methods (CloudKit query protection)");
+    }
+    
+    // Hook INPreferences for Siri privacy protection
+    Class INPreferencesClass = objc_getClass("INPreferences");
+    if (INPreferencesClass) {
+        Method requestAuthMethod = class_getClassMethod(INPreferencesClass, @selector(requestSiriAuthorization:));
+        Method authStatusMethod = class_getClassMethod(INPreferencesClass, @selector(siriAuthorizationStatus));
+        
+        if (requestAuthMethod) {
+            orig_INPreferences_requestSiriAuthorization = (void (*)(id, SEL, void (^)(NSInteger)))method_getImplementation(requestAuthMethod);
+            method_setImplementation(requestAuthMethod, (IMP)hook_INPreferences_requestSiriAuthorization);
+        }
+        if (authStatusMethod) {
+            orig_INPreferences_siriAuthorizationStatus = (NSInteger (*)(id, SEL))method_getImplementation(authStatusMethod);
+            method_setImplementation(authStatusMethod, (IMP)hook_INPreferences_siriAuthorizationStatus);
+        }
+        NSLog(@"[LC] Hooked INPreferences methods (Siri privacy protection)");
+    }
+    
+    // Hook INVocabulary for Siri vocabulary protection
+    Class INVocabularyClass = objc_getClass("INVocabulary");
+    if (INVocabularyClass) {
+        Method sharedVocabMethod = class_getClassMethod(INVocabularyClass, @selector(sharedVocabulary));
+        
+        if (sharedVocabMethod) {
+            orig_INVocabulary_sharedVocabulary = (id (*)(id, SEL))method_getImplementation(sharedVocabMethod);
+            method_setImplementation(sharedVocabMethod, (IMP)hook_INVocabulary_sharedVocabulary);
+        }
+        NSLog(@"[LC] Hooked INVocabulary methods (Siri vocabulary protection)");
     }
     
     // Initialize fingerprint protection with randomized values

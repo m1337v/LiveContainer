@@ -528,6 +528,12 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             }
         }
         
+        // Enable iCloud/CloudKit privacy protection (blocks iCloud fingerprinting)
+        LCSetICloudPrivacyProtectionEnabled(YES);
+        
+        // Enable Siri privacy protection (blocks Siri authorization)
+        LCSetSiriPrivacyProtectionEnabled(YES);
+        
         LCSetDeviceSpoofingEnabled(YES);
         DeviceSpoofingGuestHooksInit();
     }
