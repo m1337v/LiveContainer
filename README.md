@@ -21,8 +21,6 @@
 > **Important Notice Regarding Third-Party Builds of LiveContainer**
 >
 > We have recently noticed the appearance of certain closed-source third-party builds of LiveContainer. Please be aware that all your apps are installed within LiveContainer, which means these third-party builds **have full access to your data, including sensitive information such as keychain items and login credentials**. 
->
-> For instance, if you log into YouTube within such a LiveContainer, the third-party build will have complete access to your YouTube (Google) account credentials. Please avoid using these closed-source builds unless you have absolute trust in their developers or are able to personally review the source code and build yourself. 
 > 
 > Furthermore, please note that we do not provide any support for issues of these third-party builds.
 
