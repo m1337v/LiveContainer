@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <openssl/ocsp.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 #include <openssl/pem.h>
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
@@ -169,7 +170,7 @@ NSString* getTeamId(NSData *prov,
 int checkCert(NSData *prov,
               NSData *key,
               NSString *pass,
-              void(^completionHandler)(int status, NSDate* expirationDate, NSString *error)) {
+              void(^completionHandler)(int status, NSDate* expirationDate, NSString* organizationalUnitName, NSString *error)) {
     const char* strPKeyFileData = (const char*)[key bytes];
     const char* strProvFileData = (const char*)[prov bytes];
     string strPassword = [pass cStringUsingEncoding:NSUTF8StringEncoding];
@@ -180,7 +181,7 @@ int checkCert(NSData *prov,
     
     if (!zSignAsset.InitSimple(strPKeyFileData, (int)[key length], strProvFileData, (int)[prov length], strPassword)) {
         ZLog::logs.clear();
-        completionHandler(2, nil, @"Unable to initialize certificate. Please check your password.");
+        completionHandler(2, nil, nil, @"Unable to initialize certificate. Please check your password.");
         return -1;
     }
     
@@ -192,20 +193,20 @@ int checkCert(NSData *prov,
     } else if (0x9b16b75c == issuerHash) {
         brother1 = BIO_new_mem_buf(ZSignAsset::s_szAppleDevCACertG3, (int)strlen(ZSignAsset::s_szAppleDevCACertG3));
     } else {
-        completionHandler(2, nil, @"Unable to determine issuer of the certificate. It is signed by Apple Developer?");
+        completionHandler(2, nil, nil, @"Unable to determine issuer of the certificate. Is it signed by Apple Developer?");
         return -2;
     }
     
     if (!brother1)
     {
-        completionHandler(2, nil, @"Unable to initialize issuer certificate.");
+        completionHandler(2, nil, nil, @"Unable to initialize issuer certificate.");
         return -3;
     }
     
     X509 *issuer = PEM_read_bio_X509(brother1, NULL, 0, NULL);
     
     if (!cert || !issuer) {
-        completionHandler(2, nil, @"Error loading cert or issuer");
+        completionHandler(2, nil, nil, @"Error loading cert or issuer");
         return -4;
     }
 
@@ -213,7 +214,7 @@ int checkCert(NSData *prov,
     // Extract OCSP URL from cert
     STACK_OF(ACCESS_DESCRIPTION)* aia = (STACK_OF(ACCESS_DESCRIPTION)*)X509_get_ext_d2i((X509*)cert, NID_info_access, 0, 0);
     if (!aia) {
-        completionHandler(2, nil, @"No AIA (OCSP) extension found in certificate");
+        completionHandler(2, nil, nil, @"No AIA (OCSP) extension found in certificate");
         return -5;
     }
     
@@ -230,7 +231,7 @@ int checkCert(NSData *prov,
 
     
     if (!uri) {
-        completionHandler(2, nil, @"No OCSP URI found in certificate.");
+        completionHandler(2, nil, nil, @"No OCSP URI found in certificate.");
         return -6;
     }
 
@@ -261,7 +262,7 @@ int checkCert(NSData *prov,
                                                                 NSURLResponse * _Nullable response,
                                                                 NSError * _Nullable error) {
         if (error) {
-            completionHandler(2, nil, error.localizedDescription);
+            completionHandler(2, nil, nil, error.localizedDescription);
             return;
         }
 
@@ -272,11 +273,20 @@ int checkCert(NSData *prov,
             OCSP_RESPONSE *resp = 0;
             d2i_OCSP_RESPONSE(&resp, (const unsigned char**)&respBytes, data.length);
             if(!resp) {
-                completionHandler(2, nil, @"Failed to decode OCSP response.");
+                completionHandler(2, nil, nil, @"Failed to decode OCSP response.");
                 return;
             }
             OCSP_BASICRESP *basic = OCSP_response_get1_basic(resp);
             ASN1_TIME *expirationDateAsn1 = X509_get_notAfter(cert);
+            NSString* organizationalUnitName = nil;
+            X509_NAME* subject_name = X509_get_subject_name(cert);
+            int ouIndex = X509_NAME_get_index_by_NID(subject_name, NID_organizationalUnitName, -1);
+            if(ouIndex >= 0) {
+                X509_NAME_ENTRY* ext = X509_NAME_get_entry(subject_name, ouIndex);
+                ASN1_STRING* ouAsn1Str = X509_NAME_ENTRY_get_data(ext);
+                organizationalUnitName = @((const char*)ASN1_STRING_get0_data(ouAsn1Str));
+            }
+            NSLog(@"organizationalUnitName = %@", organizationalUnitName);
             NSString *fullDateString = [NSString stringWithFormat:@"20%s", expirationDateAsn1->data];
 
             NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
@@ -287,9 +297,9 @@ int checkCert(NSData *prov,
 
             int status, reason;
             if (OCSP_resp_find_status(basic, cert_id, &status, &reason, NULL, NULL, NULL)) {
-                completionHandler(status, expirationDate, nil);
+                completionHandler(status, expirationDate, organizationalUnitName, nil);
             } else {
-                completionHandler(2, expirationDate, nil);
+                completionHandler(2, expirationDate, organizationalUnitName, nil);
             }
             
             OCSP_CERTID_free(cert_id);
@@ -298,7 +308,7 @@ int checkCert(NSData *prov,
             
             
         } else {
-            completionHandler(2, nil, @"Invalid response or no data");
+            completionHandler(2, nil, nil, @"Invalid response or no data");
             return;
         }
     }];

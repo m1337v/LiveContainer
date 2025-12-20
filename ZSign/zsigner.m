@@ -29,7 +29,7 @@ NSProgress* currentZSignProgress;
     return getTeamId(prov, key, pass);
 }
 
-+ (int)checkCertWithProv:(NSData *)prov key:(NSData *)key pass:(NSString *)pass completionHandler:(void(^)(int status, NSDate* expirationDate, NSString *error))completionHandler {
++ (int)checkCertWithProv:(NSData *)prov key:(NSData *)key pass:(NSString *)pass completionHandler:(void(^)(int status, NSDate* expirationDate, NSString* organizationalUnitName, NSString *error))completionHandler {
     return checkCert(prov, key, pass, completionHandler);
 }
 @end

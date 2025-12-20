@@ -38,7 +38,7 @@ int dyld_get_program_sdk_version(void);
 
 + (NSProgress *)signAppBundleWithZSign:(NSURL *)path completionHandler:(void (^)(BOOL success, NSError *error))completionHandler;
 + (NSString*)getCertTeamIdWithKeyData:(NSData*)keyData password:(NSString*)password;
-+ (int)validateCertificateWithCompletionHandler:(void(^)(int status, NSDate *expirationDate, NSString *error))completionHandler;
++ (int)validateCertificateWithCompletionHandler:(void(^)(int status, NSDate *expirationDate, NSString *organizationalUnitName, NSString *error))completionHandler;
 
 + (BOOL)isAppGroupAltStoreLike;
 + (Store)store;
@@ -53,4 +53,12 @@ int dyld_get_program_sdk_version(void);
 
 @interface NSUserDefaults(LiveContainer)
 + (bool)sideStoreExist;
+@end
+
+@interface LCP12CertHelper : NSObject
+
+- (instancetype)initWithP12Data:(NSData*)p12Data password:(NSString*)password error:(NSError**)error;
+- (NSDate*)getNotValidityNotAfterWithError:(NSError**)error;
+- (NSString*)getOrgnizationUnitWithError:(NSError**)error;
+
 @end
