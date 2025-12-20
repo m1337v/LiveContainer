@@ -250,6 +250,35 @@ extension View {
     func navigationBarProgressBar(show: Binding<Bool>, progress: Binding<Float>) -> some View {
         self.modifier(NavigationBarProgressModifier(show: show, progress: progress))
     }
+    
+    func modifier<ModifiedContent: View>(@ViewBuilder body: (_ content: Self) -> ModifiedContent
+    ) -> ModifiedContent {
+        body(self)
+    }
+}
+
+extension Color {
+    func readableTextColor() -> Color {
+        let color = Color(.systemBackground)
+        let percentage = 0.5
+        
+        // https://stackoverflow.com/a/78649412
+        let components1 = UIColor(self).cgColor.components!
+        var bgR: CGFloat = 0, bgG: CGFloat = 0, bgB: CGFloat = 0, bgA: CGFloat = 0
+        UIColor(color).getRed(&bgR, green: &bgG, blue: &bgB, alpha: &bgA)
+        var red = (1.0 - percentage) * components1[0] + percentage * bgR
+        var green = (1.0 - percentage) * components1[1] + percentage * bgG
+        var blue = (1.0 - percentage) * components1[2] + percentage * bgB
+        //var alpha = (1.0 - percentage) * components1[3] + percentage * bgA
+        //UIColor(mix(with: Color(.systemBackground), by: 0.5)).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        
+        let brightness = (0.2126*red + 0.7152*green + 0.0722*blue);
+        let brightnessOffset = brightness < 0.5 ? 0.4 : -0.4
+        red = min(Double(red) + brightnessOffset, 1.0)
+        green = min(Double(green) + brightnessOffset, 1.0)
+        blue = min(Double(blue) + brightnessOffset, 1.0)
+        return Color(red: red, green: green, blue: blue)
+    }
 }
 
 public struct DocModifier: ViewModifier {

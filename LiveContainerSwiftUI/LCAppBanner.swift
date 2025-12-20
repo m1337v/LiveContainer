@@ -37,6 +37,7 @@ struct LCAppBanner : View {
     @AppStorage("LCLaunchInMultitaskMode") var launchInMultitaskMode = false
     @State private var mainColor : Color
     
+    @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject private var sharedModel : SharedModel
     
     init(appModel: LCAppModel, delegate: LCAppBannerDelegate, appDataFolders: Binding<[String]>, tweakFolders: Binding<[String]>) {
@@ -60,6 +61,9 @@ struct LCAppBanner : View {
                     .clipShape(RoundedRectangle(cornerSize: CGSize(width:12, height: 12)))
 
                 VStack (alignment: .leading, content: {
+                    let color = (dynamicColors ? mainColor : Color("FontColor"))
+                    // note: keep this so the color updates when toggling dark mode
+                    let textColor = colorScheme == .dark ? color.readableTextColor() : color.readableTextColor()
                     HStack {
                         Text(appInfo.displayName()).font(.system(size: 16)).bold()
                         if model.uiIsShared {
@@ -102,8 +106,8 @@ struct LCAppBanner : View {
                         }
                     }
 
-                    Text("\(appInfo.version() ?? "?") - \(appInfo.bundleIdentifier() ?? "?")").font(.system(size: 12)).foregroundColor(dynamicColors ? mainColor : Color("FontColor"))
-                    Text(model.uiSelectedContainer?.name ?? "lc.appBanner.noDataFolder".loc).font(.system(size: 8)).foregroundColor(dynamicColors ? mainColor : Color("FontColor"))
+                    Text("\(appInfo.version() ?? "?") - \(appInfo.bundleIdentifier() ?? "?")").font(.system(size: 12)).foregroundColor(textColor)
+                    Text(model.uiSelectedContainer?.name ?? "lc.appBanner.noDataFolder".loc).font(.system(size: 8)).foregroundColor(textColor)
                 })
             }
             .allowsHitTesting(false)

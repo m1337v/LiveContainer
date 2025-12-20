@@ -750,8 +750,7 @@ int LiveContainerMain(int argc, char *argv[]) {
         NSString *tweakFolder = nil;
         if (isSharedBundle) {
             NSURL *appGroupPath = [NSFileManager.defaultManager containerURLForSecurityApplicationGroupIdentifier:[LCSharedUtils appGroupID]];
-            NSURL *appGroupFolder = [appGroupPath URLByAppendingPathComponent:@"LiveContainer"];
-            tweakFolder = [appGroupFolder.path stringByAppendingPathComponent:@"Tweaks"];
+            tweakFolder = [appGroupPath.path stringByAppendingPathComponent:@"LiveContainer/Tweaks"];
         } else {
             NSString *docPath = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].lastObject.path;
             tweakFolder = [docPath stringByAppendingPathComponent:@"Tweaks"];

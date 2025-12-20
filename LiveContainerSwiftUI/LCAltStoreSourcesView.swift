@@ -944,6 +944,7 @@ private struct LCSourceAppBanner: View {
     let installAction: (AltStoreSourceApp) -> Void
     
     @AppStorage("dynamicColors") private var dynamicColors = true
+    @Environment(\.colorScheme) var colorScheme
     
     private var primaryColor: Color {
         guard dynamicColors else { return Color("FontColor") }
@@ -951,7 +952,9 @@ private struct LCSourceAppBanner: View {
     }
     
     private var textColor: Color {
-        dynamicColors ? primaryColor : Color("FontColor")
+        _ = colorScheme == .dark // trigger refresh
+        let color = dynamicColors ? primaryColor : Color("FontColor")
+        return color.readableTextColor()
     }
     
     private var backgroundColor: Color {
