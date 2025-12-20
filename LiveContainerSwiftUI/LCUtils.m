@@ -2,6 +2,7 @@
 @import MachO;
 @import UIKit;
 @import UniformTypeIdentifiers;
+@import Security;
 
 #import "LCUtils.h"
 #import "LCAppInfo.h"
@@ -223,7 +224,7 @@ Class LCSharedUtilsClass = nil;
     return ans;
 }
 
-+ (int)validateCertificateWithCompletionHandler:(void(^)(int status, NSDate *expirationDate, NSString *error))completionHandler {
++ (int)validateCertificateWithCompletionHandler:(void(^)(int status, NSDate *expirationDate, NSString *organizationalUnitName, NSString *error))completionHandler {
     NSError *error;
     NSURL *profilePath = [NSBundle.mainBundle URLForResource:@"embedded" withExtension:@"mobileprovision"];
     NSData *profileData = [NSData dataWithContentsOfURL:profilePath];

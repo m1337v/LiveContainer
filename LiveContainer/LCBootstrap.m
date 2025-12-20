@@ -695,7 +695,9 @@ int LiveContainerMain(int argc, char *argv[]) {
             [lcUserDefaults removeObjectForKey:@"lastLaunchType"];
         }
     }
-
+    // in case some weird apps remove the tmp folder
+    [NSFileManager.defaultManager createDirectoryAtPath:@(getenv("TMPDIR")) withIntermediateDirectories:YES attributes:nil error:nil];
+    
     if([selectedApp isEqualToString:@"ui"]) {
         selectedApp = nil;
         [lcUserDefaults removeObjectForKey:@"selected"];

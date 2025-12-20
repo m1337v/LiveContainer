@@ -152,6 +152,8 @@ struct LCJITLessDiagnoseView : View {
     @State var certificateDataFound = false
     @State var certificatePasswordFound = false
     @State var appGroupAccessible = false
+    @State var certTeamId : String?
+    @State var expectedTeamId : String?
     @State var certLastUpdateDateStr : String? = nil
     @State var certificateStatus : Int = -1
     @State var certificateValidateUntil : String? = nil
@@ -179,83 +181,99 @@ struct LCJITLessDiagnoseView : View {
                             .textSelection(.enabled)
                     }
 
-                        HStack {
-                            Text("lc.jitlessDiag.appGroupId".loc)
-                            Spacer()
-                            Text(appGroupId)
-                                .foregroundStyle(appGroupId == "Unknown" ? .red : .green)
-                        }
-                        HStack {
-                            Text("lc.jitlessDiag.appGroupAccessible".loc)
-                            Spacer()
-                            Text(appGroupAccessible ? "lc.common.yes".loc : "lc.common.no".loc)
-                                .foregroundStyle(appGroupAccessible ? .green : .red)
-                        }
-                        HStack {
-                            Text("lc.jitlessDiag.store".loc)
-                            Spacer()
-                            if store == .AltStore {
-                                Text("AltStore")
-                                    .foregroundStyle(.gray)
-                            } else if store == .SideStore {
-                                Text("SideStore")
-                                    .foregroundStyle(.gray)
-                            } else if store == .ADP {
-                                Text("lc.common.ADP".loc)
-                                    .foregroundStyle(.gray)
-                            } else {
-                                Text("lc.common.unknown".loc)
-                                    .foregroundStyle(.gray)
-                            }
-                            
-                        }
-                        HStack {
-                            Text("lc.jitlessDiag.certDataFound".loc)
-                            Spacer()
-                            Text(certificateDataFound ? "lc.common.yes".loc : "lc.common.no".loc)
-                                .foregroundStyle(certificateDataFound ? .green : .red)
-                            
-                        }
-                        HStack {
-                            Text("lc.jitlessDiag.certPassFound".loc)
-                            Spacer()
-                            Text(certificatePasswordFound ? "lc.common.yes".loc : "lc.common.no".loc)
-                                .foregroundStyle(certificatePasswordFound ? .green : .red)
+                    HStack {
+                        Text("lc.jitlessDiag.appGroupId".loc)
+                        Spacer()
+                        Text(appGroupId)
+                            .foregroundStyle(appGroupId == "Unknown" ? .red : .green)
+                    }
+                    HStack {
+                        Text("lc.jitlessDiag.appGroupAccessible".loc)
+                        Spacer()
+                        Text(appGroupAccessible ? "lc.common.yes".loc : "lc.common.no".loc)
+                            .foregroundStyle(appGroupAccessible ? .green : .red)
+                    }
+                    HStack {
+                        Text("lc.jitlessDiag.store".loc)
+                        Spacer()
+                        if store == .AltStore {
+                            Text("AltStore")
+                                .foregroundStyle(.gray)
+                        } else if store == .SideStore {
+                            Text("SideStore")
+                                .foregroundStyle(.gray)
+                        } else if store == .ADP {
+                            Text("lc.common.ADP".loc)
+                                .foregroundStyle(.gray)
+                        } else {
+                            Text("lc.common.unknown".loc)
+                                .foregroundStyle(.gray)
                         }
                         
-                        HStack {
-                            Text("lc.jitlessDiag.certLastUpdate".loc)
-                            Spacer()
-                            if let certLastUpdateDateStr {
-                                Text(certLastUpdateDateStr)
-                                    .foregroundStyle(.green)
-                            } else {
-                                Text("lc.common.unknown".loc)
-                                    .foregroundStyle(.red)
-                            }
-
-                        }
-                        
-                        if certificateDataFound {
-                            HStack {
-                                Text("lc.jitlessDiag.certificateStatus".loc)
-                                Spacer()
-                                Text(certificateStatus == -1 ? "lc.jitlessDiag.checking".loc : getStatusText(status: certificateStatus))
-                                    .foregroundStyle(certificateStatus == 0 ? .green : .red)
-                            }
-                            HStack {
-                                Text("lc.jitlessDiag.certificateValidateUntil".loc)
-                                Spacer()
-                                Text(certificateValidateUntil != nil ? certificateValidateUntil! : "lc.common.unknown".loc)
-                                    .foregroundStyle(certificateStatus == 0 ? .green : .red)
-                            }
-                        }
-                    
+                    }
                     NavigationLink {
                         LCEntitlementView()
                     } label: {
                         Text("lc.jielessDiag.entitlement".loc)
                     }
+                }
+                    
+                Section() {
+                    HStack {
+                        Text("lc.jitlessDiag.certDataFound".loc)
+                        Spacer()
+                        Text(certificateDataFound ? "lc.common.yes".loc : "lc.common.no".loc)
+                            .foregroundStyle(certificateDataFound ? .green : .red)
+                        
+                    }
+                    HStack {
+                        Text("lc.jitlessDiag.certPassFound".loc)
+                        Spacer()
+                        Text(certificatePasswordFound ? "lc.common.yes".loc : "lc.common.no".loc)
+                            .foregroundStyle(certificatePasswordFound ? .green : .red)
+                    }
+                    
+                    HStack {
+                        Text("lc.jitlessDiag.certLastUpdate".loc)
+                        Spacer()
+                        if let certLastUpdateDateStr {
+                            Text(certLastUpdateDateStr)
+                                .foregroundStyle(.green)
+                        } else {
+                            Text("lc.common.unknown".loc)
+                                .foregroundStyle(.red)
+                        }
+                        
+                    }
+                    if certificateDataFound && certTeamId != nil && certTeamId != expectedTeamId {
+                        HStack {
+                            Text("lc.jitlessDiag.expectedTeamId".loc)
+                            Spacer()
+                            Text(expectedTeamId ?? "lc.common.unknown".loc)
+                                .foregroundStyle(.gray)
+                        }
+                    }
+                    if certificateDataFound {
+                        HStack {
+                            Text("lc.jitlessDiag.certTeamId".loc)
+                            Spacer()
+                            Text(certTeamId ?? "lc.common.unknown".loc)
+                                .foregroundStyle(certTeamId != nil && certTeamId == expectedTeamId ? .green : .red)
+                        }
+                        HStack {
+                            Text("lc.jitlessDiag.certificateStatus".loc)
+                            Spacer()
+                            Text(certificateStatus == -1 ? "lc.jitlessDiag.checking".loc : getStatusText(status: certificateStatus))
+                                .foregroundStyle(certificateStatus == 0 ? .green : .red)
+                        }
+                        HStack {
+                            Text("lc.jitlessDiag.certificateValidateUntil".loc)
+                            Spacer()
+                            Text(certificateValidateUntil != nil ? certificateValidateUntil! : "lc.common.unknown".loc)
+                                .foregroundStyle(certificateStatus == 0 ? .green : .red)
+                        }
+                    }
+                    
                 }
                                 
                 Section {
@@ -322,6 +340,14 @@ struct LCJITLessDiagnoseView : View {
         if certificateDataFound {
             validateCertificate()
         }
+        let task = SecTaskCreateFromSelf(nil)
+        guard let value = SecTaskCopyValueForEntitlement(task, "com.apple.developer.team-identifier" as CFString, nil), let teamId = value.takeRetainedValue() as? String else {
+            errorInfo = "Failed to read com.apple.developer.team-identifier"
+            errorShow = true
+            return
+        }
+        expectedTeamId = teamId
+        
         loaded = true
     }
     
@@ -353,7 +379,7 @@ struct LCJITLessDiagnoseView : View {
     func validateCertificate() {
         certificateStatus = -1
         certificateValidateUntil = nil
-        LCUtils.validateCertificate { status, date, error in
+        LCUtils.validateCertificate { status, date, ou, error in
             if let error {
                 errorInfo = error.loc
                 errorShow = true
@@ -366,6 +392,9 @@ struct LCJITLessDiagnoseView : View {
                 formatter1.dateStyle = .short
                 formatter1.timeStyle = .medium
                 certificateValidateUntil = formatter1.string(from: date)
+            }
+            if let ou {
+                certTeamId = ou
             }
         }
     }

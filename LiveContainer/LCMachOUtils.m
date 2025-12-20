@@ -85,6 +85,22 @@ static void insertDylibCommand(uint32_t cmd, const char *path, struct mach_heade
     header->sizeofcmds += dylib->cmdsize;
 }
 
+static void replaceDylinkerWithIDDylibCommand(struct dylinker_command* dylinkerCommand, const char *path) {
+    uint32_t size = dylinkerCommand->cmdsize;
+    struct dylib_command* newDylibCommand = (struct dylib_command*)dylinkerCommand;
+    newDylibCommand->cmd = LC_ID_DYLIB;
+
+    newDylibCommand->dylib.name.offset = sizeof(struct dylib_command);
+    newDylibCommand->dylib.compatibility_version = 0x10000;
+    newDylibCommand->dylib.current_version = 0x10000;
+    newDylibCommand->dylib.timestamp = 2;
+    uint32_t nameSize = size - sizeof(struct dylib_command);
+    // we only have 8 bytes to use
+    const char* name = basename((char *)path);
+    strncpy((void *)newDylibCommand + newDylibCommand->dylib.name.offset, name, nameSize);
+    *((char *)newDylibCommand + newDylibCommand->dylib.name.offset + nameSize - 1) = 0;
+}
+
 static void insertRPathCommand(const char *path, struct mach_header_64 *header) {
     struct rpath_command *rpath = (struct rpath_command *)(sizeof(struct mach_header_64) + (void *)header+header->sizeofcmds);
     rpath->cmd = LC_RPATH;
@@ -125,6 +141,7 @@ int LCPatchExecSlice(const char *path, struct mach_header_64 *header, bool doInj
     const char *libCppPath = "/usr/lib/libc++.1.dylib";
     int textSectionOffest = 0;
     struct load_command *command = (struct load_command *)imageHeaderPtr;
+    struct dylinker_command* dylinkerCommand = 0;
     bool codeSignatureCommandFound = false;
     for(int i = 0; i < header->ncmds; i++) {
         if(command->cmd == LC_ID_DYLIB) {
@@ -149,6 +166,8 @@ int LCPatchExecSlice(const char *path, struct mach_header_64 *header, bool doInj
             }
         } else if (command->cmd == LC_CODE_SIGNATURE) {
             codeSignatureCommandFound = true;
+        } else if (command->cmd == LC_LOAD_DYLINKER) {
+            dylinkerCommand = (struct dylinker_command*)command;
         }
         
         command = (struct load_command *)((void *)command + command->cmdsize);
@@ -165,6 +184,9 @@ int LCPatchExecSlice(const char *path, struct mach_header_64 *header, bool doInj
     if(!hasDylibCommand && freeLoadCommandCountLeft >= idDylibCommandSize) {
         freeLoadCommandCountLeft -= idDylibCommandSize;
         insertDylibCommand(LC_ID_DYLIB, path, header);
+    } else if (dylinkerCommand) {
+        // #1042 fix: if there's not enough space for LC_ID_DYLIB we resue LC_LOAD_DYLINKER's space for LC_ID_DYLIB
+        replaceDylinkerWithIDDylibCommand(dylinkerCommand, path);
     }
 
     // if (dylibLoaderCommand) {
