@@ -47,17 +47,19 @@ int LiveProcessMain(int argc, char *argv[]) {
     [lcUserDefaults setObject:appInfo[@"selected"] forKey:@"selected"];
     [lcUserDefaults setObject:appInfo[@"selectedContainer"] forKey:@"selectedContainer"];
     
+    bool access = false;
+    NSData* bookmark = appInfo[@"bookmark"];
+    NSURL* bookmarkedUrl = nil;
+    if(bookmark) {
+        bool isStale = false;
+        NSError* error = nil;
+        bookmarkedUrl = [NSURL URLByResolvingBookmarkData:bookmark options:(1 << 10) relativeToURL:nil bookmarkDataIsStale:&isStale error:&error];
+        access = [bookmarkedUrl startAccessingSecurityScopedResource];
+    }
     
     if ([appInfo[@"selected"] isEqualToString:@"builtinSideStore"]) {
-        NSData* bookmark = appInfo[@"bookmark"];
-        if(bookmark) {
-            bool isStale = false;
-            NSError* error = nil;
-            NSURL* url = [NSURL URLByResolvingBookmarkData:bookmark options:(1 << 10) relativeToURL:nil bookmarkDataIsStale:&isStale error:&error];
-            bool access = [url startAccessingSecurityScopedResource];
-            if(access) {
-                [lcUserDefaults setObject:url.path forKey:@"specifiedSideStoreContainerPath"];
-            }
+        if(access && bookmarkedUrl) {
+            [lcUserDefaults setObject:bookmarkedUrl.path forKey:@"specifiedSideStoreContainerPath"];
         }
         NSXPCListenerEndpoint* endpoint = appInfo[@"endpoint"];
 
