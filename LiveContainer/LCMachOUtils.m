@@ -181,12 +181,14 @@ int LCPatchExecSlice(const char *path, struct mach_header_64 *header, bool doInj
     }
     
     int idDylibCommandSize = sizeof(struct dylib_command) + rnd32((uint32_t)strlen(basename((char*)path)) + 1, 8);
-    if(!hasDylibCommand && freeLoadCommandCountLeft >= idDylibCommandSize) {
-        freeLoadCommandCountLeft -= idDylibCommandSize;
-        insertDylibCommand(LC_ID_DYLIB, path, header);
-    } else if (dylinkerCommand) {
-        // #1042 fix: if there's not enough space for LC_ID_DYLIB we resue LC_LOAD_DYLINKER's space for LC_ID_DYLIB
-        replaceDylinkerWithIDDylibCommand(dylinkerCommand, path);
+    if(!hasDylibCommand) {
+        if (freeLoadCommandCountLeft >= idDylibCommandSize) {
+            freeLoadCommandCountLeft -= idDylibCommandSize;
+            insertDylibCommand(LC_ID_DYLIB, path, header);
+        } else if (dylinkerCommand) {
+            // #1042 fix: if there's not enough space for LC_ID_DYLIB we resue LC_LOAD_DYLINKER's space for LC_ID_DYLIB
+            replaceDylinkerWithIDDylibCommand(dylinkerCommand, path);
+        }
     }
 
     // if (dylibLoaderCommand) {
