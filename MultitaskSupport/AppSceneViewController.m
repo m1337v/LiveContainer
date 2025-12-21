@@ -51,16 +51,30 @@
     _extension.preferredLanguages = @[];
     
     NSExtensionItem *item = [NSExtensionItem new];
+    NSMutableArray* bookmarks = [NSMutableArray array];
     NSMutableDictionary *userInfo = @{
         @"hostUrlScheme": NSUserDefaults.lcAppUrlScheme,
         @"selected": _bundleId,
         @"selectedContainer": _dataUUID,
+        @"bookmarks": bookmarks,
+        @"lcHomePath": NSHomeDirectory(),
     }.mutableCopy;
     
+    NSURL *docURL = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].lastObject;
     if ([NSUserDefaults.standardUserDefaults boolForKey:@"LCSharePrivateDataWithLiveProcess"]) {
-        NSURL *docURL = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].lastObject;
         NSData* bookmarkData = [docURL bookmarkDataWithOptions:(1<<11) includingResourceValuesForKeys:0 relativeToURL:0 error:0];
-        userInfo[@"bookmark"] = bookmarkData;
+        [bookmarks addObject:bookmarkData];
+    } else {
+        bool isSharedApp = false;
+        NSBundle* bundle = [LCSharedUtils findBundleWithBundleId:bundleId isSharedAppOut:&isSharedApp];
+        // when mutlitask with private app, we can restrict its sandbox to only its own container
+        if (!isSharedApp) {
+            NSURL *dataURL = [docURL URLByAppendingPathComponent:[NSString stringWithFormat:@"Data/Application/%@", dataUUID]];
+            NSURL *tweaksURL = [docURL URLByAppendingPathComponent:@"Tweaks"];
+            [bookmarks addObject:[bundle.bundleURL bookmarkDataWithOptions:(1<<11) includingResourceValuesForKeys:0 relativeToURL:0 error:0]];
+            [bookmarks addObject:[dataURL bookmarkDataWithOptions:(1<<11) includingResourceValuesForKeys:0 relativeToURL:0 error:0]];
+            [bookmarks addObject:[tweaksURL bookmarkDataWithOptions:(1<<11) includingResourceValuesForKeys:0 relativeToURL:0 error:0]];
+        }
     }
     item.userInfo = userInfo;
     

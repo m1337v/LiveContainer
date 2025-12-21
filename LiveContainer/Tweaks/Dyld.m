@@ -9,7 +9,9 @@
 #include <sys/mman.h>
 #import "../../litehook/src/litehook.h"
 #import "LCMachOUtils.h"
+#include "mach_excServer.h"
 #import "../utils.h"
+#import "../dyld_bypass_validation.h"
 @import Darwin;
 @import Foundation;
 @import MachO;
@@ -24,15 +26,18 @@ typedef struct {
 uint32_t lcImageIndex = 0;
 uint32_t appMainImageIndex = 0;
 void* appExecutableHandle = 0;
+bool hookedDlopen = false;
 bool tweakLoaderLoaded = false;
 bool appExecutableFileTypeOverwritten = false;
 const char* lcMainBundlePath = NULL;
 
+void* (*orig_dlopen)(const char *path, int mode) = dlopen;
 void* (*orig_dlsym)(void * __handle, const char * __symbol) = dlsym;
 uint32_t (*orig_dyld_image_count)(void) = _dyld_image_count;
 const struct mach_header* (*orig_dyld_get_image_header)(uint32_t image_index) = _dyld_get_image_header;
 intptr_t (*orig_dyld_get_image_vmaddr_slide)(uint32_t image_index) = _dyld_get_image_vmaddr_slide;
 const char* (*orig_dyld_get_image_name)(uint32_t image_index) = _dyld_get_image_name;
+int (*orig_fcntl)(int fildes, int cmd, void *param) = 0;
 
 uint32_t guestAppSdkVersion = 0;
 uint32_t guestAppSdkVersionSet = 0;
@@ -329,7 +334,7 @@ void DyldHookLoadableIntoProcess(void) {
 }
 #endif
 
-void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
+void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVersion) {
     // iterate through loaded images and find LiveContainer it self
     int imageCount = _dyld_image_count();
     for(int i = 0; i < imageCount; ++i) {
@@ -347,7 +352,7 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
     }
     orig_dyld_get_image_header = _dyld_get_image_header;
     
-    // hook dlopen and dlsym to solve RTLD_MAIN_ONLY, hook other functions to hide LiveContainer itself
+    // hook dlsym to solve RTLD_MAIN_ONLY, hook other functions to hide LiveContainer itself
     litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, dlsym, hook_dlsym, nil);
     if(hideLiveContainer) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_image_count, hook_dyld_image_count, nil);
@@ -366,6 +371,11 @@ void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion) {
            !performHookDyldApi("dyld_get_program_sdk_version", 0, (void**)&orig_dyld_get_program_sdk_version, hook_dyld_get_program_sdk_version)) {
             return;
         }
+    }
+    
+    hookedDlopen = hookDlopen;
+    if(hookDlopen) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, dlopen, jitless_hook_dlopen, nil);
     }
     
 #if TARGET_OS_MACCATALYST || TARGET_OS_SIMULATOR
@@ -396,7 +406,7 @@ void hook_libdyld_os_unfair_recursive_lock_unlock(HOOK_LOCK_1ST_ARG void* lock) 
     }
 }
 
-void *dlopenBypassingLock(const char *path, int mode) {
+void *dlopen_nolock(const char *path, int mode) {
     const char *libdyldPath = "/usr/lib/system/libdyld.dylib";
     mach_header_u *libdyldHeader = LCGetLoadedImageHeader(0, libdyldPath);
     assert(libdyldHeader != NULL);
@@ -427,7 +437,12 @@ void *dlopenBypassingLock(const char *path, int mode) {
     void *origLockPtr = lockUnlockPtr[0], *origUnlockPtr = lockUnlockPtr[1];
     lockUnlockPtr[0] = hook_libdyld_os_unfair_recursive_lock_lock_with_options;
     lockUnlockPtr[1] = hook_libdyld_os_unfair_recursive_lock_unlock;
-    void *result = dlopen(path, mode);
+    void *result;
+    if(hookedDlopen) {
+        result = jitless_hook_dlopen(path, mode);
+    } else {
+        result = dlopen(path, mode);
+    }
     
     ret = builtin_vm_protect(mach_task_self(), (mach_vm_address_t)lockUnlockPtr, sizeof(uintptr_t[2]), false, PROT_READ | PROT_WRITE);
     assert(ret == KERN_SUCCESS);
@@ -444,4 +459,93 @@ void *dlopenBypassingLock(const char *path, int mode) {
     litehook_rebind_symbol(libdyldHeader, hook_libdyld_os_unfair_recursive_lock_unlock, os_unfair_recursive_lock_unlock, nil);
 #endif
     return result;
+}
+
+#pragma mark - Workaround `file system sandbox blocked mmap()`
+// when using multitask app in private container, we need to temporarily hook dyld's mmap
+mach_port_t excPort;
+void *exception_handler(void *unused) {
+    mach_msg_server(mach_exc_server, sizeof(union __RequestUnion__catch_mach_exc_subsystem), excPort, MACH_MSG_OPTION_NONE);
+    abort();
+}
+
+void *jitless_hook_dlopen(const char *path, int mode) {
+    if (!excPort) {
+        searchDyldFunctions();
+        mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &excPort);
+        mach_port_insert_right(mach_task_self(), excPort, excPort, MACH_MSG_TYPE_MAKE_SEND);
+        pthread_t thread;
+        pthread_create(&thread, NULL, exception_handler, NULL);
+    }
+    
+    // save old thread states
+    exception_mask_t masks[32];
+    mach_msg_type_number_t masksCnt;
+    exception_handler_t handlers[32];
+    exception_behavior_t behaviors[32];
+    thread_state_flavor_t flavors[32];
+    arm_debug_state64_t origDebugState;
+    mach_port_t thread = mach_thread_self();
+    thread_get_state(thread, ARM_DEBUG_STATE64, (thread_state_t)&origDebugState, &(mach_msg_type_number_t){ARM_DEBUG_STATE64_COUNT});
+    thread_get_exception_ports(thread, EXC_MASK_BREAKPOINT, masks, &masksCnt, handlers, behaviors, flavors);
+    thread_set_exception_ports(thread, EXC_MASK_BREAKPOINT, excPort, EXCEPTION_STATE | MACH_EXCEPTION_CODES, ARM_THREAD_STATE64);
+    
+    // hook dyld's mmap
+    arm_debug_state64_t hookDebugState = {
+        .__bvr = {(uint64_t)orig_dyld_mmap},
+        .__bcr = {0x1e5},
+    };
+    thread_set_state(thread, ARM_DEBUG_STATE64, (thread_state_t)&hookDebugState, ARM_DEBUG_STATE64_COUNT);
+    
+    void *result = orig_dlopen(path, mode);
+    
+    // restore old thread states
+    thread_set_state(thread, ARM_DEBUG_STATE64, (thread_state_t)&origDebugState, ARM_DEBUG_STATE64_COUNT);
+    for (int i = 0; i < masksCnt; i++){
+        thread_set_exception_ports(mach_thread_self(), EXC_MASK_BREAKPOINT, handlers[i], behaviors[i], flavors[i]);
+        mach_port_deallocate(mach_task_self(), handlers[i]);
+    }
+    
+    return result;
+}
+
+void* jitless_hook_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset) {
+    NSLog(@"[DyldLVBypass] mmap %p called with prot: %d, fd: %d", addr, prot, fd);
+    void *map = __mmap(addr, len, prot, flags, fd, offset);
+    // only handle mapping __TEXT segment from fd outside of permitted path
+    if (map != MAP_FAILED || !(prot & PROT_EXEC) || fd < 0) return map;
+    
+    // to get around `file system sandbox blocked mmap()` we temporarily move it to permitted path
+    char filePath[PATH_MAX];
+    if (fcntl(fd, F_GETPATH, filePath) != 0) return map;
+    char newTmpPath[PATH_MAX];
+    sprintf(newTmpPath, "%s/Documents/%p.dylib", getenv("LP_HOME_PATH"), addr);
+    rename(filePath, newTmpPath);
+    map = __mmap(addr, len, prot, flags, fd, offset);
+    rename(newTmpPath, filePath);
+    
+    return map;
+}
+
+kern_return_t catch_mach_exception_raise_state( mach_port_t exception_port, exception_type_t exception, const mach_exception_data_t code, mach_msg_type_number_t codeCnt, int *flavor, const thread_state_t old_state, mach_msg_type_number_t old_stateCnt, thread_state_t new_state, mach_msg_type_number_t *new_stateCnt) {
+    arm_thread_state64_t *old = (arm_thread_state64_t *)old_state;
+    arm_thread_state64_t *new = (arm_thread_state64_t *)new_state;
+    uint64_t pc = arm_thread_state64_get_pc(*old);
+    // TODO: merge with dyld bypass?
+    if(pc == (uint64_t)orig_dyld_mmap) {
+        *new = *old;
+        *new_stateCnt = old_stateCnt;
+        arm_thread_state64_set_pc_fptr(*new, jitless_hook_mmap);
+        return KERN_SUCCESS;
+    }
+    NSLog(@"[DyldLVBypass] Unknown breakpoint at pc: %p", (void*)pc);
+    return KERN_FAILURE;
+}
+
+kern_return_t catch_mach_exception_raise(mach_port_t exception_port, mach_port_t thread, mach_port_t task, exception_type_t exception, mach_exception_data_t code, mach_msg_type_number_t codeCnt) {
+    abort();
+}
+
+kern_return_t catch_mach_exception_raise_state_identity(mach_port_t exception_port, mach_port_t thread, mach_port_t task, exception_type_t exception, mach_exception_data_t code, mach_msg_type_number_t codeCnt, int *flavor, thread_state_t old_state, mach_msg_type_number_t old_stateCnt, thread_state_t new_state, mach_msg_type_number_t *new_stateCnt) {
+    abort();
 }

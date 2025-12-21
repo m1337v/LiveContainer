@@ -110,7 +110,7 @@ class RefreshHandler: NSObject, RefreshServer {
             let extensionItem = NSExtensionItem()
             extensionItem.userInfo = [
                 "selected": "builtinSideStore",
-                "bookmark": bookmarkData,
+                "bookmarks": [bookmarkData],
                 "endpoint": listener.endpoint
             ]
 

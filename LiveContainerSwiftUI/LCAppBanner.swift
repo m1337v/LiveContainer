@@ -113,7 +113,7 @@ struct LCAppBanner : View {
             .allowsHitTesting(false)
             Spacer()
             Button {
-                if #available(iOS 16.0, *), sharedModel.multiLCStatus != 2 && launchInMultitaskMode && model.uiIsShared {
+                if #available(iOS 16.0, *), sharedModel.multiLCStatus != 2 && launchInMultitaskMode {
                      if let currentDataFolder = model.uiSelectedContainer?.folderName,
                         MultitaskManager.isUsing(container: currentDataFolder) {
                          var found = false
@@ -207,23 +207,21 @@ struct LCAppBanner : View {
                         }
                     }
                 }
-                if(model.uiIsShared) {
-                    if #available(iOS 16.0, *) {
-                        Button {
-                            if launchInMultitaskMode {
-                                Task{ await runApp(multitask: false) }
-                            } else {
-                                Task{ await runApp(multitask: true) }
-                            }
-
-                        } label: {
-                            if launchInMultitaskMode {
-                                Label("lc.appBanner.run".loc, systemImage: "play.fill")
-                            } else {
-                                Label("lc.appBanner.multitask".loc, systemImage: "macwindow.badge.plus")
-                            }
-
+                if #available(iOS 16.0, *) {
+                    Button {
+                        if launchInMultitaskMode {
+                            Task{ await runApp(multitask: false) }
+                        } else {
+                            Task{ await runApp(multitask: true) }
                         }
+                        
+                    } label: {
+                        if launchInMultitaskMode {
+                            Label("lc.appBanner.run".loc, systemImage: "play.fill")
+                        } else {
+                            Label("lc.appBanner.multitask".loc, systemImage: "macwindow.badge.plus")
+                        }
+                        
                     }
                 }
                 Menu {
@@ -330,7 +328,7 @@ struct LCAppBanner : View {
     
     
     func openDataFolder() {
-        let url = URL(string:"shareddocuments://\(LCPath.docPath.path)/Data/Application/\(model.uiSelectedContainer!.folderName)")
+        let url = URL(string:"shareddocuments://\(LCPath.dataPath.path)/\(model.uiSelectedContainer!.folderName)")
         UIApplication.shared.open(url!)
     }
     

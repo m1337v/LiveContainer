@@ -41,6 +41,10 @@ int LiveProcessMain(int argc, char *argv[]) {
     NSDictionary *appInfo = LiveProcessHandler.retrievedAppInfo;
     NSCAssert(appInfo, @"Failed to retrieve app info");
     NSLog(@"Retrieved app info: %@", appInfo);
+    // Set LiveContainer's home path
+    setenv("LP_HOME_PATH", getenv("HOME"), 1);
+    const char *overrideHomePath = [appInfo[@"lcHomePath"] fileSystemRepresentation];
+    if(overrideHomePath) setenv("LC_HOME_PATH", overrideHomePath, 1);
     // Pass selected app info to user defaults
     NSUserDefaults *lcUserDefaults = NSUserDefaults.standardUserDefaults;
     [lcUserDefaults setObject:appInfo[@"hostUrlScheme"] forKey:@"hostUrlScheme"];
@@ -48,18 +52,18 @@ int LiveProcessMain(int argc, char *argv[]) {
     [lcUserDefaults setObject:appInfo[@"selectedContainer"] forKey:@"selectedContainer"];
     
     bool access = false;
-    NSData* bookmark = appInfo[@"bookmark"];
-    NSURL* bookmarkedUrl = nil;
-    if(bookmark) {
+    NSArray* bookmarks = appInfo[@"bookmarks"];
+    NSMutableArray<NSURL *>* bookmarkedUrls = [NSMutableArray array];
+    for(int i = 0; i < bookmarks.count; i++) {
         bool isStale = false;
         NSError* error = nil;
-        bookmarkedUrl = [NSURL URLByResolvingBookmarkData:bookmark options:(1 << 10) relativeToURL:nil bookmarkDataIsStale:&isStale error:&error];
-        access = [bookmarkedUrl startAccessingSecurityScopedResource];
+        bookmarkedUrls[i] = [NSURL URLByResolvingBookmarkData:bookmarks[i] options:(1 << 10) relativeToURL:nil bookmarkDataIsStale:&isStale error:&error];
+        access = [bookmarkedUrls[i] startAccessingSecurityScopedResource];
     }
     
     if ([appInfo[@"selected"] isEqualToString:@"builtinSideStore"]) {
-        if(access && bookmarkedUrl) {
-            [lcUserDefaults setObject:bookmarkedUrl.path forKey:@"specifiedSideStoreContainerPath"];
+        if(access && bookmarkedUrls.count > 0) {
+            [lcUserDefaults setObject:bookmarkedUrls.firstObject.path forKey:@"specifiedSideStoreContainerPath"];
         }
         NSXPCListenerEndpoint* endpoint = appInfo[@"endpoint"];
 
