@@ -600,12 +600,22 @@ class AppInfoProvider {
 
         for window in windowScene.windows {
             if let targetView = findMultitaskView(in: window, withUUID: uuid) {
+                passURLSchemeToView(targetView)
                 animateViewAppearance(targetView, in: window)
                 return true
             }
         }
         
         return false
+    }
+
+    private func passURLSchemeToView(_ view: UIView) {
+        if let launchUrl = UserDefaults.standard.string(forKey: "launchAppUrlScheme") {
+            UserDefaults.standard.removeObject(forKey: "launchAppUrlScheme")
+            if let decoratedVC = view._viewControllerForAncestor() as? DecoratedAppSceneViewController {
+                decoratedVC.appSceneVC.openURLScheme(launchUrl)
+            }
+        }
     }
 
     private func animateViewAppearance(_ view: UIView, in window: UIWindow) {

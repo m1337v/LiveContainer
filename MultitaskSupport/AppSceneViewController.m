@@ -164,6 +164,13 @@
     }];
     [self.presenter activate];
     
+    // If we have a staging URL scheme, pass it now
+    NSString *launchUrl = [NSUserDefaults.standardUserDefaults stringForKey:@"launchAppUrlScheme"];
+    if(launchUrl) {
+        [NSUserDefaults.standardUserDefaults removeObjectForKey:@"launchAppUrlScheme"];
+        [self openURLScheme:launchUrl];
+    }
+    
     __weak typeof(self) weakSelf = self;
     [self.extension setRequestInterruptionBlock:^(NSUUID *uuid) {
         [weakSelf appTerminationCleanUp];
@@ -275,6 +282,17 @@
         }
         self.delegate = nil;
     }
+}
+
+- (void)openURLScheme:(NSString *)urlString {
+    [self.presenter.scene updateSettingsWithTransitionBlock:^(id settings) {
+        // pull from UserDefaults.standard.setValue(launchURLStr, forKey: "launchAppUrlScheme")
+        UIApplicationSceneTransitionContext *context = [UIApplicationSceneTransitionContext new];
+        NSURL *url = [NSURL URLWithString:urlString];
+        context.payload = @{UIApplicationLaunchOptionsURLKey: urlString};
+        context.actions = [NSSet setWithObject:[[UIOpenURLAction alloc] initWithURL:url]];
+        return context;
+    }];
 }
 
 @end

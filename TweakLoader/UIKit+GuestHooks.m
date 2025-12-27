@@ -554,10 +554,13 @@ BOOL canAppOpenItself(NSURL* url) {
         LCShowAlert(@"lc.guestTweak.restartToInstall".loc);
         return;
     }
-
-    NSMutableSet *newActions = actions.mutableCopy;
-    [newActions removeObject:urlAction];
-    [self hook_scene:scene didReceiveActions:newActions fromTransitionContext:context];
+    
+    if ([urlAction.url.scheme isEqualToString:NSUserDefaults.lcAppUrlScheme]) {
+        NSMutableSet *newActions = actions.mutableCopy;
+        [newActions removeObject:urlAction];
+        actions = newActions;
+    }
+    [self hook_scene:scene didReceiveActions:actions fromTransitionContext:context];
 }
 
 - (void)hook_openURL:(NSURL *)url options:(UISceneOpenExternalURLOptions *)options completionHandler:(void (^)(BOOL success))completion {
