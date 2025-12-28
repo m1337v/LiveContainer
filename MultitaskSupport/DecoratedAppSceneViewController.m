@@ -271,6 +271,7 @@ void UIKitFixesInit(void) {
 }
 
 - (void)minimizeWindow {
+    if (self.view.hidden) return;
     [UIView animateWithDuration:0.3 delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
         self.view.alpha = 0;
         self.view.transform = CGAffineTransformMakeScale(0.1, 0.1);

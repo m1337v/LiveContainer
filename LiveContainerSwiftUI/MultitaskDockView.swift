@@ -593,7 +593,7 @@ class AppInfoProvider {
     }
     
     // Find and bring corresponding multitask view to front
-    func bringMultitaskViewToFront(uuid: String) -> Bool {
+    func bringMultitaskViewToFront(uuid: String, from center: CGPoint? = nil) -> Bool {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
             return false
         }
@@ -601,7 +601,7 @@ class AppInfoProvider {
         for window in windowScene.windows {
             if let targetView = findMultitaskView(in: window, withUUID: uuid) {
                 passURLSchemeToView(targetView)
-                animateViewAppearance(targetView, in: window)
+                animateViewAppearance(targetView, from: center, in: window)
                 return true
             }
         }
@@ -618,27 +618,43 @@ class AppInfoProvider {
         }
     }
 
-    private func animateViewAppearance(_ view: UIView, in window: UIWindow) {
+    private func animateViewAppearance(_ view: UIView, from center: CGPoint?, in window: UIWindow) {
         let isHidden = view.isHidden || view.alpha < 0.1
         
+        // when a fullscreen multitask app is brought to front, optionally hide other windows
+        if UserDefaults.lcShared().bool(forKey: "LCMaxOneAppOnStage"),
+           let decoratedVC = view._viewControllerForAncestor() as? DecoratedAppSceneViewController,
+           decoratedVC.isMaximized {
+            MultitaskDockManager.shared.minimizeAllWindows(except: decoratedVC)
+        }
+        
         if isHidden {
+            //let origCenter = view.center
+            let origFrame = view.frame
             let pipManager = PiPManager.shared!
             if let decoratedVC = view._viewControllerForAncestor(), pipManager.isPiP(withDecoratedVC: decoratedVC) {
                 pipManager.stopPiP()
+            } else {
+                view.transform = CGAffineTransform(scaleX: 0.1, y: 0.1)
+                view.isHidden = false
+                let oldCenter = view.center
+                let smaller = min(view.frame.size.width, view.frame.size.height)
+                view.frame.size = CGSize(width: smaller, height: smaller)
+                view.center = center ?? oldCenter
             }
             
-            view.transform = CGAffineTransform(scaleX: 0.1, y: 0.1)
-            view.isHidden = false
+            self.bringViewToFront(view, in: window)
             UIView.animate(
                 withDuration: Constants.standardAnimationDuration,
                 delay: 0,
-                options: .curveEaseOut,
+                usingSpringWithDamping: 1.0,
+                initialSpringVelocity: 0,
+                options: .curveEaseInOut,
                 animations: {
                     view.alpha = 1.0
                     view.transform = .identity
-                },
-                completion: { _ in
-                    self.bringViewToFront(view, in: window)
+                    //view.center = origCenter
+                    view.frame = origFrame
                 }
             )
         } else {
@@ -705,10 +721,11 @@ class AppInfoProvider {
         }
     }
     
-    @objc public func minimizeAllWindows() {
+    @objc public func minimizeAllWindows(except: DecoratedAppSceneViewController? = nil) {
         DispatchQueue.main.async {
             self.apps.forEach { app in
-                if let vc = app.view?._viewControllerForAncestor() as? DecoratedAppSceneViewController {
+                if let vc = app.view?._viewControllerForAncestor() as? DecoratedAppSceneViewController,
+                   vc != except {
                     vc.minimizeWindow()
                 }
             }
@@ -1136,11 +1153,11 @@ struct AppIconView: View {
             onPress: { 
                 isPressed = true
             },
-            onRelease: { 
+            onRelease: { location in 
                 isPressed = false
                 let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
                 impactFeedback.impactOccurred()
-                let _ = dockManager.bringMultitaskViewToFront(uuid: app.appUUID)
+                let _ = dockManager.bringMultitaskViewToFront(uuid: app.appUUID, from: location)
             }
         )
         .contentShape(Rectangle())
@@ -1203,16 +1220,16 @@ struct TooltipView: View {
 
 // MARK: - Press Gesture Helper
 extension View {
-    func onPressGesture(onPress: @escaping () -> Void, onRelease: @escaping () -> Void) -> some View {
+    func onPressGesture(onPress: @escaping () -> Void, onRelease: @escaping (_ location: CGPoint) -> Void) -> some View {
         self.simultaneousGesture(
-            DragGesture(minimumDistance: 0)
+            DragGesture(minimumDistance: 0, coordinateSpace: .global)
                 .onChanged { value in
                     if value.translation == CGSize.zero {
                         onPress()
                     }
                 }
-                .onEnded { _ in 
-                    onRelease() 
+                .onEnded { value in
+                    onRelease(value.startLocation)
                 }
         )
     }
