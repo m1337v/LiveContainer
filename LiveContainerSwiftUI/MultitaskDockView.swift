@@ -629,21 +629,20 @@ class AppInfoProvider {
         }
         
         if isHidden {
-            //let origCenter = view.center
-            let origFrame = view.frame
+            let origFrame = view.bounds
             let pipManager = PiPManager.shared!
             if let decoratedVC = view._viewControllerForAncestor(), pipManager.isPiP(withDecoratedVC: decoratedVC) {
                 pipManager.stopPiP()
             } else {
                 view.transform = CGAffineTransform(scaleX: 0.1, y: 0.1)
                 view.isHidden = false
-                let oldCenter = view.center
                 let smaller = min(view.frame.size.width, view.frame.size.height)
                 view.frame.size = CGSize(width: smaller, height: smaller)
-                view.center = center ?? oldCenter
+                if let center { view.center = center }
             }
             
             self.bringViewToFront(view, in: window)
+            view.layer.removeAllAnimations()
             UIView.animate(
                 withDuration: Constants.standardAnimationDuration,
                 delay: 0,
@@ -726,6 +725,7 @@ class AppInfoProvider {
             self.apps.forEach { app in
                 if let vc = app.view?._viewControllerForAncestor() as? DecoratedAppSceneViewController,
                    vc != except {
+                    app.view?.layer.removeAllAnimations()
                     vc.minimizeWindow()
                 }
             }

@@ -276,6 +276,7 @@ void UIKitFixesInit(void) {
         self.view.alpha = 0;
         self.view.transform = CGAffineTransformMakeScale(0.1, 0.1);
     } completion:^(BOOL finished) {
+        if (!finished) return;
         self.view.hidden = YES;
         self.view.transform = CGAffineTransformIdentity;
     }];
