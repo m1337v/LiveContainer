@@ -620,16 +620,19 @@ class AppInfoProvider {
 
     private func animateViewAppearance(_ view: UIView, from center: CGPoint?, in window: UIWindow) {
         let isHidden = view.isHidden || view.alpha < 0.1
+        let decoratedVC = view._viewControllerForAncestor() as? DecoratedAppSceneViewController
+        let isMaximized = decoratedVC?.isMaximized ?? false
         
         // when a fullscreen multitask app is brought to front, optionally hide other windows
-        if UserDefaults.lcShared().bool(forKey: "LCMaxOneAppOnStage"),
-           let decoratedVC = view._viewControllerForAncestor() as? DecoratedAppSceneViewController,
-           decoratedVC.isMaximized {
+        if UserDefaults.lcShared().bool(forKey: "LCMaxOneAppOnStage") && isMaximized {
             MultitaskDockManager.shared.minimizeAllWindows(except: decoratedVC)
         }
         
         if isHidden {
-            let origFrame = view.bounds
+            view.layer.removeAllAnimations()
+            view.isHidden = true
+            view.transform = .identity
+            let origFrame = view.frame
             let pipManager = PiPManager.shared!
             if let decoratedVC = view._viewControllerForAncestor(), pipManager.isPiP(withDecoratedVC: decoratedVC) {
                 pipManager.stopPiP()
@@ -642,7 +645,6 @@ class AppInfoProvider {
             }
             
             self.bringViewToFront(view, in: window)
-            view.layer.removeAllAnimations()
             UIView.animate(
                 withDuration: Constants.standardAnimationDuration,
                 delay: 0,
@@ -652,7 +654,6 @@ class AppInfoProvider {
                 animations: {
                     view.alpha = 1.0
                     view.transform = .identity
-                    //view.center = origCenter
                     view.frame = origFrame
                 }
             )
