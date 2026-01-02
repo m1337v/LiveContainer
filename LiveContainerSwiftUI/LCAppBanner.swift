@@ -163,9 +163,6 @@ struct LCAppBanner : View {
                             }
                         }
                     }
-
-                    Text("\(appInfo.version() ?? "?") - \(appInfo.bundleIdentifier() ?? "?")").font(.system(size: 12)).foregroundColor(textColor)
-                    Text(model.uiSelectedContainer?.name ?? "lc.appBanner.noDataFolder".loc).font(.system(size: 8)).foregroundColor(textColor)
                 })
             }
             .allowsHitTesting(false)
