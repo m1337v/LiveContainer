@@ -24,6 +24,7 @@ struct LCWebView: View {
     @State private var errorInfo = ""
     
     @EnvironmentObject private var sharedModel : SharedModel
+    @AppStorage("LCLaunchInMultitaskMode") var launchInMultitaskMode = false
     
     init(url: Binding<URL>, isPresent: Binding<Bool>) {
         self._webView = State(initialValue: WebView())
@@ -119,22 +120,26 @@ struct LCWebView: View {
         webView.setObserver(observer: observer)
     }
     
-    func launchToApp(app: LCAppModel, url: URL) {
+    func launchToApp(app: LCAppModel, url: URL) async {
         let bundleId = app.appInfo.relativeBundlePath!
         if let runningLC = LCUtils.getContainerUsingLCScheme(withFolderName: app.uiDefaultDataFolder){
             let encodedUrl = Data(url.absoluteString.utf8).base64EncodedString()
             if let urlToOpen = URL(string: "\(runningLC)://livecontainer-launch?bundle-name=\(bundleId)&open-url=\(encodedUrl)"), UIApplication.shared.canOpenURL(urlToOpen) {
                 NSLog("[LC] urlToOpen = \(urlToOpen.absoluteString)")
-                UIApplication.shared.open(urlToOpen)
+                await UIApplication.shared.open(urlToOpen)
                 isPresent = false
                 return
             }
 
         }
         
-        UserDefaults.standard.setValue(bundleId, forKey: "selected")
         UserDefaults.standard.setValue(url.absoluteString, forKey: "launchAppUrlScheme")
-        LCUtils.launchToGuestApp()
+        do {
+            try await app.runApp(multitask: launchInMultitaskMode)
+        } catch {
+            errorInfo = error.localizedDescription
+            errorShow = true
+        }
     }
     
     public func onURLSchemeDetected(url: URL) async {
@@ -183,7 +188,7 @@ struct LCWebView: View {
             return
         }
         
-        launchToApp(app: appToLaunch, url: url)
+        await launchToApp(app: appToLaunch, url: url)
         
     }
     
@@ -225,7 +230,7 @@ struct LCWebView: View {
         if let doRunApp = await runAppAlert.open(), !doRunApp {
             return
         }
-        launchToApp(app: appToLaunch, url: url)
+        await launchToApp(app: appToLaunch, url: url)
     }
 }
 

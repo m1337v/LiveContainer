@@ -23,6 +23,7 @@ struct dyld_all_image_infos *_alt_dyld_get_all_image_infos(void);
 void *getDyldBase(void);
 void init_bypassDyldLibValidation(void);
 kern_return_t builtin_vm_protect(mach_port_name_t task, mach_vm_address_t address, mach_vm_size_t size, boolean_t set_max, vm_prot_t new_prot);
+void *jitless_hook_dlopen(const char *path, int mode);
 
 uint64_t aarch64_get_tbnz_jump_address(uint32_t instruction, uint64_t pc);
 uint64_t aarch64_emulate_adrp(uint32_t instruction, uint64_t pc);

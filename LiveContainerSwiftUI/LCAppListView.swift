@@ -507,9 +507,13 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
                 }
             }
             
-            UserDefaults.standard.setValue(appToLaunch.appInfo.relativeBundlePath!, forKey: "selected")
             UserDefaults.standard.setValue(urlToOpen.url!.absoluteString, forKey: "launchAppUrlScheme")
-            LCUtils.launchToGuestApp()
+            do {
+                try await appToLaunch.runApp(multitask: launchInMultitaskMode)
+            } catch {
+                errorInfo = error.localizedDescription
+                errorShow = true
+            }
             
             return
         }

@@ -268,7 +268,7 @@ class AppInfoProvider {
         return calculateIconSize(for: dockWidth)
     }
 
-    private var keyWindow: UIWindow? {
+    public var keyWindow: UIWindow? {
         (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.windows.first
     }
 
@@ -280,7 +280,7 @@ class AppInfoProvider {
     }
 
     private var safeAreaHeight: CGFloat {
-        UIScreen.main.bounds.height - safeAreaInsets.top - safeAreaInsets.bottom
+        keyWindow!.bounds.height - safeAreaInsets.top - safeAreaInsets.bottom
     }
     
     override init() {
@@ -453,7 +453,7 @@ class AppInfoProvider {
         DispatchQueue.main.async {
             self.isVisible = true
             
-            let screenBounds = UIScreen.main.bounds
+            let screenBounds = keyWindow.bounds
             let currentDockWidth = self.dockWidth
             let initialHeight = Constants.initialDockShowHeight
             
@@ -504,7 +504,7 @@ class AppInfoProvider {
                 let finalScale = Constants.initialScale
                 hostingController.view.transform = CGAffineTransform(scaleX: finalScale, y: finalScale)
                 // Move off-screen to hide, but keep in view hierarchy
-                let screenBounds = UIScreen.main.bounds
+                let screenBounds = self.keyWindow!.bounds
                 let currentDockWidth = self.dockWidth
                 let targetX = self.calculateTargetX(isDockHidden: true, isOnRightSide: hostingController.view.frame.midX > screenBounds.width / 2, dockWidth: currentDockWidth, screenWidth: screenBounds.width)
                 let targetY = hostingController.view.frame.origin.y // Keep current Y
@@ -546,7 +546,7 @@ class AppInfoProvider {
             return false
         }
         
-        let screenWidth = UIScreen.main.bounds.width
+        let screenWidth = keyWindow!.bounds.width
         let isOnRightSide = originalFrame.origin.x > screenWidth / 2
         let isSwipingAway = (isOnRightSide && translation.width > 0) || (!isOnRightSide && translation.width < 0)
         
@@ -574,7 +574,7 @@ class AppInfoProvider {
             return false
         }
         
-        let screenWidth = UIScreen.main.bounds.width
+        let screenWidth = keyWindow!.bounds.width
         let isOnRightSide = originalFrame.origin.x > screenWidth / 2
         
         guard !self.isDockHidden else { return false }
@@ -593,14 +593,15 @@ class AppInfoProvider {
     }
     
     // Find and bring corresponding multitask view to front
-    func bringMultitaskViewToFront(uuid: String) -> Bool {
+    func bringMultitaskViewToFront(uuid: String, from center: CGPoint? = nil) -> Bool {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
             return false
         }
 
         for window in windowScene.windows {
             if let targetView = findMultitaskView(in: window, withUUID: uuid) {
-                animateViewAppearance(targetView, in: window)
+                passURLSchemeToView(targetView)
+                animateViewAppearance(targetView, from: center, in: window)
                 return true
             }
         }
@@ -608,27 +609,52 @@ class AppInfoProvider {
         return false
     }
 
-    private func animateViewAppearance(_ view: UIView, in window: UIWindow) {
+    private func passURLSchemeToView(_ view: UIView) {
+        if let launchUrl = UserDefaults.standard.string(forKey: "launchAppUrlScheme") {
+            UserDefaults.standard.removeObject(forKey: "launchAppUrlScheme")
+            if let decoratedVC = view._viewControllerForAncestor() as? DecoratedAppSceneViewController {
+                decoratedVC.appSceneVC.openURLScheme(launchUrl)
+            }
+        }
+    }
+
+    private func animateViewAppearance(_ view: UIView, from center: CGPoint?, in window: UIWindow) {
         let isHidden = view.isHidden || view.alpha < 0.1
+        let decoratedVC = view._viewControllerForAncestor() as? DecoratedAppSceneViewController
+        let isMaximized = decoratedVC?.isMaximized ?? false
+        
+        // when a fullscreen multitask app is brought to front, optionally hide other windows
+        if UserDefaults.lcShared().bool(forKey: "LCMaxOneAppOnStage") && isMaximized {
+            MultitaskDockManager.shared.minimizeAllWindows(except: decoratedVC)
+        }
         
         if isHidden {
+            view.layer.removeAllAnimations()
+            view.isHidden = true
+            view.transform = .identity
+            let origFrame = view.frame
             let pipManager = PiPManager.shared!
             if let decoratedVC = view._viewControllerForAncestor(), pipManager.isPiP(withDecoratedVC: decoratedVC) {
                 pipManager.stopPiP()
+            } else {
+                view.transform = CGAffineTransform(scaleX: 0.1, y: 0.1)
+                view.isHidden = false
+                let smaller = min(view.frame.size.width, view.frame.size.height)
+                view.frame.size = CGSize(width: smaller, height: smaller)
+                if let center { view.center = center }
             }
             
-            view.transform = CGAffineTransform(scaleX: 0.1, y: 0.1)
-            view.isHidden = false
+            self.bringViewToFront(view, in: window)
             UIView.animate(
                 withDuration: Constants.standardAnimationDuration,
                 delay: 0,
-                options: .curveEaseOut,
+                usingSpringWithDamping: 1.0,
+                initialSpringVelocity: 0,
+                options: .curveEaseInOut,
                 animations: {
                     view.alpha = 1.0
                     view.transform = .identity
-                },
-                completion: { _ in
-                    self.bringViewToFront(view, in: window)
+                    view.frame = origFrame
                 }
             )
         } else {
@@ -656,23 +682,15 @@ class AppInfoProvider {
     
     // Recursively find multitask view
     private func findMultitaskView(in view: UIView, withUUID uuid: String) -> UIView? {
-        for app in apps {
-            if app.appUUID == uuid {
-                return app.view
-            }
-        }
-        
-        return nil
+        apps.first { $0.appUUID == uuid }?.view
     }
     
     // Get view's dataUUID property through reflection
     private func getDataUUID(from view: UIView) -> String? {
         let mirror = Mirror(reflecting: view)
         
-        for child in mirror.children {
-            if child.label == "dataUUID" {
-                return child.value as? String
-            }
+        if let child = (mirror.children.first { $0.label == "dataUUID" })?.value as? String {
+            return child
         }
         
         if view.responds(to: NSSelectorFromString("dataUUID")) {
@@ -703,10 +721,12 @@ class AppInfoProvider {
         }
     }
     
-    @objc public func minimizeAllWindows() {
+    @objc public func minimizeAllWindows(except: DecoratedAppSceneViewController? = nil) {
         DispatchQueue.main.async {
             self.apps.forEach { app in
-                if let vc = app.view?._viewControllerForAncestor() as? DecoratedAppSceneViewController {
+                if let vc = app.view?._viewControllerForAncestor() as? DecoratedAppSceneViewController,
+                   vc != except {
+                    app.view?.layer.removeAllAnimations()
                     vc.minimizeWindow()
                 }
             }
@@ -847,14 +867,20 @@ public struct MultitaskDockSwiftView: View {
             .padding(.vertical, 15)
             .padding(.horizontal, dynamicPadding)
             .frame(width: dockManager.dockWidth)
-            .background(
-                RoundedRectangle(cornerRadius: 15)
-                    .fill(Color.black.opacity(dockManager.isDockHidden ? 0.3 : 0.7))
-                    .overlay(
+            .modifier { content in
+                if #available(iOS 26.0, *), SharedModel.isLiquidGlassEnabled {
+                    content.glassEffect(.regular, in: .rect(cornerRadius: 15))
+                } else {
+                    content.background(
                         RoundedRectangle(cornerRadius: 15)
-                            .stroke(Color.white.opacity(dockManager.isDockHidden ? 0.1 : 0.3), lineWidth: 1)
+                            .fill(Color.black.opacity(dockManager.isDockHidden ? 0.3 : 0.7))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 15)
+                                    .stroke(Color.white.opacity(dockManager.isDockHidden ? 0.1 : 0.3), lineWidth: 1)
+                            )
                     )
-            )
+                }
+            }
             .scaleEffect(dockManager.isVisible ? 1.0 : 0.8)
             .opacity(dockManager.isDockHidden ? 0.4 : 1.0)
             .offset(dragOffset)
@@ -878,7 +904,7 @@ public struct MultitaskDockSwiftView: View {
                 let currentPhysicalFrame = hcFrame.offsetBy(dx: self.dragOffset.width, dy: self.dragOffset.height)
                 
                 if dockManager.isPositionChangeGesture(for: hcFrame, translation: value.translation) {
-                    let screenBounds = UIScreen.main.bounds
+                    let screenBounds = dockManager.keyWindow!.bounds
                     let targetX = dockManager.calculateTargetX(isDockHidden: false, isOnRightSide: currentPhysicalFrame.midX > screenBounds.width / 2, dockWidth: dockManager.dockWidth, screenWidth: screenBounds.width)
                     
                     let safeAreaInsets = dockManager.safeAreaInsets
@@ -920,7 +946,7 @@ public struct MultitaskDockSwiftView: View {
                     return
                 }
                 
-                let screenBounds = UIScreen.main.bounds
+                let screenBounds = dockManager.keyWindow!.bounds
                 let safeAreaInsets = dockManager.safeAreaInsets
                 let dockVerticalMargin = MultitaskDockManager.Constants.dockVerticalMargin
                 let minY = safeAreaInsets.top + dockVerticalMargin
@@ -1128,11 +1154,11 @@ struct AppIconView: View {
             onPress: { 
                 isPressed = true
             },
-            onRelease: { 
+            onRelease: { location in 
                 isPressed = false
                 let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
                 impactFeedback.impactOccurred()
-                let _ = dockManager.bringMultitaskViewToFront(uuid: app.appUUID)
+                let _ = dockManager.bringMultitaskViewToFront(uuid: app.appUUID, from: location)
             }
         )
         .contentShape(Rectangle())
@@ -1195,16 +1221,16 @@ struct TooltipView: View {
 
 // MARK: - Press Gesture Helper
 extension View {
-    func onPressGesture(onPress: @escaping () -> Void, onRelease: @escaping () -> Void) -> some View {
+    func onPressGesture(onPress: @escaping () -> Void, onRelease: @escaping (_ location: CGPoint) -> Void) -> some View {
         self.simultaneousGesture(
-            DragGesture(minimumDistance: 0)
+            DragGesture(minimumDistance: 0, coordinateSpace: .global)
                 .onChanged { value in
                     if value.translation == CGSize.zero {
                         onPress()
                     }
                 }
-                .onEnded { _ in 
-                    onRelease() 
+                .onEnded { value in
+                    onRelease(value.startLocation)
                 }
         )
     }

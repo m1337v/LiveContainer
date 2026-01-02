@@ -51,11 +51,32 @@
     _extension.preferredLanguages = @[];
     
     NSExtensionItem *item = [NSExtensionItem new];
-    item.userInfo = @{
+    NSMutableArray* bookmarks = [NSMutableArray array];
+    NSMutableDictionary *userInfo = @{
         @"hostUrlScheme": NSUserDefaults.lcAppUrlScheme,
         @"selected": _bundleId,
         @"selectedContainer": _dataUUID,
-    };
+        @"bookmarks": bookmarks,
+        @"lcHomePath": NSHomeDirectory(),
+    }.mutableCopy;
+    
+    NSURL *docURL = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].lastObject;
+    if ([NSUserDefaults.standardUserDefaults boolForKey:@"LCSharePrivateDataWithLiveProcess"]) {
+        NSData* bookmarkData = [docURL bookmarkDataWithOptions:(1<<11) includingResourceValuesForKeys:0 relativeToURL:0 error:0];
+        [bookmarks addObject:bookmarkData];
+    } else {
+        bool isSharedApp = false;
+        NSBundle* bundle = [LCSharedUtils findBundleWithBundleId:bundleId isSharedAppOut:&isSharedApp];
+        // when mutlitask with private app, we can restrict its sandbox to only its own container
+        if (!isSharedApp) {
+            NSURL *dataURL = [docURL URLByAppendingPathComponent:[NSString stringWithFormat:@"Data/Application/%@", dataUUID]];
+            NSURL *tweaksURL = [docURL URLByAppendingPathComponent:@"Tweaks"];
+            [bookmarks addObject:[bundle.bundleURL bookmarkDataWithOptions:(1<<11) includingResourceValuesForKeys:0 relativeToURL:0 error:0]];
+            [bookmarks addObject:[dataURL bookmarkDataWithOptions:(1<<11) includingResourceValuesForKeys:0 relativeToURL:0 error:0]];
+            [bookmarks addObject:[tweaksURL bookmarkDataWithOptions:(1<<11) includingResourceValuesForKeys:0 relativeToURL:0 error:0]];
+        }
+    }
+    item.userInfo = userInfo;
     
     __weak typeof(self) weakSelf = self;
     [_extension setRequestCancellationBlock:^(NSUUID *uuid, NSError *error) {
@@ -95,7 +116,7 @@
     RBSProcessHandle* processHandle = [PrivClass(RBSProcessHandle) handleForPredicate:predicate error:nil];
     [manager registerProcessForAuditToken:processHandle.auditToken];
     // NSString *identifier = [NSString stringWithFormat:@"sceneID:%@-%@", bundleID, @"default"];
-    self.sceneID = [NSString stringWithFormat:@"sceneID:%@-%@", @"LiveProcess", NSUUID.UUID.UUIDString];
+    self.sceneID = [NSString stringWithFormat:@"sceneID:%@-%@", @"LiveProcess", self.dataUUID];
     
     FBSMutableSceneDefinition *definition = [PrivClass(FBSMutableSceneDefinition) definition];
     definition.identity = [PrivClass(FBSSceneIdentity) identityForIdentifier:self.sceneID];
@@ -118,7 +139,7 @@
     }
     //settings.interruptionPolicy = 2; // reconnect
     settings.level = 1;
-    settings.persistenceIdentifier = NSUUID.UUID.UUIDString;
+    settings.persistenceIdentifier = self.dataUUID;
     if(self.isNativeWindow) {
         UIEdgeInsets defaultInsets = self.view.window.safeAreaInsets;
         settings.peripheryInsets = defaultInsets;
@@ -142,6 +163,13 @@
         context.appearanceStyle = 2;
     }];
     [self.presenter activate];
+    
+    // If we have a staging URL scheme, pass it now
+    NSString *launchUrl = [NSUserDefaults.standardUserDefaults stringForKey:@"launchAppUrlScheme"];
+    if(launchUrl) {
+        [NSUserDefaults.standardUserDefaults removeObjectForKey:@"launchAppUrlScheme"];
+        [self openURLScheme:launchUrl];
+    }
     
     __weak typeof(self) weakSelf = self;
     [self.extension setRequestInterruptionBlock:^(NSUUID *uuid) {
@@ -254,6 +282,17 @@
         }
         self.delegate = nil;
     }
+}
+
+- (void)openURLScheme:(NSString *)urlString {
+    [self.presenter.scene updateSettingsWithTransitionBlock:^(id settings) {
+        // pull from UserDefaults.standard.setValue(launchURLStr, forKey: "launchAppUrlScheme")
+        UIApplicationSceneTransitionContext *context = [UIApplicationSceneTransitionContext new];
+        NSURL *url = [NSURL URLWithString:urlString];
+        context.payload = @{UIApplicationLaunchOptionsURLKey: urlString};
+        context.actions = [NSSet setWithObject:[[UIOpenURLAction alloc] initWithURL:url]];
+        return context;
+    }];
 }
 
 @end

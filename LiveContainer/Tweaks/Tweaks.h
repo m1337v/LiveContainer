@@ -10,7 +10,7 @@ bool performHookDyldApi(const char* functionName, uint32_t adrpOffset, void** or
 
 void NUDGuestHooksInit(void);
 void SecItemGuestHooksInit(void);
-void DyldHooksInit(bool hideLiveContainer, uint32_t spoofSDKVersion);
+void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVersion);
 void NSFMGuestHooksInit(void);
 void initDead10ccFix(void);
 // Device spoofing
@@ -28,6 +28,6 @@ void* getGuestAppHeader(void);
 void* getDSCAddr(void);
 void* getCachedSymbol(NSString* symbolName, struct mach_header_64* header);
 void saveCachedSymbol(NSString* symbolName, struct mach_header_64* header, uint64_t offset);
-void* dlopenBypassingLock(const char *path, int mode);
+void* dlopen_nolock(const char *path, int mode);
 
 static void hook_do_nothing(void) {}
