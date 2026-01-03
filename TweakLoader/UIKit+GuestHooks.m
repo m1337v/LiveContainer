@@ -480,6 +480,8 @@ BOOL canAppOpenItself(NSURL* url) {
         swizzle(UIWindow.class, @selector(makeKeyAndVisible), @selector(hook_makeKeyAndVisible));
         swizzle(UIWindow.class, @selector(makeKeyWindow), @selector(hook_makeKeyWindow));
         swizzle(UIWindow.class, @selector(setHidden:), @selector(hook_setHidden:));
+        // Fix apps that do not support UISceneDelegate getting 0 status bar frame
+        swizzle(UIApplication.class, @selector(statusBarFrame), @selector(hook_statusBarFrame));
     }
     [self hook_setDelegate:delegate];
 }
@@ -487,6 +489,15 @@ BOOL canAppOpenItself(NSURL* url) {
 + (BOOL)_wantsApplicationBehaviorAsExtension {
     // Fix LiveProcess: Make _UIApplicationWantsExtensionBehavior return NO so delegate code runs in the run loop
     return YES;
+}
+
+- (CGRect)hook_statusBarFrame {
+    UIStatusBarManager* manager = [(UIWindowScene*)(UIApplication.sharedApplication.connectedScenes.anyObject) statusBarManager];
+    if(manager) {
+        return manager.statusBarFrame;
+    } else {
+        return [self hook_statusBarFrame];
+    }
 }
 
 @end
