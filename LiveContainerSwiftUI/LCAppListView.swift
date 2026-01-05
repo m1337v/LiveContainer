@@ -763,7 +763,9 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
             return
         }
         
-        var plistUrlStr = urlStr
+        // Extract plist URL from text (supports pasting text blocks containing URLs)
+        var plistUrlStr = extractPlistUrl(from: urlStr)
+        
         if plistUrlStr.hasPrefix("itms-services://") {
             if let urlComponents = URLComponents(string: plistUrlStr),
                let queryItems = urlComponents.queryItems,
@@ -780,11 +782,6 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
             errorInfo = "lc.appList.urlInvalidError".loc
             errorShow = true
             return
-        }
-        
-        self.installprogressVisible = true
-        defer {
-            self.installprogressVisible = false
         }
         
         do {
@@ -820,6 +817,31 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
             errorInfo = error.localizedDescription
             errorShow = true
         }
+    }
+    
+    /// Extract plist URL from text block (supports itms-services:// or direct .plist URLs)
+    func extractPlistUrl(from text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // If it's already a clean URL, return as-is
+        if trimmed.hasPrefix("itms-services://") || trimmed.hasPrefix("https://") || trimmed.hasPrefix("http://") {
+            if !trimmed.contains("\n") && !trimmed.contains(" ") {
+                return trimmed
+            }
+        }
+        
+        // Try to find itms-services:// URL first
+        if let range = text.range(of: "itms-services://[^\\s]+", options: .regularExpression) {
+            return String(text[range])
+        }
+        
+        // Try to find .plist URL
+        if let range = text.range(of: "https?://[^\\s]+\\.plist", options: .regularExpression) {
+            return String(text[range])
+        }
+        
+        // Fallback: return original text
+        return trimmed
     }
     
     func installFromUrl(urlStr: String) async {
