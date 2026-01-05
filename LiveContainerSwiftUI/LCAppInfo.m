@@ -716,4 +716,17 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     [self save];
 }
 
+- (NSString*)remark {
+    return _info[@"remark"];
+}
+
+- (void)setRemark:(NSString *)remark {
+    if([remark isEqualToString: @""]) {
+        _info[@"remark"] = nil;
+    } else {
+        _info[@"remark"] = remark;
+    }
+    [self save];
+}
+
 @end
