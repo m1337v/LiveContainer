@@ -80,29 +80,6 @@ struct LiveContainerSwiftUIApp : SwiftUI.App {
             NSLog("[LC] error:\(error)")
         }
         
-        // MARK: - SIMULATOR MOCK DATA (DELETE THIS BLOCK WHEN DONE)
-        #if targetEnvironment(simulator)
-        if tempApps.isEmpty {
-            let mockAppInfo = LCAppInfo(bundlePath: Bundle.main.bundlePath)!
-            mockAppInfo.relativeBundlePath = "MockApp1.app"
-            mockAppInfo.isShared = false
-            mockAppInfo.remark = "Work Account"
-            tempApps.append(LCAppModel(appInfo: mockAppInfo))
-            
-            let mockAppInfo2 = LCAppInfo(bundlePath: Bundle.main.bundlePath)!
-            mockAppInfo2.relativeBundlePath = "MockApp2.app"
-            mockAppInfo2.isShared = false
-            mockAppInfo2.remark = "Personal"
-            tempApps.append(LCAppModel(appInfo: mockAppInfo2))
-            
-            let mockAppInfo3 = LCAppInfo(bundlePath: Bundle.main.bundlePath)!
-            mockAppInfo3.relativeBundlePath = "MockApp3.app"
-            mockAppInfo3.isShared = true
-            tempApps.append(LCAppModel(appInfo: mockAppInfo3))
-        }
-        #endif
-        // MARK: - END SIMULATOR MOCK DATA
-
         DataManager.shared.model.apps = tempApps
         DataManager.shared.model.hiddenApps = tempHiddenApps
         

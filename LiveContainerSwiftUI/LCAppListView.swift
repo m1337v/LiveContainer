@@ -60,7 +60,6 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     
     @ObservedObject var downloadHelper = DownloadHelper()
     @StateObject private var installUrlInput = InputHelper()
-    @StateObject private var installPlistInput = InputHelper()
     
     @State private var jitLog = ""
     @StateObject private var jitAlert = YesNoHelper()
@@ -226,9 +225,6 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
                                 Button("lc.appList.installFromUrl".loc, systemImage: "link.badge.plus", action: {
                                     Task{ await startInstallFromUrl() }
                                 })
-                                Button("lc.appList.installFromPlist".loc, systemImage: "link.badge.plus", action: {
-                                    Task{ await startInstallFromPlist() }
-                                })
                             } label: {
                                 Label("add", systemImage: "plus")
                             }
@@ -365,18 +361,6 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
             },
             actionCancel: {_ in
                 installUrlInput.close(result: nil)
-            }
-        )
-        .textFieldAlert(
-            isPresented: $installPlistInput.show,
-            title: "lc.appList.installPlistInputTip".loc,
-            text: $installPlistInput.initVal,
-            placeholder: "itms-services://?action=download-manifest&url=",
-            action: { newText in
-                installPlistInput.close(result: newText)
-            },
-            actionCancel: {_ in
-                installPlistInput.close(result: nil)
             }
         )
         .downloadAlert(helper: downloadHelper)
@@ -745,13 +729,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         await installFromUrl(urlStr: installUrlStr)
     }
     
-    func startInstallFromPlist() async {
-        guard let plistUrlStr = await installPlistInput.open(), plistUrlStr.count > 0 else {
-            return
-        }
-        await installFromPlist(urlStr: plistUrlStr)
-    }
-    
+    /// Install from plist manifest URL (itms-services:// or direct .plist URL)
     func installFromPlist(urlStr: String) async {
         if self.installprogressVisible {
             return
@@ -763,10 +741,11 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
             return
         }
         
-        // Extract plist URL from text (supports pasting text blocks containing URLs)
-        var plistUrlStr = extractPlistUrl(from: urlStr)
+        // Extract and sanitize URL from text
+        var plistUrlStr = extractAndSanitizeUrl(from: urlStr)
         
-        if plistUrlStr.hasPrefix("itms-services://") {
+        // Handle itms-services:// wrapper - extract the actual plist URL
+        if plistUrlStr.lowercased().hasPrefix("itms-services://") {
             if let urlComponents = URLComponents(string: plistUrlStr),
                let queryItems = urlComponents.queryItems,
                let urlParam = queryItems.first(where: { $0.name == "url" })?.value {
@@ -811,7 +790,8 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
                 return
             }
             
-            await installFromUrl(urlStr: ipaUrlStr)
+            // software-package is always IPA, skip plist detection
+            await installFromUrl(urlStr: ipaUrlStr, fromPlist: true)
             
         } catch {
             errorInfo = error.localizedDescription
@@ -819,32 +799,105 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         }
     }
     
-    /// Extract plist URL from text block (supports itms-services:// or direct .plist URLs)
-    func extractPlistUrl(from text: String) -> String {
+    /// Extract and sanitize URL from text block
+    /// Supports: itms-services://, .plist, .ipa, .tipa URLs
+    /// Priority: itms-services:// > .plist > .ipa/.tipa > any http(s) URL
+    /// Also removes trailing punctuation that may be accidentally included
+    func extractAndSanitizeUrl(from text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        // If it's already a clean URL, return as-is
-        if trimmed.hasPrefix("itms-services://") || trimmed.hasPrefix("https://") || trimmed.hasPrefix("http://") {
+        // If it's already a clean URL (no spaces or newlines), return after sanitizing
+        if trimmed.lowercased().hasPrefix("itms-services://") || 
+           trimmed.lowercased().hasPrefix("https://") || 
+           trimmed.lowercased().hasPrefix("http://") {
             if !trimmed.contains("\n") && !trimmed.contains(" ") {
-                return trimmed
+                return sanitizeUrlString(trimmed)
             }
         }
         
-        // Try to find itms-services:// URL first
-        if let range = text.range(of: "itms-services://[^\\s]+", options: .regularExpression) {
-            return String(text[range])
+        // Find URLs in text
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else {
+            return trimmed
         }
         
-        // Try to find .plist URL
-        if let range = text.range(of: "https?://[^\\s]+\\.plist", options: .regularExpression) {
-            return String(text[range])
+        let matches = detector.matches(in: text, options: [], range: NSRange(text.startIndex..., in: text))
+        
+        // Extract all detected URLs
+        var detectedUrls: [String] = []
+        for match in matches {
+            guard let range = Range(match.range, in: text) else { continue }
+            let urlString = String(text[range])
+            detectedUrls.append(urlString)
         }
         
-        // Fallback: return original text
+        // Priority: itms-services > .plist > .ipa/.tipa > any URL
+        // 1. Look for itms-services URL
+        if let itmsUrl = detectedUrls.first(where: { $0.lowercased().hasPrefix("itms-services://") }) {
+            return sanitizeUrlString(itmsUrl)
+        }
+        
+        // 2. Look for .plist URL
+        if let plistUrl = detectedUrls.first(where: { isPlistFileUrl($0) }) {
+            return sanitizeUrlString(plistUrl)
+        }
+        
+        // 3. Look for .ipa or .tipa URL
+        if let ipaUrl = detectedUrls.first(where: { isIpaFileUrl($0) }) {
+            return sanitizeUrlString(ipaUrl)
+        }
+        
+        // 4. Return first detected URL as fallback
+        if let firstUrl = detectedUrls.first {
+            return sanitizeUrlString(firstUrl)
+        }
+        
+        // Fallback: return original trimmed text
         return trimmed
     }
     
-    func installFromUrl(urlStr: String) async {
+    /// Check if URL path ends with .plist (ignores query string)
+    private func isPlistFileUrl(_ urlString: String) -> Bool {
+        guard let url = URL(string: urlString) else {
+            return urlString.lowercased().contains(".plist")
+        }
+        return url.pathExtension.lowercased() == "plist"
+    }
+    
+    /// Check if URL path ends with .ipa or .tipa (ignores query string)
+    private func isIpaFileUrl(_ urlString: String) -> Bool {
+        guard let url = URL(string: urlString) else {
+            let lower = urlString.lowercased()
+            return lower.contains(".ipa") || lower.contains(".tipa")
+        }
+        let ext = url.pathExtension.lowercased()
+        return ext == "ipa" || ext == "tipa"
+    }
+    
+    /// Remove trailing punctuation that may have been accidentally captured
+    private func sanitizeUrlString(_ urlString: String) -> String {
+        var result = urlString
+        // Remove common trailing punctuation that shouldn't be part of URL
+        let trailingPunctuation: Set<Character> = [".", ",", ";", ":", "!", "?"]
+        while let last = result.last, trailingPunctuation.contains(last) {
+            result.removeLast()
+        }
+        return result
+    }
+    
+    /// Check if a URL string points to a plist (itms-services or .plist file)
+    private func isPlistUrl(_ urlString: String) -> Bool {
+        // Check for itms-services scheme first
+        if urlString.lowercased().hasPrefix("itms-services://") {
+            return true
+        }
+        return isPlistFileUrl(urlString)
+    }
+    
+    /// Install from URL
+    /// - Parameters:
+    ///   - urlStr: The URL string (can be IPA, plist, or itms-services)
+    ///   - fromPlist: If true, skip plist detection (already resolved from plist)
+    func installFromUrl(urlStr: String, fromPlist: Bool = false) async {
         // ignore any install request if we are installing another app
         if self.installprogressVisible {
             return
@@ -856,7 +909,17 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
             return
         }
         
-        guard let installUrl = URL(string: urlStr) else {
+        // Extract URL from text block (supports pasting text containing URLs)
+        let extractedUrl = extractAndSanitizeUrl(from: urlStr)
+        
+        // Auto-detect plist/itms-services URLs and delegate to plist handler
+        // Skip this check if we're coming from plist (software-package is always IPA)
+        if !fromPlist && isPlistUrl(extractedUrl) {
+            await installFromPlist(urlStr: extractedUrl)
+            return
+        }
+        
+        guard let installUrl = URL(string: extractedUrl) else {
             errorInfo = "lc.appList.urlInvalidError".loc
             errorShow = true
             return
