@@ -168,8 +168,6 @@ class LCAppModel: ObservableObject, Hashable {
             return
         }
         
-        var multitask = multitask
-        
         if multitask && !uiIsShared {
             throw "It's not possible to multitask with private apps."
         }
