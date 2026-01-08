@@ -34,6 +34,7 @@ struct LCAppSettingsView: View {
     @StateObject private var moveToAppGroupAlert = YesNoHelper()
     @StateObject private var moveToPrivateDocAlert = YesNoHelper()
     @StateObject private var signUnsignedAlert = YesNoHelper()
+    @StateObject private var addExternalNonLocalContainerWarningAlert = YesNoHelper()
     @State var choosingStorage = false
     
     @State private var errorShow = false
@@ -430,6 +431,18 @@ struct LCAppSettingsView: View {
         } message: {
             Text("lc.appSettings.signUnsignedDesc".loc)
         }
+        .alert("lc.appSettings.addExternalNonLocalContainer".loc, isPresented: $addExternalNonLocalContainerWarningAlert.show) {
+            Button {
+                self.addExternalNonLocalContainerWarningAlert.close(result: true)
+            } label: {
+                Text("lc.common.continue".loc)
+            }
+            Button("lc.common.cancel".loc, role: .cancel) {
+                self.addExternalNonLocalContainerWarningAlert.close(result: false)
+            }
+        } message: {
+            Text("lc.appSettings.addExternalNonLocalContainerWarningAlert".loc)
+        }
         .sheet(isPresented: $selectUnusedContainerSheetShow) {
             LCSelectContainerView(isPresent: $selectUnusedContainerSheetShow, delegate: self)
         }
@@ -499,8 +512,17 @@ struct LCAppSettingsView: View {
             let fm = FileManager.default
             let _ = try fm.contentsOfDirectory(atPath: path)
 
+            let v = try url.resourceValues(forKeys: [
+                .volumeIsLocalKey,
+                .volumeIsInternalKey,
+            ])
+            if !(v.volumeIsLocal == true && v.volumeIsInternal == true) {
+                guard let doAdd = await addExternalNonLocalContainerWarningAlert.open(), doAdd else {
+                    return
+                }
+            }
+            
             guard let bookmark = LCUtils.bookmark(for: url) else {
-//                LCUtils.appGroupUserDefault.set(bookmark, forKey: "externalStorageBookMark")
                 errorInfo = "Unable to generate a bookmark for the selected URL!"
                 errorShow = true
                 return

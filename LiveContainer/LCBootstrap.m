@@ -364,8 +364,9 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
                     NSError* err = nil;
                     BOOL isStale = false;
                     bookmarkURL = [NSURL URLByResolvingBookmarkData:bookmarkData options:(1 << 10) relativeToURL:nil bookmarkDataIsStale:&isStale error:&err];
-                    if(!bookmarkURL) {
-                        return [@"Bookmark resolution failed. You might need to readd the data storage. %@" stringByAppendingString:err.localizedDescription];
+                    bool access = [bookmarkURL startAccessingSecurityScopedResource];
+                    if(!bookmarkURL || !access) {
+                        return [@"Bookmark resolution failed or unable to access the container. You might need to readd the data storage. %@" stringByAppendingString:err.localizedDescription];
                     }
                     [lcUserDefaults removeObjectForKey:@"error"];
                 }

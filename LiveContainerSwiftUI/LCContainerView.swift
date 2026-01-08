@@ -129,11 +129,14 @@ struct LCContainerView : View {
                             Text("lc.settings.cleanKeychain".loc)
                         }
                         
-                        Button(role:.destructive) {
-                            Task { await removeContainer() }
-                        } label: {
-                            Text("lc.container.removeContainer".loc)
+                        if(container.storageBookMark == nil) {
+                            Button(role:.destructive) {
+                                Task { await removeContainer() }
+                            } label: {
+                                Text("lc.container.removeContainer".loc)
+                            }
                         }
+
                         
                     }
                 }
@@ -245,9 +248,7 @@ struct LCContainerView : View {
         }
         do {
             let fm = FileManager.default
-            if(container.storageBookMark == nil) {
-                try fm.removeItem(at: container.containerURL)
-            }
+            try fm.removeItem(at: container.containerURL)
         } catch {
             errorInfo = error.localizedDescription
             errorShow = true
