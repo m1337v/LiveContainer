@@ -675,15 +675,14 @@ struct LCSourcesView: View {
             errorMessage = "lc.sources.error.missingDownload".loc
             return
         }
-        guard let encoded = downloadURL.absoluteString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let installURL = URL(string: "livecontainer://install?url=\(encoded)") else {
-            errorMessage = "lc.sources.error.invalidUrl".loc
-            return
-        }
-        UIApplication.shared.open(installURL)
         withAnimation {
             DataManager.shared.model.selectedTab = .apps
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            NotificationCenter.default.post(name: NSNotification.InstallAppNotification, object: ["url": downloadURL])
+        }
+
+
     }
     
     private func toggleExpansion(for id: URL) {

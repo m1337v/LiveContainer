@@ -389,6 +389,11 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         .onOpenURL { url in
             handleURL(url: url)
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.InstallAppNotification)) { obj in
+            if let obj2 = obj.object as? [String: Any], let installUrl = obj2["url"] as? URL {
+                Task { await installFromUrl(urlStr: installUrl.absoluteString) }
+            }
+        }
         .apply {
             if #available(iOS 19.0, *), SharedModel.isLiquidGlassSearchEnabled {
                 $0
