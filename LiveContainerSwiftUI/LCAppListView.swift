@@ -734,6 +734,10 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         guard let installUrlStr = await installUrlInput.open(), installUrlStr.count > 0 else {
             return
         }
+        if let url = URL(string:installUrlStr), url.scheme?.lowercased() == "itms-services" {
+            await installFromPlist(urlStr: installUrlStr)
+            return
+        }
         await installFromUrl(urlStr: installUrlStr)
     }
     
