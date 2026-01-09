@@ -84,7 +84,7 @@ class LCContainer : ObservableObject, Hashable {
                   name: infoDict["name"] as? String ?? "ERROR",
                   isShared: isShared,
                   isolateAppGroup: infoDict["isolateAppGroup"] as? Bool ?? true,
-                  spoofIdentifierForVendor: infoDict["spoofIdentifierForVendor"] as? Bool ?? true
+                  spoofIdentifierForVendor: infoDict["spoofIdentifierForVendor"] as? Bool ?? true,
                   bookmarkData: bookmarkData,
                   resolvedContainerURL: nil
         )
@@ -141,7 +141,7 @@ class LCContainer : ObservableObject, Hashable {
             "name" : name,
             "keychainGroupId" : keychainGroupId,
             "isolateAppGroup" : isolateAppGroup,
-            "spoofIdentifierForVendor": spoofIdentifierForVendor
+            "spoofIdentifierForVendor": spoofIdentifierForVendor,
         ]
         if let spoofedIdentifier {
             infoDict!["spoofedIdentifierForVendor"] = spoofedIdentifier
@@ -196,7 +196,7 @@ extension LCAppInfo {
                     "folderName": oldDataUUID,
                     "name": oldDataUUID,
                     "isolateAppGroup": true,
-                    "spoofIdentifierForVendor": true
+                    "spoofIdentifierForVendor": true,
                 ]]
                 upgrade = true
             }
