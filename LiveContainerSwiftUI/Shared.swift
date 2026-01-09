@@ -1018,3 +1018,8 @@ struct JITStreamerEBMountResponse : Codable {
         return usingMultitaskContainers.count > 0
     }
 }
+
+
+extension NSNotification {
+    static let InstallAppNotification = Notification.Name.init("InstallAppNotification")
+}

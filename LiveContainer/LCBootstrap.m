@@ -353,7 +353,34 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
 
     // Overwrite home and tmp path
     NSString *newHomePath = nil;
+    NSArray<NSDictionary*>* containers = guestAppInfo[@"LCContainers"];
+    NSURL* bookmarkURL = nil;
 
+    // see if the container contains a bookmark. if so, resolve it and report error upon failure.
+    if(containers && [containers isKindOfClass:NSArray.class]) {
+        for(NSDictionary* container in containers){
+            if(![container isKindOfClass:NSDictionary.class]) {
+                continue;
+            }
+            if([container[@"folderName"] isEqualToString:dataUUID]) {
+                NSData* bookmarkData = container[@"bookmarkData"];
+                if(bookmarkData && [bookmarkData isKindOfClass:NSData.class]) {
+                    // we will be killed by watchdog before timedout, so we set this error beforehand.
+                    [lcUserDefaults setObject:@"Bookmark resolution timed out. Is the data storage offline?" forKey:@"error"];
+                    NSError* err = nil;
+                    BOOL isStale = false;
+                    bookmarkURL = [NSURL URLByResolvingBookmarkData:bookmarkData options:(1 << 10) relativeToURL:nil bookmarkDataIsStale:&isStale error:&err];
+                    bool access = [bookmarkURL startAccessingSecurityScopedResource];
+                    if(!bookmarkURL || !access) {
+                        return [@"Bookmark resolution failed or unable to access the container. You might need to readd the data storage. %@" stringByAppendingString:err.localizedDescription];
+                    }
+                    [lcUserDefaults removeObjectForKey:@"error"];
+                }
+                break;
+            }
+        }
+    }
+    
     if(isSideStore) {
         if(isLiveProcess) {
             newHomePath = [lcUserDefaults stringForKey:@"specifiedSideStoreContainerPath"];;
@@ -361,6 +388,8 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         } else {
             newHomePath = [docPath stringByAppendingPathComponent:@"SideStore"];
         }
+    } else if (bookmarkURL) {
+        newHomePath = bookmarkURL.path;
     } else if(isSharedBundle) {
         newHomePath = [NSString stringWithFormat:@"%@/Data/Application/%@", appGroupFolder.path, dataUUID];
         

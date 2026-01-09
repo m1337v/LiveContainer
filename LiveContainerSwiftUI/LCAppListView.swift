@@ -375,7 +375,9 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
             sharedModel.isJITModalOpen = newValue
         }
         .fullScreenCover(isPresented: $webViewOpened) {
-            LCWebView(url: $webViewURL, isPresent: $webViewOpened)
+            LCWebView(url: $webViewURL, isPresent: $webViewOpened, itmsServicesHandler: { urlStr in
+                await installFromPlist(urlStr: urlStr)
+            })
         }
         .fullScreenCover(isPresented: $safariViewOpened) {
             SafariView(url: $safariViewURL)
@@ -388,6 +390,11 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         }
         .onOpenURL { url in
             handleURL(url: url)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.InstallAppNotification)) { obj in
+            if let obj2 = obj.object as? [String: Any], let installUrl = obj2["url"] as? URL {
+                Task { await installFromUrl(urlStr: installUrl.absoluteString) }
+            }
         }
         .apply {
             if #available(iOS 19.0, *), SharedModel.isLiquidGlassSearchEnabled {
@@ -468,6 +475,12 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         if urlToOpen.scheme == nil || urlToOpen.scheme! == "" {
             urlToOpen.scheme = "https"
         }
+        
+        if urlToOpen.scheme?.lowercased() == "itms-services" {
+            await installFromPlist(urlStr: urlString)
+            return
+        }
+        
         if urlToOpen.scheme != "https" && urlToOpen.scheme != "http" {
             var appToLaunch : LCAppModel? = nil
             var appListsToConsider = [sharedModel.apps]
@@ -735,7 +748,77 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         guard let installUrlStr = await installUrlInput.open(), installUrlStr.count > 0 else {
             return
         }
+        if let url = URL(string:installUrlStr), url.scheme?.lowercased() == "itms-services" {
+            await installFromPlist(urlStr: installUrlStr)
+            return
+        }
         await installFromUrl(urlStr: installUrlStr)
+    }
+    
+    func installFromPlist(urlStr: String) async {
+        if self.installprogressVisible {
+            return
+        }
+        
+        if sharedModel.multiLCStatus == 2 {
+            errorInfo = "lc.appList.manageInPrimaryTip".loc
+            errorShow = true
+            return
+        }
+        
+        var plistUrlStr = urlStr.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        if plistUrlStr.lowercased().hasPrefix("itms-services://") {
+            if let urlComponents = URLComponents(string: plistUrlStr),
+               let queryItems = urlComponents.queryItems,
+               let urlParam = queryItems.first(where: { $0.name == "url" })?.value {
+                plistUrlStr = urlParam
+            } else {
+                errorInfo = "lc.appList.plistInvalidError".loc
+                errorShow = true
+                return
+            }
+        }
+        
+        guard let plistUrl = URL(string: plistUrlStr) else {
+            errorInfo = "lc.appList.urlInvalidError".loc
+            errorShow = true
+            return
+        }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: plistUrl)
+            
+            guard let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any],
+                  let items = plist["items"] as? [[String: Any]],
+                  let firstItem = items.first,
+                  let assets = firstItem["assets"] as? [[String: Any]] else {
+                errorInfo = "lc.appList.plistParseError".loc
+                errorShow = true
+                return
+            }
+            
+            var ipaUrlStr: String?
+            for asset in assets {
+                if let kind = asset["kind"] as? String, kind == "software-package",
+                   let url = asset["url"] as? String {
+                    ipaUrlStr = url
+                    break
+                }
+            }
+            
+            guard let ipaUrlStr else {
+                errorInfo = "lc.appList.plistNoIpaError".loc
+                errorShow = true
+                return
+            }
+            
+            await installFromUrl(urlStr: ipaUrlStr)
+            
+        } catch {
+            errorInfo = error.localizedDescription
+            errorShow = true
+        }
     }
     
     func installFromUrl(urlStr: String) async {

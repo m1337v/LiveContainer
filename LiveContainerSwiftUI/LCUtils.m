@@ -492,4 +492,9 @@ Class LCSharedUtilsClass = nil;
             NSBundle.mainBundle.infoDictionary[@"LCVersionInfo"]];
 }
 
++ (NSData*)bookmarkForURL:(NSURL*) url {
+    return [url bookmarkDataWithOptions:(1<<11) includingResourceValuesForKeys:0 relativeToURL:0 error:0];
+}
+
+
 @end

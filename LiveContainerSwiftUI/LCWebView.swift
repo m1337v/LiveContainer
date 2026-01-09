@@ -20,16 +20,22 @@ struct LCWebView: View {
     @State private var runAppAlert = YesNoHelper()
     @State private var runAppAlertMsg = ""
     
+    @State private var installAppAlert = YesNoHelper()
+    @State private var installAppAlertMsg = ""
+    
     @State private var errorShow = false
     @State private var errorInfo = ""
     
     @EnvironmentObject private var sharedModel : SharedModel
     @AppStorage("LCLaunchInMultitaskMode") var launchInMultitaskMode = false
     
-    init(url: Binding<URL>, isPresent: Binding<Bool>) {
+    var itmsServicesHandler: ((String) async -> Void)?
+    
+    init(url: Binding<URL>, isPresent: Binding<Bool>, itmsServicesHandler: ((String) async -> Void)? = nil) {
         self._webView = State(initialValue: WebView())
         self._url = url
         self._isPresent = isPresent
+        self.itmsServicesHandler = itmsServicesHandler
     }
     
     var body: some View {
@@ -104,6 +110,17 @@ struct LCWebView: View {
         } message: {
             Text(runAppAlertMsg)
         }
+        .alert("lc.webView.installApp".loc, isPresented: $installAppAlert.show) {
+            Button("lc.common.install".loc, action: {
+                installAppAlert.close(result: true)
+            })
+            Button("lc.common.cancel".loc, role: .cancel, action: {
+                installAppAlert.close(result: false)
+            })
+        } message: {
+            Text(installAppAlertMsg)
+        }
+        
         .alert("lc.common.error".loc, isPresented: $errorShow) {
             Button("lc.common.ok".loc, action: {
             })
@@ -115,7 +132,7 @@ struct LCWebView: View {
     
     func onViewAppear() {
         let observer = WebViewLoadObserver(loadStatus: $loadStatus, webView: self.webView.webView)
-        let webViewDelegate = WebViewDelegate(pageTitle: $pageTitle, urlSchemeHandler:onURLSchemeDetected, universalLinkHandler: onUniversalLinkDetected)
+        let webViewDelegate = WebViewDelegate(pageTitle: $pageTitle, urlSchemeHandler:onURLSchemeDetected, universalLinkHandler: onUniversalLinkDetected,)
         webView.setDelegate(delegete: webViewDelegate)
         webView.setObserver(observer: observer)
     }
@@ -145,6 +162,18 @@ struct LCWebView: View {
     public func onURLSchemeDetected(url: URL) async {
         var appToLaunch : LCAppModel? = nil
         var appListsToConsider = [sharedModel.apps]
+        
+        if url.scheme == "itms-services", let handler = itmsServicesHandler {
+            installAppAlertMsg = "lc.webView.installAppDesc"
+            
+            if let doInstall = await installAppAlert.open(), !doInstall {
+                return
+            }
+            isPresent = false
+            Task { await handler(url.absoluteString) }
+            return
+        }
+        
         if sharedModel.isHiddenAppUnlocked || !LCUtils.appGroupUserDefault.bool(forKey: "LCStrictHiding") {
             appListsToConsider.append(sharedModel.hiddenApps)
         }
@@ -283,7 +312,7 @@ class WebViewDelegate : NSObject,WKNavigationDelegate {
             }
             return
         }
-        if(scheme == "http" || scheme == "about" || scheme == "itms-appss") {
+        if(scheme == "http" || scheme == "about" || scheme == "itms-apps") {
             return;
         }
         Task{ await urlSchemeHandler(url) }

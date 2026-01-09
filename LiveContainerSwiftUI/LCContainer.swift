@@ -12,6 +12,12 @@ class LCContainer : ObservableObject, Hashable {
     @Published var folderName : String
     @Published var name : String
     @Published var isShared : Bool
+    
+    @Published var storageBookMark: Data?
+    @Published var resolvedContainerURL: URL?
+    @Published var bookmarkResolved = false
+    var bookmarkResolveContinuation: UnsafeContinuation<(), Never>? = nil
+    
     @Published var isolateAppGroup : Bool
     @Published var spoofIdentifierForVendor : Bool {
         didSet {
@@ -24,6 +30,10 @@ class LCContainer : ObservableObject, Hashable {
     private var infoDict : [String:Any]?
     
     public var containerURL : URL {
+        if let resolvedContainerURL {
+            return resolvedContainerURL
+        }
+        
         if isShared {
             return LCPath.lcGroupDataPath.appendingPathComponent("\(folderName)")
         } else {
@@ -57,21 +67,46 @@ class LCContainer : ObservableObject, Hashable {
         }
     }
     
-    init(folderName: String, name: String, isShared : Bool, isolateAppGroup: Bool = false, spoofIdentifierForVendor: Bool = false) {
+    init(folderName: String, name: String, isShared : Bool, isolateAppGroup: Bool = false, spoofIdentifierForVendor: Bool = false, bookmarkData: Data? = nil, resolvedContainerURL: URL? = nil) {
         self.folderName = folderName
         self.name = name
         self.isShared = isShared
         self.isolateAppGroup = isolateAppGroup
         self.spoofIdentifierForVendor = spoofIdentifierForVendor
+        self.storageBookMark = bookmarkData
+        self.resolvedContainerURL = resolvedContainerURL
     }
     
     convenience init(infoDict : [String : Any], isShared : Bool) {
+        let bookmarkData : Data? = infoDict["bookmarkData"] as? Data
+        
         self.init(folderName: infoDict["folderName"] as? String ?? "ERROR",
                   name: infoDict["name"] as? String ?? "ERROR",
                   isShared: isShared,
                   isolateAppGroup: infoDict["isolateAppGroup"] as? Bool ?? true,
                   spoofIdentifierForVendor: infoDict["spoofIdentifierForVendor"] as? Bool ?? true
+                  bookmarkData: bookmarkData,
+                  resolvedContainerURL: nil
         )
+        
+        if let bookmarkData {
+//            Task {
+                do {
+                    var isStale = false
+                    let url = try URL(resolvingBookmarkData: bookmarkData, bookmarkDataIsStale: &isStale)
+//                    DispatchQueue.main.async {
+                        self.resolvedContainerURL = url
+//                    }
+                } catch {
+                    print(error.localizedDescription)
+                }
+//                DispatchQueue.main.async {
+                    self.bookmarkResolved = true
+//                }
+//            }
+
+        }
+        
         do {
             let fm = FileManager.default
             if(!fm.fileExists(atPath: infoDictUrl.deletingLastPathComponent().path)) {
@@ -82,19 +117,22 @@ class LCContainer : ObservableObject, Hashable {
             if let plistInfo = plistInfo as? [String : Any] {
                 isolateAppGroup = plistInfo["isolateAppGroup"] as? Bool ?? false
                 spoofIdentifierForVendor = plistInfo["spoofIdentifierForVendor"] as? Bool ?? false
+                spoofedIdentifier = plistInfo["spoofedIdentifierForVendor"] as? String
             }
         } catch {
             
         }
-
-        spoofedIdentifier = infoDict["spoofedIdentifierForVendor"] as? String
     }
     
     func toDict() -> [String : Any] {
-        return [
+        var ans : [String: Any] = [
             "folderName" : folderName,
             "name" : name
         ]
+        if let storageBookMark {
+            ans["bookmarkData"] = storageBookMark
+        }
+        return ans
     }
     
     func makeLCContainerInfoPlist(appIdentifier : String, keychainGroupId : Int) {
