@@ -21091,19 +21091,19 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Multitask Mode allows you to open multiple apps at the same time. Convert your apps to Shared Apps to use them in this mode."
+            "value" : "Multitask Mode allows you to open multiple apps at the same time."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chế độ Đa nhiệm cho phép bạn mở nhiều app cùng lúc. Chuyển các app thành Được Chia sẻ để dùng chúng trong chế độ này."
+            "value" : "Chế độ Đa nhiệm cho phép bạn mở nhiều app cùng lúc."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "通过多任务模式你可以同时打开多个App。将App转换为共享App以在多任务模式中使用。"
+            "value" : "通过多任务模式你可以同时打开多个App。"
           }
         }
       }
@@ -21561,6 +21561,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "LiveContainer未被使用开发证书签名，因此无法正常工作。请使用开发证书签名LiveContainer。"
+          }
+        }
+      }
+    },
+    "lc.settings.onlyOneAppOnStage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only show one Maximized Window on Stage"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chỉ hiện một Cửa sổ Tối Đa trên Màn Hình"
           }
         }
       }
