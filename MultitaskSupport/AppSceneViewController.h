@@ -37,5 +37,6 @@ API_AVAILABLE(ios(16.0))
 - (void)updateFrameWithSettingsBlock:(void (^)(UIMutableApplicationSceneSettings *settings))block;
 - (void)appTerminationCleanUp;
 - (void)terminate;
+- (void)openURLScheme:(NSString *)urlString;
 @end
 

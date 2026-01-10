@@ -96,6 +96,10 @@ static void TweakLoaderConstructor() {
     NSLog(@"Loading tweaks from the global folder");
 
     for (NSURL *fileURL in globalTweaks) {
+        if ([fileURL.lastPathComponent isEqualToString:@"TweakLoader.dylib"]) {
+            // skip loading myself
+            continue;
+        }
         NSString *error = loadTweakAtURL(fileURL);
         if (error) {
             [errors addObject:error];

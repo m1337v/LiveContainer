@@ -83,6 +83,7 @@
 - (UIScenePresentationManager *)uiPresentationManager;
 - (void)updateSettings:(UIMutableApplicationSceneSettings *)settings withTransitionContext:(id)context completion:(id)completion;
 - (void)updateSettingsWithBlock:(void(^)(UIMutableApplicationSceneSettings *settings))arg1;
+- (void)updateSettingsWithTransitionBlock:(UIApplicationSceneTransitionContext *(^)(/* FBSMutableSceneSettings * */ id settings))transitionBlock;
 @end
 
 @interface FBDisplayManager : NSObject

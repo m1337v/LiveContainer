@@ -95,9 +95,7 @@ To use an app in the second container, you must convert this app to a shared app
 ### Multitasking
 You can now launch multiple apps simultaneously in in-app virtual windows. These windows can be resized, scaled, and even displayed using the native Picture-in-Picture (PiP) feature. On iPads, apps can run in native window mode, displaying each app in a separate system window. And if you wish, you can choose to run apps in multitasking mode by default in settings.
 
-To use multitasking:
-1. Convert the app you want to multitask into a **shared app**.
-2. Hold its banner and tap **"Multitask"**.
+To use multitasking, hold its banner and tap **"Multitask"**. You can also make Multitask the default launch mode in settings.
 
 >[!Note]
 >1. To use multitasking, ensure you select **"Keep App Extensions"** when installing via SideStore/AltStore.  

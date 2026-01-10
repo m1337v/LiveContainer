@@ -12,6 +12,7 @@ NSUUID* idForVendorUUID = nil;
 
 __attribute__((constructor))
 static void UIKitGuestHooksInit() {
+    if(!NSUserDefaults.lcGuestAppId) return;
     swizzle(UIApplication.class, @selector(_applicationOpenURLAction:payload:origin:), @selector(hook__applicationOpenURLAction:payload:origin:));
     swizzle(UIApplication.class, @selector(_connectUISceneFromFBSScene:transitionContext:), @selector(hook__connectUISceneFromFBSScene:transitionContext:));
     swizzle(UIApplication.class, @selector(openURL:options:completionHandler:), @selector(hook_openURL:options:completionHandler:));
@@ -565,10 +566,13 @@ BOOL canAppOpenItself(NSURL* url) {
         LCShowAlert(@"lc.guestTweak.restartToInstall".loc);
         return;
     }
-
-    NSMutableSet *newActions = actions.mutableCopy;
-    [newActions removeObject:urlAction];
-    [self hook_scene:scene didReceiveActions:newActions fromTransitionContext:context];
+    
+    if ([urlAction.url.scheme isEqualToString:NSUserDefaults.lcAppUrlScheme]) {
+        NSMutableSet *newActions = actions.mutableCopy;
+        [newActions removeObject:urlAction];
+        actions = newActions;
+    }
+    [self hook_scene:scene didReceiveActions:actions fromTransitionContext:context];
 }
 
 - (void)hook_openURL:(NSURL *)url options:(UISceneOpenExternalURLOptions *)options completionHandler:(void (^)(BOOL success))completion {

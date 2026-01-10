@@ -221,7 +221,8 @@ class MultitaskRelaunchManager: NSObject {
     }
     
     private static func relaunchApp(bundleId: String, dataUUID: String) async {
-        guard let appModel = await MainActor.run(body: { lookupAppModel(bundleId: bundleId) }) else {
+        guard let appModel = await MainActor.run(body: { lookupAppModel(bundleId: bundleId) }),
+              appModel.appInfo.lastLaunched.distance(to: .now) > 2 else {
             return
         }
         
