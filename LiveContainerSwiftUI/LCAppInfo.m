@@ -329,6 +329,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     bool is32bit = false;
     if (needPatch) {
         __block bool has64bitSlice = NO;
+        __block bool isEncrypted = false;
         NSString *error = LCParseMachO(execPath.UTF8String, false, ^(const char *path, struct mach_header_64 *header, int fd, void* filePtr) {
             if(header->cputype == CPU_TYPE_ARM64) {
                 has64bitSlice |= YES;
@@ -338,10 +339,13 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
                     info[@"dontInjectTweakLoader"] = @YES;
                 }
             }
+            isEncrypted |= LCIsMachOEncrypted(header);
         });
         is32bit = !has64bitSlice;
         LCPatchAppBundleFixupARM64eSlice([NSURL fileURLWithPath:appPath]);
-        
+        if (isEncrypted) {
+            error = @"The app you tried to install is encrypted. Please provide decrypted app.";
+        }
         if (error) {
             [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SigningInProgress"];
             completetionHandler(NO, error);

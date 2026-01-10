@@ -322,6 +322,17 @@ const uint8_t* LCGetMachOUUID(struct mach_header_64 *header) {
     }
 }
 
+bool LCIsMachOEncrypted(struct mach_header_64 *header) {
+    struct load_command *command = (struct load_command *)(header + 1);
+    for(int i = 0; i < header->ncmds; i++) {
+        if(command->cmd == LC_ENCRYPTION_INFO || command->cmd == LC_ENCRYPTION_INFO_64) {
+            return ((struct encryption_info_command *)command)->cryptid != 0;
+        }
+        command = (struct load_command *)((void *)command + command->cmdsize);
+    }
+    return NO;
+}
+
 uint64_t LCFindSymbolOffset(const char *basePath, const char *symbol) {
 #if !TARGET_OS_SIMULATOR
     const char *path = basePath;
