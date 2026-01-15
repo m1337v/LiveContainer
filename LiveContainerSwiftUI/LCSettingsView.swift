@@ -37,7 +37,8 @@ struct LCSettingsView: View {
     @AppStorage("LCOpenWebPageWithoutAsking") var silentOpenWebPage = false
     @AppStorage("LCDontSignApp", store: LCUtils.appGroupUserDefault) var dontSignApp = false
     @AppStorage("LCStrictHiding", store: LCUtils.appGroupUserDefault) var strictHiding = false
-    @AppStorage("dynamicColors") var dynamicColors = true
+    @AppStorage("dynamicColors", store: LCUtils.appGroupUserDefault) var dynamicColors = true
+    @AppStorage("darkModeIcon", store: LCUtils.appGroupUserDefault) var darkModeIcon = false
     
     @AppStorage("LCSideJITServerAddress", store: LCUtils.appGroupUserDefault) var sideJITServerAddress : String = ""
     @AppStorage("LCDeviceUDID", store: LCUtils.appGroupUserDefault) var deviceUDID: String = ""
@@ -181,6 +182,12 @@ struct LCSettingsView: View {
                     Toggle(isOn: $dynamicColors) {
                         Text("lc.settings.dynamicColors".loc)
                     }
+                    if #available(iOS 18.0, *) {
+                        Toggle(isOn: $darkModeIcon) {
+                            Text("lc.settings.darkModeIcon".loc)
+                        }
+                    }
+                    
                 } header: {
                     Text("lc.settings.interface".loc)
                 } footer: {

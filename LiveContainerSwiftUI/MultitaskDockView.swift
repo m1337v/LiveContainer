@@ -1123,6 +1123,7 @@ struct AppIconView: View {
     @State private var appIcon: UIImage?
     @State private var isLoading = true
     @EnvironmentObject var dockManager: MultitaskDockManager
+    @AppStorage("darkModeIcon", store: LCUtils.appGroupUserDefault) var darkModeIcon = false
     
     private var iconSize: CGFloat {
         return dockManager.adaptiveIconSize
@@ -1177,10 +1178,10 @@ struct AppIconView: View {
             var finalIcon: UIImage?
             
             if let appInfo = self.app.appInfo {
-                finalIcon = appInfo.icon()
+                finalIcon = appInfo.iconIsDarkIcon(darkModeIcon)
             } else {
                 if let foundAppInfo = AppInfoProvider.shared.findAppInfo(appName: self.app.appName, dataUUID: self.app.appUUID) {
-                    finalIcon = foundAppInfo.icon()
+                    finalIcon = foundAppInfo.iconIsDarkIcon(darkModeIcon)
                 }
             }
             
