@@ -209,7 +209,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 }
 
 - (UIImage *)generateLiveContainerWrappedIcon {
-    UIImage *icon = [self iconIsDarkIcon:NO];
+    UIImage *icon = [self iconIsDarkIcon:[NSUserDefaults.lcSharedDefaults boolForKey:@"darkModeIcon"]];
     if (![NSUserDefaults.standardUserDefaults boolForKey:@"LCFrameShortcutIcons"]) {
         return icon;
     }
