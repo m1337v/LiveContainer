@@ -469,8 +469,9 @@ struct LCSettingsView: View {
             )
         }
         .navigationViewStyle(StackNavigationViewStyle())
-        .onOpenURL { url in
-            handleURL(url: url)
+        .task(id: sharedModel.deepLinkCounter) {
+            guard sharedModel.selectedTab == .settings, let link = sharedModel.deepLink else { return }
+            handleURL(url: link)
         }
     }
     

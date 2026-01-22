@@ -8,14 +8,6 @@
 import Foundation
 import SwiftUI
 
-public enum LCTabIdentifier: Hashable {
-    case sources
-    case apps
-    case tweaks
-    case settings
-    case search
-}
-
 struct LCTabView: View {
     @Binding var appDataFolderNames: [String]
     @Binding var tweakFolderNames: [String]
@@ -123,6 +115,41 @@ struct LCTabView: View {
                 previousSelectedTab = newValue
             }
         }
+        .onOpenURL { url in
+            dispatchURL(url: url)
+        }
+    }
+    
+    func dispatchURL(url: URL) {
+        repeat {
+            if url.isFileURL {
+                sharedModel.selectedTab = .apps
+                break
+            }
+            if url.scheme?.lowercased() == "sidestore" {
+                sharedModel.selectedTab = .apps
+                break
+            }
+            
+            guard let host = url.host?.lowercased() else {
+                return
+            }
+            
+            switch host {
+            case "livecontainer-launch", "install", "open-web-page", "open-url":
+                sharedModel.selectedTab = .apps
+            case "certificate":
+                sharedModel.selectedTab = .settings
+            case "source":
+                sharedModel.selectedTab = .sources
+            default:
+                return
+            }
+            
+        } while(false)
+
+        sharedModel.deepLink = url
+        sharedModel.deepLinkCounter += 1
     }
     
     func closeDuplicatedWindow() {

@@ -60,6 +60,9 @@ struct LCPath {
 
 class SharedModel: ObservableObject {
     @Published var selectedTab: LCTabIdentifier = .apps
+    @Published var deepLink: URL?
+    @Published var deepLinkCounter = 0
+    
     @Published var isHiddenAppUnlocked = false
     @Published var developerMode = false
     // 0= not installed, 2=current liveContainer is not the primary one
@@ -1022,4 +1025,12 @@ struct JITStreamerEBMountResponse : Codable {
 
 extension NSNotification {
     static let InstallAppNotification = Notification.Name.init("InstallAppNotification")
+}
+
+public enum LCTabIdentifier: Hashable {
+    case sources
+    case apps
+    case tweaks
+    case settings
+    case search
 }
