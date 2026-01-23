@@ -331,13 +331,19 @@ extern NSBundle *lcMainBundle;
     NSURL *appGroupFolder = nil;
     
     NSString *bundlePath = [NSString stringWithFormat:@"%@/Applications/%@", docPath, bundleId];
-    NSBundle *appBundle = [[NSBundle alloc] initWithPath:bundlePath];
+    NSBundle *appBundle;
+    if([NSFileManager.defaultManager fileExistsAtPath:bundlePath]) {
+        appBundle = [[NSBundle alloc] initWithPath:bundlePath];
+    }
+
     // not found locally, let's look for the app in shared folder
     if (!appBundle) {
         appGroupFolder = [[LCSharedUtils appGroupPath] URLByAppendingPathComponent:@"LiveContainer"];
         
         bundlePath = [NSString stringWithFormat:@"%@/Applications/%@", appGroupFolder.path, bundleId];
-        appBundle = [[NSBundle alloc] initWithPath:bundlePath];
+        if([NSFileManager.defaultManager fileExistsAtPath:bundlePath]) {
+            appBundle = [[NSBundle alloc] initWithPath:bundlePath];
+        }
         if(appBundle) {
             *isSharedAppOut = true;
         }

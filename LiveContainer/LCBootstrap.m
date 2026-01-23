@@ -441,9 +441,8 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     NSString* containerInfoPath = [newHomePath stringByAppendingPathComponent:@"LCContainerInfo.plist"];
     guestContainerInfo = [NSDictionary dictionaryWithContentsOfFile:containerInfoPath];
     
-    if(isSharedBundle) {
-        [LCSharedUtils setContainerUsingByLC:lcAppUrlScheme folderName:dataUUID auditToken:0];
-    }
+    [LCSharedUtils setContainerUsingByLC:lcAppUrlScheme folderName:dataUUID auditToken:0];
+
     // Overwrite NSBundle
     overwriteMainNSBundle(appBundle);
 

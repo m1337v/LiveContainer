@@ -104,24 +104,13 @@ struct LaunchAppExtension: AppIntent {
         }
         
         // launch app
-        var isPrivate = false
-        let appBundle = LCSharedUtils.findBundle(withBundleId: bundleId, isSharedAppOut: &isPrivate)
+        var isSharedApp = false
+        let appBundle = LCSharedUtils.findBundle(withBundleId: bundleId, isSharedAppOut: &isSharedApp)
         guard let appBundle else {
             // app bundle cannot be found, we pass the url as-is in case it can only be handled by lc1
             return .result(value: launchURL)
         }
         
-        var freeLCScheme: String? = nil
-        forEachInstalledLC(isFree: true) { scheme, stop in
-            freeLCScheme = scheme
-            stop = true
-        }
-        
-        guard let freeLCScheme else {
-            // no free lc, we just open the lc1 and let the user to decide what to do
-            return .result(value: launchURL)
-        }
-
         // check if the app is locked/hidden/require JIT, if so we don't directly set keys in lcSharedDefaults
         let appInfoURL = appBundle.url(forResource: "LCAppInfo", withExtension: "plist")
         guard let appInfoURL else {
@@ -136,13 +125,46 @@ struct LaunchAppExtension: AppIntent {
         let isLocked = appInfo["isLocked"] as? Bool ?? false
         let isJITNeeded = appInfo["isJITNeeded"] as? Bool ?? false
         
-        if !forceJIT && !isHiden && !isLocked && !isJITNeeded {
+        
+        var schemeToLaunch: String? = nil
+        // if containerName is not specified, use LCDataUUID as default
+        if containerName == nil {
+            containerName = appInfo["LCDataUUID"] as? String
+        }
+        
+        var newLaunch = false
+        // if the container is running in a lc, use its scheme, otherwise find free one
+        if var runningScheme = LCSharedUtils.getContainerUsingLCScheme(withFolderName: containerName) {
+            if(runningScheme.hasSuffix("liveprocess")) {
+                runningScheme = (runningScheme as NSString).deletingPathExtension
+            }
+            schemeToLaunch = runningScheme
+        } else {
+            newLaunch = true
+            if isSharedApp {
+                forEachInstalledLC(isFree: true) { scheme, stop in
+                    schemeToLaunch = scheme
+                    stop = true
+                }
+            } else {
+                if !LCSharedUtils.isLCScheme(inUse: "livecontainer") {
+                    schemeToLaunch = "livecontainer"
+                }
+            }
+        }
+
+        guard let schemeToLaunch else {
+            // no free lc, we just open the lc1 and let the user to decide what to do
+            return .result(value: launchURL)
+        }
+        
+        if newLaunch && !forceJIT && !isHiden && !isLocked && !isJITNeeded {
             lcSharedDefaults.set(bundleId, forKey: "LCLaunchExtensionBundleID")
             lcSharedDefaults.set(containerName, forKey: "LCLaunchExtensionContainerName")
             lcSharedDefaults.set(Date.now, forKey: "LCLaunchExtensionLaunchDate")
         }
 
-        components.scheme = freeLCScheme
+        components.scheme = schemeToLaunch
         guard let newURL = components.url else {
             throw "unable to construct new url"
         }
