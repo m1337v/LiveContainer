@@ -15,6 +15,8 @@
 		174140D62D9C176F00F3F928 /* libarchive.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 174140D52D9C176700F3F928 /* libarchive.tbd */; };
 		17554B732DA16988004C6D90 /* OpenSSL.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 17554B712DA16988004C6D90 /* OpenSSL.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		17554B742DA169AA004C6D90 /* OpenSSL.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 17554B712DA16988004C6D90 /* OpenSSL.xcframework */; };
+		17CAE6212F230449008B1977 /* LaunchAppExtension.appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = 17CAE6172F230449008B1977 /* LaunchAppExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		17CAE6262F230548008B1977 /* LiveContainerShared.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1292BD62DCA3B660065E12D /* LiveContainerShared.framework */; };
 		E11884B92EF7A164009C6FA6 /* dyld_bypass_validation.h in Headers */ = {isa = PBXBuildFile; fileRef = E11884B82EF7A15F009C6FA6 /* dyld_bypass_validation.h */; };
 		E1292AF32DCA3A660065E12D /* LiveProcess.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E1292AE52DCA3A660065E12D /* LiveProcess.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E1292BEC2DCA3B670065E12D /* LiveContainerShared.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E1292BD62DCA3B660065E12D /* LiveContainerShared.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -57,6 +59,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 174140532D9C0D6D00F3F928;
 			remoteInfo = ZSign;
+		};
+		17CAE61E2F230449008B1977 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 17DCE9952C7067EC00731D42 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 17CAE6162F230449008B1977;
+			remoteInfo = LaunchAppExtension;
 		};
 		E1292AF12DCA3A660065E12D /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -102,6 +111,17 @@
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		17CAE6202F230449008B1977 /* Embed ExtensionKit Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(EXTENSIONS_FOLDER_PATH)";
+			dstSubfolderSpec = 16;
+			files = (
+				17CAE6212F230449008B1977 /* LaunchAppExtension.appex in Embed ExtensionKit Extensions */,
+			);
+			name = "Embed ExtensionKit Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		17DCE9D92C7067ED00731D42 /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -134,6 +154,7 @@
 		174140AD2D9C0F4100F3F928 /* TestJITLess.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = TestJITLess.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		174140D52D9C176700F3F928 /* libarchive.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libarchive.tbd; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/usr/lib/libarchive.tbd; sourceTree = DEVELOPER_DIR; };
 		17554B712DA16988004C6D90 /* OpenSSL.xcframework */ = {isa = PBXFileReference; expectedSignature = "AppleDeveloperProgram:67RAULRX93:Marcin Krzyzanowski"; lastKnownFileType = wrapper.xcframework; name = OpenSSL.xcframework; path = OpenSSL/Frameworks/OpenSSL.xcframework; sourceTree = "<group>"; };
+		17CAE6172F230449008B1977 /* LaunchAppExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.extensionkit-extension"; includeInIndex = 0; path = LaunchAppExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		17DCE99D2C7067EC00731D42 /* LiveContainer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LiveContainer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E11884B82EF7A15F009C6FA6 /* dyld_bypass_validation.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = dyld_bypass_validation.h; sourceTree = "<group>"; };
 		E12928C92DCA38380065E12D /* UniformTypeIdentifiers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UniformTypeIdentifiers.framework; path = System/Library/Frameworks/UniformTypeIdentifiers.framework; sourceTree = SDKROOT; };
@@ -183,6 +204,13 @@
 				src/litehook.c,
 			);
 			target = E1292BD52DCA3B660065E12D /* LiveContainerShared */;
+		};
+		17CAE6252F230449008B1977 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 17CAE6162F230449008B1977 /* LaunchAppExtension */;
 		};
 		E1292AF72DCA3A660065E12D /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -261,6 +289,7 @@
 		174140AE2D9C0F4100F3F928 /* TestJITLess */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = TestJITLess; sourceTree = "<group>"; };
 		17780D3B2E1C02420077E636 /* litehook */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (17780E512E1C039D0077E636 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = litehook; sourceTree = "<group>"; };
 		17B0F8452DE16FE4008110EA /* xcconfigs */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = xcconfigs; sourceTree = "<group>"; };
+		17CAE6182F230449008B1977 /* LaunchAppExtension */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (17CAE6252F230449008B1977 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = LaunchAppExtension; sourceTree = "<group>"; };
 		E1292AE72DCA3A660065E12D /* LiveProcess */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (E1292AF72DCA3A660065E12D /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = LiveProcess; sourceTree = "<group>"; };
 		E1292C1A2DCA48F00065E12D /* Tweaks */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (E1292C202DCA48F00065E12D /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Tweaks; sourceTree = "<group>"; };
 		E1292C242DCA4E6F0065E12D /* MultitaskSupport */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (E1292C2D2DCA4E800065E12D /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = MultitaskSupport; sourceTree = "<group>"; };
@@ -309,6 +338,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		17CAE6142F230449008B1977 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				17CAE6262F230548008B1977 /* LiveContainerShared.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -377,6 +414,7 @@
 				174140AE2D9C0F4100F3F928 /* TestJITLess */,
 				E1292AE72DCA3A660065E12D /* LiveProcess */,
 				173545A92E2C7913001B3B4C /* SideStore */,
+				17CAE6182F230449008B1977 /* LaunchAppExtension */,
 				174140B82D9C0F9100F3F928 /* Frameworks */,
 				17DCE99E2C7067EC00731D42 /* Products */,
 				17780D3B2E1C02420077E636 /* litehook */,
@@ -394,6 +432,7 @@
 				E1292AE52DCA3A660065E12D /* LiveProcess.appex */,
 				E1292BD62DCA3B660065E12D /* LiveContainerShared.framework */,
 				173545A82E2C7913001B3B4C /* SideStore.framework */,
+				17CAE6172F230449008B1977 /* LaunchAppExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -557,6 +596,28 @@
 			productReference = 174140AD2D9C0F4100F3F928 /* TestJITLess.dylib */;
 			productType = "com.apple.product-type.library.dynamic";
 		};
+		17CAE6162F230449008B1977 /* LaunchAppExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 17CAE6222F230449008B1977 /* Build configuration list for PBXNativeTarget "LaunchAppExtension" */;
+			buildPhases = (
+				17CAE6132F230449008B1977 /* Sources */,
+				17CAE6142F230449008B1977 /* Frameworks */,
+				17CAE6152F230449008B1977 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				17CAE6182F230449008B1977 /* LaunchAppExtension */,
+			);
+			name = LaunchAppExtension;
+			packageProductDependencies = (
+			);
+			productName = LaunchAppExtension;
+			productReference = 17CAE6172F230449008B1977 /* LaunchAppExtension.appex */;
+			productType = "com.apple.product-type.extensionkit-extension";
+		};
 		17DCE99C2C7067EC00731D42 /* LiveContainer */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 17DCE9DA2C7067ED00731D42 /* Build configuration list for PBXNativeTarget "LiveContainer" */;
@@ -567,6 +628,7 @@
 				17DCE9D92C7067ED00731D42 /* Embed Foundation Extensions */,
 				17413FC12D9C0BAE00F3F928 /* Embed Frameworks */,
 				17D4DA692D9C495E008E7396 /* Run Script */,
+				17CAE6202F230449008B1977 /* Embed ExtensionKit Extensions */,
 			);
 			buildRules = (
 			);
@@ -577,6 +639,7 @@
 				E1292AF22DCA3A660065E12D /* PBXTargetDependency */,
 				E1292BEA2DCA3B670065E12D /* PBXTargetDependency */,
 				173545AD2E2C7913001B3B4C /* PBXTargetDependency */,
+				17CAE61F2F230449008B1977 /* PBXTargetDependency */,
 			);
 			name = LiveContainer;
 			productName = jump;
@@ -635,7 +698,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2600;
+				LastSwiftUpdateCheck = 2610;
 				LastUpgradeCheck = 1540;
 				TargetAttributes = {
 					173545A72E2C7913001B3B4C = {
@@ -652,6 +715,9 @@
 					};
 					174140AC2D9C0F4100F3F928 = {
 						CreatedOnToolsVersion = 16.2;
+					};
+					17CAE6162F230449008B1977 = {
+						CreatedOnToolsVersion = 26.1;
 					};
 					17DCE99C2C7067EC00731D42 = {
 						CreatedOnToolsVersion = 15.4;
@@ -726,6 +792,7 @@
 				E1292AE42DCA3A660065E12D /* LiveProcess */,
 				E1292BD52DCA3B660065E12D /* LiveContainerShared */,
 				173545A72E2C7913001B3B4C /* SideStore */,
+				17CAE6162F230449008B1977 /* LaunchAppExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -739,6 +806,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		17413FB32D9C0BAE00F3F928 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		17CAE6152F230449008B1977 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -825,6 +899,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		17CAE6132F230449008B1977 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		17DCE9992C7067EC00731D42 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -875,6 +956,11 @@
 			isa = PBXTargetDependency;
 			target = 174140532D9C0D6D00F3F928 /* ZSign */;
 			targetProxy = 174140FF2D9C1EDA00F3F928 /* PBXContainerItemProxy */;
+		};
+		17CAE61F2F230449008B1977 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 17CAE6162F230449008B1977 /* LaunchAppExtension */;
+			targetProxy = 17CAE61E2F230449008B1977 /* PBXContainerItemProxy */;
 		};
 		E1292AF22DCA3A660065E12D /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -1186,6 +1272,76 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		17CAE6232F230449008B1977 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 17B0F8452DE16FE4008110EA /* xcconfigs */;
+			baseConfigurationReferenceRelativePath = LaunchAppExtension.xcconfig;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = LaunchAppExtension/LaunchAppExtension.entitlements;
+				CODE_SIGN_IDENTITY = "$(inherited)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LaunchAppExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = LaunchAppExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(PRODUCT_BUNDLE_IDENTIFIER)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "LaunchAppExtension/LaunchAppExtension-Bridging-Header.h";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		17CAE6242F230449008B1977 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 17B0F8452DE16FE4008110EA /* xcconfigs */;
+			baseConfigurationReferenceRelativePath = LaunchAppExtension.xcconfig;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = LaunchAppExtension/LaunchAppExtension.entitlements;
+				CODE_SIGN_IDENTITY = "$(inherited)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LaunchAppExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = LaunchAppExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(PRODUCT_BUNDLE_IDENTIFIER)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "LaunchAppExtension/LaunchAppExtension-Bridging-Header.h";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -1675,6 +1831,15 @@
 			buildConfigurations = (
 				174140B42D9C0F4100F3F928 /* Debug */,
 				174140B52D9C0F4100F3F928 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		17CAE6222F230449008B1977 /* Build configuration list for PBXNativeTarget "LaunchAppExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				17CAE6232F230449008B1977 /* Debug */,
+				17CAE6242F230449008B1977 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
