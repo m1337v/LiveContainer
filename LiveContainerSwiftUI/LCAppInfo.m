@@ -186,7 +186,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     } else if (_cachedIconDark && isDarkIcon) {
         return _cachedIconDark;
     }
-    UIImage* uiIcon = [UIImage iconForBundleURL:[NSURL fileURLWithPath:_bundlePath] isDarkIcon:isDarkIcon];
+    UIImage* uiIcon = [UIImage iconForBundleURL:[NSURL fileURLWithPath:_bundlePath] isDarkIcon:isDarkIcon hasBorder:YES ignoreCache:NO];
     if(isDarkIcon) {
         _cachedIconDark = uiIcon;
     } else {
@@ -209,7 +209,8 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 }
 
 - (UIImage *)generateLiveContainerWrappedIcon {
-    UIImage *icon = [self iconIsDarkIcon:[NSUserDefaults.lcSharedDefaults boolForKey:@"darkModeIcon"]];
+//    UIImage *icon = [self iconIsDarkIcon:[NSUserDefaults.lcSharedDefaults boolForKey:@"darkModeIcon"]];
+    UIImage* icon = [UIImage iconForBundleURL:[NSURL fileURLWithPath:_bundlePath] isDarkIcon:[NSUserDefaults.lcSharedDefaults boolForKey:@"darkModeIcon"] hasBorder:NO ignoreCache:YES];
     if (![NSUserDefaults.standardUserDefaults boolForKey:@"LCFrameShortcutIcons"]) {
         return icon;
     }

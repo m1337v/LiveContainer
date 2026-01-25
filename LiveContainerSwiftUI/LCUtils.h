@@ -65,5 +65,5 @@ int dyld_get_program_sdk_version(void);
 @end
 
 @interface UIImage(LiveContainer)
-+ (instancetype)iconForBundleURL:(NSURL*)url isDarkIcon:(BOOL)isDarkIcon;
++ (instancetype)iconForBundleURL:(NSURL*)url isDarkIcon:(BOOL)isDarkIcon hasBorder:(BOOL)hasBorder ignoreCache:(BOOL)ignoreCache;
 @end

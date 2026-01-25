@@ -31,6 +31,7 @@
 @property (nonatomic, assign, readwrite) NSInteger appearanceVariant NS_AVAILABLE_IOS(18_0);
 @property (nonatomic, assign, readwrite) NSUInteger specialIconOptions NS_AVAILABLE_IOS(18_0);
 @property (nonatomic, assign, readwrite) BOOL drawBorder;
+@property (nonatomic, assign, readwrite) BOOL shouldApplyMask;
 @property (atomic, assign, readwrite) BOOL ignoreCache;
 @property (nonatomic, assign) CGFloat scale;
 @property (nonatomic, strong, readwrite) IFColor *tintColor;
@@ -259,7 +260,7 @@ CGImageRef loadCGImageFromURL(NSURL *url) {
 }
 
 @implementation UIImage(LiveContainer)
-+ (instancetype)iconForBundleURL:(NSURL*)url isDarkIcon:(BOOL)isDarkIcon{
++ (instancetype)iconForBundleURL:(NSURL*)url isDarkIcon:(BOOL)isDarkIcon hasBorder:(BOOL)hasBorder ignoreCache:(BOOL)ignoreCache {
     if(@available(iOS 18.0, *)) {
         
     } else {
@@ -275,7 +276,7 @@ CGImageRef loadCGImageFromURL(NSURL *url) {
     }
     cachedIconPath = cachedIconUrl.path;
     
-    if([NSFileManager.defaultManager fileExistsAtPath:cachedIconPath]) {
+    if(!ignoreCache && [NSFileManager.defaultManager fileExistsAtPath:cachedIconPath]) {
         CGImageRef imageRef = loadCGImageFromURL(cachedIconUrl);
         UIImage* img = [UIImage imageWithCGImage:imageRef];
         if(img) {
@@ -298,10 +299,14 @@ CGImageRef loadCGImageFromURL(NSURL *url) {
     
     ISBundleIcon* icon = [[PrivClass(ISBundleIcon) alloc] initWithBundleURL:url];
     ISImageDescriptor *descriptor = [PrivClass(ISImageDescriptor) imageDescriptorNamed:@"com.apple.IconServices.ImageDescriptor.HomeScreen"];
-    descriptor.drawBorder = YES;
+    
+    ISGenerationRequest* request = [[PrivClass(ISGenerationRequest) alloc] init];
+    [request setIcon:(ISConcreteIcon*)icon];
+    [request setImageDescriptor:descriptor];
+    
+
     descriptor.ignoreCache = YES;
     descriptor.scale = UIScreen.mainScreen.scale;
-    descriptor.tintColor = [[PrivClass(IFColor) alloc] initWithCGColor:UIColor.systemGreenColor.CGColor];
     descriptor.variantOptions = 0;
 
     if (@available(iOS 16.0, *)) {
@@ -317,14 +322,15 @@ CGImageRef loadCGImageFromURL(NSURL *url) {
         descriptor.appearanceVariant = 0;
         descriptor.specialIconOptions = 2;
     }
-
-    ISGenerationRequest* request = [[PrivClass(ISGenerationRequest) alloc] init];
-    [request setIcon:(ISConcreteIcon*)icon];
-    [request setImageDescriptor:descriptor];
+    
+    descriptor.drawBorder = hasBorder;
+    descriptor.shouldApplyMask = hasBorder;
+    
     IFImage* ifImage = [request generateImageReturningRecordIdentifiers:nil];
     CGImageRef imageRef = [ifImage CGImage];
-    
-    saveCGImage(imageRef, cachedIconUrl);
+    if(!ignoreCache) {
+        saveCGImage(imageRef, cachedIconUrl);
+    }
     return [UIImage imageWithCGImage:imageRef];
 }
 
