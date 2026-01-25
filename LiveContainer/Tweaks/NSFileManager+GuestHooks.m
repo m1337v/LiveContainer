@@ -60,7 +60,8 @@ void NSFMGuestHooksInit(void) {
             // unfortunately we cannot hook sandbox_container_path_for_pid, so we symlink Cookies folder in normal mode
             // see NSFileManager+GuestHooks.m for more info
             NSFileManager *fm = NSFileManager.defaultManager;
-            NSString *libraryPath = [@(getenv("LC_HOME_PATH")) stringByAppendingPathComponent:@"Library"];
+            const char *lcHomePath = getenv(NSUserDefaults.isLiveProcess ? "LP_HOME_PATH" : "LC_HOME_PATH");
+            NSString *libraryPath = [@(lcHomePath) stringByAppendingPathComponent:@"Library"];
             NSString *cookies2Path = [libraryPath stringByAppendingPathComponent:@"Cookies2"];
             NSString *cookiesPath = [libraryPath stringByAppendingPathComponent:@"Cookies"];
             NSString* appCookiesPath = [@(getenv("HOME")) stringByAppendingPathComponent:@"Library/Cookies"];

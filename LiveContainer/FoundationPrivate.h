@@ -22,6 +22,7 @@
 - (void)setRequestCancellationBlock:(void(^)(NSUUID *uuid, NSError *error))callback;
 - (void)setRequestInterruptionBlock:(void(^)(NSUUID *))callback;
 - (void)_hostDidEnterBackgroundNote:(NSNotification *)note;
+- (void)_hostWillResignActiveNote:(NSNotification *)note;
 @end
 
 void* SecTaskCreateFromSelf(CFAllocatorRef allocator);

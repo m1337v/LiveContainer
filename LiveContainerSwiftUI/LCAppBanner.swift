@@ -33,9 +33,12 @@ struct LCAppBanner : View {
     
     @State private var errorShow = false
     @State private var errorInfo = ""
-    @AppStorage("dynamicColors") var dynamicColors = true
+    
+    @AppStorage("dynamicColors", store: LCUtils.appGroupUserDefault) var dynamicColors = true
+    @AppStorage("darkModeIcon", store: LCUtils.appGroupUserDefault) var darkModeIcon = false
     @AppStorage("LCLaunchInMultitaskMode") var launchInMultitaskMode = false
     @State private var mainColor : Color
+    @State private var icon: UIImage
     
     @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject private var sharedModel : SharedModel
@@ -48,7 +51,9 @@ struct LCAppBanner : View {
         
         _model = ObservedObject(wrappedValue: appModel)
         _mainColor = State(initialValue: Color.clear)
+        _icon = State(initialValue: appModel.appInfo.iconIsDarkIcon(LCUtils.appGroupUserDefault.bool(forKey: "darkModeIcon")))
         _mainColor = State(initialValue: extractMainHueColor())
+
     }
     @State private var mainHueColor: CGFloat? = nil
     
@@ -56,9 +61,9 @@ struct LCAppBanner : View {
 
         HStack {
             HStack {
-                Image(uiImage: appInfo.icon())
+                Image(uiImage: icon)
                     .resizable().resizable().frame(width: 60, height: 60)
-                    .clipShape(RoundedRectangle(cornerSize: CGSize(width:12, height: 12)))
+                    .clipShape(RoundedRectangle(cornerSize: CGSize(width:16, height: 16)))
 
                 VStack (alignment: .leading, content: {
                     let color = (dynamicColors ? mainColor : Color("FontColor"))
@@ -352,7 +357,10 @@ struct LCAppBanner : View {
         } message: {
             Text(errorInfo)
         }
-        
+        .onChange(of: darkModeIcon) { newVal in
+            icon = appInfo.iconIsDarkIcon(newVal)
+            mainColor = extractMainHueColor()
+        }
     }
     
     func runApp(multitask: Bool) async {
@@ -456,10 +464,13 @@ struct LCAppBanner : View {
     }
     
     func extractMainHueColor() -> Color {
-        if let cachedColor = appInfo.cachedColor {
+        if !darkModeIcon, let cachedColor = appInfo.cachedColor {
+            return Color(uiColor: cachedColor)
+        } else if darkModeIcon, let cachedColor = appInfo.cachedColorDark {
             return Color(uiColor: cachedColor)
         }
-        guard let cgImage = appInfo.icon().cgImage else { return Color.clear }
+        
+        guard let cgImage = appInfo.iconIsDarkIcon(darkModeIcon).cgImage else { return Color.clear }
 
         let width = 1
         let height = 1
@@ -494,7 +505,12 @@ struct LCAppBanner : View {
         }
         
         let ans = Color(hue: hue, saturation: saturation, brightness: brightness)
-        appInfo.cachedColor = UIColor(ans)
+        if darkModeIcon {
+            appInfo.cachedColorDark = UIColor(ans)
+        } else {
+            appInfo.cachedColor = UIColor(ans)
+        }
+        
         
         return ans
     }

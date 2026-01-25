@@ -388,8 +388,9 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         .sheet(isPresented: $customSortViewPresent) {
             LCCustomSortView()
         }
-        .onOpenURL { url in
-            handleURL(url: url)
+        .task(id: sharedModel.deepLinkCounter, priority: .high) {
+            guard sharedModel.selectedTab == .apps, let link = sharedModel.deepLink else { return }
+            handleURL(url: link)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.InstallAppNotification)) { obj in
             if let obj2 = obj.object as? [String: Any], let installUrl = obj2["url"] as? URL {

@@ -10,6 +10,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 
 @interface LCAppInfo()
 @property UIImage* cachedIcon;
+@property UIImage* cachedIconDark;
 @end
 
 @implementation LCAppInfo
@@ -179,64 +180,37 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     return _info;
 }
 
-- (UIImage*)icon {
-    if(_cachedIcon) {
+- (UIImage*)iconIsDarkIcon:(BOOL)isDarkIcon {
+    if(_cachedIcon && !isDarkIcon) {
         return _cachedIcon;
+    } else if (_cachedIconDark && isDarkIcon) {
+        return _cachedIconDark;
     }
-    
-    NSBundle* bundle = [[NSBundle alloc] initWithPath: _bundlePath];
-    NSString* iconPath = nil;
-    UIImage* icon = nil;
-
-    @try {
-        if((iconPath = [_infoPlist valueForKeyPath:@"CFBundleIcons.CFBundlePrimaryIcon.CFBundleIconFiles"][0]) &&
-           (icon = [UIImage imageNamed:iconPath inBundle:bundle compatibleWithTraitCollection:nil])) {
-            return icon;
-        }
-    }
-    @catch (NSException *exception) {
-        NSLog(@"Failed to get icon from info.plist: %@", exception.reason);
-    }
-    @try {
-        if((iconPath = [_infoPlist valueForKeyPath:@"CFBundleIconFiles"][0]) &&
-           (icon = [UIImage imageNamed:iconPath inBundle:bundle compatibleWithTraitCollection:nil])) {
-            return icon;
-        }
-    }
-    @catch (NSException *exception) {
-        NSLog(@"Failed to get icon from info.plist: %@", exception.reason);
-    }
-    @try {
-        if((iconPath = [_infoPlist valueForKeyPath:@"CFBundleIcons~ipad"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"]) &&
-           (icon = [UIImage imageNamed:iconPath inBundle:bundle compatibleWithTraitCollection:nil])) {
-            return icon;
-        }
-    }
-    @catch (NSException *exception) {
-        NSLog(@"Failed to get icon from info.plist: %@", exception.reason);
-    }
-    
-    @try {
-        if((iconPath = [_infoPlist valueForKeyPath:@"CFBundleIcons"][@"CFBundlePrimaryIcon"]) && [iconPath isKindOfClass:NSString.class] &&
-           (icon = [UIImage imageNamed:iconPath inBundle:bundle compatibleWithTraitCollection:nil])) {
-            return icon;
-        }
-    }
-    @catch (NSException *exception) {
-        NSLog(@"Failed to get icon from info.plist: %@", exception.reason);
+    UIImage* uiIcon = [UIImage iconForBundleURL:[NSURL fileURLWithPath:_bundlePath] isDarkIcon:isDarkIcon hasBorder:YES ignoreCache:NO];
+    if(isDarkIcon) {
+        _cachedIconDark = uiIcon;
+    } else {
+        _cachedIcon = uiIcon;
     }
 
-    if(!icon) {
-        icon = [UIImage imageNamed:@"DefaultIcon"];
-    }
-        
-    _cachedIcon = icon;
-    return icon;
+    return uiIcon;
 
 }
 
+- (void)clearIconCache {
+    NSString* lightModeIconPath = [_bundlePath stringByAppendingPathComponent:@"LCAppIconLight.png"];
+    NSString* darkModeIconPath = [_bundlePath stringByAppendingPathComponent:@"LCAppIconDark.png"];
+    [NSFileManager.defaultManager removeItemAtPath:lightModeIconPath error:nil];
+    [NSFileManager.defaultManager removeItemAtPath:darkModeIconPath error:nil];
+    [self setCachedColor:nil];
+    [self setCachedColorDark:nil];
+    _cachedIcon = nil;
+    _cachedIconDark = nil;
+}
+
 - (UIImage *)generateLiveContainerWrappedIcon {
-    UIImage *icon = self.icon;
+//    UIImage *icon = [self iconIsDarkIcon:[NSUserDefaults.lcSharedDefaults boolForKey:@"darkModeIcon"]];
+    UIImage* icon = [UIImage iconForBundleURL:[NSURL fileURLWithPath:_bundlePath] isDarkIcon:[NSUserDefaults.lcSharedDefaults boolForKey:@"darkModeIcon"] hasBorder:NO ignoreCache:YES];
     if (![NSUserDefaults.standardUserDefaults boolForKey:@"LCFrameShortcutIcons"]) {
         return icon;
     }
@@ -355,6 +329,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     bool is32bit = false;
     if (needPatch) {
         __block bool has64bitSlice = NO;
+        __block bool isEncrypted = false;
         NSString *error = LCParseMachO(execPath.UTF8String, false, ^(const char *path, struct mach_header_64 *header, int fd, void* filePtr) {
             if(header->cputype == CPU_TYPE_ARM64) {
                 has64bitSlice |= YES;
@@ -364,10 +339,13 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
                     info[@"dontInjectTweakLoader"] = @YES;
                 }
             }
+            isEncrypted |= LCIsMachOEncrypted(header);
         });
         is32bit = !has64bitSlice;
         LCPatchAppBundleFixupARM64eSlice([NSURL fileURLWithPath:appPath]);
-        
+        if (isEncrypted) {
+            error = @"The app you tried to install is encrypted. Please provide decrypted app.";
+        }
         if (error) {
             [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SigningInProgress"];
             completetionHandler(NO, error);
@@ -647,6 +625,37 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
         NSError* error;
         NSData *colorData = [NSKeyedArchiver archivedDataWithRootObject:color requiringSecureCoding:YES error:&error];
         [_info setObject:colorData forKey:@"cachedColor"];
+        if(error) {
+            NSLog(@"[LC] failed to set color %@", error);
+        }
+
+    }
+    [self save];
+}
+
+- (UIColor*)cachedColorDark {
+    if(_info[@"cachedColorDark"] != nil) {
+        NSData *colorData = _info[@"cachedColorDark"];
+        NSError* error;
+        UIColor *color = [NSKeyedUnarchiver unarchivedObjectOfClass:UIColor.class fromData:colorData error:&error];
+        if (!error) {
+            return color;
+        } else {
+            NSLog(@"[LC] failed to get color %@", error);
+            return nil;
+        }
+    } else {
+        return nil;
+    }
+}
+
+- (void)setCachedColorDark:(UIColor*)color {
+    if(color == nil) {
+        _info[@"cachedColorDark"] = nil;
+    } else {
+        NSError* error;
+        NSData *colorData = [NSKeyedArchiver archivedDataWithRootObject:color requiringSecureCoding:YES error:&error];
+        [_info setObject:colorData forKey:@"cachedColorDark"];
         if(error) {
             NSLog(@"[LC] failed to set color %@", error);
         }

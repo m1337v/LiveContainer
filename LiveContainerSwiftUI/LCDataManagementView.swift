@@ -84,6 +84,14 @@ struct LCDataManagementView : View {
             }
             
             Section {
+                Button {
+                    Task { await clearIconCache() }
+                } label: {
+                    Text("lc.settings.clearIconCache".loc)
+                }
+            }
+            
+            Section {
                 ForEach(folderPaths, id:\.desc) { path in
                     Button {
                         copy(text: path.path.path)
@@ -584,6 +592,12 @@ struct LCDataManagementView : View {
                     break
                 }
             }
+        }
+    }
+    
+    func clearIconCache() async {
+        for app in sharedModel.apps {
+            app.appInfo.clearIconCache()
         }
     }
 }

@@ -63,3 +63,7 @@ int dyld_get_program_sdk_version(void);
 - (NSString*)getOrgnizationUnitWithError:(NSError**)error;
 
 @end
+
+@interface UIImage(LiveContainer)
++ (instancetype)iconForBundleURL:(NSURL*)url isDarkIcon:(BOOL)isDarkIcon hasBorder:(BOOL)hasBorder ignoreCache:(BOOL)ignoreCache;
+@end

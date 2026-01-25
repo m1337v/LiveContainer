@@ -487,10 +487,6 @@ class LCAppModel: ObservableObject, Hashable {
             return
         }
         
-        if multitask && !uiIsShared {
-            throw "It's not possible to multitask with private apps."
-        }
-        
         if uiContainers.isEmpty {
             let newName = NSUUID().uuidString
             let newContainer = LCContainer(folderName: newName, name: newName, isShared: uiIsShared)

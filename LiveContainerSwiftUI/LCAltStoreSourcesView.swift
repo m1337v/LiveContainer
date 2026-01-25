@@ -488,6 +488,7 @@ struct LCSourcesView: View {
     @State private var expandedSources: Set<URL> = []
     @State private var isManagingSources = false
     
+    @EnvironmentObject private var sharedModel : SharedModel
     
     var body: some View {
         NavigationView {
@@ -618,8 +619,9 @@ struct LCSourcesView: View {
             let newSet = Set(newSources.map { $0.id })
             expandedSources = expandedSources.intersection(newSet)
         }
-        .onOpenURL { url in
-            handleURL(url: url)
+        .task(id: sharedModel.deepLinkCounter) { @Sendable in
+            guard sharedModel.selectedTab == .sources, let link = sharedModel.deepLink else { return }
+            handleURL(url: link)
         }
     }
     

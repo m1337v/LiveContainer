@@ -448,9 +448,8 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     NSString* containerInfoPath = [newHomePath stringByAppendingPathComponent:@"LCContainerInfo.plist"];
     guestContainerInfo = [NSDictionary dictionaryWithContentsOfFile:containerInfoPath];
     
-    if(isSharedBundle) {
-        [LCSharedUtils setContainerUsingByLC:lcAppUrlScheme folderName:dataUUID auditToken:0];
-    }
+    [LCSharedUtils setContainerUsingByLC:lcAppUrlScheme folderName:dataUUID auditToken:0];
+
     // Overwrite NSBundle
     overwriteMainNSBundle(appBundle);
 
@@ -696,6 +695,21 @@ int LiveContainerMain(int argc, char *argv[]) {
 
     NSString *selectedApp = [lcUserDefaults stringForKey:@"selected"];
     NSString *selectedContainer = [lcUserDefaults stringForKey:@"selectedContainer"];
+    if(!selectedApp) {
+        NSString* selectedAppFromLaunchExtension = [lcSharedDefaults stringForKey:@"LCLaunchExtensionBundleID"];
+        
+        if(selectedAppFromLaunchExtension) {
+            NSDate* launchDate = [lcSharedDefaults objectForKey:@"LCLaunchExtensionLaunchDate"];
+            NSTimeInterval secondsSinceDate = [launchDate timeIntervalSinceNow];
+
+            if (secondsSinceDate < 0 && secondsSinceDate >= -3.0) {
+                selectedApp = selectedAppFromLaunchExtension;
+                selectedContainer = [lcSharedDefaults stringForKey:@"LCLaunchExtensionContainerName"];
+            }
+            [lcSharedDefaults removeObjectForKey:@"LCLaunchExtensionBundleID"];
+            [lcSharedDefaults removeObjectForKey:@"LCLaunchExtensionContainerName"];
+        }
+    }
     
     NSString* lastLaunchDataUUID;
     if(!isLiveProcess) {

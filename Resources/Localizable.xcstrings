@@ -299,7 +299,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bestätigung der Deinstallation"
+            "value" : "Deinstallation bestätigen"
           }
         },
         "en" : {
@@ -584,7 +584,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Möchten Sie auch den Datenordner von %@ löschen? Sie können ihn für die zukünftige Nutzung behalten."
+            "value" : "Möchten Sie außerdem den Datenordner von %@ löschen? Sie können ihn für eine spätere Verwendung behalten."
           }
         },
         "en" : {
@@ -964,7 +964,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Datenordner noch nicht erstellt"
+            "value" : "Datenordner wurde noch nicht erstellt"
           }
         },
         "en" : {
@@ -1439,7 +1439,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bitte verwenden Sie Ihre bevorzugte Variante, um JIT für den aktuellen LiveContainer zu aktivieren."
+            "value" : "Bitte nutzen Sie Ihre bevorzugte Methode, um JIT für den aktuellen LiveContainer zu aktivieren."
           }
         },
         "en" : {
@@ -1629,7 +1629,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Abbruch der Installation"
+            "value" : "Installation abbrechen"
           }
         },
         "en" : {
@@ -1763,13 +1763,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld App insgesamt"
+                  "value" : "%lld Anwendung insgesamt"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld Apps insgesamt"
+                  "value" : "%lld Anwendungen insgesamt"
                 }
               }
             }
@@ -2017,7 +2017,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Initialisierung der App-Info fehlgeschlagen!"
+            "value" : "Initialisierung der Anwendungsinformationen fehlgeschlagen!"
           }
         },
         "en" : {
@@ -2112,7 +2112,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "App nicht gefunden."
+            "value" : "Anwendung nicht gefunden."
           }
         },
         "en" : {
@@ -2207,7 +2207,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "App-Bundle nicht gefunden."
+            "value" : "Anwendungs-Bundle nicht gefunden."
           }
         },
         "en" : {
@@ -2302,7 +2302,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Apps in geteilte Apps umwandeln, um sie in LiveContainer2 nutzen zu können."
+            "value" : "Anwendungen in geteilte Anwendungen umwandeln, um sie in LiveContainer2 nutzen zu können."
           }
         },
         "en" : {
@@ -2397,7 +2397,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Url oder Url-Schema eingeben"
+            "value" : "URL oder URL-Schema eingeben"
           }
         },
         "en" : {
@@ -2492,7 +2492,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Apps verstecken"
+            "value" : "Ausgeblendete Apps"
           }
         },
         "en" : {
@@ -2587,7 +2587,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "App in den App-Einstellungen ausblenden."
+            "value" : "Anwendung in den Anwendungseinstellungen ausblenden."
           }
         },
         "en" : {
@@ -3062,7 +3062,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vom URL installieren"
+            "value" : "Von URL installieren"
           }
         },
         "en" : {
@@ -3141,121 +3141,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "從網址安裝"
-          }
-        }
-      }
-    },
-    "lc.appList.installFromPlist" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Install from Plist"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "从Plist安装"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "從Plist安裝"
-          }
-        }
-      }
-    },
-    "lc.appList.installPlistInputTip" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enter plist URL or itms-services link"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "输入plist链接或itms-services链接"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "輸入plist連結或itms-services連結"
-          }
-        }
-      }
-    },
-    "lc.appList.plistInvalidError" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Invalid itms-services URL format"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无效的itms-services链接格式"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無效的itms-services連結格式"
-          }
-        }
-      }
-    },
-    "lc.appList.plistParseError" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed to parse plist file"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法解析plist文件"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法解析plist檔案"
-          }
-        }
-      }
-    },
-    "lc.appList.plistNoIpaError" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No IPA download URL found in plist"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在plist中找不到IPA下载链接"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在plist中找不到IPA下載連結"
           }
         }
       }
@@ -3367,7 +3252,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Drücken Sie das Plus, um Apps zu installieren."
+            "value" : "Tippen Sie auf das Plus, um Anwendungen zu installieren."
           }
         },
         "en" : {
@@ -3652,7 +3537,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verwalten Sie Apps im primären LiveContainer"
+            "value" : "Verwalten Sie Anwendungen im primären LiveContainer"
           }
         },
         "en" : {
@@ -3747,7 +3632,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Meine Apps"
+            "value" : "Meine Anwendungen"
           }
         },
         "en" : {
@@ -3925,6 +3810,147 @@
         }
       }
     },
+    "lc.appList.plistInvalidError" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تنسيق URL لخدمات itms-Services غير صالح"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ungültiges URL-Format für \"itms-services\""
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid itms-services URL format"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format d'URL de itms-services invalide"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Định dạng URL itms-services không hợp lệ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无效的itms-services链接格式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無效的itms-services連結格式"
+          }
+        }
+      }
+    },
+    "lc.appList.plistNoIpaError" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لم يتم العثور على رابط تحميل IPA في الخانة"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine IPA-Download-URL in \"plist\" gefunden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No IPA download URL found in plist"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune URL de téléchargement IPA trouvée dans le fichier plist"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không tìm thấy URL tải IPA trong plist"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在plist中未找到IPA下载链接"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在plist中找不到IPA下載連結"
+          }
+        }
+      }
+    },
+    "lc.appList.plistParseError" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "فشل تحليل ملف plist"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fehler beim Analysieren der \"plist\"-Datei"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to parse plist file"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Échec de l'analyse du fichier plist"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể phân tích cú pháp tệp plist"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解析plist文件失败"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法解析plist檔案"
+          }
+        }
+      }
+    },
     "lc.appList.schemeCannotOpenError %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3937,7 +3963,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Das Schema \"%@\" kann von keiner im LiveContainer installierten Anwendung geöffnet werden."
+            "value" : "Das Schema \"%@\" kann von keiner in LiveContainer installierten Anwendung geöffnet werden."
           }
         },
         "en" : {
@@ -4032,7 +4058,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die App wurde erfolgreich signiert, aber LiveContainer war nicht in der Lage, die folgenden Dateien zu signieren. Möglicherweise können Sie die App verwenden, jedoch könnte sie unerwarten abstürzen."
+            "value" : "Die Anwendung wurde erfolgreich signiert, aber LiveContainer war nicht in der Lage, die folgenden Dateien zu signieren. Möglicherweise können Sie die Anwendung verwenden, jedoch könnte sie unerwarten abstürzen."
           }
         },
         "en" : {
@@ -4127,7 +4153,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Name (A bis Z)"
+            "value" : "Name (A-Z)"
           }
         },
         "en" : {
@@ -4176,6 +4202,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Имя (A-Z)"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İsim (A–Z)"
           }
         },
         "vi" : {
@@ -4255,6 +4287,12 @@
             "value" : "Настраиваемый"
           }
         },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Özel"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4282,7 +4320,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neuanordnen"
+            "value" : "Neu anordnen"
           }
         },
         "en" : {
@@ -4331,6 +4369,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Переставить"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yeniden Düzenle"
           }
         },
         "vi" : {
@@ -4410,6 +4454,12 @@
             "value" : "Это сбросит настроенный порядок сортировки на порядок по алфавиту."
           }
         },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu, özel sıralama düzenini alfabetik sıraya sıfırlayacaktır."
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4485,6 +4535,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Дата установки"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yükleme Tarihi"
           }
         },
         "vi" : {
@@ -4564,6 +4620,12 @@
             "value" : "Дата последнего открытия"
           }
         },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En son açılan"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4591,7 +4653,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Name (A bis Z)"
+            "value" : "Name (Z-A)"
           }
         },
         "en" : {
@@ -4642,6 +4704,12 @@
             "value" : "Имя (Z-A)"
           }
         },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İsim (Z–A)"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4652,6 +4720,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "名称降序"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名字 (Z-A)"
           }
         }
       }
@@ -4763,7 +4837,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Der eingegebene URL ist ungültig. Bitte prüfen Sie ihn und versuchen Sie es erneut."
+            "value" : "Die eingegebene URL ist ungültig. Bitte überprüfen Sie sie und versuchen Sie es erneut"
           }
         },
         "en" : {
@@ -5131,6 +5205,88 @@
         }
       }
     },
+    "lc.appSettings.addExternalNonLocalContainer" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إضافة حاوية غير محلية"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hinzufügen eines nicht-lokalen Containers"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adding Non-Local Container"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajout d'un conteneur non local"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thêm Thùng chứa Bộ nhớ Ngoài"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加非本地容器"
+          }
+        }
+      }
+    },
+    "lc.appSettings.addExternalNonLocalContainerWarningAlert" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إضافة حاوية في وحدة تخزين غير محلية غير مدعومة من معظم التطبيقات وسوف يسبب سلوكا غير محدد بما في ذلك التعطل. هل تريد المتابعة؟"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Hinzufügen von Containern in einem nicht lokalen Speicher wird von den meisten Apps nicht unterstützt und führt zu unvorhersehbaren Verhaltensweisen, einschließlich Abstürzen. Fortfahren?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adding a container in a non-local storage is not supported by most apps and will result in undefined behavior including crash. Continue?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'ajout d'un conteneur dans un stockage non local n'est pas pris en charge par la plupart des applications et provoquera un comportement indéfini, y compris un plantage. Continuer ?"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thêm thùng chứa vào bộ nhớ ngoài không được hỗ trợ bởi đa số app và sẽ gây ra những hành vi không xác định bao gồm bị sập. Tiếp tục?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加不处于本地存储的数据文件夹不被大多数App支持，且会导致包括崩溃等的未定义行为。要继续吗？"
+          }
+        }
+      }
+    },
     "lc.appSettings.appOpenInOtherLc %@ %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5143,7 +5299,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Daten dieser App befinden sich derzeit in %@. Öffnen Sie %@ und starten Sie die App auf der Seite „Meine Apps“ und versuchen Sie es erneut."
+            "value" : "Die Daten dieser Anwendung befinden sich derzeit in %@. Öffnen Sie %@, starten Sie die Anwendung auf der Seite 'Meine Anwendungen' und versuchen Sie es erneut."
           }
         },
         "en" : {
@@ -5317,52 +5473,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bundle資料夾"
-          }
-        }
-      }
-    },
-    "lc.appSettings.remark" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Remark"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "备注"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "備註"
-          }
-        }
-      }
-    },
-    "lc.appSettings.remarkPlaceholder" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enter remark..."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "输入备注..."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "輸入備註..."
           }
         }
       }
@@ -5759,7 +5869,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Beheben Sie, dass die Dateiauswahl nicht reagiert, wenn Sie auf „Öffnen“ klicken, indem Sie diese App zwingen, ausgewählte Dateien in den Eingang zu kopieren. Sie können importierte Dateien im Ordner „Eingang“ im Datenordner der App anzeigen."
+            "value" : "Behebt das Problem, dass der Dateiauswahldialog beim Tippen auf \"Öffnen\" nicht reagiert, indem die App die ausgewählten Dateien in ihren Inbox-Ordner kopiert. Importierte Dateien finden Sie im Ordner \"Inbox\" im Datenordner der App."
           }
         },
         "en" : {
@@ -5888,10 +5998,34 @@
             "value" : "파일 선택기 문제 해결"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Napraw wybór plików"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrigir Seletor de Arquivo"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Исправить выбор файлов"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dosya Seçiciyi Düzelt"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sửa File Picker"
           }
         },
         "zh-Hans" : {
@@ -5944,13 +6078,37 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "로컬 알림 문제 해결"
+            "value" : "앱 알림 오류 해결"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Napraw lokalne powiadomienia"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrigir Notificações Locais"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Исправить локальные уведомления"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yerel Bildirimleri Düzelt"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sửa Thông báo Cục bộ"
           }
         },
         "zh-Hans" : {
@@ -6068,7 +6226,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Versuchen Sie erneut zu signieren, wenn diese Anwendung mit der Fehlermeldung „Ungültige Signatur“ nicht gestartet werden konnte. Wenn dies immer noch nicht funktioniert, erneuern Sie das JIT-Less-Zertifikat."
+            "value" : "Versuchen Sie erneut zu signieren, wenn diese Anwendung mit der Fehlermeldung \"Ungültige Signatur\" nicht gestartet werden konnte. Wenn es immer noch nicht funktioniert, erneuern Sie das JIT-Less-Zertifikat."
           }
         },
         "en" : {
@@ -6258,7 +6416,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "App verstecken"
+            "value" : "Anwendung verstecken"
           }
         },
         "en" : {
@@ -6353,7 +6511,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Um Anwendungen vollständig auszublenden, aktivieren Sie in den Einstellungen den Modus \"Striktes Ausblenden\"."
+            "value" : "Um Anwendungen vollständig auszublenden, aktivieren Sie den Modus \"Striktes Ausblenden\" in den Einstellungen."
           }
         },
         "en" : {
@@ -6448,7 +6606,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verstecke LiveContainer von \"Dyld Api\""
+            "value" : "Verstecke LiveContainer von Dyld Api"
           }
         },
         "en" : {
@@ -6629,10 +6787,76 @@
     "lc.appSettings.jit26.script" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "سكريبت اطلاق JIT"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT-Startskript"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "JIT Launch Script"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Script de lancement JIT"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Script per avviare JIT"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT起動スクリプト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT 활성화 스크립트"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skrypt uruchomienia z JIT"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Script de Inicialização JIT"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скрипт запуска JIT"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT Başlatma Betiği"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Script Khởi chạy JIT"
           }
         },
         "zh-Hans" : {
@@ -6647,10 +6871,76 @@
       "comment" : "lc.appSettings.jit26.scriptDesc",
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تم تمرير ملف جافا سكريبت إلى StikDebug عند بدء تشغيل التطبيق"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine JavaScript-Datei an StikDebug übergeben, wenn JIT die App startet"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "An JavaScript file passed to StikDebug when JIT launching the app."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un fichier JavaScript a été transmis à StikDebug lors du lancement JIT de l'application"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un file JavaScript passato a StikDebug quando attivando con JIT l'app"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アプリをJITで起動する際にStikDebugに渡されたJavaScriptファイルを選択してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT을 활성화한 상태에서 앱을 실행하여 자바스크립트 파일이 StikDebug에게 전송되었습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plik JavaScript został przekazany do StikDebug podczas uruchomienia aplikacji z JIT"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um arquivo JavaScript passou para StikDebug na inicialização JIT do app"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл JavaScript, который будет передан StikDebug при запуске приложения с JIT"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uygulama JIT ile başlatıldığında StikDebug'a aktarılan bir JavaScript dosyası"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Một tệp JavaScript được đưa qua StikDebug khi khởi động app với JIT"
           }
         },
         "zh-Hans" : {
@@ -6664,10 +6954,76 @@
     "lc.appSettings.jit26.scriptLoaded" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تم تحميل السكريبت"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skript geladen"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Script Loaded"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Script chargé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Script caricato"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトを読み込みました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트가 실행되었습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Załadowano skrypt"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Script Carregado"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скрипт Загружен"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Betik Yüklendi"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã tải Script"
           }
         },
         "zh-Hans" : {
@@ -6785,7 +7141,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LiveContainer wird versuchen, die JIT-Berechtigung zu erhalten, bevor die Anwendung gestartet wird."
+            "value" : "LiveContainer wird vor dem Start der Anwendung versuchen, die JIT-Berechtigung zu erlangen."
           }
         },
         "en" : {
@@ -6880,7 +7236,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "App verschließen"
+            "value" : "Anwendung sperren"
           }
         },
         "en" : {
@@ -7058,6 +7414,141 @@
         }
       }
     },
+    "lc.appSettings.remark" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تعليق"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anmerkung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remark"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remarque"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ghi chú"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "备注"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "備註"
+          }
+        }
+      }
+    },
+    "lc.appSettings.remarkPlaceholder" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "أدخل ملاحظة..."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anmerkung eingeben..."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter remark..."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrer une remarque..."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhập ghi chú..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入备注..."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入備註..."
+          }
+        }
+      }
+    },
+    "lc.appSettings.selectExternalStorage" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حدد مجلد بيانات خارجي"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Externen Datenordner auswählen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select External Data Folder"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sélectionner un dossier de données externe"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chọn Thư mục Dữ liệu Ngoài"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择外部容器"
+          }
+        }
+      }
+    },
     "lc.appSettings.signer" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7117,7 +7608,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese App ist nicht signiert, wollen Sie sie trotzdem signieren?"
+            "value" : "Diese Anwendung ist nicht signiert, möchten Sie diese trotzdem signieren?"
           }
         },
         "en" : {
@@ -7307,7 +7798,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "In eine private App umwandeln."
+            "value" : "In eine private Anwendung umwandeln"
           }
         },
         "en" : {
@@ -7402,7 +7893,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wenn Sie diese App in den privaten Dokumentenordner verschieben, können Sie in der Dateien-App auf ihre Daten und Tweaks zugreifen, aber sie kann nicht von anderen LiveContainern ausgeführt werden."
+            "value" : "Wenn Sie diese Anwendung in einen privaten Dokumentenordner verschieben, können Sie in der Dateien-Anwendung auf ihre Daten und Tweaks zugreifen, aber sie kann nicht von anderen LiveContainern ausgeführt werden."
           }
         },
         "en" : {
@@ -7497,7 +7988,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "In eine geteilte App umwandeln"
+            "value" : "In eine geteilte Anwendung umwandeln"
           }
         },
         "en" : {
@@ -7592,7 +8083,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Das Verschieben dieser App in die App-Gruppe ermöglicht es anderen LiveContainern, diese App mit allen Daten und Einstellungen auszuführen. Wenn Sie von der Datei-App aus wieder auf die Daten und Einstellungen zugreifen möchten, verschieben Sie sie zurück."
+            "value" : "Das Verschieben dieser Anwendung in die Anwendungs-Gruppe ermöglicht es anderen LiveContainern, diese Anwendung mit allen Daten und Einstellungen auszuführen. Wenn Sie von der Datei-Anwendung aus wieder auf die Daten und Einstellungen zugreifen möchten, verschieben Sie sie zurück."
           }
         },
         "en" : {
@@ -7815,10 +8306,34 @@
             "value" : "LiveContainer 번들 ID 사용"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Użyj identyfikatora pakietu aplikacji LiveContainer"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usar o ID do Pacote do LiveContainer"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Использовать ИД пакета LiveContainer"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer'ın Paket Kimliğini kullan"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dùng Bundle ID của LiveContainer"
           }
         },
         "zh-Hans" : {
@@ -8696,7 +9211,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Datein"
+            "value" : "Daten"
           }
         },
         "en" : {
@@ -8840,6 +9355,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "По-умолчанию"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Varsayılan"
           }
         },
         "vi" : {
@@ -9430,10 +9951,76 @@
       "comment" : "lc.common.install",
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تنزيل"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installieren"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Install"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installer"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installa"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インストール"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설치"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zainstaluj"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instalar"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установить"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yükle"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cài đặt"
           }
         },
         "zh-Hans" : {
@@ -9922,10 +10509,76 @@
     "lc.common.noFileSelected" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لم يتم تحديد ملف"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Datei ausgewählt"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "No file selected"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun fichier sélectionné"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessun file selezionato"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルが選択されていません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택된 파일이 없습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie wybrano pliku"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhum arquivo selecionado"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл не выбран"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dosya seçilmedi"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chưa chọn tệp"
           }
         },
         "zh-Hans" : {
@@ -10043,7 +10696,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Okey"
+            "value" : "Ok"
           }
         },
         "en" : {
@@ -10130,16 +10783,88 @@
       "comment" : "lc.common.remove",
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حذف"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entfernen"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Remove"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimuovi"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "삭제"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usuń"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaldır"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xoá"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除"
           }
         }
       }
@@ -10302,6 +11027,12 @@
             "value" : "Сброс"
           }
         },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sıfırla"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10313,22 +11044,100 @@
             "state" : "translated",
             "value" : "重置"
           }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重設"
+          }
         }
       }
     },
     "lc.common.select" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تحديد"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auswählen"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Select"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sélectionner"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seleziona"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wybierz"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selecionar"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрать"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seç"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chọn"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "选择"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇"
           }
         }
       }
@@ -10394,6 +11203,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Статистика"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İstatistikler"
           }
         },
         "vi" : {
@@ -10790,6 +11605,47 @@
         }
       }
     },
+    "lc.container.bookmarkResolveInProgress" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إصلاح العلامة المرجعية للحاوية..."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Container-Lesezeichen auflösen..."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resolving container bookmark..."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Résolution du favori du conteneur..."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang lấy dấu trang của thùng chứa..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在解析容器书签..."
+          }
+        }
+      }
+    },
     "lc.container.containerFolderName" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11182,7 +12038,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Möchtest du alle Daten von diesem Container löschen?"
+            "value" : "Möchten Sie alle Daten von diesem Container löschen?"
           }
         },
         "en" : {
@@ -11265,6 +12121,47 @@
         }
       }
     },
+    "lc.container.externalStorageUnavailable" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هذه الحاوية غير متوفرة في هذه اللحظة"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Container ist momentan nicht verfügbar"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This container is not available at this moment"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce conteneur n'est pas disponible pour le moment"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thùng chứa này hiện tại không có sẵn"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此容器当前不可用"
+          }
+        }
+      }
+    },
     "lc.container.inUse" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11277,7 +12174,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Der Container ist derzeit in Verwendung."
+            "value" : "Der Container ist derzeit in Verwendung"
           }
         },
         "en" : {
@@ -11562,7 +12459,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Keine Schlüsselbund-Gruppen-Berechtigung."
+            "value" : "Unzureichende Keychain-Zugriffsgruppe."
           }
         },
         "en" : {
@@ -12227,7 +13124,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Unbekannte App"
+            "value" : "Unbekannte Anwendung"
           }
         },
         "en" : {
@@ -12408,7 +13305,67 @@
     "lc.container.spoofIdentifierForVendor" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "معرف البقع للمورد"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spoof identifierForVendor"
+          }
+        },
         "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spoof identifierForVendor"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Falsifier identifierForVendor"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inganna identifierForVendor"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ベンダー用の識別子を偽装"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "identifierForVendor 속이기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Falso identificador para vendedores"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подменять identifierForVendor"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sağlayıcı Kimliğini Taklit Et"
+          }
+        },
+        "vi" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Spoof identifierForVendor"
@@ -12529,7 +13486,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verknüpfung von der App lösen"
+            "value" : "Anwendungs-Verknüpfung aufheben"
           }
         },
         "en" : {
@@ -12624,7 +13581,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Herunterladen"
+            "value" : "Wird heruntergeladen"
           }
         },
         "en" : {
@@ -13384,7 +14341,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "**Sehen Sie sich [LiveContainer FAQ](https://github.com/khanhduytran0/LiveContainer/issues/265) für allgemeine Probleme an.**\n                         \nWenn du einen Fehler oder ein Kompatibilitätsproblem entdeckst, melde dich bitte auf [GitHub issues](https://github.com/khanhduytran0/LiveContainer/issues)."
+            "value" : "**Sehen Sie sich [LiveContainer FAQ](https://github.com/khanhduytran0/LiveContainer/issues/265) für allgemeine Probleme an.**\n                         \nWenn Sie einen Fehler oder ein Kompatibilitätsproblem entdecken, melden Sie es bitte auf [GitHub issues](https://github.com/khanhduytran0/LiveContainer/issues)."
           }
         },
         "en" : {
@@ -13574,7 +14531,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Berechtigungsdatei"
+            "value" : "Entitlement-Datei"
           }
         },
         "en" : {
@@ -14703,6 +15660,47 @@
         }
       }
     },
+    "lc.jitlessDiag.certTeamId" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "معرف فريق الشهادة"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zertifikat Team-ID"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificate Team ID"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ID d’équipe du certificat"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Team ID Chứng chỉ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "证书团队名"
+          }
+        }
+      }
+    },
     "lc.jitlessDiag.checking" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -14715,7 +15713,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Überprüfen"
+            "value" : "Wird überprüft"
           }
         },
         "en" : {
@@ -14798,6 +15796,47 @@
         }
       }
     },
+    "lc.jitlessDiag.expectedTeamId" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "معرف الفريق المتوقع"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erwartete Team-ID"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expected Team ID"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ID d'équipe attendu"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Team Id yêu cầu"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "预期团队ID"
+          }
+        }
+      }
+    },
     "lc.jitlessDiag.getHelp" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14810,7 +15849,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ich brauche Hilfe"
+            "value" : "Hilfe erhalten"
           }
         },
         "en" : {
@@ -15154,7 +16193,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Test im JIT-freien-Modus erfolgreich"
+            "value" : "JIT-Less-Modus-Test bestanden"
           }
         },
         "en" : {
@@ -15440,7 +16479,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Scale"
+            "value" : "Skala"
           }
         },
         "en" : {
@@ -15725,7 +16764,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verschieben erfolgreich."
+            "value" : "Erfolgreich verschoben."
           }
         },
         "en" : {
@@ -15820,7 +16859,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Es gibt Dateien im Gruppenordner der geteilten App. Bitte verschieben Sie zuerst und versuche es erneut."
+            "value" : "Im geteilten Anwendungs-Gruppen-Ordner sind noch Dateien vorhanden. Bitte verschieben Sie diese und versuchen Sie es erneut."
           }
         },
         "en" : {
@@ -15915,7 +16954,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Es gibt Dateien im Gruppenordner der privaten App. Bitte verschieben Sie zuerst und versuche es erneut."
+            "value" : "Im privaten Anwendungs-Gruppen-Ordner befinden sich Dateien. Verschieben Sie diese zuerst und versuchen Sie es erneut."
           }
         },
         "en" : {
@@ -16010,7 +17049,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Private App-Gruppe in den Ordner \"geteilte Dokumente“ verschieben"
+            "value" : "Private Anwendungs-Gruppe in den gemeinsamen Dokumente-Ordner verschieben"
           }
         },
         "en" : {
@@ -16105,7 +17144,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geteilte App-Gruppen in den Ordner \"private Dokumente\" verschieben"
+            "value" : "Dateien der freigegebenen Anwendungs-Gruppe in den privaten Dokumente-Ordner verschieben"
           }
         },
         "en" : {
@@ -16251,6 +17290,12 @@
             "value" : "Автоматически заканчивать режим \"картинка в картинке\""
           }
         },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RİR Modunu Otomatik Olarak Sonlandır"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16261,6 +17306,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自动结束画中画模式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動離開 PiP 模式"
           }
         }
       }
@@ -16423,6 +17474,12 @@
             "value" : "Полоса окна снизу"
           }
         },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alt Pencere Çubuğu"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16450,7 +17507,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Bundle-ID vom LiveContainer, „%@“, stimmt nicht mit der AppID in den Berechtigungen überein, die eine Bundle-ID von „%@“ erwartet. Einige Funktionen sind möglicherweise nicht verfügbar."
+            "value" : "Die Bundle-ID von LiveContainer \"%@\" entspricht nicht dem Application-Identifier in den Entitlements, der \"%@\" als Bundle-ID erwartet. Einige Funktionen sind möglicherweise nicht verfügbar."
           }
         },
         "en" : {
@@ -17028,7 +18085,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wenn ein Account einer App nicht zwischen LiveContainern synchronisiert werden kann, liegt das möglicherweise daran, dass es noch im privaten Schlüsselbund des aktuellen LiveContainers gespeichert ist. Das Bereinigen des Schlüsselbundes kann dieses Problem lösen, aber es kann dazu führen, dass Sie sich von einigen Ihrer Accounts abmelden. Fortsetzen?"
+            "value" : "Wenn ein Account einer App nicht zwischen LiveContainern synchronisiert werden kann, liegt das möglicherweise daran, dass es noch im privaten Schlüsselbund des aktuellen LiveContainers gespeichert ist. Das Bereinigen des Schlüsselbundes kann dieses Problem lösen, aber es kann dazu führen, dass Sie sich von einigen Ihrer Accounts abmelden. Fortfahren?"
           }
         },
         "en" : {
@@ -17058,7 +18115,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "일부 앱 계정이 LiveContainer 간에 동기화되지 않는 경우, 해당 계정이 현재 LiveContainer의 비공개 키체인에 남아있어 발생하는 문제일 수 있습니다. 키체인을 삭제하면 문제가 해결될 수 있습니다. 단, 일부 계정이 로그아웃될 수 있습니다."
+            "value" : "현재 LiveContainer에 비공개 키체인에 남아있는 경우, 일부 앱 계정이 LiveContainer 간에 동기화되지 않을 수 있습니다. 이 문제는 키체인을 삭제하면 해결될 수 있습니다. (단, 일부 계정이 로그아웃될 수 있습니다.)"
           }
         },
         "pl" : {
@@ -17107,6 +18164,88 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "某些 App 的帳號無法在 LiveContainer 間同步的原因可能是其鑰匙圈還儲存在本地。清理鑰匙圈可能可以解決此問題，但這可能導致你登出某些帳號。要繼續嗎？"
+          }
+        }
+      }
+    },
+    "lc.settings.clearIconCache" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مسح ذاكرة التخزين المؤقت للأيقونات"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Icon Cache leeren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Icon Cache"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vider le cache des icônes"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xóa Bộ nhớ đệm Biểu tượng"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清理图标缓存"
+          }
+        }
+      }
+    },
+    "lc.settings.darkModeIcon" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "أيقونة الوضع المظلم"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dunklelmodus Symbol"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dark Mode Icon"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Icône du mode sombre"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Biểu tượng Tối"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "深色模式图标"
           }
         }
       }
@@ -17322,6 +18461,12 @@
             "value" : "Ширина дока"
           }
         },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dock Genişliği"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17348,7 +18493,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Signiere keine neuen Apps"
+            "value" : "Keine neuen Anwendungen signieren"
           }
         },
         "en" : {
@@ -17443,7 +18588,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LiveContainer wird neue Apps nicht signieren, bis diese Option ausgeschaltet ist. Eine App, die installiert wird, während diese Option aktiviert ist, bleibt unsigniert."
+            "value" : "LiveContainer wird neue Anwendungen nicht signieren, bis diese Option ausgeschaltet ist. Eine Anwendung, die installiert wird, während diese Option aktiviert ist, bleibt unsigniert."
           }
         },
         "en" : {
@@ -17633,7 +18778,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dynamische Farben für App-Boxen einschalten"
+            "value" : "Dynamische Farben für Anwendungs-Boxen einschalten"
           }
         },
         "en" : {
@@ -17823,7 +18968,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rahmen-verknüpfungssymbol"
+            "value" : "Verknüpfungs-Icon einrahmen"
           }
         },
         "en" : {
@@ -17918,7 +19063,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rahmen-verknüpfungssymbole mit LiveContainer-Symbol."
+            "value" : "Shortcut-Icons mit dem LiveContainer-Icon umrahmen."
           }
         },
         "en" : {
@@ -18013,7 +19158,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Zertifikat von dem eingebetteten SideStore importieren"
+            "value" : "Zertifikat aus der integrierten SideStore-Version importieren"
           }
         },
         "en" : {
@@ -18064,6 +19209,12 @@
             "value" : "Импортировать сертификат из встроенного SideStore"
           }
         },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yerleşik SideStore'dan Sertifika İçe Aktar"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18090,7 +19241,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Zertifikat konnte nicht gefunden werden. Haben Sie sich im eingebetteten SideStore angemeldet?"
+            "value" : "Zertifikat nicht gefunden. Haben Sie sich bei der integrierten SideStore-Version angemeldet?"
           }
         },
         "en" : {
@@ -18141,6 +19292,12 @@
             "value" : "Сертификат не найден. Вы вошли в аккаунт во встроенном SideStore?"
           }
         },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sertifika bulunamadı. Yerleşik SideStore'a giriş yaptınız mı?"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18167,7 +19324,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Eingebetter SideStore erkannt. Möchten Sie das Zertifikat davon importieren?"
+            "value" : "Integrierter SideStore erkannt. Möchten Sie das Zertifikat daraus importieren?"
           }
         },
         "en" : {
@@ -18216,6 +19373,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Обнаружен встроенный SideStore. Хотите ли вы импортировать сертификат оттуда?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yerleşik SideStore algılandı. Buradan sertifikayı içe aktarmak ister misiniz?"
           }
         },
         "vi" : {
@@ -18339,7 +19502,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Um den JITLess-Modus ohne AltStore/SideStore zu verwenden, müssen Sie das Zertifikat importieren, das zum Signieren von LiveContainer verwendet wurde. Fortfahren?"
+            "value" : "Wenn Sie den JITLess-Modus ohne AltStore/SideStore nutzen möchten, müssen Sie das Zertifikat importieren, mit dem LiveContainer signiert wurde. Fortfahren?"
           }
         },
         "en" : {
@@ -18742,7 +19905,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "interface"
+            "value" : "Interface"
           }
         },
         "fr" : {
@@ -18831,7 +19994,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Zertifikat konnte nicht validiert werden. Bitte überprüfen Sie das Passwort und ob das ausgewählte Zertifikat zum Signieren des LiveContainers verwendet wird."
+            "value" : "Zertifikat konnte nicht validiert werden. Bitte überprüfen Sie das Passwort und ob das ausgewählte Zertifikat zum Signieren von LiveContainer verwendet wird."
           }
         },
         "en" : {
@@ -19211,7 +20374,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "JIT-frei"
+            "value" : "JIT-Less"
           }
         },
         "en" : {
@@ -19582,10 +20745,70 @@
     "lc.settings.launchMultitaskMaximized" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "أقصى نافذة متعددة المهام بشكل افتراضي"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Multitasking-Fenster standardmäßig maximiert"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Maximized Multitask Window by Default"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fenêtre multitâche maximisée par défaut"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finestra multitasking massimizzata di default"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デフォルトでマルチタスクウィンドウを最大化"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본값으로 창이 최대화된 상태로 실행되었습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Domyślnie uruchom w zmaksymalizowanym oknie wielozadaniowości"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Janela de Multitarefa Maximizada por Padrão"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Полноэкранное окно по умолчанию"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Varsayılan olarak büyütülmüş çoklu görev penceresi"
           }
         },
         "vi" : {
@@ -20375,7 +21598,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verbleibende Ordner aus der App-Gruppe verschieben"
+            "value" : "Nicht zugeordnete Ordner aus der Anwendungs-Gruppe verschieben"
           }
         },
         "en" : {
@@ -20660,7 +21883,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Durch die Installation mehrerer LiveContainer und die Konvertierung von Apps in geteilte Apps können Sie eine App in allen LiveContainern mit den meisten ihrer Daten und Einstellungen öffnen."
+            "value" : "Durch die Installation mehrerer LiveContainer und die Konvertierung von Anwendungen in geteilte Anwendungen können Sie eine Anwendung in allen LiveContainern mit den meisten ihrer Daten und Einstellungen öffnen."
           }
         },
         "en" : {
@@ -20827,7 +22050,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "安装第二个LiveContainer"
+            "value" : "安装另一个LiveContainer"
           }
         },
         "zh-Hant" : {
@@ -20841,10 +22064,70 @@
     "lc.settings.multiLCInstall.allowGameMode" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "سماح وضع الألعاب"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spielmodus erlauben"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Allow Game Mode"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autoriser le mode Jeu"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modalità di gioco attivata"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲームモードを許可"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "게임 모드 허용"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zezwalaj na tryb gry"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitir Modo de Jogo"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешить Игровой режим"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oyun Moduna İzin Ver"
           }
         },
         "vi" : {
@@ -20857,6 +22140,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "允许游戏模式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允許遊戲模式"
           }
         }
       }
@@ -20873,7 +22162,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mit dem eingebetteten SideStore installieren"
+            "value" : "Mit integriertem SideStore installieren"
           }
         },
         "en" : {
@@ -20924,6 +22213,12 @@
             "value" : "Использовать встроенный SideStore"
           }
         },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yerleşik SideStore ile yükleyin"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -20941,10 +22236,70 @@
     "lc.settings.multiLCInstall.useGameCategory" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حدد الفئة كالعاب"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kategorie auf Spiel setzen"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Set Category as Game"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Définir la catégorie en tant que jeu"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Categoria impostata come Gioco"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カテゴリを｢ゲーム｣に設定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "게임 앱으로 설정"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ustaw kategorię jako grę"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Definir Categoria como Jogo"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установить категорию как \"Игра\""
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kategoriyi Oyun olarak Ayarla"
           }
         },
         "vi" : {
@@ -20973,7 +22328,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LiveContainer wird die IPA für einen anderen LiveContainer generieren. Bitte öffnen Sie die Datei in %@, um sie zu installieren, Weiter?"
+            "value" : "LiveContainer wird eine IPA für einen weiteren LiveContainer generieren. Bitte teilen Sie diese mit %@, um sie zu installieren. Fortfahren?"
           }
         },
         "en" : {
@@ -21249,10 +22604,70 @@
     "lc.settings.multitaskDesc" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يسمح لك وضع المهام المتعددة بفتح تطبيقات متعددة في نفس الوقت. حوِّل تطبيقاتك لتطبيقات مشتركة لإستخدامهم في الوضع هذا."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit dem Multitasking-Modus können Sie mehrere Anwendungen gleichzeitig öffnen. Wandeln Sie Ihre Anwendungen in geteilte Anwendungen um, damit sie in diesem Modus verwendet werden können."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Multitask Mode allows you to open multiple apps at the same time. Convert your apps to Shared Apps to use them in this mode."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le mode multitâche vous permet d'ouvrir plusieurs applications en même temps. Convertissez vos applications en applications partagées pour les utiliser dans ce mode."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modalità multitasking ti permette di aprire più app contemporaneamente. Converti le tue app in App Condivise per usarle in questa modalità."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マルチタスクモードでは、複数のアプリを同時に開くことができます。使用するには、アプリを共有アプリに変換してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "멀티태스킹 모드는 한 번에 여러 앱을 실행할 수 있도록 합니다. 해당 모드를 사용하기 위해선 각 앱을 공유된 앱으로 변환해야 합니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tryb wielozadaniowości pozwala na otwieranie wielu aplikacji w tym samym czasie. Aby korzystać z tego trybu, przekonwertuj swoje aplikacje na aplikacje dzielone."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Modo de Multitarefa te permite abrir vários apps ao mesmo tempo. Converta seus apps em Apps Compartilhados para usá-los nesse modo."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Многооконный режим позволяет вам открывать множество приложений в одно время. Конвертируйте свои приложения в общие для использования их в этом режиме."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Çoklu Görev Modu, aynı anda birden fazla uygulamayı açmanıza olanak tanır. Uygulamalarınızı bu modda kullanmak için Paylaşılan Uygulamalar'a dönüştürün."
           }
         },
         "vi" : {
@@ -21281,7 +22696,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Multitasking Modus"
+            "value" : "Multitasking-Modus"
           }
         },
         "en" : {
@@ -21566,7 +22981,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kein Datenordner zu entfernen. Alle Datenordner sind in Gebrauch."
+            "value" : "Kein Datenordner zum Entfernen vorhanden. Alle Datenordner werden verwendet."
           }
         },
         "en" : {
@@ -21712,6 +23127,12 @@
             "value" : "LiveContainer не был подписан с сертификатом разработчика; LiveContainer не сможет работать. Пожалуйста, переподпишите его с действительным сертификатом."
           }
         },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LiveContainer, geliştirme sertifikası ile imzalanmadığından çalışmayacaktır. Lütfen LiveContainer'ı geliştirme sertifikası ile imzalayın."
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -21722,6 +23143,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "LiveContainer未被使用开发证书签名，因此无法正常工作。请使用开发证书签名LiveContainer。"
+          }
+        }
+      }
+    },
+    "lc.settings.onlyOneAppOnStage" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "وضع النافذة الواحدة"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einzelfenster Modus"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Single Window Mode"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode fenêtre unique"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chế độ Một Cửa sổ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "单窗口模式"
           }
         }
       }
@@ -22012,12 +23474,36 @@
       }
     },
     "lc.settings.restartTerminatedApp" : {
-      "extractionState" : "manual",
+      "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إعادة تشغيل التطبيق تلقائياً بعد انتهاء التطبيق"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App nach Beenden automatisch neu starten"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Restart app automatically after termination"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redémarrer l'application automatiquement après l'arrêt"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khởi động lại app sau khi bị thoát"
           }
         },
         "zh-Hans" : {
@@ -22188,7 +23674,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Standardmäßig fragt LiveContainer Sie, wie Sie eine URL öffnen wollen. Aktivieren Sie dies, um die URL automatisch in der aktuellen Anwendung zu öffnen."
+            "value" : "Standardmäßig fragt LiveContainer, wie eine URL geöffnet werden soll. Aktivieren Sie diese Option, um URLs automatisch in der aktuellen Anwendung zu öffnen."
           }
         },
         "en" : {
@@ -22283,7 +23769,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "App wechseln ohne zu fragen"
+            "value" : "Anwendung wechseln ohne zu fragen"
           }
         },
         "en" : {
@@ -22378,7 +23864,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Standardmäßig fragt LiveContainer Sie, bevor Sie die App wechseln. Aktivieren Sie dies, um die App sofort zu wechseln. Alle ungespeicherten Daten gehen dabei verloren."
+            "value" : "Standardmäßig fragt LiveContainer Sie, bevor Sie die Anwendung wechseln. Aktivieren Sie diese Option, um sofort zur Anwendung zu wechseln. Nicht gespeicherte Daten gehen dabei verloren."
           }
         },
         "en" : {
@@ -22462,12 +23948,36 @@
       }
     },
     "lc.settings.skipTerminatedScreen" : {
-      "extractionState" : "manual",
+      "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تخطي شاشة الإنتهاء"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beenden-Bildschirm überspringen"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Skip terminated screen"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ignorer l'écran terminé"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bỏ qua màn hình bị thoát"
           }
         },
         "zh-Hans" : {
@@ -22585,7 +24095,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wenn Sie diesen Modus aktivieren, können versteckte Anwendungen nur durch Dreifachklick auf die Anzahl der installierten Apps gestartet werden."
+            "value" : "Wenn Sie diesen Modus aktivieren, können versteckte Anwendungen nur durch Dreifachklick auf die Anzahl der installierten Anwendungen gestartet werden."
           }
         },
         "en" : {
@@ -22870,7 +24380,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bitte benutzen Sie LiveContainer **nicht** für Raubkopien."
+            "value" : "Bitte benutzen Sie LiveContainer nicht für Raubkopien."
           }
         },
         "en" : {
@@ -22965,7 +24475,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LiveContainer scheint beim letzten Signieren der App abzustürzen, und die App könnte beschädigt sein. Bitte überlegen Sie, die App neu zu installieren oder zu einem anderen Signierer zu wechseln."
+            "value" : "LiveContainer scheint während der letzten Anwendungs-Signierung abgestürzt zu sein, und die Anwendung könnte beschädigt sein. Bitte erwägen Sie, die Anwendung neu zu installieren oder zu einem anderen Signierer zu wechseln."
           }
         },
         "en" : {
@@ -23060,7 +24570,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die App ist mit dem neuesten Zertifikat signiert, aber die Codesignatur ist ungültig. Bitte überprüfen Sie die \"JIT-frei\"-Diagnoseseite und prüfen sie nach Fehlern in der JIT-freien-Einrichtung."
+            "value" : "Die Anwendung wurde mit dem neuesten Zertifikat signiert, aber ihre Code-Signatur ist ungültig. Bitte prüfen Sie die JIT-Less-Diagnoseseite und sehen Sie nach, ob es Probleme mit Ihrer JIT-Less-Konfiguration gibt."
           }
         },
         "en" : {
@@ -23155,7 +24665,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Signierzertifikat konnte nicht gefunden werden. Bitte überprüfen Sie die \"JIT-frei\"-Diagnoseseite und suchen Sie nach Fehlern in der JIT-freien-Einrichtung."
+            "value" : "Signierzertifikat konnte nicht gefunden werden. Bitte prüfen Sie die JIT-Less-Diagnoseseite und sehen Sie nach, ob es Probleme mit Ihrer JIT-Less-Konfiguration gibt."
           }
         },
         "en" : {
@@ -23241,10 +24751,76 @@
     "lc.sources.addSource" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إضافة مصدر"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quelle hinzufügen"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add Source"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungi Sorgente"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ソースを追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "레포 추가"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dodaj źródło"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adicionar Fonte"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить источник"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaynak Ekle"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thêm Nguồn"
           }
         },
         "zh-Hans" : {
@@ -23258,10 +24834,70 @@
     "lc.sources.addSourcePrompt" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إضافة مصدر"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quelle hinzufügen"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add Source"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter une source"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungi sorgente"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ソースを追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "레포 추가"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dodaj źródło"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adicionar Fonte"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить источник"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaynak Ekle"
           }
         },
         "zh-Hans" : {
@@ -23275,7 +24911,73 @@
     "lc.sources.badge.beta" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«بيتا»"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beta"
+          }
+        },
         "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bêta"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beta"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ベータ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "베타"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beta"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beta"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бета"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beta"
+          }
+        },
+        "vi" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Beta"
@@ -23292,10 +24994,76 @@
     "lc.sources.empty" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ضِف مصدر لبدء التصفح للتطبيقات"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fügen Sie eine Quelle hinzu, um Anwendungen zu durchsuchen."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add a source to start browsing apps."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajoutez une source pour commencer à parcourir les applications."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungi una sorgente per esplorare le app."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ここにアプリを表示させるにはソースを追加してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "레포를 추가하면 다양한 앱을 둘러볼 수 있습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dodaj źródło, aby zacząć przeglądać aplikacje."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adicionar uma fonte para iniciar apps de navegação."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавьте источник, чтобы искать приложения."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uygulamalara göz atmaya başlamak için bir kaynak ekleyin."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thêm một nguồn để bắt đầu duyệt app."
           }
         },
         "zh-Hans" : {
@@ -23309,10 +25077,76 @@
     "lc.sources.error.duplicate" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تم إضافة المصدر هذا للتو"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Quelle wurde bereits hinzugefügt."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "This source is already added."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette source a déjà été ajoutée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa sorgente è già stata aggiunta."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このソースはすでに追加しています。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이미 추가된 레포입니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To źródło jest już dodane."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta fonte já foi adicionada."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот источник уже добавлен."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu kaynak zaten eklenmiş."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nguồn đã được thêm rồi."
           }
         },
         "zh-Hans" : {
@@ -23320,16 +25154,88 @@
             "state" : "translated",
             "value" : "此源已被添加。"
           }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此源頭已被添加。"
+          }
         }
       }
     },
     "lc.sources.error.invalidUrl" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "عنوان URL غير صالح."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die URL ist ungültig."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "The URL is invalid."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'URL n'est pas valide."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL non valido."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URLが無効です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "유효하지 않은 URL입니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nieprawidłowy adres URL."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A URL é inválida."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ссылка недействительна."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL geçerli değil."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL không hợp lệ."
           }
         },
         "zh-Hans" : {
@@ -23343,10 +25249,76 @@
     "lc.sources.error.malformed" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ملف المصدر غير صالح."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Quelldatei ist ungültig."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "The source file is not valid."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier source n'est pas valide."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo file sorgente non è valido."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ソースファイルが無効です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "유효하지 않은 레포 파일입니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nieprawidłowe źródło."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O arquivo de origem não é válido."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исходный файл недействителен."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaynak dosyası geçersiz."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tệp nguồn không hợp lệ."
           }
         },
         "zh-Hans" : {
@@ -23360,10 +25332,76 @@
     "lc.sources.error.missingDownload" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هذا الإدخال لا يتضمن عنوان URL للتحميل."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Eintrag enthält keine Download-URL."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "This entry does not include a download URL."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette entrée n'inclut pas d'URL de téléchargement."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa voce non include un URL per il download."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この項目にはダウンロード用のURLが含まれていません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL을 입력해주세요."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie ma załączonego linku do pobrania."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta entrada não inclui uma URL de download."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта запись не включает в себя скачиваемую ссылку."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu girişte indirme URL'si bulunmamaktadır."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mục này bị thiểu URL tải xuống."
           }
         },
         "zh-Hans" : {
@@ -23377,10 +25415,76 @@
     "lc.sources.loading" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "جار التحميل..."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird geladen..."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Loading..."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chargement..."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caricamento..."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込み中..."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로딩 중..."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wczytywanie..."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carregando..."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузка..."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yükleniyor..."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang tải..."
           }
         },
         "zh-Hans" : {
@@ -23394,10 +25498,76 @@
     "lc.sources.manage.current" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "المصادر الحالية"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktuelle Quellen"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Current Sources"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sources actuelles"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sorgente attuale"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のソース"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 레포"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obecne źródła"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fontes Atuais"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Текущие источники"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mevcut Kaynaklar"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nguồn Hiện tại"
           }
         },
         "zh-Hans" : {
@@ -23405,16 +25575,88 @@
             "state" : "translated",
             "value" : "已添加源"
           }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current Sources"
+          }
         }
       }
     },
     "lc.sources.manage.manual" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ضِف يدوياً"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manuell hinzufügen"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add Manually"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter manuellement"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungi manualmente"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手動で追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "수동으로 추가"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dodaj ręcznie"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adicionar Manualmente"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить самостоятельно"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elle Ekle"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thêm Thủ công"
           }
         },
         "zh-Hans" : {
@@ -23425,16 +25667,146 @@
         }
       }
     },
+    "lc.sources.manage.recommended" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empfohlene Quellen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recommended Sources"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sources recommandées"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "推荐源"
+          }
+        }
+      }
+    },
+    "lc.sources.manage.recommended.empty" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine empfohlenen Quellen verfügbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No recommended sources available."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune source recommandée disponible."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无可用的推荐源。"
+          }
+        }
+      }
+    },
     "lc.sources.refresh" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تحديث"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktualisieren"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Refresh"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualiser"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiorna"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새로고침"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Odśwież"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recarregar"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновить"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yenile"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Làm mới"
+          }
+        },
         "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刷新"
+          }
+        },
+        "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "刷新"
@@ -23445,13 +25817,85 @@
     "lc.sources.refreshAll" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تحديث الكل"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle aktualisieren"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Refresh All"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualiser tout"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiorna tutto"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべて更新"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모두 새로고침"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Odśwież wszystkie"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recarregar Todos"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновить всё"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hepsini Yenile"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Làm mới Tất cả"
+          }
+        },
         "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部刷新"
+          }
+        },
+        "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部刷新"
@@ -23462,10 +25906,76 @@
     "lc.sources.removeConfirmation.message %@" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حذف \"%@\" من مصادرك؟"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "\"%@\" aus Ihren Quellen entfernen?"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Remove \"%@\" from your sources?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer \"%@\" de vos sources ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimuovi \"%@\" dalla tua sorgente?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ソースから\"%@\"を削除しますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "\"%@\" 레포를 삭제하시겠습니까?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pominąć \"%@\" w twoich źródłach?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover \"%@\" das duas fontes?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить \"%@\" из ваших источников?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaynaklarınızdan “%@” 'i kaldırmak ister misiniz?"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xoá \"%@\" khỏi nguồn của bạn?"
           }
         },
         "zh-Hans" : {
@@ -23473,16 +25983,88 @@
             "state" : "translated",
             "value" : "确认要将“%@”从你的源中删除吗？"
           }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將 \"%@\" 從源頭中移除？"
+          }
         }
       }
     },
     "lc.sources.removeConfirmation.title" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حذف المصدر"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quelle entfernen"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Remove Source"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer une source"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimuovi Sorgente"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ソースを削除"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "레포 삭제"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usuń źródło"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover Fonte"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить источник"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaynağı Kaldır"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xoá Nguồn"
           }
         },
         "zh-Hans" : {
@@ -23490,16 +26072,88 @@
             "state" : "translated",
             "value" : "删除源"
           }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除源頭"
+          }
         }
       }
     },
     "lc.sources.removeSource" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حذف المصدر"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quelle entfernen"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Remove Source"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer la source"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimuovi sorgente"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ソースを削除"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "레포 삭제"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usuń źródło"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover Fonte"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить источник"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaynağı Kaldır"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xoá Nguồn"
           }
         },
         "zh-Hans" : {
@@ -23513,10 +26167,76 @@
     "lc.sources.section.error" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "فشل في تحديث هذا المصدر"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Quelle konnte nicht aktualisiert werden."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Unable to refresh this source."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible d'actualiser cette source."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile aggiornare questa sorgente."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ソースを更新できませんでした。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "해당 레포를 새로고침할 수 없습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie udało się odświeżyć tego źródła."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não é possível atualizar esta fonte."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось обновить источник."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu kaynağı yenilemek mümkün değil."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể làm mới nguồn này."
           }
         },
         "zh-Hans" : {
@@ -23524,16 +26244,88 @@
             "state" : "translated",
             "value" : "刷新此源失败。"
           }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法刷新源頭。"
+          }
         }
       }
     },
     "lc.sources.section.noApps" : {
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لا يوجد أية برامج في المصدر هذا."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Anwendungen in dieser Quelle verfügbar."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "No apps available in this source."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune application disponible dans cette source."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessuna app disponibile in questa sorgente."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このソースにはアプリがありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "해당 레포에 설치할 수 있는 앱이 존재하지 않습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie ma dostępnych aplikacji w tym źródle."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não há apps disponíveis nesta fonte."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В этом источнике ничего нет."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu kaynakta kullanılabilir uygulama yok"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không có app nào trong nguồn này."
           }
         },
         "zh-Hans" : {
@@ -23545,18 +26337,42 @@
       }
     },
     "lc.sources.section.tooManyApps" : {
-      "extractionState" : "manual",
+      "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هناك العديد من التطبيقات في المستودع الحالي، الرجاء استخدام البحث بدلاً من ذلك."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es gibt zu viele Apps in der aktuellen Repository, bitte stattdessen suchen."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "There are too many apps in current repository, please use search instead."
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il y a trop d'applications dans le dépôt actuel, veuillez utiliser la recherche."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Có quá nhiều app trong nguồn này, vui lòng sử dụng chức năng tìm kiếm."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "当前仓库App过多，请使用搜索功能。"
+            "value" : "当前仓库含有过多App，请使用搜索功能。"
           }
         }
       }
@@ -23573,7 +26389,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Apps"
+            "value" : "Anwendungen"
           }
         },
         "en" : {
@@ -23752,12 +26568,79 @@
       }
     },
     "lc.tabView.sources" : {
+      "comment" : "lc.tabView.sources",
       "extractionState" : "stale",
       "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "المصادر"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quellen"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sources"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sources"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sorgente"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ソース"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "소스"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Źródła"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fontes"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Источники"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaynaklar"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nguồn"
           }
         },
         "zh-Hans" : {
@@ -23875,7 +26758,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dies ist der app-spezifische Ordner. Legen Sie den Tweak-Ordner fest, und die Gast-App wird sie automatisch abrufen."
+            "value" : "Dies ist der anwendungsspezifische Ordner. Legen Sie hier den Tweak-Ordner fest, und die Gast-Anwendung übernimmt dessen Inhalt rekursiv."
           }
         },
         "en" : {
@@ -24065,7 +26948,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tweaks importieren"
+            "value" : "Tweak importieren"
           }
         },
         "en" : {
@@ -24528,6 +27411,88 @@
         }
       }
     },
+    "lc.webView.installApp" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تثبيت التطبيق"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App installieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install App"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installer l'application"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cài đặt Ứng dụng"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装App"
+          }
+        }
+      }
+    },
+    "lc.webView.installAppDesc" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تريد صفحة الويب هذه تثبيت تطبيق. هل تريد المتابعة؟"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Webseite möchte eine App installieren. Fortfahren?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This web page wishes to install an app. Continue?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette page Web souhaite installer une application. Continuer ?"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trang web này muốn cài đặt một app. Tiếp tục?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此页面想要安装一个App，要继续吗？"
+          }
+        }
+      }
+    },
     "lc.webView.pageCanBeOpenIn %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -24730,7 +27695,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "App starten"
+            "value" : "Anwendung starten"
           }
         },
         "en" : {

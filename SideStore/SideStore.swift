@@ -118,7 +118,7 @@ class RefreshHandler: NSObject, RefreshServer {
                   let liveProcessBundle = Bundle(url: liveProcessURL)
             else {
                 NSLog("Unable to locate LiveProcess bundle")
-                return
+                throw NSError(domain: "SideStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unable to locate LiveProcess bundle. To use the Refresh All Apps shortcut, reinstall LiveContainer+SideStore with LiveProcess installed. If you use SideStore, choose \"Keep App Extensions (Use Main Profile)\". If you use PlumeImpactor, choose \"Only Register Main Bundle\". For other sideloaders, select keep all extensions, i.e. DO NOT Remove any extension."])
             }
             
             var ext : NSExtension?
@@ -126,6 +126,7 @@ class RefreshHandler: NSObject, RefreshServer {
                 ext = try NSExtension(identifier: liveProcessBundle.bundleIdentifier)
             } catch {
                 NSLog("Failed to start extension \(error)")
+                throw NSError(domain: "SideStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to start extension \(error). To use the Refresh All Apps shortcut, reinstall LiveContainer+SideStore with LiveProcess installed. If you use SideStore, choose \"Keep App Extensions (Use Main Profile)\". If you use PlumeImpactor, choose \"Only Register Main Bundle\". For other sideloaders, select keep all extensions, i.e. DO NOT Remove any extension."])
             }
             guard let ext else {
                 return
