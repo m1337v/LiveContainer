@@ -165,6 +165,10 @@
     return nil;
 }
 
+- (int)developerType {
+    return 0;
+}
+
 @end
 
 
