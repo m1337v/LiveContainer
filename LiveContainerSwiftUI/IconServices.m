@@ -322,8 +322,10 @@ CGImageRef loadCGImageFromURL(NSURL *url) {
         }
     }
     if (@available(iOS 18.0, *)) {
-        // 0 = normal, 2 = tinted mode, 3 = liquid glass (gray scale)
-        descriptor.appearanceVariant = 0;
+        if(@available(iOS 18.2, *)) {
+            // 0 = normal, 2 = tinted mode, 3 = liquid glass (gray scale)
+            descriptor.appearanceVariant = 0;
+        }
         descriptor.specialIconOptions = 2;
     }
     
