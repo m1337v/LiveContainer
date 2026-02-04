@@ -427,9 +427,9 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     }
     
     setenv("CFFIXED_USER_HOME", newHomePath.UTF8String, 1);
-    newTmpPath = [newTmpPath stringByAppendingPathComponent:@"."];
     setenv("HOME", newHomePath.UTF8String, 1);
-    setenv("TMPDIR", newTmpPath.UTF8String, 1);
+    // we don't change TMP's env in case some apps clear cache by directly deleting the tmp folder,
+    // which if symlinked, the new tmp cannot be recreated (#1040, #1125) or the app may camplain about the tmp folder being a symlimk (#884)
 
     // Setup directories
     NSArray *dirList = @[@"Library/Caches", @"Library/Cookies", @"Documents", @"SystemData"];
