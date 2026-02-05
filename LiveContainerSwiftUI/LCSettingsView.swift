@@ -165,7 +165,7 @@ struct LCSettingsView: View {
                     Picker(selection: $JITEnabler) {
                         Text("SideJITServer/JITStreamer 2.0").tag(JITEnablerType.SideJITServer)
                         Text("StikDebug").tag(JITEnablerType.StkiJIT)
-                        Text("StikJIT (Another LiveContainer)").tag(JITEnablerType.StikJITLC)
+                        Text("StikDebug (Another LiveContainer)").tag(JITEnablerType.StikJITLC)
                         Text("SideStore").tag(JITEnablerType.SideStore)
                         Text("JitStreamer-EB (Relaunch)").tag(JITEnablerType.JITStreamerEBLegacy)
                     } label: {
@@ -372,9 +372,9 @@ struct LCSettingsView: View {
                             Text("Nuke SideStore")
                         }
                         Button {
-                            exportMainExecutable()
+                            exportMainBundle()
                         } label: {
-                            Text("Export Main Executable")
+                            Text("Export Main Bundle")
                         }
                         Button {
                             resetSymbolOffsets()
@@ -531,16 +531,16 @@ struct LCSettingsView: View {
         }
     }
     
-    func exportMainExecutable() {
-        let url = Bundle.main.executableURL!
+    func exportMainBundle() {
+        let url = Bundle.main.bundleURL
         let fileManager = FileManager.default
         let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
         do {
             let destinationURL = documentsURL.appendingPathComponent(url.lastPathComponent)
             try fileManager.copyItem(at: url, to: destinationURL)
-            print("Successfully copied main executable to Documents.")
+            print("Successfully copied main bundle to Documents.")
         } catch {
-            print("Error copying main executable \(error)")
+            print("Error copying main bundle \(error)")
         }
     }
     
