@@ -5,6 +5,7 @@
 #import <UIKit/UIKit.h>
 #import "LCAppInfo.h"
 #import "LCUtils.h"
+#import "../LiveContainer/LCSharedUtils.h"
 
 uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 
@@ -363,7 +364,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     self.is32Bit = is32bit;
 #endif
 
-    if (!LCUtils.certificatePassword || is32bit || self.dontSign) {
+    if (!LCSharedUtils.certificatePassword || is32bit || self.dontSign) {
         [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SigningInProgress"];
         completetionHandler(YES, nil);
         return;

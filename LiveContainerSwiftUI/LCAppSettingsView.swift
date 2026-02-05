@@ -613,7 +613,7 @@ struct LCAppSettingsView: View {
     
     func movePrivateDoc() async {
         for container in appInfo.containers {
-            if let runningLC = LCUtils.getContainerUsingLCScheme(withFolderName: container.folderName) {                
+            if let runningLC = LCSharedUtils.getContainerUsingLCScheme(withFolderName: container.folderName) {                
                 errorInfo = "lc.appSettings.appOpenInOtherLc %@ %@".localizeWithFormat(runningLC, runningLC)
                 errorShow = true
                 return

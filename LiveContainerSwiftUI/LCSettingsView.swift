@@ -70,7 +70,7 @@ struct LCSettingsView: View {
     let storeName = LCUtils.getStoreName()
     
     init(appDataFolderNames: Binding<[String]>) {
-        _certificateDataFound = State(initialValue: LCUtils.certificatePassword() != nil)
+        _certificateDataFound = State(initialValue: LCSharedUtils.certificatePassword() != nil)
         _store = State(initialValue: LCUtils.store())
         
         _appDataFolderNames = appDataFolderNames
@@ -518,7 +518,7 @@ struct LCSettingsView: View {
         }
         
         // 3. Read "certPassword" from UserDefaults and save to pass.txt in Documents
-        if let certPassword = LCUtils.certificatePassword() {
+        if let certPassword = LCSharedUtils.certificatePassword() {
             let passwordFileURL = documentsURL.appendingPathComponent("pass.txt")
             do {
                 try certPassword.write(to: passwordFileURL, atomically: true, encoding: .utf8)
@@ -584,7 +584,7 @@ struct LCSettingsView: View {
         LCUtils.appGroupUserDefault.set(NSDate.now, forKey: "LCCertificateUpdateDate")
         certificateDataFound = true
 
-        UserDefaults.standard.set(LCUtils.appGroupID(), forKey: "LCAppGroupID")
+        UserDefaults.standard.set(LCSharedUtils.appGroupID(), forKey: "LCAppGroupID")
     }
     
     func importCertificateFromSideStore() async {

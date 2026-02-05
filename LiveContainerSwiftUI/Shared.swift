@@ -30,7 +30,7 @@ struct LCPath {
     public static let lcGroupDocPath = {
         let fm = FileManager()
         // it seems that Apple don't want to create one for us, so we just borrow our Store's
-        if let appGroupPathUrl = LCUtils.appGroupPath() {
+        if let appGroupPathUrl = LCSharedUtils.appGroupPath() {
             return appGroupPathUrl.appendingPathComponent("LiveContainer")
         } else if let appGroupPathUrl =
                     FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.SideStore.SideStore") {
@@ -65,7 +65,8 @@ class SharedModel: ObservableObject {
     
     @Published var isHiddenAppUnlocked = false
     @Published var developerMode = false
-    // 0= not installed, 2=current liveContainer is not the primary one
+    // 0 = current liveContainer is the primary one,
+    // 2 = current liveContainer is not the primary one
     @Published var multiLCStatus = 0
     @Published var isJITModalOpen = false
     
@@ -579,7 +580,7 @@ struct SiteAssociation : Codable {
 }
 
 extension LCUtils {
-    public static let appGroupUserDefault = UserDefaults.init(suiteName: LCUtils.appGroupID()) ?? UserDefaults.standard
+    public static let appGroupUserDefault = UserDefaults.init(suiteName: LCSharedUtils.appGroupID()) ?? UserDefaults.standard
     
     public static func signFilesInFolder(url: URL, onProgressCreated: (Progress) -> Void) async -> String? {
         let fm = FileManager()
@@ -632,7 +633,7 @@ extension LCUtils {
     }
     
     public static func signTweaks(tweakFolderUrl: URL, force : Bool = false, progressHandler : ((Progress) -> Void)? = nil) async throws {
-        guard LCUtils.certificatePassword() != nil else {
+        guard LCSharedUtils.certificatePassword() != nil else {
             return
         }
         let fm = FileManager.default
@@ -847,11 +848,11 @@ extension LCUtils {
         // if LiveContainer is installed by TrollStore
         let tsPath = "\(Bundle.main.bundlePath)/../_TrollStore"
         if (access((tsPath as NSString).utf8String, 0) == 0) {
-            LCUtils.launchToGuestApp()
+            LCSharedUtils.launchToGuestApp()
             return true
         }
         
-        guard let groupUserDefaults = UserDefaults(suiteName: appGroupID()),
+        guard let groupUserDefaults = UserDefaults(suiteName: LCSharedUtils.appGroupID()),
               let jitEnabler = JITEnablerType(rawValue: groupUserDefaults.integer(forKey: "LCJITEnablerType")) else {
             return false
         }
