@@ -64,6 +64,14 @@ int dyld_get_program_sdk_version(void);
 
 @end
 
+typedef NS_ENUM(NSInteger, GeneratedIconStyle){
+    Original = -1,
+    Light = 0,
+    Dark = 1
+};
+
 @interface UIImage(LiveContainer)
-+ (instancetype)iconForBundleURL:(NSURL*)url isDarkIcon:(BOOL)isDarkIcon hasBorder:(BOOL)hasBorder ignoreCache:(BOOL)ignoreCache;
++ (instancetype)generateIconForBundleURL:(NSURL*)url style:(GeneratedIconStyle)style hasBorder:(BOOL)hasBorder;
 @end
+BOOL saveCGImage(CGImageRef image, NSURL *url);
+CGImageRef loadCGImageFromURL(NSURL *url);
