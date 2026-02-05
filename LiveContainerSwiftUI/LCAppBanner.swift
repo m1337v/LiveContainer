@@ -14,6 +14,7 @@ protocol LCAppBannerDelegate {
     func removeApp(app: LCAppModel)
     func installMdm(data: Data)
     func openNavigationView(view: AnyView)
+    func promptForGeneratedIconStyle() async -> GeneratedIconStyle?
 }
 
 struct LCAppBanner : View {
@@ -286,7 +287,7 @@ struct LCAppBanner : View {
                 }
                 Menu {
                     Button {
-                        openSafariViewToCreateAppClip()
+                        Task { await openSafariViewToCreateAppClip() }
                     } label: {
                         Label("lc.appBanner.createAppClip".loc, systemImage: "appclip")
                     }
@@ -296,7 +297,7 @@ struct LCAppBanner : View {
                         Label("lc.appBanner.copyLaunchUrl".loc, systemImage: "link")
                     }
                     Button {
-                        saveIcon()
+                        Task { await saveIcon() }
                     } label: {
                         Label("lc.appBanner.saveAppIcon".loc, systemImage: "square.and.arrow.down")
                     }
@@ -446,9 +447,13 @@ struct LCAppBanner : View {
         
     }
     
-    func openSafariViewToCreateAppClip() {
+    func openSafariViewToCreateAppClip() async {
+        guard let style = await delegate.promptForGeneratedIconStyle() else {
+            return
+        }
+        
         do {
-            let data = try PropertyListSerialization.data(fromPropertyList: appInfo.generateWebClipConfig(withContainerId: model.uiSelectedContainer?.folderName)!, format: .xml, options: 0)
+            let data = try PropertyListSerialization.data(fromPropertyList: appInfo.generateWebClipConfig(withContainerId: model.uiSelectedContainer?.folderName, iconStyle: style)!, format: .xml, options: 0)
             delegate.installMdm(data: data)
         } catch  {
             errorShow = true
@@ -457,8 +462,12 @@ struct LCAppBanner : View {
 
     }
     
-    func saveIcon() {
-        let img = appInfo.generateLiveContainerWrappedIcon()!
+    func saveIcon() async {
+        guard let style = await delegate.promptForGeneratedIconStyle() else {
+            return
+        }
+        
+        let img = appInfo.generateLiveContainerWrappedIcon(with: style)!
         self.saveIconFile = ImageDocument(uiImage: img)
         self.saveIconExporterShow = true
     }

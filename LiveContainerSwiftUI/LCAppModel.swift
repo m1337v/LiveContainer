@@ -518,7 +518,7 @@ class LCAppModel: ObservableObject, Hashable {
         // if the selected container is in use (either other lc or multitask), open the host lc associated with it
         if
             let fn = uiSelectedContainer?.folderName,
-            var runningLC = LCUtils.getContainerUsingLCScheme(withFolderName: fn)
+            var runningLC = LCSharedUtils.getContainerUsingLCScheme(withFolderName: fn)
         {
             runningLC = (runningLC as NSString).deletingPathExtension
             
@@ -606,7 +606,7 @@ class LCAppModel: ObservableObject, Hashable {
                 let fileURL = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0].appendingPathComponent("preloadLibraries.txt")
                 try fileContents?.write(to: fileURL)
             }
-            LCUtils.launchToGuestApp()
+            LCSharedUtils.launchToGuestApp()
         }
         
         // Record the launch time
