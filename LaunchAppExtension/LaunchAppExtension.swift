@@ -19,9 +19,7 @@ struct LaunchAppExtension: AppIntent {
     static var bookmarkResolved = false
 
     func forEachInstalledLC(isFree: Bool, block: (String, inout Bool) -> Void) {
-        // Assuming LCUrlSchemes is an array of Strings available in scope
-        let LCUrlSchemes = ["livecontainer", "livecontainer2", "livecontainer3"]
-        for scheme in LCUrlSchemes {
+        for scheme in LCSharedUtils.lcUrlSchemes() {
             // Check if the app is installed
             guard let url = URL(string: "\(scheme)://"),
                   lsApplicationWorkspaceCanOpenURL(url) else {
