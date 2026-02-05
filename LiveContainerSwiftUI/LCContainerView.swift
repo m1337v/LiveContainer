@@ -105,7 +105,7 @@ struct LCContainerView : View {
                             .foregroundStyle(.gray)
                         
                     } else {
-                        if !container.isShared {
+                        if !container.isShared || container.storageBookMark != nil {
                             Button {
                                 openDataFolder()
                             } label: {

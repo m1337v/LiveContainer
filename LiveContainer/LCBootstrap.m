@@ -362,7 +362,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
                     [lcUserDefaults setObject:@"Bookmark resolution timed out. Is the data storage offline?" forKey:@"error"];
                     NSError* err = nil;
                     BOOL isStale = false;
-                    bookmarkURL = [NSURL URLByResolvingBookmarkData:bookmarkData options:(1 << 10) relativeToURL:nil bookmarkDataIsStale:&isStale error:&err];
+                    bookmarkURL = [NSURL URLByResolvingBookmarkData:bookmarkData options:0 relativeToURL:nil bookmarkDataIsStale:&isStale error:&err];
                     bool access = [bookmarkURL startAccessingSecurityScopedResource];
                     if(!bookmarkURL || !access) {
                         return [@"Bookmark resolution failed or unable to access the container. You might need to readd the data storage. %@" stringByAppendingString:err.localizedDescription];

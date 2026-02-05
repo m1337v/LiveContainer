@@ -585,6 +585,10 @@ struct LCAppSettingsView: View {
             let fm = FileManager()
             try fm.moveItem(atPath: appInfo.bundlePath(), toPath: LCPath.lcGroupBundlePath.appendingPathComponent(appInfo.relativeBundlePath).path)
             for container in model.uiContainers {
+                if container.storageBookMark != nil {
+                    continue
+                }
+                
                 try fm.moveItem(at: LCPath.dataPath.appendingPathComponent(container.folderName),
                                 to: LCPath.lcGroupDataPath.appendingPathComponent(container.folderName))
                 appDataFolders.removeAll(where: { s in
@@ -628,6 +632,9 @@ struct LCAppSettingsView: View {
             let fm = FileManager()
             try fm.moveItem(atPath: appInfo.bundlePath(), toPath: LCPath.bundlePath.appendingPathComponent(appInfo.relativeBundlePath).path)
             for container in model.uiContainers {
+                if container.storageBookMark != nil {
+                    continue
+                }
                 try fm.moveItem(at: LCPath.lcGroupDataPath.appendingPathComponent(container.folderName),
                                 to: LCPath.dataPath.appendingPathComponent(container.folderName))
                 appDataFolders.append(container.folderName)
