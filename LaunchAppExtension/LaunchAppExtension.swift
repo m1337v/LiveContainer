@@ -44,8 +44,21 @@ struct LaunchAppExtension: AppIntent {
     
     func perform() async throws -> some ReturnsValue<URL> {
         // sanitize url
-        if launchURL.scheme != "livecontainer" {
+        if launchURL.scheme != "livecontainer" && launchURL.scheme != "sidestore" {
             throw "Not a livecontainer URL!"
+        }
+        
+        guard
+            let appGroupId = LCSharedUtils.appGroupID(),
+            let lcSharedDefaults = UserDefaults(suiteName: appGroupId)
+        else {
+            throw "lcSharedDefaults failed to initialize, because no app group was found. Did you sign LiveContainer correctly?"
+        }
+        
+        if launchURL.scheme == "sidestore" {
+            lcSharedDefaults.set("builtinSideStore", forKey: "LCLaunchExtensionBundleID")
+            lcSharedDefaults.set(Date.now, forKey: "LCLaunchExtensionLaunchDate")
+            return.result(value: launchURL)
         }
         
         if launchURL.host != "livecontainer-launch" {
@@ -75,14 +88,7 @@ struct LaunchAppExtension: AppIntent {
         guard let bundleId else {
             throw "No bundle-name parameter found."
         }
-        
-        guard
-            let appGroupId = LCSharedUtils.appGroupID(),
-            let lcSharedDefaults = UserDefaults(suiteName: appGroupId)
-        else {
-            throw "lcSharedDefaults failed to initialize, because no app group was found. Did you sign LiveContainer correctly?"
-        }
-        
+                
         // resolve private Documents bookmark
         if !LaunchAppExtension.bookmarkResolved, let bookmarkData = lcSharedDefaults.data(forKey: "LCLaunchExtensionPrivateDocBookmark") {
             var isStale = false
