@@ -188,6 +188,9 @@ extension String: @retroactive LocalizedError {
         String.localizedStringWithFormat(self.loc, arguments)
     }
     
+    func sanitizeNonACSII() -> String  {
+        filter { $0.isASCII }
+    }
 }
 
 extension UTType {
