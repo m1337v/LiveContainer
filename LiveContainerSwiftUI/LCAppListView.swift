@@ -576,7 +576,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         }
     }
     
-    nonisolated func decompress(_ path: String, _ destination: String ,_ progress: Progress) async {
+    nonisolated func decompress(_ path: String, _ destination: String ,_ progress: Progress) async -> Int32 {
         extract(path, destination, progress)
     }
     
@@ -598,7 +598,9 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         }
         
         // decompress
-        await decompress(url.path, fm.temporaryDirectory.path, decompressProgress)
+        guard await decompress(url.path, fm.temporaryDirectory.path, decompressProgress) == 0 else {
+            throw "lc.appList.urlFileIsNotIpaError".loc
+        }
 
         let payloadContents = try fm.contentsOfDirectory(atPath: payloadPath.path)
         var appBundleName : String? = nil
