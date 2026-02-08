@@ -240,8 +240,7 @@ int LCPatchExecSlice(const char *path, struct mach_header_64 *header, bool doInj
     // https://github.com/apple-oss-distributions/dyld/blob/93bd81f9d7fcf004fcebcb66ec78983882b41e71/mach_o/Header.cpp#L678
     struct load_command *command2 = (struct load_command *)imageHeaderPtr;
     __block int   depCount = 0;
-    const char*   depPathsBuffer[256];
-    const char**  depPaths = depPathsBuffer;
+    const char**  depPaths = malloc(header->ncmds * sizeof(char*));
     for(int i = 0; i < header->ncmds; i++) {
         switch ( command2->cmd ) {
             case LC_LOAD_DYLIB:
@@ -262,6 +261,7 @@ int LCPatchExecSlice(const char *path, struct mach_header_64 *header, bool doInj
         }
         command2 = (struct load_command *)((void *)command2 + command2->cmdsize);
     }
+    free(depPaths);
     
     return ans;
 }

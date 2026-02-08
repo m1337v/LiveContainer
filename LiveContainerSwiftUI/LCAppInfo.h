@@ -111,7 +111,7 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 - (NSString*)bundlePath;
 - (NSString*)bundleIdentifier;
 - (NSString*)version;
-- (NSMutableArray*) urlSchemes;
+- (NSMutableArray<NSString *>*)urlSchemes;
 - (instancetype)initWithBundlePath:(NSString*)bundlePath;
 - (UIImage *)generateLiveContainerWrappedIconWithStyle:(GeneratedIconStyle)style;
 - (NSDictionary *)generateWebClipConfigWithContainerId:(NSString*)containerId iconStyle:(GeneratedIconStyle)style;

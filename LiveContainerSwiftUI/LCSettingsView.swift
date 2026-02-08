@@ -53,6 +53,7 @@ struct LCSettingsView: View {
     @AppStorage("LCRestartTerminatedApp", store: LCUtils.appGroupUserDefault) var restartTerminatedApp = false
     @AppStorage("LCMaxOneAppOnStage", store: LCUtils.appGroupUserDefault) var onlyOneAppOnStage = false
     @AppStorage("LCDockWidth", store: LCUtils.appGroupUserDefault) var dockWidth: Double = 80
+    @AppStorage("LCRedirectURLToHost", store: LCUtils.appGroupUserDefault) var redirectURLToHost = false
     
     @State var store : Store = .Unknown
     
@@ -66,6 +67,8 @@ struct LCSettingsView: View {
     @AppStorage("LCSharePrivateDataWithLiveProcess") var sharePrivateDataWithLiveProcess = false
     
     @EnvironmentObject private var sharedModel : SharedModel
+    
+    @State private var isViewAppeared = false
     
     let storeName = LCUtils.getStoreName()
     
@@ -285,6 +288,9 @@ struct LCSettingsView: View {
                             Toggle(isOn: $bottomWindowBar) {
                                 Text("lc.settings.bottomWindowBar".loc)
                             }
+                            Toggle(isOn: $redirectURLToHost) {
+                                Text("lc.settings.redirectURLToHost".loc)
+                            }
                             VStack(alignment: .leading, spacing: 12) {
                                 HStack {
                                     Text("lc.settings.dockWidth".loc)
@@ -488,8 +494,15 @@ struct LCSettingsView: View {
             )
         }
         .navigationViewStyle(StackNavigationViewStyle())
-        .task(id: sharedModel.deepLinkCounter) {
-            guard sharedModel.selectedTab == .settings, let link = sharedModel.deepLink else { return }
+        .onAppear() {
+            if !isViewAppeared {
+                guard sharedModel.selectedTab == .settings, let link = sharedModel.deepLink else { return }
+                handleURL(url: link)
+                isViewAppeared = true
+            }
+        }
+        .onChange(of: sharedModel.deepLink) { link in
+            guard sharedModel.selectedTab == .settings, let link else { return }
             handleURL(url: link)
         }
     }
