@@ -490,6 +490,8 @@ struct LCSourcesView: View {
     
     @EnvironmentObject private var sharedModel : SharedModel
     
+    @State private var isViewAppeared = false
+    
     var body: some View {
         NavigationView {
             Group {
@@ -614,13 +616,18 @@ struct LCSourcesView: View {
         }
         .onAppear {
             expandedSources = []
+            if !isViewAppeared {
+                guard sharedModel.selectedTab == .sources, let link = sharedModel.deepLink else { return }
+                handleURL(url: link)
+                isViewAppeared = true
+            }
         }
         .onChange(of: viewModel.sources) { newSources in
             let newSet = Set(newSources.map { $0.id })
             expandedSources = expandedSources.intersection(newSet)
         }
-        .task(id: sharedModel.deepLinkCounter) { @Sendable in
-            guard sharedModel.selectedTab == .sources, let link = sharedModel.deepLink else { return }
+        .onChange(of: sharedModel.deepLink) { link in
+            guard sharedModel.selectedTab == .sources, let link else { return }
             handleURL(url: link)
         }
     }

@@ -84,6 +84,8 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     @AppStorage("LCMultitaskMode", store: LCUtils.appGroupUserDefault) var multitaskMode: MultitaskMode = .virtualWindow
     @AppStorage("LCLaunchInMultitaskMode") var launchInMultitaskMode = false
     
+    @State private var isViewAppeared = false
+    
     @ObservedObject var searchContext = SearchContext()
     var sortedApps: [LCAppModel] {
         return sharedAppSortManager.sortedApps
@@ -408,8 +410,15 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         .sheet(isPresented: $customSortViewPresent) {
             LCCustomSortView()
         }
-        .task(id: sharedModel.deepLinkCounter, priority: .high) {
-            guard sharedModel.selectedTab == .apps, let link = sharedModel.deepLink else { return }
+        .onAppear() {
+            if !isViewAppeared {
+                guard sharedModel.selectedTab == .apps, let link = sharedModel.deepLink else { return }
+                handleURL(url: link)
+                isViewAppeared = true
+            }
+        }
+        .onChange(of: sharedModel.deepLink) { link in
+            guard sharedModel.selectedTab == .apps, let link else { return }
             handleURL(url: link)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.InstallAppNotification)) { obj in

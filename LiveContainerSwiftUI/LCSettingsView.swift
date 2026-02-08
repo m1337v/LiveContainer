@@ -68,6 +68,8 @@ struct LCSettingsView: View {
     
     @EnvironmentObject private var sharedModel : SharedModel
     
+    @State private var isViewAppeared = false
+    
     let storeName = LCUtils.getStoreName()
     
     init(appDataFolderNames: Binding<[String]>) {
@@ -473,8 +475,15 @@ struct LCSettingsView: View {
             )
         }
         .navigationViewStyle(StackNavigationViewStyle())
-        .task(id: sharedModel.deepLinkCounter) {
-            guard sharedModel.selectedTab == .settings, let link = sharedModel.deepLink else { return }
+        .onAppear() {
+            if !isViewAppeared {
+                guard sharedModel.selectedTab == .settings, let link = sharedModel.deepLink else { return }
+                handleURL(url: link)
+                isViewAppeared = true
+            }
+        }
+        .onChange(of: sharedModel.deepLink) { link in
+            guard sharedModel.selectedTab == .settings, let link else { return }
             handleURL(url: link)
         }
     }
