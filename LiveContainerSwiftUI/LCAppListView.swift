@@ -1010,7 +1010,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         }
 
         do {            
-            if #available(iOS 16.0, *), launchInMultitaskMode && appFound.uiIsShared {
+            if #available(iOS 16.0, *), launchInMultitaskMode {
                 try await appFound.runApp(multitask: true, containerFolderName: container, forceJIT: forceJIT)
             } else {
                 try await appFound.runApp(multitask: false, containerFolderName: container, forceJIT: forceJIT)
