@@ -618,6 +618,7 @@ struct LCSourcesView: View {
             expandedSources = []
             if !isViewAppeared {
                 guard sharedModel.selectedTab == .sources, let link = sharedModel.deepLink else { return }
+                sharedModel.deepLink = nil
                 handleURL(url: link)
                 isViewAppeared = true
             }
@@ -628,6 +629,7 @@ struct LCSourcesView: View {
         }
         .onChange(of: sharedModel.deepLink) { link in
             guard sharedModel.selectedTab == .sources, let link else { return }
+            sharedModel.deepLink = nil
             handleURL(url: link)
         }
     }

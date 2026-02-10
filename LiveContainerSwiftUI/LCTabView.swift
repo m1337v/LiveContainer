@@ -150,9 +150,6 @@ struct LCTabView: View {
         } while(false)
 
         sharedModel.deepLink = url
-        DispatchQueue.main.async {
-            sharedModel.deepLink = nil
-        }
     }
     
     func closeDuplicatedWindow() {
