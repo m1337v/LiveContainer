@@ -251,6 +251,30 @@ void LCOpenWebPage(NSString* webPageUrlString, NSString* originalUrl) {
 
 }
 
+void LCOpenSideStoreURL(NSURL* sidestoreUrl) {
+    NSString *message = [@"lc.guestTweak.appSwitchTip %@" localizeWithFormat:@"SideStore"];
+    UIWindow *window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"LiveContainer" message:message preferredStyle:UIAlertControllerStyleAlert];
+    UIAlertAction* okAction = [UIAlertAction actionWithTitle:@"lc.common.ok".loc style:UIAlertActionStyleDefault handler:^(UIAlertAction * action) {
+        [NSUserDefaults.lcUserDefaults setObject:sidestoreUrl.absoluteString forKey:@"launchAppUrlScheme"];
+        [NSUserDefaults.lcUserDefaults setObject:@"builtinSideStore" forKey:@"selected"];
+        [NSClassFromString(@"LCSharedUtils") launchToGuestApp];
+    }];
+    [alert addAction:okAction];
+    
+    UIAlertAction* cancelAction = [UIAlertAction actionWithTitle:@"lc.common.cancel".loc style:UIAlertActionStyleCancel handler:^(UIAlertAction * action) {
+        window.windowScene = nil;
+    }];
+    [alert addAction:cancelAction];
+    window.rootViewController = [UIViewController new];
+    window.windowLevel = UIApplication.sharedApplication.windows.lastObject.windowLevel + 1;
+    window.windowScene = (id)UIApplication.sharedApplication.connectedScenes.anyObject;
+    [window makeKeyAndVisible];
+    [window.rootViewController presentViewController:alert animated:YES completion:nil];
+    objc_setAssociatedObject(alert, @"window", window, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    
+}
+
 void authenticateUser(void (^completion)(BOOL success, NSError *error)) {
     LAContext *context = [[LAContext alloc] init];
     NSError *error = nil;
@@ -386,6 +410,12 @@ BOOL canAppOpenItself(NSURL* url) {
         [self hook__applicationOpenURLAction:action payload:payload origin:origin];
         return;
     }
+    
+    if([url hasPrefix:@"sidestore:"]) {
+        LCOpenSideStoreURL([NSURL URLWithString:url]);
+        return;
+    }
+    
     if ([url hasPrefix:[NSString stringWithFormat: @"%@://livecontainer-relaunch", NSUserDefaults.lcAppUrlScheme]]) {
         // Ignore
         return;
@@ -571,6 +601,11 @@ BOOL canAppOpenItself(NSURL* url) {
     if (urlAction.url.isFileURL) {
         [urlAction.url startAccessingSecurityScopedResource];
         [self hook_scene:scene didReceiveActions:actions fromTransitionContext:context];
+        return;
+    }
+    
+    if([urlAction.url.scheme isEqualToString:@"sidestore"]) {
+        LCOpenSideStoreURL(urlAction.url);
         return;
     }
 
