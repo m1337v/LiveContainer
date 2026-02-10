@@ -313,15 +313,7 @@ def update_json_file_release_ss_lc(repo_url, json_file, latest_release, is_night
         for channel in channels:
             if channel['track'] != 'nightly':
                 continue
-            channel['releases'] = [
-                {
-                    "version": version,
-                    "versionDate": version_date,
-                    "versionDescription": description,
-                    "downloadURL": download_url,
-                    "size": size
-                }
-            ]
+            channel['releases'] = [version_entry]
     try:
         with open(json_file, "w") as file:
             json.dump(data, file, indent=2)
