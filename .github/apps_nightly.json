@@ -81,7 +81,7 @@
       "versions": [
         {
           "version": "3.4.50",
-          "date": "2025-04-26",
+          "date": "2025-04-26T07:00:00Z",
           "localizedDescription": "This is a nightly release [created automatically with GitHub Actions workflow](https://github.com/LiveContainer/LiveContainer/actions/runs/14679205373/attempts/1).",
           "downloadURL": "https://github.com/LiveContainer/LiveContainer/releases/download/nightly/LiveContainer.ipa",
           "size": 2785962
