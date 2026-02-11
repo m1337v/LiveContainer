@@ -1,5 +1,5 @@
 {
-  "name": "LiveContainer",
+  "name": "LiveContainer + SideStore",
   "identifier": "com.livecontainer.source",
   "website": "https://github.com/LiveContainer/LiveContainer",
   "subtitle": "LiveContainer official AltStore Source.",
@@ -10,7 +10,7 @@
   "apps": [
     {
       "beta": false,
-      "name": "LiveContainer",
+      "name": "LiveContainer + SideStore",
       "bundleIdentifier": "com.kdt.livecontainer",
       "developerName": "LiveContainer Team",
       "subtitle": "Run iOS apps without actually installing them!",
@@ -100,12 +100,10 @@
           "releases": [
             {
               "version": "3.6.63",
-              "date": "2026-02-08T07:00:00Z",
-              "localizedDescription": "Nightly build from [7de4b09](https://github.com/LiveContainer/LiveContainer/commit/7de4b09): should fix 1060\n\nThis is a nightly release [created automatically with GitHub Actions workflow](https://github.com/LiveContainer/LiveContainer/actions/runs/21796380949/attempts/1).\n",
-              "downloadURL": "https://github.com/LiveContainer/LiveContainer/releases/download/nightly/LiveContainer+SideStore.ipa",
-              "size": 4502846,
-              "commit": "7de4b09",
-              "headline": "should fix #1060"
+              "date": "2026-02-10T14:10:47Z",
+              "localizedDescription": "Commit: [5d22b1898269e2fb46a5c8867f2a334255e6685f](https://github.com/LiveContainer/LiveContainer/commit/5d22b1898269e2fb46a5c8867f2a334255e6685f)\nMessage: Implement 730\n\nThis is a nightly release [created automatically with GitHub Actions workflow](https://github.com/LiveContainer/LiveContainer/actions/runs/21868131133/attempts/1).",
+              "downloadURL": "https://github.com/LiveContainer/LiveContainer/releases/download/nightly/LiveContainer%2BSideStore.ipa",
+              "size": 36596986
             }
           ]
         },
