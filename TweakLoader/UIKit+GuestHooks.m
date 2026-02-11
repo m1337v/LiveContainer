@@ -252,6 +252,11 @@ void LCOpenWebPage(NSString* webPageUrlString, NSString* originalUrl) {
 }
 
 void LCOpenSideStoreURL(NSURL* sidestoreUrl) {
+    if ([NSUserDefaults.lcUserDefaults boolForKey:@"LCSwitchAppWithoutAsking"]) {
+        [NSUserDefaults.lcUserDefaults setObject:sidestoreUrl.absoluteString forKey:@"launchAppUrlScheme"];
+        [NSUserDefaults.lcUserDefaults setObject:@"builtinSideStore" forKey:@"selected"];
+        [NSClassFromString(@"LCSharedUtils") launchToGuestApp];
+    }
     NSString *message = [@"lc.guestTweak.appSwitchTip %@" localizeWithFormat:@"SideStore"];
     UIWindow *window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"LiveContainer" message:message preferredStyle:UIAlertControllerStyleAlert];
