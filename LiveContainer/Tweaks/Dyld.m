@@ -81,6 +81,7 @@ static unsigned int (*orig_nw_path_get_fallback_interface_index)(nw_path_t path)
 static struct if_nameindex* (*orig_if_nameindex)(void);
 static char *(*orig_if_indextoname)(unsigned int ifindex, char *ifname);
 static unsigned int (*orig_if_nametoindex)(const char *ifname);
+static BOOL gDidInlineHookNWInterfaceCreateWithIndex = NO;
 // Signal handlers
 // Interface
 @interface NWPath (PrivateMethods)
@@ -1170,10 +1171,15 @@ static unsigned int lc_sanitizeInterfaceIndex(const char *context, unsigned int 
 }
 
 static nw_interface_t hook_nw_interface_create_with_index(unsigned int index) {
-    if (!orig_nw_interface_create_with_index) {
+    if (!orig_nw_interface_create_with_index ||
+        !orig_nw_interface_create_with_index_and_name ||
+        !orig_if_indextoname ||
+        !orig_nw_interface_create_with_name) {
         lc_resolveNetworkSymbolPointers();
     }
-    if (!orig_nw_interface_create_with_index) {
+    if (!orig_nw_interface_create_with_index &&
+        !orig_nw_interface_create_with_index_and_name &&
+        !orig_nw_interface_create_with_name) {
         return NULL;
     }
 
@@ -1184,7 +1190,37 @@ static nw_interface_t hook_nw_interface_create_with_index(unsigned int index) {
     }
 
     unsigned int sanitizedIndex = lc_sanitizeInterfaceIndex("nw_interface_create_with_index", index);
-    return orig_nw_interface_create_with_index(sanitizedIndex);
+
+    char ifname[IF_NAMESIZE] = {0};
+    const char *resolvedName = NULL;
+    if (orig_if_indextoname && sanitizedIndex > 0) {
+        resolvedName = orig_if_indextoname(sanitizedIndex, ifname);
+    }
+    if (!resolvedName || shouldFilterVPNInterfaceNameCStr(resolvedName)) {
+        resolvedName = "en0";
+    }
+
+    if (orig_nw_interface_create_with_index_and_name) {
+        nw_interface_t iface = orig_nw_interface_create_with_index_and_name(sanitizedIndex, resolvedName);
+        if (iface) {
+            return iface;
+        }
+    }
+
+    if (orig_nw_interface_create_with_name) {
+        nw_interface_t iface = orig_nw_interface_create_with_name(resolvedName);
+        if (iface) {
+            return iface;
+        }
+    }
+
+    // Fallback to the original implementation only when we did not inline patch
+    // this symbol; otherwise calling it would recurse into this hook.
+    if (!gDidInlineHookNWInterfaceCreateWithIndex && orig_nw_interface_create_with_index) {
+        return orig_nw_interface_create_with_index(sanitizedIndex);
+    }
+
+    return NULL;
 }
 
 static nw_interface_t hook_nw_interface_create_with_index_and_name(unsigned int index, const char *name) {
@@ -2369,6 +2405,20 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
                 {"nw_path_copy_delegate_interface", (void *)hook_nw_path_copy_delegate_interface, (void **)&orig_nw_path_copy_delegate_interface},
     }, 20);
     lc_resolveNetworkSymbolPointers();
+
+    // Network.framework internally uses direct branches for some hot paths
+    // (e.g. NWPathMonitor.currentPath -> _nw_interface_create_with_index),
+    // so GOT rebinding alone is not sufficient.
+    if (orig_nw_interface_create_with_index && !gDidInlineHookNWInterfaceCreateWithIndex) {
+        kern_return_t kr = litehook_hook_function((void *)orig_nw_interface_create_with_index,
+                                                  (void *)hook_nw_interface_create_with_index);
+        if (kr == KERN_SUCCESS) {
+            gDidInlineHookNWInterfaceCreateWithIndex = YES;
+            NSLog(@"[LC] ✅ Inline hooked nw_interface_create_with_index");
+        } else {
+            NSLog(@"[LC] ⚠️ Failed to inline hook nw_interface_create_with_index (kr=%d)", kr);
+        }
+    }
 
     // Also rebind by raw function address across loaded/new images, including auth-got paths.
     if (orig_nw_interface_get_name) {
