@@ -1,4 +1,5 @@
 .theos/
+.deriveddata/
 packages/
 .DS_Store
 *.xcscmblueprint
