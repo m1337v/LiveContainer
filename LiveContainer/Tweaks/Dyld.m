@@ -1039,7 +1039,7 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
     while (current != NULL) {
         BOOL shouldFilter = shouldFilterVPNInterfaceNameCStr(current->ifa_name);
         if (shouldFilter && current->ifa_name) {
-            NSLog(@"[LC] 🎭 getifaddrs - filtering VPN interface: %s", current->ifa_name);
+            // NSLog(@"[LC] 🎭 getifaddrs - filtering VPN interface: %s", current->ifa_name);
         }
 
         if (shouldFilter) {
@@ -2270,7 +2270,7 @@ static NSString* hook_NSBundle_bundleIdentifier(id self, SEL _cmd) {
         }
     } else {
         if (originalGuestBundleId.length > 0) {
-            NSLog(@"[LC] 🎭 Returning original bundle ID for security check: %@", originalGuestBundleId);
+            // NSLog(@"[LC] 🎭 Returning original bundle ID for security check: %@", originalGuestBundleId);
             return originalGuestBundleId;
         }
     }
@@ -2300,7 +2300,7 @@ static NSDictionary* hook_NSBundle_infoDictionary(id self, SEL _cmd) {
         NSLog(@"[LC] 🎭 Modified Info.plist bundle ID for system API");
     } else {
         modifiedDict[@"CFBundleIdentifier"] = bundleIDToExpose;
-        NSLog(@"[LC] 🎭 Preserved original bundle ID for security check");
+        // NSLog(@"[LC] 🎭 Preserved original bundle ID for security check");
     }
 
     return [modifiedDict copy];
