@@ -830,6 +830,40 @@ static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
     return CFBridgingRetain(emptySettings);
 }
 
+static void lc_resolveNetworkSymbolPointers(void) {
+    void *libnetworkHandle = NULL;
+    if (orig_dlopen) {
+        libnetworkHandle = orig_dlopen("/usr/lib/libnetwork.dylib", RTLD_LAZY);
+    }
+
+    if (orig_dlsym) {
+        const char *(*resolvedGetName)(nw_interface_t) = NULL;
+        void (*resolvedEnumerate)(nw_path_t, nw_path_enumerate_interfaces_block_t) = NULL;
+
+        if (libnetworkHandle) {
+            resolvedGetName = (const char *(*)(nw_interface_t))orig_dlsym(libnetworkHandle, "nw_interface_get_name");
+            resolvedEnumerate = (void (*)(nw_path_t, nw_path_enumerate_interfaces_block_t))orig_dlsym(libnetworkHandle, "nw_path_enumerate_interfaces");
+        }
+
+        if (!resolvedGetName) {
+            resolvedGetName = (const char *(*)(nw_interface_t))orig_dlsym(RTLD_DEFAULT, "nw_interface_get_name");
+        }
+        if (!resolvedEnumerate) {
+            resolvedEnumerate = (void (*)(nw_path_t, nw_path_enumerate_interfaces_block_t))orig_dlsym(RTLD_DEFAULT, "nw_path_enumerate_interfaces");
+        }
+
+        if (resolvedGetName) {
+            orig_nw_interface_get_name = resolvedGetName;
+        }
+        if (resolvedEnumerate) {
+            orig_nw_path_enumerate_interfaces = resolvedEnumerate;
+        }
+        if (!orig_if_nameindex) {
+            orig_if_nameindex = (struct if_nameindex* (*)(void))orig_dlsym(RTLD_DEFAULT, "if_nameindex");
+        }
+    }
+}
+
 static int hook_getifaddrs(struct ifaddrs **ifap) {
     if (!orig_getifaddrs) {
         return -1;
@@ -873,6 +907,9 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
 
 static const char* hook_nw_interface_get_name(nw_interface_t interface) {
     if (!orig_nw_interface_get_name) {
+        lc_resolveNetworkSymbolPointers();
+    }
+    if (!orig_nw_interface_get_name) {
         return NULL;
     }
 
@@ -887,6 +924,9 @@ static const char* hook_nw_interface_get_name(nw_interface_t interface) {
 
 static void hook_nw_path_enumerate_interfaces(nw_path_t path,
                                               nw_path_enumerate_interfaces_block_t enumerate_block) {
+    if (!orig_nw_path_enumerate_interfaces || !orig_nw_interface_get_name) {
+        lc_resolveNetworkSymbolPointers();
+    }
     if (!orig_nw_path_enumerate_interfaces) {
         return;
     }
@@ -907,6 +947,9 @@ static void hook_nw_path_enumerate_interfaces(nw_path_t path,
 }
 
 static struct if_nameindex* hook_if_nameindex(void) {
+    if (!orig_if_nameindex) {
+        lc_resolveNetworkSymbolPointers();
+    }
     if (!orig_if_nameindex) {
         return NULL;
     }
@@ -1766,28 +1809,24 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
         // Use litehook_hook_function for framework/libc functions instead of rebind_symbols
         // _dyld_register_func_for_add_image((void (*)(const struct mach_header *, intptr_t))hideLiveContainerImageCallback);
 
-        rebind_symbols((struct rebinding[6]){
-                    {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
+        rebind_symbols((struct rebinding[1]){
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
-                    {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
-                    {"nw_interface_get_name", (void *)hook_nw_interface_get_name, (void **)&orig_nw_interface_get_name},
-                    {"nw_path_enumerate_interfaces", (void *)hook_nw_path_enumerate_interfaces, (void **)&orig_nw_path_enumerate_interfaces},
-                    {"if_nameindex", (void *)hook_if_nameindex, (void **)&orig_if_nameindex},
-        }, 6);
-
-        if (!orig_nw_interface_get_name) {
-            orig_nw_interface_get_name = (const char* (*)(nw_interface_t))orig_dlsym(RTLD_DEFAULT, "nw_interface_get_name");
-        }
-        if (!orig_nw_path_enumerate_interfaces) {
-            orig_nw_path_enumerate_interfaces = (void (*)(nw_path_t, nw_path_enumerate_interfaces_block_t))orig_dlsym(RTLD_DEFAULT, "nw_path_enumerate_interfaces");
-        }
-        if (!orig_if_nameindex) {
-            orig_if_nameindex = (struct if_nameindex* (*)(void))orig_dlsym(RTLD_DEFAULT, "if_nameindex");
-        }
-
-        // Apply network swizzling immediately and keep retry loop for late framework loading.
-        setupNetworkFrameworkSwizzling();
+        }, 1);
     }
+
+    // Keep network/VPN filtering hooks active regardless of hideLiveContainer setting.
+    rebind_symbols((struct rebinding[5]){
+                {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
+                {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
+                {"nw_interface_get_name", (void *)hook_nw_interface_get_name, (void **)&orig_nw_interface_get_name},
+                {"nw_path_enumerate_interfaces", (void *)hook_nw_path_enumerate_interfaces, (void **)&orig_nw_path_enumerate_interfaces},
+                {"if_nameindex", (void *)hook_if_nameindex, (void **)&orig_if_nameindex},
+    }, 5);
+    lc_resolveNetworkSymbolPointers();
+
+    // Apply network swizzling immediately and keep retry loop for late framework loading.
+    setupNetworkFrameworkSwizzling();
+
     if (bypassSSLPinning) {
         setupSSLPinningBypass();
     }
