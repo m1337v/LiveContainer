@@ -392,6 +392,8 @@ static NSUUID *(*orig_UIDevice_identifierForVendor)(id self, SEL _cmd) = NULL;
 static float (*orig_UIDevice_batteryLevel)(id self, SEL _cmd) = NULL;
 static NSInteger (*orig_UIDevice_batteryState)(id self, SEL _cmd) = NULL;
 static BOOL (*orig_UIDevice_isBatteryMonitoringEnabled)(id self, SEL _cmd) = NULL;
+static NSString *(*orig_UIDevice_machineName)(id self, SEL _cmd) = NULL;
+static id (*orig_UIDevice_deviceInfoForKey)(id self, SEL _cmd, NSString *key) = NULL;
 
 static unsigned long long (*orig_NSProcessInfo_physicalMemory)(id self, SEL _cmd) = NULL;
 static NSUInteger (*orig_NSProcessInfo_processorCount)(id self, SEL _cmd) = NULL;
@@ -434,6 +436,8 @@ static NSTimeZone *(*orig_NSTimeZone_systemTimeZone)(id self, SEL _cmd) = NULL;
 static NSLocale *(*orig_NSLocale_currentLocale)(id self, SEL _cmd) = NULL;
 static NSLocale *(*orig_NSLocale_autoupdatingCurrentLocale)(id self, SEL _cmd) = NULL;
 static BOOL (*orig_UIScreen_isCaptured)(id self, SEL _cmd) = NULL;
+
+static CFTypeRef (*orig_MGCopyAnswer)(CFStringRef key) = NULL;
 
 #pragma mark - Helpers
 
@@ -499,6 +503,26 @@ static NSString *LCSpoofedOSVersionString(void) {
     const char *build = LCSpoofedBuildVersion();
     if (!version || !build) return nil;
     return [NSString stringWithFormat:@"Version %s (Build %s)", version, build];
+}
+
+static CFTypeRef LCCopySpoofedGestaltValue(CFStringRef key) {
+    if (!key || !LCDeviceSpoofingIsActive()) return NULL;
+
+    if (CFEqual(key, CFSTR("ProductVersion"))) {
+        const char *value = LCSpoofedSystemVersion();
+        if (value) return CFBridgingRetain(@(value));
+    } else if (CFEqual(key, CFSTR("BuildVersion")) || CFEqual(key, CFSTR("j9Th5smJpdztHwc+i39zIg"))) {
+        const char *value = LCSpoofedBuildVersion();
+        if (value) return CFBridgingRetain(@(value));
+    } else if (CFEqual(key, CFSTR("ProductType"))) {
+        const char *value = LCSpoofedMachineModel();
+        if (value) return CFBridgingRetain(@(value));
+    } else if (CFEqual(key, CFSTR("HardwareModel"))) {
+        const char *value = LCSpoofedHardwareModel();
+        if (value) return CFBridgingRetain(@(value));
+    }
+
+    return NULL;
 }
 
 static int LCWriteCStringValue(void *oldp, size_t *oldlenp, const char *value) {
@@ -623,6 +647,9 @@ static int hook_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void
         } else if (strcmp(name, "hw.model") == 0) {
             const char *value = LCSpoofedHardwareModel();
             if (value) return LCWriteCStringValue(oldp, oldlenp, value);
+        } else if (strcmp(name, "hw.product") == 0) {
+            const char *value = LCSpoofedMachineModel();
+            if (value) return LCWriteCStringValue(oldp, oldlenp, value);
         } else if (strcmp(name, "hw.ncpu") == 0 || strcmp(name, "hw.logicalcpu") == 0 || strcmp(name, "hw.physicalcpu") == 0) {
             uint32_t value = LCSpoofedCPUCount();
             if (value > 0) return LCWriteU32Value(oldp, oldlenp, value);
@@ -677,6 +704,13 @@ static int hook_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, vo
                     if (value) return LCWriteCStringValue(oldp, oldlenp, value);
                     break;
                 }
+#ifdef HW_PRODUCT
+                case HW_PRODUCT: {
+                    const char *value = LCSpoofedMachineModel();
+                    if (value) return LCWriteCStringValue(oldp, oldlenp, value);
+                    break;
+                }
+#endif
                 case HW_NCPU: {
                     uint32_t value = LCSpoofedCPUCount();
                     if (value > 0) return LCWriteU32Value(oldp, oldlenp, value);
@@ -1055,6 +1089,52 @@ static NSString *hook_UIDevice_localizedModel(id self, SEL _cmd) {
     }
     if (orig_UIDevice_localizedModel) return orig_UIDevice_localizedModel(self, _cmd);
     return @"iPhone";
+}
+
+static NSString *hook_UIDevice_machineName(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        const char *value = LCSpoofedMachineModel();
+        if (value) return @(value);
+    }
+    if (orig_UIDevice_machineName) return orig_UIDevice_machineName(self, _cmd);
+    return @"iPhone";
+}
+
+static id hook_UIDevice_deviceInfoForKey(id self, SEL _cmd, NSString *key) {
+    id original = orig_UIDevice_deviceInfoForKey ? orig_UIDevice_deviceInfoForKey(self, _cmd, key) : nil;
+    if (!LCDeviceSpoofingIsActive() || key.length == 0) {
+        return original;
+    }
+
+    if ([key isEqualToString:@"ProductVersion"]) {
+        const char *value = LCSpoofedSystemVersion();
+        if (value) return @(value);
+    } else if ([key isEqualToString:@"BuildVersion"] || [key isEqualToString:@"j9Th5smJpdztHwc+i39zIg"]) {
+        const char *value = LCSpoofedBuildVersion();
+        if (value) return @(value);
+    } else if ([key isEqualToString:@"ProductType"]) {
+        const char *value = LCSpoofedMachineModel();
+        if (value) return @(value);
+    } else if ([key isEqualToString:@"HardwareModel"]) {
+        const char *value = LCSpoofedHardwareModel();
+        if (value) return @(value);
+    } else if ([key isEqualToString:@"DeviceName"]) {
+        if (g_customDeviceName.length > 0) return g_customDeviceName;
+        if (g_currentProfile && g_currentProfile->marketingName) return @(g_currentProfile->marketingName);
+    }
+
+    return original;
+}
+
+static CFTypeRef hook_MGCopyAnswer(CFStringRef key) {
+    CFTypeRef spoofed = LCCopySpoofedGestaltValue(key);
+    if (spoofed) {
+        return spoofed;
+    }
+    if (orig_MGCopyAnswer) {
+        return orig_MGCopyAnswer(key);
+    }
+    return NULL;
 }
 
 // MARK: - NSProcessInfo isOperatingSystemAtLeastVersion
@@ -1642,6 +1722,7 @@ void DeviceSpoofingGuestHooksInit(void) {
             {"uname", (void *)hook_uname, (void **)&orig_uname},
             {"sysctlbyname", (void *)hook_sysctlbyname, (void **)&orig_sysctlbyname},
             {"sysctl", (void *)hook_sysctl, (void **)&orig_sysctl},
+            {"MGCopyAnswer", (void *)hook_MGCopyAnswer, (void **)&orig_MGCopyAnswer},
         };
         rebind_symbols(rebindings, sizeof(rebindings) / sizeof(rebindings[0]));
 
@@ -1672,6 +1753,15 @@ void DeviceSpoofingGuestHooksInit(void) {
 
         LCInstallInstanceHook(uiDeviceClass, @selector(model), (IMP)hook_UIDevice_model, (IMP *)&orig_UIDevice_model);
         LCInstallInstanceHook(uiDeviceClass, @selector(localizedModel), (IMP)hook_UIDevice_localizedModel, (IMP *)&orig_UIDevice_localizedModel);
+        SEL machineNameSelector = NSSelectorFromString(@"machineName");
+        if ([uiDeviceClass respondsToSelector:machineNameSelector]) {
+            Class uiDeviceMetaClass = object_getClass(uiDeviceClass);
+            LCInstallInstanceHook(uiDeviceMetaClass, machineNameSelector, (IMP)hook_UIDevice_machineName, (IMP *)&orig_UIDevice_machineName);
+        }
+        SEL deviceInfoForKeySelector = NSSelectorFromString(@"_deviceInfoForKey:");
+        if ([uiDeviceClass instancesRespondToSelector:deviceInfoForKeySelector]) {
+            LCInstallInstanceHook(uiDeviceClass, deviceInfoForKeySelector, (IMP)hook_UIDevice_deviceInfoForKey, (IMP *)&orig_UIDevice_deviceInfoForKey);
+        }
 
         LCInstallInstanceHook(processInfoClass, @selector(isOperatingSystemAtLeastVersion:), (IMP)hook_NSProcessInfo_isOperatingSystemAtLeastVersion, (IMP *)&orig_NSProcessInfo_isOperatingSystemAtLeastVersion);
 

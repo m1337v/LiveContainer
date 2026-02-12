@@ -8,6 +8,19 @@
 
 BOOL isolateAppGroup = NO;
 void* webKitHeader = 0;
+
+static void LCEnsureGroupContainerScaffold(NSURL *containerURL) {
+    if (!containerURL) return;
+    NSFileManager *fm = NSFileManager.defaultManager;
+    [fm createDirectoryAtURL:containerURL withIntermediateDirectories:YES attributes:nil error:nil];
+
+    NSURL *libraryURL = [containerURL URLByAppendingPathComponent:@"Library" isDirectory:YES];
+    [fm createDirectoryAtURL:libraryURL withIntermediateDirectories:YES attributes:nil error:nil];
+
+    NSURL *cachesURL = [libraryURL URLByAppendingPathComponent:@"Caches" isDirectory:YES];
+    [fm createDirectoryAtURL:cachesURL withIntermediateDirectories:YES attributes:nil error:nil];
+}
+
 void NSFMGuestHooksInit(void) {
     NSDictionary* infoDict = [NSUserDefaults guestContainerInfo];
     isolateAppGroup = [infoDict[@"isolateAppGroup"] boolValue];
@@ -36,7 +49,9 @@ void NSFMGuestHooksInit(void) {
 
 - (nullable NSURL *)hook_containerURLForSecurityApplicationGroupIdentifier:(NSString *)groupIdentifier {
     if([groupIdentifier isEqualToString:[NSClassFromString(@"LCSharedUtils") appGroupID]]) {
-        return [NSURL fileURLWithPath: NSUserDefaults.lcAppGroupPath];
+        NSURL *appGroupURL = [NSURL fileURLWithPath:NSUserDefaults.lcAppGroupPath];
+        LCEnsureGroupContainerScaffold(appGroupURL);
+        return appGroupURL;
     }
     NSURL *result;
     if(isolateAppGroup) {
@@ -46,7 +61,7 @@ void NSFMGuestHooksInit(void) {
     } else {
         result = [NSURL fileURLWithPath:[NSString stringWithFormat:@"%s/Documents/Data/AppGroup/%@", getenv("LC_HOME_PATH"), groupIdentifier]];
     }
-    [NSFileManager.defaultManager createDirectoryAtURL:result withIntermediateDirectories:YES attributes:nil error:nil];
+    LCEnsureGroupContainerScaffold(result);
     return result;
 }
 

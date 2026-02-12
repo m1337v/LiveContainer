@@ -100,9 +100,10 @@ static OSStatus (*orig_SecTrustEvaluateFastAsync)(SecTrustRef, dispatch_queue_t,
 static void (*orig_SSL_set_custom_verify)(void *, int, int (*)(void *, uint8_t *));
 static void (*orig_SSL_CTX_set_custom_verify)(void *, int, int (*)(void *, uint8_t *));
 // Bundle
-extern NSString *originalGuestBundleId;
-extern NSString *liveContainerBundleId; 
-extern BOOL useSelectiveBundleIdSpoofing;
+static NSString *originalGuestBundleId = nil;
+static NSString *liveContainerBundleId = nil;
+static BOOL useSelectiveBundleIdSpoofing = NO;
+static BOOL didInstallSelectiveBundleHooks = NO;
 static NSString* (*orig_NSBundle_bundleIdentifier)(id self, SEL _cmd);
 static NSDictionary* (*orig_NSBundle_infoDictionary)(id self, SEL _cmd);
 static id (*orig_NSBundle_objectForInfoDictionaryKey)(id self, SEL _cmd, NSString *key);
@@ -1384,12 +1385,17 @@ static NSString* hook_NSBundle_bundleIdentifier(id self, SEL _cmd) {
     
     // Get calling context to determine which bundle ID to return
     if (shouldUseLiveContainerBundleId()) {
-        NSLog(@"[LC] 🎭 Returning LiveContainer bundle ID for system API: %@", liveContainerBundleId);
-        return liveContainerBundleId;
+        if (liveContainerBundleId.length > 0) {
+            NSLog(@"[LC] 🎭 Returning LiveContainer bundle ID for system API: %@", liveContainerBundleId);
+            return liveContainerBundleId;
+        }
     } else {
-        NSLog(@"[LC] 🎭 Returning original bundle ID for security check: %@", originalGuestBundleId);
-        return originalGuestBundleId;
+        if (originalGuestBundleId.length > 0) {
+            NSLog(@"[LC] 🎭 Returning original bundle ID for security check: %@", originalGuestBundleId);
+            return originalGuestBundleId;
+        }
     }
+    return result;
 }
 
 static NSDictionary* hook_NSBundle_infoDictionary(id self, SEL _cmd) {
@@ -1400,12 +1406,21 @@ static NSDictionary* hook_NSBundle_infoDictionary(id self, SEL _cmd) {
     }
     
     NSMutableDictionary* modifiedDict = [result mutableCopy];
+    if (!modifiedDict) {
+        return result;
+    }
     
-    if (shouldUseLiveContainerBundleId()) {
-        modifiedDict[@"CFBundleIdentifier"] = liveContainerBundleId;
+    BOOL useLCBundleID = shouldUseLiveContainerBundleId();
+    NSString *bundleIDToExpose = useLCBundleID ? liveContainerBundleId : originalGuestBundleId;
+    if (bundleIDToExpose.length == 0) {
+        return result;
+    }
+
+    if (useLCBundleID) {
+        modifiedDict[@"CFBundleIdentifier"] = bundleIDToExpose;
         NSLog(@"[LC] 🎭 Modified Info.plist bundle ID for system API");
     } else {
-        modifiedDict[@"CFBundleIdentifier"] = originalGuestBundleId;
+        modifiedDict[@"CFBundleIdentifier"] = bundleIDToExpose;
         NSLog(@"[LC] 🎭 Preserved original bundle ID for security check");
     }
     
@@ -1417,13 +1432,68 @@ static id hook_NSBundle_objectForInfoDictionaryKey(id self, SEL _cmd, NSString *
         return orig_NSBundle_objectForInfoDictionaryKey(self, _cmd, key);
     }
     
-    if (shouldUseLiveContainerBundleId()) {
-        NSLog(@"[LC] 🎭 Returning LiveContainer bundle ID for key access: %@", liveContainerBundleId);
-        return liveContainerBundleId;
-    } else {
-        NSLog(@"[LC] 🎭 Returning original bundle ID for key access: %@", originalGuestBundleId);
-        return originalGuestBundleId;
+    BOOL useLCBundleID = shouldUseLiveContainerBundleId();
+    NSString *bundleIDToExpose = useLCBundleID ? liveContainerBundleId : originalGuestBundleId;
+    if (bundleIDToExpose.length > 0) {
+        NSLog(@"[LC] 🎭 Returning %@ bundle ID for key access: %@", useLCBundleID ? @"LiveContainer" : @"original", bundleIDToExpose);
+        return bundleIDToExpose;
     }
+    return orig_NSBundle_objectForInfoDictionaryKey(self, _cmd, key);
+}
+
+static NSString *LCExpectedHostBundleIdentifier(void) {
+    void *task = SecTaskCreateFromSelf(NULL);
+    if (!task) return nil;
+
+    CFTypeRef value = SecTaskCopyValueForEntitlement(task, CFSTR("application-identifier"), NULL);
+    CFRelease(task);
+    if (!value) return nil;
+
+    NSString *applicationIdentifier = CFBridgingRelease(value);
+    NSRange dotRange = [applicationIdentifier rangeOfString:@"."];
+    if (dotRange.location == NSNotFound || dotRange.location + 1 >= applicationIdentifier.length) {
+        return nil;
+    }
+    return [applicationIdentifier substringFromIndex:dotRange.location + 1];
+}
+
+static void configureSelectiveBundleIdSpoofing(NSDictionary *guestAppInfo, BOOL hideLiveContainer) {
+    NSString *originalFromConfig = guestAppInfo[@"LCOrignalBundleIdentifier"];
+    if ([originalFromConfig isKindOfClass:NSString.class] && originalFromConfig.length > 0) {
+        originalGuestBundleId = originalFromConfig;
+    } else {
+        originalGuestBundleId = NSUserDefaults.lcGuestAppId ?: NSBundle.mainBundle.bundleIdentifier;
+    }
+
+    NSString *entitlementBundleID = LCExpectedHostBundleIdentifier();
+    liveContainerBundleId = entitlementBundleID ?: NSUserDefaults.lcMainBundle.bundleIdentifier;
+    if (liveContainerBundleId.length == 0) {
+        liveContainerBundleId = NSBundle.mainBundle.bundleIdentifier;
+    }
+
+    BOOL forceHostBundle = [guestAppInfo[@"doUseLCBundleId"] boolValue];
+    useSelectiveBundleIdSpoofing = hideLiveContainer || forceHostBundle;
+    if (!useSelectiveBundleIdSpoofing || didInstallSelectiveBundleHooks) {
+        return;
+    }
+
+    Class bundleClass = NSBundle.class;
+    Method bundleIdentifierMethod = class_getInstanceMethod(bundleClass, @selector(bundleIdentifier));
+    if (bundleIdentifierMethod && !orig_NSBundle_bundleIdentifier) {
+        orig_NSBundle_bundleIdentifier = (NSString *(*)(id, SEL))method_setImplementation(bundleIdentifierMethod, (IMP)hook_NSBundle_bundleIdentifier);
+    }
+
+    Method infoDictionaryMethod = class_getInstanceMethod(bundleClass, @selector(infoDictionary));
+    if (infoDictionaryMethod && !orig_NSBundle_infoDictionary) {
+        orig_NSBundle_infoDictionary = (NSDictionary *(*)(id, SEL))method_setImplementation(infoDictionaryMethod, (IMP)hook_NSBundle_infoDictionary);
+    }
+
+    Method objectForInfoDictionaryKeyMethod = class_getInstanceMethod(bundleClass, @selector(objectForInfoDictionaryKey:));
+    if (objectForInfoDictionaryKeyMethod && !orig_NSBundle_objectForInfoDictionaryKey) {
+        orig_NSBundle_objectForInfoDictionaryKey = (id (*)(id, SEL, NSString *))method_setImplementation(objectForInfoDictionaryKeyMethod, (IMP)hook_NSBundle_objectForInfoDictionaryKey);
+    }
+
+    didInstallSelectiveBundleHooks = YES;
 }
 
 
@@ -1433,6 +1503,7 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     // iterate through loaded images and find LiveContainer it self
     NSDictionary *guestAppInfo = [NSUserDefaults guestAppInfo];
     bypassSSLPinning = [guestAppInfo[@"bypassSSLPinning"] boolValue];
+    configureSelectiveBundleIdSpoofing(guestAppInfo, hideLiveContainer);
 
     int imageCount = _dyld_image_count();
     for(int i = 0; i < imageCount; ++i) {
