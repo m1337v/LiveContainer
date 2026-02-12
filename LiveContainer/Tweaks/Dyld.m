@@ -87,6 +87,10 @@ static char *(*orig_if_indextoname)(unsigned int ifindex, char *ifname);
 static unsigned int (*orig_if_nametoindex)(const char *ifname);
 static BOOL gDidInlineHookNWInterfaceCreateWithIndex = NO;
 static BOOL gDidInlineHookNWInterfaceCreateFromNECP = NO;
+static __thread BOOL gInHookNWInterfaceCreateWithIndex = NO;
+static __thread BOOL gInHookNWInterfaceCreateWithIndexAndName = NO;
+static __thread BOOL gInHookNWInterfaceCreateFromNECP = NO;
+static BOOL gLoggedNWInlineHookPolicy = NO;
 // Signal handlers
 // Interface
 @interface NWPath (PrivateMethods)
@@ -1290,6 +1294,11 @@ static unsigned int lc_sanitizeInterfaceIndex(const char *context, unsigned int 
     return ifindex;
 }
 
+static BOOL lc_shouldEnableNWInlineHooks(void) {
+    const char *flag = getenv("LC_ENABLE_NW_INLINE_HOOKS");
+    return flag && flag[0] == '1';
+}
+
 static nw_interface_t lc_createInterfaceFromSanitizedIndex(const char *context, unsigned int sanitizedIndex) {
     char ifname[IF_NAMESIZE] = {0};
     const char *resolvedName = NULL;
@@ -1298,6 +1307,21 @@ static nw_interface_t lc_createInterfaceFromSanitizedIndex(const char *context, 
     }
     if (!resolvedName || shouldFilterVPNInterfaceNameCStr(resolvedName)) {
         resolvedName = "en0";
+    }
+
+    // Index 0 can trigger undefined behavior in private constructors; prefer name-based creation.
+    if (sanitizedIndex == 0) {
+        if (orig_nw_interface_create_with_name) {
+            nw_interface_t iface = orig_nw_interface_create_with_name(resolvedName);
+            if (iface) {
+                return iface;
+            }
+        }
+
+        if (context) {
+            NSLog(@"[LC] ⚠️ %s - sanitized index is 0; could not build replacement interface", context);
+        }
+        return NULL;
     }
 
     if (orig_nw_interface_create_with_index_and_name) {
@@ -1329,6 +1353,14 @@ static nw_interface_t lc_createInterfaceFromSanitizedIndex(const char *context, 
 }
 
 static nw_interface_t hook_nw_interface_create_with_index(unsigned int index) {
+    if (gInHookNWInterfaceCreateWithIndex) {
+        if (!gDidInlineHookNWInterfaceCreateWithIndex && orig_nw_interface_create_with_index) {
+            return orig_nw_interface_create_with_index(index);
+        }
+        return orig_nw_interface_create_with_name ? orig_nw_interface_create_with_name("en0") : NULL;
+    }
+    gInHookNWInterfaceCreateWithIndex = YES;
+
     if (!orig_nw_interface_create_with_index ||
         !orig_nw_interface_create_with_index_and_name ||
         !orig_if_indextoname ||
@@ -1338,6 +1370,7 @@ static nw_interface_t hook_nw_interface_create_with_index(unsigned int index) {
     if (!orig_nw_interface_create_with_index &&
         !orig_nw_interface_create_with_index_and_name &&
         !orig_nw_interface_create_with_name) {
+        gInHookNWInterfaceCreateWithIndex = NO;
         return NULL;
     }
 
@@ -1348,14 +1381,22 @@ static nw_interface_t hook_nw_interface_create_with_index(unsigned int index) {
     }
 
     unsigned int sanitizedIndex = lc_sanitizeInterfaceIndex("nw_interface_create_with_index", index);
-    return lc_createInterfaceFromSanitizedIndex("nw_interface_create_with_index", sanitizedIndex);
+    nw_interface_t result = lc_createInterfaceFromSanitizedIndex("nw_interface_create_with_index", sanitizedIndex);
+    gInHookNWInterfaceCreateWithIndex = NO;
+    return result;
 }
 
 static nw_interface_t hook_nw_interface_create_with_index_and_name(unsigned int index, const char *name) {
+    if (gInHookNWInterfaceCreateWithIndexAndName) {
+        return orig_nw_interface_create_with_index_and_name ? orig_nw_interface_create_with_index_and_name(index, name) : NULL;
+    }
+    gInHookNWInterfaceCreateWithIndexAndName = YES;
+
     if (!orig_nw_interface_create_with_index_and_name) {
         lc_resolveNetworkSymbolPointers();
     }
     if (!orig_nw_interface_create_with_index_and_name) {
+        gInHookNWInterfaceCreateWithIndexAndName = NO;
         return NULL;
     }
 
@@ -1372,10 +1413,20 @@ static nw_interface_t hook_nw_interface_create_with_index_and_name(unsigned int 
         NSLog(@"[LC] 🎭 nw_interface_create_with_index_and_name - remapping VPN name %s -> en0", name);
     }
 
-    return orig_nw_interface_create_with_index_and_name(sanitizedIndex, sanitizedName);
+    nw_interface_t result = orig_nw_interface_create_with_index_and_name(sanitizedIndex, sanitizedName);
+    gInHookNWInterfaceCreateWithIndexAndName = NO;
+    return result;
 }
 
 static nw_interface_t hook_nw_interface_create_from_necp(int necp_fd, unsigned int index) {
+    if (gInHookNWInterfaceCreateFromNECP) {
+        if (!gDidInlineHookNWInterfaceCreateFromNECP && orig_nw_interface_create_from_necp) {
+            return orig_nw_interface_create_from_necp(necp_fd, index);
+        }
+        return orig_nw_interface_create_with_name ? orig_nw_interface_create_with_name("en0") : NULL;
+    }
+    gInHookNWInterfaceCreateFromNECP = YES;
+
     if (!orig_nw_interface_create_from_necp ||
         !orig_nw_interface_create_with_index_and_name ||
         !orig_nw_interface_create_with_name ||
@@ -1396,12 +1447,15 @@ static nw_interface_t hook_nw_interface_create_from_necp(int necp_fd, unsigned i
         nw_interface_t iface = orig_nw_interface_create_from_necp(necp_fd, sanitizedIndex);
         nw_interface_t sanitized = lc_sanitizePrivatePathInterface("nw_interface_create_from_necp", iface);
         if (sanitized) {
+            gInHookNWInterfaceCreateFromNECP = NO;
             return sanitized;
         }
     }
 
     // Inline-mode fallback or missing original path: synthesize from sanitized index/name.
-    return lc_createInterfaceFromSanitizedIndex("nw_interface_create_from_necp", sanitizedIndex);
+    nw_interface_t result = lc_createInterfaceFromSanitizedIndex("nw_interface_create_from_necp", sanitizedIndex);
+    gInHookNWInterfaceCreateFromNECP = NO;
+    return result;
 }
 
 static unsigned int hook_nw_interface_get_index(nw_interface_t interface) {
@@ -2765,27 +2819,37 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }, 25);
     lc_resolveNetworkSymbolPointers();
 
-    // Network.framework internally uses direct branches for some hot paths
-    // (e.g. NWPathMonitor.currentPath -> _nw_interface_create_with_index),
-    // so GOT rebinding alone is not sufficient.
-    if (orig_nw_interface_create_with_index && !gDidInlineHookNWInterfaceCreateWithIndex) {
-        kern_return_t kr = litehook_hook_function((void *)orig_nw_interface_create_with_index,
-                                                  (void *)hook_nw_interface_create_with_index);
-        if (kr == KERN_SUCCESS) {
-            gDidInlineHookNWInterfaceCreateWithIndex = YES;
-            NSLog(@"[LC] ✅ Inline hooked nw_interface_create_with_index");
-        } else {
-            NSLog(@"[LC] ⚠️ Failed to inline hook nw_interface_create_with_index (kr=%d)", kr);
-        }
+    // Network.framework direct-call inline hooks are unstable on some iOS builds.
+    // Keep disabled by default; allow opt-in via LC_ENABLE_NW_INLINE_HOOKS=1.
+    BOOL enableNWInlineHooks = lc_shouldEnableNWInlineHooks();
+    if (!gLoggedNWInlineHookPolicy) {
+        gLoggedNWInlineHookPolicy = YES;
+        NSLog(@"[LC] 🌐 network inline hooks %@", enableNWInlineHooks ? @"ENABLED (LC_ENABLE_NW_INLINE_HOOKS=1)" : @"disabled (set LC_ENABLE_NW_INLINE_HOOKS=1 to enable)");
     }
-    if (orig_nw_interface_create_from_necp && !gDidInlineHookNWInterfaceCreateFromNECP) {
-        kern_return_t kr = litehook_hook_function((void *)orig_nw_interface_create_from_necp,
-                                                  (void *)hook_nw_interface_create_from_necp);
-        if (kr == KERN_SUCCESS) {
-            gDidInlineHookNWInterfaceCreateFromNECP = YES;
-            NSLog(@"[LC] ✅ Inline hooked nw_interface_create_from_necp");
-        } else {
-            NSLog(@"[LC] ⚠️ Failed to inline hook nw_interface_create_from_necp (kr=%d)", kr);
+
+    if (enableNWInlineHooks) {
+        // Network.framework internally uses direct branches for some hot paths
+        // (e.g. NWPathMonitor.currentPath -> _nw_interface_create_with_index),
+        // so GOT rebinding alone is not sufficient when this mode is enabled.
+        if (orig_nw_interface_create_with_index && !gDidInlineHookNWInterfaceCreateWithIndex) {
+            kern_return_t kr = litehook_hook_function((void *)orig_nw_interface_create_with_index,
+                                                      (void *)hook_nw_interface_create_with_index);
+            if (kr == KERN_SUCCESS) {
+                gDidInlineHookNWInterfaceCreateWithIndex = YES;
+                NSLog(@"[LC] ✅ Inline hooked nw_interface_create_with_index");
+            } else {
+                NSLog(@"[LC] ⚠️ Failed to inline hook nw_interface_create_with_index (kr=%d)", kr);
+            }
+        }
+        if (orig_nw_interface_create_from_necp && !gDidInlineHookNWInterfaceCreateFromNECP) {
+            kern_return_t kr = litehook_hook_function((void *)orig_nw_interface_create_from_necp,
+                                                      (void *)hook_nw_interface_create_from_necp);
+            if (kr == KERN_SUCCESS) {
+                gDidInlineHookNWInterfaceCreateFromNECP = YES;
+                NSLog(@"[LC] ✅ Inline hooked nw_interface_create_from_necp");
+            } else {
+                NSLog(@"[LC] ⚠️ Failed to inline hook nw_interface_create_from_necp (kr=%d)", kr);
+            }
         }
     }
 
