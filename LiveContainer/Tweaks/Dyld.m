@@ -63,7 +63,16 @@ static int (*orig_getifaddrs)(struct ifaddrs **ifap);
 // NWPath C-level
 static void (*orig_nw_path_enumerate_interfaces)(nw_path_t path, nw_path_enumerate_interfaces_block_t enumerate_block);
 static const char* (*orig_nw_interface_get_name)(nw_interface_t interface);
+static nw_interface_type_t (*orig_nw_interface_get_type)(nw_interface_t interface);
+static nw_interface_t (*orig_nw_interface_create_with_name)(const char *name);
+static nw_interface_t (*orig_nw_path_copy_interface)(nw_path_t path);
+static nw_interface_t (*orig_nw_path_copy_interface_from_cache)(nw_path_t path);
+static nw_interface_t (*orig_nw_path_copy_connected_interface)(nw_path_t path);
+static nw_interface_t (*orig_nw_path_copy_direct_interface)(nw_path_t path);
+static nw_interface_t (*orig_nw_path_copy_scoped_interface)(nw_path_t path);
+static nw_interface_t (*orig_nw_path_copy_delegate_interface)(nw_path_t path);
 static struct if_nameindex* (*orig_if_nameindex)(void);
+static char *(*orig_if_indextoname)(unsigned int ifindex, char *ifname);
 // Signal handlers
 // Interface
 @interface NWPath (PrivateMethods)
@@ -838,38 +847,109 @@ static void lc_resolveNetworkSymbolPointers(void) {
 
     if (orig_dlsym) {
         const char *(*resolvedGetName)(nw_interface_t) = NULL;
+        nw_interface_type_t (*resolvedGetType)(nw_interface_t) = NULL;
+        nw_interface_t (*resolvedCreateWithName)(const char *) = NULL;
         void (*resolvedEnumerate)(nw_path_t, nw_path_enumerate_interfaces_block_t) = NULL;
+        nw_interface_t (*resolvedCopyInterface)(nw_path_t) = NULL;
+        nw_interface_t (*resolvedCopyInterfaceFromCache)(nw_path_t) = NULL;
+        nw_interface_t (*resolvedCopyConnectedInterface)(nw_path_t) = NULL;
+        nw_interface_t (*resolvedCopyDirectInterface)(nw_path_t) = NULL;
+        nw_interface_t (*resolvedCopyScopedInterface)(nw_path_t) = NULL;
+        nw_interface_t (*resolvedCopyDelegateInterface)(nw_path_t) = NULL;
 
         if (libnetworkHandle) {
             resolvedGetName = (const char *(*)(nw_interface_t))orig_dlsym(libnetworkHandle, "nw_interface_get_name");
+            resolvedGetType = (nw_interface_type_t (*)(nw_interface_t))orig_dlsym(libnetworkHandle, "nw_interface_get_type");
+            resolvedCreateWithName = (nw_interface_t (*)(const char *))orig_dlsym(libnetworkHandle, "nw_interface_create_with_name");
             resolvedEnumerate = (void (*)(nw_path_t, nw_path_enumerate_interfaces_block_t))orig_dlsym(libnetworkHandle, "nw_path_enumerate_interfaces");
+            resolvedCopyInterface = (nw_interface_t (*)(nw_path_t))orig_dlsym(libnetworkHandle, "nw_path_copy_interface");
+            resolvedCopyInterfaceFromCache = (nw_interface_t (*)(nw_path_t))orig_dlsym(libnetworkHandle, "nw_path_copy_interface_from_cache");
+            resolvedCopyConnectedInterface = (nw_interface_t (*)(nw_path_t))orig_dlsym(libnetworkHandle, "nw_path_copy_connected_interface");
+            resolvedCopyDirectInterface = (nw_interface_t (*)(nw_path_t))orig_dlsym(libnetworkHandle, "nw_path_copy_direct_interface");
+            resolvedCopyScopedInterface = (nw_interface_t (*)(nw_path_t))orig_dlsym(libnetworkHandle, "nw_path_copy_scoped_interface");
+            resolvedCopyDelegateInterface = (nw_interface_t (*)(nw_path_t))orig_dlsym(libnetworkHandle, "nw_path_copy_delegate_interface");
         }
 
         if (!resolvedGetName) {
             resolvedGetName = (const char *(*)(nw_interface_t))orig_dlsym(RTLD_DEFAULT, "nw_interface_get_name");
         }
+        if (!resolvedGetType) {
+            resolvedGetType = (nw_interface_type_t (*)(nw_interface_t))orig_dlsym(RTLD_DEFAULT, "nw_interface_get_type");
+        }
+        if (!resolvedCreateWithName) {
+            resolvedCreateWithName = (nw_interface_t (*)(const char *))orig_dlsym(RTLD_DEFAULT, "nw_interface_create_with_name");
+        }
         if (!resolvedEnumerate) {
             resolvedEnumerate = (void (*)(nw_path_t, nw_path_enumerate_interfaces_block_t))orig_dlsym(RTLD_DEFAULT, "nw_path_enumerate_interfaces");
+        }
+        if (!resolvedCopyInterface) {
+            resolvedCopyInterface = (nw_interface_t (*)(nw_path_t))orig_dlsym(RTLD_DEFAULT, "nw_path_copy_interface");
+        }
+        if (!resolvedCopyInterfaceFromCache) {
+            resolvedCopyInterfaceFromCache = (nw_interface_t (*)(nw_path_t))orig_dlsym(RTLD_DEFAULT, "nw_path_copy_interface_from_cache");
+        }
+        if (!resolvedCopyConnectedInterface) {
+            resolvedCopyConnectedInterface = (nw_interface_t (*)(nw_path_t))orig_dlsym(RTLD_DEFAULT, "nw_path_copy_connected_interface");
+        }
+        if (!resolvedCopyDirectInterface) {
+            resolvedCopyDirectInterface = (nw_interface_t (*)(nw_path_t))orig_dlsym(RTLD_DEFAULT, "nw_path_copy_direct_interface");
+        }
+        if (!resolvedCopyScopedInterface) {
+            resolvedCopyScopedInterface = (nw_interface_t (*)(nw_path_t))orig_dlsym(RTLD_DEFAULT, "nw_path_copy_scoped_interface");
+        }
+        if (!resolvedCopyDelegateInterface) {
+            resolvedCopyDelegateInterface = (nw_interface_t (*)(nw_path_t))orig_dlsym(RTLD_DEFAULT, "nw_path_copy_delegate_interface");
         }
 
         if (resolvedGetName) {
             orig_nw_interface_get_name = resolvedGetName;
         }
+        if (resolvedGetType) {
+            orig_nw_interface_get_type = resolvedGetType;
+        }
+        if (resolvedCreateWithName) {
+            orig_nw_interface_create_with_name = resolvedCreateWithName;
+        }
         if (resolvedEnumerate) {
             orig_nw_path_enumerate_interfaces = resolvedEnumerate;
         }
+        if (resolvedCopyInterface) {
+            orig_nw_path_copy_interface = resolvedCopyInterface;
+        }
+        if (resolvedCopyInterfaceFromCache) {
+            orig_nw_path_copy_interface_from_cache = resolvedCopyInterfaceFromCache;
+        }
+        if (resolvedCopyConnectedInterface) {
+            orig_nw_path_copy_connected_interface = resolvedCopyConnectedInterface;
+        }
+        if (resolvedCopyDirectInterface) {
+            orig_nw_path_copy_direct_interface = resolvedCopyDirectInterface;
+        }
+        if (resolvedCopyScopedInterface) {
+            orig_nw_path_copy_scoped_interface = resolvedCopyScopedInterface;
+        }
+        if (resolvedCopyDelegateInterface) {
+            orig_nw_path_copy_delegate_interface = resolvedCopyDelegateInterface;
+        }
         if (!orig_if_nameindex) {
             orig_if_nameindex = (struct if_nameindex* (*)(void))orig_dlsym(RTLD_DEFAULT, "if_nameindex");
+        }
+        if (!orig_if_indextoname) {
+            orig_if_indextoname = (char *(*)(unsigned int, char *))orig_dlsym(RTLD_DEFAULT, "if_indextoname");
         }
     }
 
     static BOOL loggedSymbolResolution = NO;
     if (!loggedSymbolResolution) {
         loggedSymbolResolution = YES;
-        NSLog(@"[LC] 🌐 network symbols resolved: nw_interface_get_name=%p nw_path_enumerate_interfaces=%p if_nameindex=%p",
+        NSLog(@"[LC] 🌐 network symbols resolved: nw_interface_get_name=%p nw_interface_get_type=%p nw_path_enumerate_interfaces=%p if_nameindex=%p if_indextoname=%p nw_path_copy_interface=%p nw_path_copy_interface_from_cache=%p",
               orig_nw_interface_get_name,
+              orig_nw_interface_get_type,
               orig_nw_path_enumerate_interfaces,
-              orig_if_nameindex);
+              orig_if_nameindex,
+              orig_if_indextoname,
+              orig_nw_path_copy_interface,
+              orig_nw_path_copy_interface_from_cache);
     }
 }
 
@@ -937,6 +1017,168 @@ static const char* hook_nw_interface_get_name(nw_interface_t interface) {
     return name;
 }
 
+static nw_interface_type_t hook_nw_interface_get_type(nw_interface_t interface) {
+    if (!orig_nw_interface_get_type || !orig_nw_interface_get_name) {
+        lc_resolveNetworkSymbolPointers();
+    }
+    if (!orig_nw_interface_get_type) {
+        return nw_interface_type_other;
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: nw_interface_get_type");
+    }
+
+    nw_interface_type_t type = orig_nw_interface_get_type(interface);
+    const char *name = orig_nw_interface_get_name ? orig_nw_interface_get_name(interface) : NULL;
+
+    if (shouldFilterVPNInterfaceNameCStr(name)) {
+        NSLog(@"[LC] 🎭 nw_interface_get_type - spoofing VPN interface type for %s -> wifi", name);
+        return nw_interface_type_wifi;
+    }
+
+    return type;
+}
+
+static nw_interface_t lc_sanitizePrivatePathInterface(const char *context, nw_interface_t interface) {
+    if (!interface) {
+        return interface;
+    }
+
+    if (!orig_nw_interface_get_name) {
+        lc_resolveNetworkSymbolPointers();
+    }
+
+    const char *name = orig_nw_interface_get_name ? orig_nw_interface_get_name(interface) : NULL;
+    if (shouldFilterVPNInterfaceNameCStr(name)) {
+        NSLog(@"[LC] 🎭 %s - filtering VPN interface: %s", context, name);
+
+        if (!orig_nw_interface_create_with_name) {
+            lc_resolveNetworkSymbolPointers();
+        }
+        if (orig_nw_interface_create_with_name) {
+            nw_interface_t replacement = orig_nw_interface_create_with_name("en0");
+            if (replacement) {
+                return replacement;
+            }
+        }
+
+        return NULL;
+    }
+
+    return interface;
+}
+
+static nw_interface_t hook_nw_path_copy_interface(nw_path_t path) {
+    if (!orig_nw_path_copy_interface) {
+        lc_resolveNetworkSymbolPointers();
+    }
+    if (!orig_nw_path_copy_interface) {
+        return NULL;
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: nw_path_copy_interface");
+    }
+
+    nw_interface_t interface = orig_nw_path_copy_interface(path);
+    return lc_sanitizePrivatePathInterface("nw_path_copy_interface", interface);
+}
+
+static nw_interface_t hook_nw_path_copy_interface_from_cache(nw_path_t path) {
+    if (!orig_nw_path_copy_interface_from_cache) {
+        lc_resolveNetworkSymbolPointers();
+    }
+    if (!orig_nw_path_copy_interface_from_cache) {
+        return NULL;
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: nw_path_copy_interface_from_cache");
+    }
+
+    nw_interface_t interface = orig_nw_path_copy_interface_from_cache(path);
+    return lc_sanitizePrivatePathInterface("nw_path_copy_interface_from_cache", interface);
+}
+
+static nw_interface_t hook_nw_path_copy_connected_interface(nw_path_t path) {
+    if (!orig_nw_path_copy_connected_interface) {
+        lc_resolveNetworkSymbolPointers();
+    }
+    if (!orig_nw_path_copy_connected_interface) {
+        return NULL;
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: nw_path_copy_connected_interface");
+    }
+
+    nw_interface_t interface = orig_nw_path_copy_connected_interface(path);
+    return lc_sanitizePrivatePathInterface("nw_path_copy_connected_interface", interface);
+}
+
+static nw_interface_t hook_nw_path_copy_direct_interface(nw_path_t path) {
+    if (!orig_nw_path_copy_direct_interface) {
+        lc_resolveNetworkSymbolPointers();
+    }
+    if (!orig_nw_path_copy_direct_interface) {
+        return NULL;
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: nw_path_copy_direct_interface");
+    }
+
+    nw_interface_t interface = orig_nw_path_copy_direct_interface(path);
+    return lc_sanitizePrivatePathInterface("nw_path_copy_direct_interface", interface);
+}
+
+static nw_interface_t hook_nw_path_copy_scoped_interface(nw_path_t path) {
+    if (!orig_nw_path_copy_scoped_interface) {
+        lc_resolveNetworkSymbolPointers();
+    }
+    if (!orig_nw_path_copy_scoped_interface) {
+        return NULL;
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: nw_path_copy_scoped_interface");
+    }
+
+    nw_interface_t interface = orig_nw_path_copy_scoped_interface(path);
+    return lc_sanitizePrivatePathInterface("nw_path_copy_scoped_interface", interface);
+}
+
+static nw_interface_t hook_nw_path_copy_delegate_interface(nw_path_t path) {
+    if (!orig_nw_path_copy_delegate_interface) {
+        lc_resolveNetworkSymbolPointers();
+    }
+    if (!orig_nw_path_copy_delegate_interface) {
+        return NULL;
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: nw_path_copy_delegate_interface");
+    }
+
+    nw_interface_t interface = orig_nw_path_copy_delegate_interface(path);
+    return lc_sanitizePrivatePathInterface("nw_path_copy_delegate_interface", interface);
+}
+
 static void hook_nw_path_enumerate_interfaces(nw_path_t path,
                                               nw_path_enumerate_interfaces_block_t enumerate_block) {
     if (!orig_nw_path_enumerate_interfaces || !orig_nw_interface_get_name) {
@@ -997,6 +1239,30 @@ static struct if_nameindex* hook_if_nameindex(void) {
     writePtr->if_index = 0;
     writePtr->if_name = NULL;
     return entries;
+}
+
+static char *hook_if_indextoname(unsigned int ifindex, char *ifname) {
+    if (!orig_if_indextoname) {
+        lc_resolveNetworkSymbolPointers();
+    }
+    if (!orig_if_indextoname) {
+        return NULL;
+    }
+
+    char *name = orig_if_indextoname(ifindex, ifname);
+    if (!name) {
+        return NULL;
+    }
+
+    if (shouldFilterVPNInterfaceNameCStr(name)) {
+        NSLog(@"[LC] 🎭 if_indextoname - spoofing VPN interface: %s -> en0", name);
+        if (ifname) {
+            snprintf(ifname, IF_NAMESIZE, "%s", "en0");
+            return ifname;
+        }
+    }
+
+    return name;
 }
 
 static NSString *lc_rawNWInterfaceName(id interface) {
@@ -1837,18 +2103,29 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }
 
     // Keep network/VPN filtering hooks active regardless of hideLiveContainer setting.
-    rebind_symbols((struct rebinding[5]){
+    rebind_symbols((struct rebinding[13]){
                 {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                 {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
                 {"nw_interface_get_name", (void *)hook_nw_interface_get_name, (void **)&orig_nw_interface_get_name},
+                {"nw_interface_get_type", (void *)hook_nw_interface_get_type, (void **)&orig_nw_interface_get_type},
                 {"nw_path_enumerate_interfaces", (void *)hook_nw_path_enumerate_interfaces, (void **)&orig_nw_path_enumerate_interfaces},
                 {"if_nameindex", (void *)hook_if_nameindex, (void **)&orig_if_nameindex},
-    }, 5);
+                {"if_indextoname", (void *)hook_if_indextoname, (void **)&orig_if_indextoname},
+                {"nw_path_copy_interface", (void *)hook_nw_path_copy_interface, (void **)&orig_nw_path_copy_interface},
+                {"nw_path_copy_interface_from_cache", (void *)hook_nw_path_copy_interface_from_cache, (void **)&orig_nw_path_copy_interface_from_cache},
+                {"nw_path_copy_connected_interface", (void *)hook_nw_path_copy_connected_interface, (void **)&orig_nw_path_copy_connected_interface},
+                {"nw_path_copy_direct_interface", (void *)hook_nw_path_copy_direct_interface, (void **)&orig_nw_path_copy_direct_interface},
+                {"nw_path_copy_scoped_interface", (void *)hook_nw_path_copy_scoped_interface, (void **)&orig_nw_path_copy_scoped_interface},
+                {"nw_path_copy_delegate_interface", (void *)hook_nw_path_copy_delegate_interface, (void **)&orig_nw_path_copy_delegate_interface},
+    }, 13);
     lc_resolveNetworkSymbolPointers();
 
     // Also rebind by raw function address across loaded/new images, including auth-got paths.
     if (orig_nw_interface_get_name) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_interface_get_name, (void *)hook_nw_interface_get_name, nil);
+    }
+    if (orig_nw_interface_get_type) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_interface_get_type, (void *)hook_nw_interface_get_type, nil);
     }
     if (orig_nw_path_enumerate_interfaces) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_enumerate_interfaces, (void *)hook_nw_path_enumerate_interfaces, nil);
@@ -1856,8 +2133,29 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     if (orig_if_nameindex) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_if_nameindex, (void *)hook_if_nameindex, nil);
     }
+    if (orig_if_indextoname) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_if_indextoname, (void *)hook_if_indextoname, nil);
+    }
     if (orig_getifaddrs) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_getifaddrs, (void *)hook_getifaddrs, nil);
+    }
+    if (orig_nw_path_copy_interface) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_interface, (void *)hook_nw_path_copy_interface, nil);
+    }
+    if (orig_nw_path_copy_interface_from_cache) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_interface_from_cache, (void *)hook_nw_path_copy_interface_from_cache, nil);
+    }
+    if (orig_nw_path_copy_connected_interface) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_connected_interface, (void *)hook_nw_path_copy_connected_interface, nil);
+    }
+    if (orig_nw_path_copy_direct_interface) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_direct_interface, (void *)hook_nw_path_copy_direct_interface, nil);
+    }
+    if (orig_nw_path_copy_scoped_interface) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_scoped_interface, (void *)hook_nw_path_copy_scoped_interface, nil);
+    }
+    if (orig_nw_path_copy_delegate_interface) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_delegate_interface, (void *)hook_nw_path_copy_delegate_interface, nil);
     }
 
     // Avoid risky Objective-C Network swizzling; rely on C-level hooks for interface filtering.
