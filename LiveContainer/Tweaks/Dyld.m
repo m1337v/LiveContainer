@@ -61,9 +61,9 @@ const char* (*orig_dyld_get_image_name)(uint32_t image_index) = _dyld_get_image_
 static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
 static int (*orig_getifaddrs)(struct ifaddrs **ifap);
 // NWPath C-level
-// static void (*orig_nw_path_enumerate_interfaces)(void* path, void* enumerate_block);
-// static const char* (*orig_nw_interface_get_name)(void* interface);
-// static int (*orig_nw_interface_get_type)(void* interface);
+static void (*orig_nw_path_enumerate_interfaces)(nw_path_t path, nw_path_enumerate_interfaces_block_t enumerate_block);
+static const char* (*orig_nw_interface_get_name)(nw_interface_t interface);
+static struct if_nameindex* (*orig_if_nameindex)(void);
 // Signal handlers
 // Interface
 @interface NWPath (PrivateMethods)
@@ -783,6 +783,9 @@ static BOOL shouldFilterVPNInterfaceNameCStr(const char *name) {
             strncmp(name, "ppp", 3) == 0 ||
             strncmp(name, "bridge", 6) == 0 ||
             strncmp(name, "ipsec", 5) == 0 ||
+            strncmp(name, "vtun", 4) == 0 ||
+            strncmp(name, "l2tp", 4) == 0 ||
+            strncmp(name, "ne", 2) == 0 ||
             strncmp(name, "gif", 3) == 0 ||
             strncmp(name, "stf", 3) == 0 ||
             strncmp(name, "wg", 2) == 0 ||
@@ -805,7 +808,7 @@ static NSString *sanitizeVPNMarkersInString(NSString *text) {
     static NSRegularExpression *vpnRegex = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        vpnRegex = [NSRegularExpression regularExpressionWithPattern:@"\\b(?:utun\\d*|tap\\d*|tun\\d*|ppp\\d*|bridge\\d*|ipsec\\d*|gif\\d*|stf\\d*|wg\\d*|pptp\\d*)\\b"
+        vpnRegex = [NSRegularExpression regularExpressionWithPattern:@"\\b(?:utun\\d*|tap\\d*|tun\\d*|ppp\\d*|bridge\\d*|ipsec\\d*|vtun\\d*|l2tp\\d*|ne\\d*|gif\\d*|stf\\d*|wg\\d*|pptp\\d*)\\b"
                                                              options:NSRegularExpressionCaseInsensitive
                                                                error:nil];
     });
@@ -868,6 +871,84 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
     return result;
 }
 
+static void hook_nw_path_enumerate_interfaces(nw_path_t path,
+                                              nw_path_enumerate_interfaces_block_t enumerate_block) {
+    if (!orig_nw_path_enumerate_interfaces) {
+        return;
+    }
+    if (!enumerate_block) {
+        orig_nw_path_enumerate_interfaces(path, enumerate_block);
+        return;
+    }
+
+    orig_nw_path_enumerate_interfaces(path, ^bool(nw_interface_t interface) {
+        const char *name = orig_nw_interface_get_name ? orig_nw_interface_get_name(interface) : nw_interface_get_name(interface);
+        if (shouldFilterVPNInterfaceNameCStr(name)) {
+            NSLog(@"[LC] 🎭 nw_path_enumerate_interfaces - filtering VPN interface: %s", name);
+            return true;
+        }
+
+        return enumerate_block(interface);
+    });
+}
+
+static struct if_nameindex* hook_if_nameindex(void) {
+    if (!orig_if_nameindex) {
+        return NULL;
+    }
+
+    struct if_nameindex *entries = orig_if_nameindex();
+    if (!entries) {
+        return NULL;
+    }
+
+    struct if_nameindex *writePtr = entries;
+    for (struct if_nameindex *readPtr = entries; readPtr->if_index != 0 || readPtr->if_name != NULL; readPtr++) {
+        if (shouldFilterVPNInterfaceNameCStr(readPtr->if_name)) {
+            NSLog(@"[LC] 🎭 if_nameindex - filtering VPN interface: %s", readPtr->if_name);
+            continue;
+        }
+
+        if (writePtr != readPtr) {
+            *writePtr = *readPtr;
+        }
+        writePtr++;
+    }
+
+    writePtr->if_index = 0;
+    writePtr->if_name = NULL;
+    return entries;
+}
+
+static NSString *lc_rawNWInterfaceName(id interface) {
+    if (!interface) {
+        return nil;
+    }
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+    @try {
+        // If NWInterface.name is swizzled, lc_name points at the original name implementation.
+        if ([interface respondsToSelector:@selector(lc_name)]) {
+            id rawName = [interface performSelector:@selector(lc_name)];
+            if ([rawName isKindOfClass:[NSString class]]) {
+                return rawName;
+            }
+        }
+
+        if ([interface respondsToSelector:@selector(name)]) {
+            id name = [interface performSelector:@selector(name)];
+            if ([name isKindOfClass:[NSString class]]) {
+                return name;
+            }
+        }
+    } @catch (__unused NSException *e) {
+    }
+#pragma clang diagnostic pop
+
+    return nil;
+}
+
 // MARK: Swift Network Framework Swizzling
 
 @interface NWPath (GuestHooks)
@@ -889,7 +970,7 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
 
     for (id interface in originalInterfaces) {
         @try {
-            NSString *name = [interface performSelector:@selector(name)];
+            NSString *name = lc_rawNWInterfaceName(interface);
 
             if (name && shouldFilterVPNInterfaceName(name)) {
                 NSLog(@"[LC] 🎭 NWPath filtered VPN interface: %@", name);
@@ -935,7 +1016,7 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
     NSInteger originalType = [self lc_type];
 
     @try {
-        NSString *name = [self performSelector:@selector(name)];
+        NSString *name = lc_rawNWInterfaceName(self);
 
         if (name && shouldFilterVPNInterfaceName(name)) {
             NSLog(@"[LC] 🎭 NWInterface.type spoofed for VPN interface %@", name);
@@ -978,10 +1059,37 @@ static void setupNetworkFrameworkSwizzling(void) {
     static BOOL nwInterfaceDescriptionSwizzled = NO;
     static BOOL nwInterfaceDebugDescriptionSwizzled = NO;
     static NSUInteger retryCount = 0;
-    static const NSUInteger kMaxRetries = 20;
-    const NSTimeInterval kRetryDelaySeconds = 0.5;
+    static const NSUInteger kFastRetryCount = 20;
+    const NSTimeInterval kFastRetryDelaySeconds = 0.5;
+    const NSTimeInterval kSteadyRetryDelaySeconds = 5.0;
+    static BOOL loggedSlowRetry = NO;
 
     Class nwPathClass = NSClassFromString(@"NWPath");
+    Class nwInterfaceClass = NSClassFromString(@"NWInterface");
+
+    // Fallback for cases where classes are loaded lazily and string lookups fail early.
+    if (!nwPathClass || !nwInterfaceClass) {
+        NWPathMonitor *monitor = [[NWPathMonitor alloc] init];
+        @try {
+            id currentPath = monitor.currentPath;
+            if (!nwPathClass && currentPath) {
+                nwPathClass = [currentPath class];
+            }
+
+            if (!nwInterfaceClass && currentPath && [currentPath respondsToSelector:@selector(availableInterfaces)]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                id interfaces = [currentPath performSelector:@selector(availableInterfaces)];
+#pragma clang diagnostic pop
+                if ([interfaces isKindOfClass:[NSArray class]] && [interfaces count] > 0) {
+                    nwInterfaceClass = [[interfaces firstObject] class];
+                }
+            }
+        } @catch (__unused NSException *e) {
+        }
+        [monitor cancel];
+    }
+
     if (!nwPathInterfacesSwizzled && nwPathClass &&
         [nwPathClass instancesRespondToSelector:@selector(availableInterfaces)] &&
         [nwPathClass instancesRespondToSelector:@selector(lc_availableInterfaces)]) {
@@ -1004,7 +1112,6 @@ static void setupNetworkFrameworkSwizzling(void) {
         NSLog(@"[LC] ✅ Swizzled NWPath.debugDescription");
     }
 
-    Class nwInterfaceClass = NSClassFromString(@"NWInterface");
     if (!nwInterfaceTypeSwizzled && nwInterfaceClass &&
         [nwInterfaceClass instancesRespondToSelector:@selector(type)] &&
         [nwInterfaceClass instancesRespondToSelector:@selector(lc_type)]) {
@@ -1039,7 +1146,8 @@ static void setupNetworkFrameworkSwizzling(void) {
         return;
     }
 
-    if (retryCount >= kMaxRetries) {
+    if (!loggedSlowRetry && retryCount >= kFastRetryCount) {
+        loggedSlowRetry = YES;
         NSLog(@"[LC] ⚠️ Network framework swizzling incomplete (pathInterfaces=%d pathDescription=%d pathDebugDescription=%d interfaceType=%d interfaceName=%d interfaceDescription=%d interfaceDebugDescription=%d)",
               nwPathInterfacesSwizzled,
               nwPathDescriptionSwizzled,
@@ -1048,11 +1156,11 @@ static void setupNetworkFrameworkSwizzling(void) {
               nwInterfaceNameSwizzled,
               nwInterfaceDescriptionSwizzled,
               nwInterfaceDebugDescriptionSwizzled);
-        return;
     }
 
+    NSTimeInterval retryDelaySeconds = retryCount < kFastRetryCount ? kFastRetryDelaySeconds : kSteadyRetryDelaySeconds;
     retryCount++;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kRetryDelaySeconds * NSEC_PER_SEC)),
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(retryDelaySeconds * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         setupNetworkFrameworkSwizzling();
     });
@@ -1626,11 +1734,23 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
         // Use litehook_hook_function for framework/libc functions instead of rebind_symbols
         // _dyld_register_func_for_add_image((void (*)(const struct mach_header *, intptr_t))hideLiveContainerImageCallback);
 
-        rebind_symbols((struct rebinding[3]){
+        rebind_symbols((struct rebinding[5]){
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
                     {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
-        }, 3);
+                    {"nw_path_enumerate_interfaces", (void *)hook_nw_path_enumerate_interfaces, (void **)&orig_nw_path_enumerate_interfaces},
+                    {"if_nameindex", (void *)hook_if_nameindex, (void **)&orig_if_nameindex},
+        }, 5);
+
+        if (!orig_nw_interface_get_name) {
+            orig_nw_interface_get_name = (const char* (*)(nw_interface_t))orig_dlsym(RTLD_DEFAULT, "nw_interface_get_name");
+        }
+        if (!orig_nw_path_enumerate_interfaces) {
+            orig_nw_path_enumerate_interfaces = (void (*)(nw_path_t, nw_path_enumerate_interfaces_block_t))orig_dlsym(RTLD_DEFAULT, "nw_path_enumerate_interfaces");
+        }
+        if (!orig_if_nameindex) {
+            orig_if_nameindex = (struct if_nameindex* (*)(void))orig_dlsym(RTLD_DEFAULT, "if_nameindex");
+        }
 
         // Apply network swizzling immediately and keep retry loop for late framework loading.
         setupNetworkFrameworkSwizzling();
