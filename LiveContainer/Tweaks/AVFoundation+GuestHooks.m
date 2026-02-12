@@ -158,9 +158,6 @@ static CVPixelBufferRef createScaledPixelBuffer(CVPixelBufferRef sourceBuffer, C
     OSType targetFormat = kCVPixelFormatType_32BGRA; // Default
     if (lastRequestedFormat != 0 && isValidPixelFormat(lastRequestedFormat)) {
         targetFormat = lastRequestedFormat;
-        NSLog(@"[LC] Using requested format: %c%c%c%c", 
-              (targetFormat >> 24) & 0xFF, (targetFormat >> 16) & 0xFF, 
-              (targetFormat >> 8) & 0xFF, targetFormat & 0xFF);
     }
 
     // If source already matches target size and format, return as-is
@@ -583,71 +580,60 @@ static CMSampleBufferRef createSpoofedSampleBuffer() {
         }
 
         CVPixelBufferRef sourcePixelBuffer = NULL;
-        BOOL ownSourcePixelBuffer = NO;
 
-        // CRITICAL FIX: Always try GetFrame first for video content
+        // Prefer video frame extraction when video spoofing is configured.
         if (currentVideoPath && currentVideoPath.length > 0) {
-            NSLog(@"[LC] 🎬 createSpoofedSampleBuffer: Trying GetFrame for video frames");
             sourcePixelBuffer = [GetFrame getCurrentFramePixelBuffer:lastRequestedFormat];
-            if (sourcePixelBuffer) {
-                ownSourcePixelBuffer = YES;
-                NSLog(@"[LC] ✅ createSpoofedSampleBuffer: Got video frame from GetFrame");
-            } else {
-                NSLog(@"[LC] ❌ createSpoofedSampleBuffer: GetFrame returned NULL");
-            }
         }
         
-        // Fallback to static image if video fails or is not configured
+        // Static image fallback
         if (!sourcePixelBuffer && staticImageSpoofBuffer) {
-            NSLog(@"[LC] 📷 createSpoofedSampleBuffer: Using static image fallback");
-            sourcePixelBuffer = staticImageSpoofBuffer;
-            CVPixelBufferRetain(sourcePixelBuffer);
-            ownSourcePixelBuffer = YES;
+            sourcePixelBuffer = CVPixelBufferRetain(staticImageSpoofBuffer);
         }
         
         if (!sourcePixelBuffer) {
-            NSLog(@"[LC] ❌ createSpoofedSampleBuffer: No source buffer available");
-            // Return the last known good frame as an emergency fallback
+            // Emergency fallback: reuse previously generated spoofed frame.
             if (lastGoodSpoofedPixelBuffer) {
-                NSLog(@"[LC] 🆘 createSpoofedSampleBuffer: Using emergency fallback");
-                // Create sample buffer from emergency buffer
                 CMVideoFormatDescriptionRef formatDesc = NULL;
-                OSStatus formatStatus = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, lastGoodSpoofedPixelBuffer, &formatDesc);
+                if (lastGoodSpoofedFormatDesc) {
+                    formatDesc = (CMVideoFormatDescriptionRef)CFRetain(lastGoodSpoofedFormatDesc);
+                } else {
+                    OSStatus formatStatus = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, lastGoodSpoofedPixelBuffer, &formatDesc);
+                    if (formatStatus != noErr || !formatDesc) {
+                        return NULL;
+                    }
+                }
+
+                CMSampleTimingInfo timingInfo = {
+                    .duration = CMTimeMake(1, 30),
+                    .presentationTimeStamp = CMTimeMakeWithSeconds(CACurrentMediaTime(), NSEC_PER_SEC),
+                    .decodeTimeStamp = kCMTimeInvalid
+                };
                 
-                if (formatStatus == noErr && formatDesc) {
-                    CMSampleTimingInfo timingInfo = {
-                        .duration = CMTimeMake(1, 30),
-                        .presentationTimeStamp = CMTimeMakeWithSeconds(CACurrentMediaTime(), NSEC_PER_SEC),
-                        .decodeTimeStamp = kCMTimeInvalid
-                    };
-                    
-                    CMSampleBufferRef emergencySampleBuffer = NULL;
-                    CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault, lastGoodSpoofedPixelBuffer, formatDesc, &timingInfo, &emergencySampleBuffer);
+                CMSampleBufferRef emergencySampleBuffer = NULL;
+                OSStatus emergencyStatus = CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault, lastGoodSpoofedPixelBuffer, formatDesc, &timingInfo, &emergencySampleBuffer);
+                if (formatDesc) {
                     CFRelease(formatDesc);
+                }
+                if (emergencyStatus == noErr && emergencySampleBuffer) {
                     return emergencySampleBuffer;
                 }
             }
             return NULL;
         }
 
-        // Scale and convert the buffer to the desired resolution and format
+        // Single conversion pass for both scale and pixel format.
         CVPixelBufferRef finalPixelBuffer = createScaledPixelBuffer(sourcePixelBuffer, targetResolution);
-
-        if (ownSourcePixelBuffer) {
-            CVPixelBufferRelease(sourcePixelBuffer);
-        }
+        CVPixelBufferRelease(sourcePixelBuffer);
 
         if (!finalPixelBuffer) {
-            NSLog(@"[LC] ❌ createSpoofedSampleBuffer: Scaling/conversion failed");
             return NULL;
         }
         
-        // Create the final CMSampleBuffer
         CMVideoFormatDescriptionRef formatDesc = NULL;
         OSStatus formatStatus = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, finalPixelBuffer, &formatDesc);
         
-        if (formatStatus != noErr) {
-            NSLog(@"[LC] ❌ createSpoofedSampleBuffer: Format description creation failed: %d", formatStatus);
+        if (formatStatus != noErr || !formatDesc) {
             CVPixelBufferRelease(finalPixelBuffer);
             return NULL;
         }
@@ -663,20 +649,18 @@ static CMSampleBufferRef createSpoofedSampleBuffer() {
 
         // Cleanup
         CFRelease(formatDesc);
-        CVPixelBufferRelease(finalPixelBuffer);
         
         if (bufferStatus != noErr || !sampleBuffer) {
-            NSLog(@"[LC] ❌ createSpoofedSampleBuffer: Sample buffer creation failed: %d", bufferStatus);
+            CVPixelBufferRelease(finalPixelBuffer);
             return NULL;
         }
         
-        // IMPROVEMENT: Validate sample buffer before returning (TTtest pattern)
         if (sampleBuffer && CMSampleBufferIsValid(sampleBuffer)) {
-            updateLastGoodSpoofedFrame(CMSampleBufferGetImageBuffer(sampleBuffer), CMSampleBufferGetFormatDescription(sampleBuffer));
-            NSLog(@"[LC] ✅ createSpoofedSampleBuffer: Sample buffer created and validated successfully");
+            updateLastGoodSpoofedFrame(finalPixelBuffer, CMSampleBufferGetFormatDescription(sampleBuffer));
+            CVPixelBufferRelease(finalPixelBuffer);
             return sampleBuffer;
         } else {
-            NSLog(@"[LC] ❌ createSpoofedSampleBuffer: Sample buffer validation failed");
+            CVPixelBufferRelease(finalPixelBuffer);
             if (sampleBuffer) CFRelease(sampleBuffer);
             return NULL;
         }
@@ -1024,11 +1008,6 @@ static void setupVideoSpoofingResources() {
 // Add a simple frame cache at the top of GetFrame implementation
 static CVPixelBufferRef g_lastGoodFrame = NULL;
 
-// Add these static variables for high bitrate handling
-static CVPixelBufferRef g_highBitrateCache = NULL;
-static NSTimeInterval g_lastExtractionTime = 0;
-static Float64 g_videoDataRate = 0;
-
 // Fix the GetFrame getCurrentFrame method to better handle sample buffer creation:
 + (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originalFrame preserveOrientation:(BOOL)preserve {
     if (!spoofCameraEnabled) {
@@ -1205,99 +1184,16 @@ static NSString* fourCCToString(OSType fourCC) {
 }
 
 + (CVPixelBufferRef)getCurrentFramePixelBuffer:(OSType)requestedFormat {
-    NSLog(@"[LC] [GetFrame] getCurrentFramePixelBuffer called - format: %c%c%c%c", 
-          (requestedFormat >> 24) & 0xFF, (requestedFormat >> 16) & 0xFF, 
-          (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF);
-    
-    if (!spoofCameraEnabled || !frameExtractionPlayer || !playerIsReady) {
+    if (!spoofCameraEnabled || !frameExtractionPlayer || !frameExtractionPlayer.currentItem || !playerIsReady) {
         return NULL;
     }
     
-    // CRITICAL: During loop transition, return the cached transition frame
+    // During loop transition, return a stable cached frame.
     if (g_isLooping && g_loopTransitionFrame) {
-        NSLog(@"[LC] [GetFrame] 🔄 Loop transition: using cached frame");
         CVPixelBufferRetain(g_loopTransitionFrame);
         return g_loopTransitionFrame;
     }
-    
-    // CRITICAL: Get video bitrate (like cj)
-    if (g_videoDataRate == 0) {
-        NSArray *videoTracks = [frameExtractionPlayer.currentItem.asset tracksWithMediaType:AVMediaTypeVideo];
-        if (videoTracks.count > 0) {
-            g_videoDataRate = ((AVAssetTrack *)videoTracks.firstObject).estimatedDataRate;
-            NSLog(@"[LC] [GetFrame] Detected video bitrate: %.2f Mbps", g_videoDataRate / 1000000.0);
-        }
-    }
-    
-    BOOL isHighBitrate = g_videoDataRate > 2000000; // 2+ Mbps like your problematic video
-    NSTimeInterval currentTime = CACurrentMediaTime();
-    
-    // CRITICAL: Frame rate limiting for high bitrate videos (like VCAM does)
-    if (isHighBitrate) {
-        NSTimeInterval timeSinceLastExtraction = currentTime - g_lastExtractionTime;
-        
-        // For high bitrate videos, limit extraction to 15fps max (every 66ms)
-        if (timeSinceLastExtraction < 0.066 && g_highBitrateCache) {
-            NSLog(@"[LC] [GetFrame] 🎯 High bitrate: using cached frame (%.3fs since last)", timeSinceLastExtraction);
-            CVPixelBufferRetain(g_highBitrateCache);
-            return g_highBitrateCache;
-        }
-    }
-    
-    // FIXED: Much smoother frame progression
-    static int frameAdvanceCounter = 0;
-    static Float64 lastTargetSeconds = 0.0;
-    frameAdvanceCounter++;
-    
-    CMTime playerCurrentTime = frameExtractionPlayer.currentItem.currentTime;
-    CMTime duration = frameExtractionPlayer.currentItem.duration;
-    Float64 durationSeconds = CMTimeGetSeconds(duration);
-    
-    // CRITICAL FIX: Use real-time progression instead of fixed intervals
-    Float64 targetSeconds;
-    if (isHighBitrate) {
-        // For high bitrate: advance at 15fps (66ms = 0.066s intervals)
-        targetSeconds = fmod(frameAdvanceCounter * 0.066, durationSeconds - 0.5);
-    } else {
-        // Normal videos: advance at 30fps (33ms = 0.033s intervals) 
-        targetSeconds = fmod(frameAdvanceCounter * 0.033, durationSeconds - 0.5);
-    }
-    
-    // EVEN BETTER: Use actual time-based progression for smooth playback
-    static NSTimeInterval startTime = 0;
-    if (startTime == 0) {
-        startTime = currentTime;
-    }
-    
-    NSTimeInterval elapsed = currentTime - startTime;
-    if (isHighBitrate) {
-        // High bitrate: play at 15fps effective rate
-        targetSeconds = fmod(elapsed * 0.5, durationSeconds - 0.5); // 0.5x speed for stability
-    } else {
-        // Normal bitrate: play at normal speed
-        targetSeconds = fmod(elapsed, durationSeconds - 0.5);
-    }
-    
-    if (targetSeconds < 0.2) targetSeconds = 0.2; // Stay away from start
-    
-    // Only seek if we've moved significantly (reduces seeking overhead)
-    if (fabs(targetSeconds - lastTargetSeconds) > 0.020) { // 20ms threshold
-        CMTime seekTime = CMTimeMakeWithSeconds(targetSeconds, 600);
-        
-        [frameExtractionPlayer seekToTime:seekTime toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
-        lastTargetSeconds = targetSeconds;
-        
-        // Shorter waits for smoother playback
-        if (isHighBitrate) {
-            usleep(25000); // 25ms for high bitrate
-        } else {
-            usleep(10000); // 10ms for normal bitrate
-        }
-        
-        NSLog(@"[LC] [GetFrame] 🎯 Smooth seek to %.3fs (elapsed: %.3fs)", targetSeconds, elapsed);
-    }
-    
-    // Select output (your existing logic)
+
     AVPlayerItemVideoOutput *selectedOutput = NULL;
     switch (requestedFormat) {
         case 875704422: // '420v'
@@ -1314,79 +1210,58 @@ static NSString* fourCCToString(OSType fourCC) {
     }
     
     if (!selectedOutput) {
-        NSLog(@"[LC] [GetFrame] ❌ No output available");
-        return g_highBitrateCache ? (CVPixelBufferRetain(g_highBitrateCache), g_highBitrateCache) : NULL;
+        if (g_loopTransitionFrame) {
+            CVPixelBufferRetain(g_loopTransitionFrame);
+            return g_loopTransitionFrame;
+        }
+        if (g_lastGoodFrame) {
+            CVPixelBufferRetain(g_lastGoodFrame);
+            return g_lastGoodFrame;
+        }
+        return NULL;
     }
-    
-    // CRITICAL: Check buffer availability with patience for high bitrate
-    CMTime currentVideoTime = frameExtractionPlayer.currentItem.currentTime;
-    
-    if (![selectedOutput hasNewPixelBufferForItemTime:currentVideoTime]) {
-        if (isHighBitrate) {
-            NSLog(@"[LC] [GetFrame] 🎯 High bitrate: waiting for buffer...");
-            // Reduced wait time for smoother playback
-            usleep(50000); // 50ms wait (was 100ms)
-            
-            // Try a few frames ahead
-            for (int i = 1; i <= 3; i++) { // Reduced from 5 attempts
-                CMTime futureTime = CMTimeAdd(currentVideoTime, CMTimeMake(i, 30)); // Smaller jumps
-                if ([selectedOutput hasNewPixelBufferForItemTime:futureTime]) {
-                    currentVideoTime = futureTime;
-                    NSLog(@"[LC] [GetFrame] 🎯 High bitrate: found buffer at +%d frames", i);
-                    break;
-                }
+
+    CMTime outputTime = [selectedOutput itemTimeForHostTime:CACurrentMediaTime()];
+    if (!CMTIME_IS_VALID(outputTime) || CMTIME_IS_INDEFINITE(outputTime)) {
+        outputTime = frameExtractionPlayer.currentItem.currentTime;
+    }
+
+    AVPlayerItemVideoOutput *candidateOutputs[] = { selectedOutput, bgraOutput, yuv420vOutput, yuv420fOutput };
+    CVPixelBufferRef pixelBuffer = NULL;
+
+    for (NSUInteger i = 0; i < sizeof(candidateOutputs) / sizeof(candidateOutputs[0]); i++) {
+        AVPlayerItemVideoOutput *candidate = candidateOutputs[i];
+        if (!candidate) continue;
+
+        BOOL duplicate = NO;
+        for (NSUInteger j = 0; j < i; j++) {
+            if (candidateOutputs[j] == candidate) {
+                duplicate = YES;
+                break;
             }
         }
+        if (duplicate) continue;
+
+        pixelBuffer = [candidate copyPixelBufferForItemTime:outputTime itemTimeForDisplay:NULL];
+        if (pixelBuffer) {
+            break;
+        }
     }
-    
-    // Extract the frame
-    CVPixelBufferRef pixelBuffer = [selectedOutput copyPixelBufferForItemTime:currentVideoTime 
-                                                           itemTimeForDisplay:NULL];
-    
+
     if (pixelBuffer) {
-        NSLog(@"[LC] [GetFrame] ✅ Frame extracted (high bitrate: %@)", isHighBitrate ? @"YES" : @"NO");
-        
-        // Update cache for high bitrate videos
-        if (isHighBitrate) {
-            if (g_highBitrateCache) {
-                CVPixelBufferRelease(g_highBitrateCache);
-            }
-            g_highBitrateCache = pixelBuffer;
-            CVPixelBufferRetain(g_highBitrateCache);
-            g_lastExtractionTime = currentTime;
-        }
-        
-        // CRITICAL: Update g_lastGoodFrame for loop transitions
+        // Cache a stable fallback for brief extraction gaps.
         if (g_lastGoodFrame) {
             CVPixelBufferRelease(g_lastGoodFrame);
         }
         g_lastGoodFrame = pixelBuffer;
         CVPixelBufferRetain(g_lastGoodFrame);
-        
-        // Scale if needed
-        size_t width = CVPixelBufferGetWidth(pixelBuffer);
-        size_t height = CVPixelBufferGetHeight(pixelBuffer);
-        
-        if (width != (size_t)targetResolution.width || height != (size_t)targetResolution.height) {
-            CVPixelBufferRef scaledBuffer = createScaledPixelBuffer(pixelBuffer, targetResolution);
-            CVPixelBufferRelease(pixelBuffer);
-            return scaledBuffer;
-        }
-        
         return pixelBuffer;
     }
-    
-    NSLog(@"[LC] [GetFrame] ❌ Frame extraction failed - using fallback");
-    
-    // CRITICAL: Prioritize loop transition frame, then high bitrate cache, then g_lastGoodFrame
+
+    // Prioritize loop transition frame, then the last good frame.
     if (g_loopTransitionFrame) {
-        NSLog(@"[LC] [GetFrame] 🔄 Using loop transition frame as fallback");
         CVPixelBufferRetain(g_loopTransitionFrame);
         return g_loopTransitionFrame;
-    }
-    if (g_highBitrateCache) {
-        CVPixelBufferRetain(g_highBitrateCache);
-        return g_highBitrateCache;
     }
     if (g_lastGoodFrame) {
         CVPixelBufferRetain(g_lastGoodFrame);
@@ -1486,21 +1361,12 @@ static NSDate *g_lastVideoModificationDate = nil;
         g_lastGoodFrame = NULL;
     }
 
-    // Clean up high bitrate cache
-    if (g_highBitrateCache) {
-        CVPixelBufferRelease(g_highBitrateCache);
-        g_highBitrateCache = NULL;
-    }
-    
     // Clean up loop transition frame
     if (g_loopTransitionFrame) {
         CVPixelBufferRelease(g_loopTransitionFrame);
         g_loopTransitionFrame = NULL;
     }
     g_isLooping = NO;
-    
-    g_lastExtractionTime = 0;
-    g_videoDataRate = 0;
 
     bgraOutput = nil;
     yuv420vOutput = nil;
@@ -1633,10 +1499,15 @@ static CVPixelBufferRef g_loopTransitionFrame = NULL;
                                                  name:AVPlayerItemDidPlayToEndTimeNotification
                                                object:item];
     
-    // CRITICAL: Create outputs optimized for bitrate
-    CGSize outputSize = isHighBitrateVideo ? CGSizeMake(naturalSize.width / 2, naturalSize.height / 2) : naturalSize;
-    NSLog(@"[LC] [GetFrame] Using output size: %.0fx%.0f (downscaled: %@)", 
-          outputSize.width, outputSize.height, isHighBitrateVideo ? @"YES" : @"NO");
+    // Prefer source resolution unless we can downscale to a smaller known target.
+    BOOL canDownscaleToTarget =
+        targetResolution.width > 0 &&
+        targetResolution.height > 0 &&
+        targetResolution.width < naturalSize.width &&
+        targetResolution.height < naturalSize.height;
+    CGSize outputSize = canDownscaleToTarget ? targetResolution : naturalSize;
+    NSLog(@"[LC] [GetFrame] Using output size: %.0fx%.0f (downscaled: %@)",
+          outputSize.width, outputSize.height, canDownscaleToTarget ? @"YES" : @"NO");
     
     NSDictionary *bgraAttributes = @{
         (NSString*)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA),
@@ -2162,81 +2033,6 @@ static CVPixelBufferRef g_loopTransitionFrame = NULL;
 
 @end
 
-@interface GetFrameDelegate : NSObject <AVCaptureVideoDataOutputSampleBufferDelegate>
-@property (nonatomic, strong) id<AVCaptureVideoDataOutputSampleBufferDelegate> originalDelegate;
-@property (nonatomic, assign) AVCaptureOutput *originalOutput;
-@end
-
-@implementation GetFrameDelegate
-
-// Update the SimpleSpoofDelegate to track formats from REAL frames too:
-- (void)captureOutput:(AVCaptureOutput *)output didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection {
-    static int frameCounter = 0;
-    frameCounter++;
-    
-    if (frameCounter % 30 == 0) { // Log every 30 frames to avoid spam
-        NSLog(@"[LC] 📹 SimpleSpoofDelegate: Frame %d - spoofing: %@, output: %@", 
-              frameCounter, spoofCameraEnabled ? @"ON" : @"OFF", NSStringFromClass([output class]));
-    }
-    
-    
-    @try {
-        // CRITICAL: Always track the format from real frames
-        if (sampleBuffer) {
-            CMFormatDescriptionRef formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer);
-            if (formatDesc) {
-                OSType detectedFormat = CMFormatDescriptionGetMediaSubType(formatDesc); // FIXED: correct variable name
-                if (detectedFormat != lastRequestedFormat) {
-                    lastRequestedFormat = detectedFormat;
-                    NSLog(@"[LC] 📐 SimpleSpoofDelegate: Format detected from real frame: %c%c%c%c", 
-                          (detectedFormat >> 24) & 0xFF, (detectedFormat >> 16) & 0xFF, 
-                          (detectedFormat >> 8) & 0xFF, detectedFormat & 0xFF); // FIXED: use detectedFormat
-                }
-            }
-        }
-
-        if (spoofCameraEnabled) {
-            CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
-            if (spoofedFrame) {
-                if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-                    [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:spoofedFrame fromConnection:connection];
-                }
-                CFRelease(spoofedFrame);
-            } else {
-                // FALLBACK: Use lastGoodSpoofedPixelBuffer instead of real camera (NEVER show real camera)
-                if (lastGoodSpoofedPixelBuffer) {
-                    CMVideoFormatDescriptionRef videoInfo = NULL;
-                    CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, lastGoodSpoofedPixelBuffer, &videoInfo);
-                    if (videoInfo) {
-                        CMSampleTimingInfo timing = {0};
-                        timing.duration = CMTimeMake(1, 30);
-                        timing.presentationTimeStamp = CMTimeMakeWithSeconds(CACurrentMediaTime(), 1000000);
-                        timing.decodeTimeStamp = kCMTimeInvalid;
-                        
-                        CMSampleBufferRef fallbackFrame = nil;
-                        if (CMSampleBufferCreateForImageBuffer(kCFAllocatorDefault, lastGoodSpoofedPixelBuffer, true, NULL, NULL, videoInfo, &timing, &fallbackFrame) == noErr && fallbackFrame) {
-                            if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-                                [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:fallbackFrame fromConnection:connection];
-                            }
-                            CFRelease(fallbackFrame);
-                        }
-                        CFRelease(videoInfo);
-                    }
-                }
-                // If fallback fails, drop the frame entirely (never show real camera)
-            }
-        } else {
-            if (self.originalDelegate && [self.originalDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
-                [self.originalDelegate captureOutput:self.originalOutput didOutputSampleBuffer:sampleBuffer fromConnection:connection];
-            }
-        }
-    } @catch (NSException *exception) {
-        NSLog(@"[LC] ❌ Exception: %@", exception);
-    }
-}
-
-@end
-
 // pragma MARK: - Photo Data Management
 
 
@@ -2607,9 +2403,20 @@ static void cleanupPhotoCache(void) {
                 OSType mediaSubType = CMFormatDescriptionGetMediaSubType(formatDesc);
                 if (mediaSubType != lastRequestedFormat) {
                     lastRequestedFormat = mediaSubType;
-                    NSLog(@"[LC] 📐 SimpleSpoofDelegate: Format detected from real frame: %c%c%c%c", 
-                          (mediaSubType >> 24) & 0xFF, (mediaSubType >> 16) & 0xFF, 
-                          (mediaSubType >> 8) & 0xFF, mediaSubType & 0xFF);
+                }
+            }
+
+            CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
+            if (imageBuffer) {
+                size_t width = CVPixelBufferGetWidth(imageBuffer);
+                size_t height = CVPixelBufferGetHeight(imageBuffer);
+                if (width > 0 && height > 0) {
+                    if (!resolutionDetected ||
+                        (size_t)targetResolution.width != width ||
+                        (size_t)targetResolution.height != height) {
+                        targetResolution = CGSizeMake((CGFloat)width, (CGFloat)height);
+                    }
+                    resolutionDetected = YES;
                 }
             }
         }
@@ -3975,6 +3782,3 @@ void AVFoundationGuestHooksInit(void) {
         NSLog(@"[LC] ❌ Exception during initialization: %@", exception);
     }
 }
-
-
-
