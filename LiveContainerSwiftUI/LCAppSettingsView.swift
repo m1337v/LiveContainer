@@ -1902,540 +1902,6 @@ extension AVAssetExportSession.Status {
 
 // MARK: Device Section
 
-// MARK: - Device Profile Helper
-struct DeviceProfileInfo {
-    let model: String
-    let memory: String
-    let version: String
-    let chip: String
-}
-
-func getProfileInfo(for profileName: String) -> DeviceProfileInfo {
-    switch profileName {
-    // iOS 26.x - iPhone 17 Series
-    case "iPhone 17 Pro Max":
-        return DeviceProfileInfo(model: "iPhone18,2", memory: "12 GB", version: "26.0", chip: "A19 Pro")
-    case "iPhone 17 Pro":
-        return DeviceProfileInfo(model: "iPhone18,1", memory: "12 GB", version: "26.0", chip: "A19 Pro")
-    case "iPhone 17":
-        return DeviceProfileInfo(model: "iPhone18,3", memory: "8 GB", version: "26.0", chip: "A19")
-    case "iPhone 17 Air":
-        return DeviceProfileInfo(model: "iPhone18,4", memory: "8 GB", version: "26.0", chip: "A19")
-    // iOS 18.x - iPhone 16 Series
-    case "iPhone 16 Pro Max":
-        return DeviceProfileInfo(model: "iPhone17,2", memory: "8 GB", version: "18.1", chip: "A18 Pro")
-    case "iPhone 16 Pro":
-        return DeviceProfileInfo(model: "iPhone17,1", memory: "8 GB", version: "18.1", chip: "A18 Pro")
-    case "iPhone 16":
-        return DeviceProfileInfo(model: "iPhone17,3", memory: "8 GB", version: "18.1", chip: "A18")
-    // iOS 17.x - iPhone 15 Series
-    case "iPhone 15 Pro Max":
-        return DeviceProfileInfo(model: "iPhone16,2", memory: "8 GB", version: "17.6.1", chip: "A17 Pro")
-    case "iPhone 15 Pro":
-        return DeviceProfileInfo(model: "iPhone16,1", memory: "8 GB", version: "17.6.1", chip: "A17 Pro")
-    // iOS 17.x - iPhone 14 Series
-    case "iPhone 14 Pro Max":
-        return DeviceProfileInfo(model: "iPhone15,3", memory: "6 GB", version: "17.6.1", chip: "A16 Bionic")
-    case "iPhone 14 Pro":
-        return DeviceProfileInfo(model: "iPhone15,2", memory: "6 GB", version: "17.6.1", chip: "A16 Bionic")
-    // iOS 17.x - iPhone 13 Series
-    case "iPhone 13 Pro Max":
-        return DeviceProfileInfo(model: "iPhone14,3", memory: "6 GB", version: "17.6.1", chip: "A15 Bionic")
-    case "iPhone 13 Pro":
-        return DeviceProfileInfo(model: "iPhone14,2", memory: "6 GB", version: "17.6.1", chip: "A15 Bionic")
-    // iPad Pro M4 (iPadOS 18.x)
-    case "iPad Pro 13-inch (M4)":
-        return DeviceProfileInfo(model: "iPad16,5", memory: "16 GB", version: "18.1", chip: "M4")
-    case "iPad Pro 11-inch (M4)":
-        return DeviceProfileInfo(model: "iPad16,3", memory: "8 GB", version: "18.1", chip: "M4")
-    // iPad Pro M2 (iPadOS 17.x)
-    case "iPad Pro 12.9 (6th gen)":
-        return DeviceProfileInfo(model: "iPad14,5", memory: "16 GB", version: "17.6.1", chip: "M2")
-    default:
-        return DeviceProfileInfo(model: "Unknown", memory: "Unknown", version: "Unknown", chip: "Unknown")
-    }
-}
-
-// MARK: - Device Spoofing Section
-struct DeviceSpoofingSection: View {
-    // Device Spoofing bindings
-    @Binding var spoofDevice: Bool
-    @Binding var spoofDeviceModel: String
-    @Binding var spoofSystemVersion: String
-    @Binding var spoofDeviceName: String
-    @Binding var spoofCarrierName: String
-    @Binding var spoofCustomCarrier: String
-    @Binding var spoofBattery: Bool
-    @Binding var spoofBatteryLevel: Double
-    @Binding var spoofMemory: Bool
-    @Binding var spoofMemorySize: Int
-    
-    // Identifier Spoofing bindings
-    @Binding var spoofIdentifiers: Bool
-    @Binding var spoofVendorID: String
-    @Binding var spoofAdvertisingID: String
-    @Binding var spoofAdTrackingEnabled: Bool
-    @Binding var spoofInstallationID: String
-    @Binding var spoofMACAddress: String
-    
-    // Fingerprint Protection bindings
-    @Binding var spoofFingerprint: Bool
-    @Binding var spoofScreen: Bool
-    @Binding var spoofScreenScale: Double
-    @Binding var spoofScreenSize: String
-    @Binding var spoofTimezone: Bool
-    @Binding var spoofTimezoneValue: String
-    @Binding var spoofLanguage: Bool
-    @Binding var spoofPrimaryLanguage: String
-    @Binding var spoofRegion: String
-    
-    var body: some View {
-        Section {
-            // Master Device Spoofing Toggle
-            Toggle(isOn: $spoofDevice) {
-                HStack {
-                    Image(systemName: "iphone")
-                        .foregroundColor(.blue)
-                        .frame(width: 20)
-                    Text("Device Spoofing")
-                }
-            }
-            
-            if spoofDevice {
-                VStack(alignment: .leading, spacing: 16) {
-                    
-                    // MARK: - Basic Device Information
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Image(systemName: "gear")
-                                .foregroundColor(.gray)
-                                .frame(width: 20)
-                            Text("Device Information")
-                                .font(.headline)
-                        }
-                        
-                        // Device Model Selection
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Device Model")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Picker("Device Model", selection: $spoofDeviceModel) {
-                                Text("iPhone 15 Pro").tag("iPhone16,1")
-                                Text("iPhone 15").tag("iPhone15,4")
-                                Text("iPhone 14 Pro").tag("iPhone15,2")
-                                Text("iPhone 14").tag("iPhone14,7")
-                                Text("iPhone 13 Pro").tag("iPhone14,2")
-                                Text("iPhone 13").tag("iPhone14,5")
-                                Text("iPhone 12 Pro Max").tag("iPhone13,4")
-                                Text("iPhone 12 Pro").tag("iPhone13,3")
-                                Text("iPhone 12").tag("iPhone13,2")
-                                Text("iPhone 11 Pro Max").tag("iPhone12,5")
-                                Text("iPhone 11 Pro").tag("iPhone12,3")
-                                Text("iPhone 11").tag("iPhone12,1")
-                            }
-                            .pickerStyle(MenuPickerStyle())
-                        }
-                        
-                        // iOS Version Selection
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("iOS Version")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Picker("iOS Version", selection: $spoofSystemVersion) {
-                                Text("17.2").tag("17.2")
-                                Text("17.1.1").tag("17.1.1")
-                                Text("17.0").tag("17.0")
-                                Text("16.7.2").tag("16.7.2")
-                                Text("16.6.1").tag("16.6.1")
-                                Text("16.5").tag("16.5")
-                                Text("16.4.1").tag("16.4.1")
-                                Text("16.3.1").tag("16.3.1")
-                                Text("16.2").tag("16.2")
-                                Text("15.7.9").tag("15.7.9")
-                            }
-                            .pickerStyle(MenuPickerStyle())
-                        }
-                        
-                        // Device Name
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Device Name")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            TextField("Device Name", text: $spoofDeviceName)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                        }
-                        
-                        // Carrier Name
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Carrier Name")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Picker("Carrier", selection: $spoofCarrierName) {
-                                Text("Verizon").tag("Verizon")
-                                Text("AT&T").tag("AT&T")
-                                Text("T-Mobile").tag("T-Mobile")
-                                Text("Sprint").tag("Sprint")
-                                Text("Custom").tag("Custom")
-                            }
-                            .pickerStyle(MenuPickerStyle())
-                        }
-                        
-                        if spoofCarrierName == "Custom" {
-                            TextField("Custom Carrier", text: $spoofCustomCarrier)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .padding(.leading, 20)
-                        }
-                    }
-                    
-                    Divider()
-                    
-                    // MARK: - Hardware Spoofing
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Image(systemName: "cpu")
-                                .foregroundColor(.gray)
-                                .frame(width: 20)
-                            Text("Hardware Information")
-                                .font(.headline)
-                        }
-                        
-                        Toggle("Spoof Battery Level", isOn: $spoofBattery)
-                        
-                        if spoofBattery {
-                            HStack {
-                                Text("Battery Level: \(Int(spoofBatteryLevel * 100))%")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                                Slider(value: $spoofBatteryLevel, in: 0...1)
-                                    .frame(maxWidth: 150)
-                            }
-                            .padding(.leading, 20)
-                        }
-                        
-                        Toggle("Spoof Memory Info", isOn: $spoofMemory)
-                        
-                        if spoofMemory {
-                            HStack {
-                                Text("RAM Size")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                                Picker("RAM", selection: $spoofMemorySize) {
-                                    Text("4 GB").tag(4)
-                                    Text("6 GB").tag(6)
-                                    Text("8 GB").tag(8)
-                                    Text("12 GB").tag(12)
-                                }
-                                .pickerStyle(SegmentedPickerStyle())
-                                .frame(maxWidth: 200)
-                            }
-                            .padding(.leading, 20)
-                        }
-                    }
-                    
-                    Divider()
-                    
-                    // MARK: - Identifier Spoofing
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Image(systemName: "qrcode")
-                                .foregroundColor(.purple)
-                                .frame(width: 20)
-                            Text("Device Identifiers")
-                                .font(.headline)
-                            Spacer()
-                            Toggle("", isOn: $spoofIdentifiers)
-                                .labelsHidden()
-                        }
-                        
-                        if spoofIdentifiers {
-                            // Vendor Identifier
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Vendor Identifier (IDFV)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                HStack {
-                                    TextField("IDFV", text: $spoofVendorID)
-                                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                                        .font(.system(.caption, design: .monospaced))
-                                    Button("Generate") {
-                                        spoofVendorID = UUID().uuidString
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                }
-                            }
-                            
-                            // Advertising Identifier
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Advertising Identifier (IDFA)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                HStack {
-                                    TextField("IDFA", text: $spoofAdvertisingID)
-                                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                                        .font(.system(.caption, design: .monospaced))
-                                    Button("Generate") {
-                                        spoofAdvertisingID = UUID().uuidString
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                }
-                            }
-                            
-                            Toggle("Enable Advertising Tracking", isOn: $spoofAdTrackingEnabled)
-                                .padding(.leading, 20)
-                            
-                            // Installation Identifier
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Installation ID")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                HStack {
-                                    TextField("Installation ID", text: $spoofInstallationID)
-                                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                                        .font(.system(.caption, design: .monospaced))
-                                    Button("Generate") {
-                                        spoofInstallationID = generateRandomString(16)
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                }
-                            }
-                            
-                            // MAC Address
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("WiFi MAC Address")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                HStack {
-                                    TextField("MAC Address", text: $spoofMACAddress)
-                                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                                        .font(.system(.caption, design: .monospaced))
-                                    Button("Generate") {
-                                        spoofMACAddress = generateRandomMAC()
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                }
-                            }
-                        }
-                    }
-                    
-                    Divider()
-                    
-                    // MARK: - Fingerprint Protection
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Image(systemName: "hand.raised.fill")
-                                .foregroundColor(.orange)
-                                .frame(width: 20)
-                            Text("Fingerprint Protection")
-                                .font(.headline)
-                            Spacer()
-                            Toggle("", isOn: $spoofFingerprint)
-                                .labelsHidden()
-                        }
-                        
-                        if spoofFingerprint {
-                            // Screen Info
-                            Toggle("Spoof Screen Properties", isOn: $spoofScreen)
-                            
-                            if spoofScreen {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack {
-                                        Text("Screen Scale")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                        Spacer()
-                                        Picker("Scale", selection: $spoofScreenScale) {
-                                            Text("2.0x").tag(2.0)
-                                            Text("3.0x").tag(3.0)
-                                        }
-                                        .pickerStyle(SegmentedPickerStyle())
-                                        .frame(maxWidth: 120)
-                                    }
-                                    
-                                    HStack {
-                                        Text("Screen Size")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                        Spacer()
-                                        Picker("Size", selection: $spoofScreenSize) {
-                                            Text("iPhone 15 Pro").tag("1179x2556")
-                                            Text("iPhone 15").tag("1179x2556")
-                                            Text("iPhone 14 Pro").tag("1179x2556")
-                                            Text("iPhone 13 Pro").tag("1170x2532")
-                                            Text("iPhone 12 Pro").tag("1170x2532")
-                                            Text("iPhone 11 Pro").tag("1125x2436")
-                                            Text("iPhone XR").tag("828x1792")
-                                        }
-                                        .pickerStyle(MenuPickerStyle())
-                                        .frame(maxWidth: 150)
-                                    }
-                                }
-                                .padding(.leading, 20)
-                            }
-                            
-                            // Timezone Spoofing
-                            Toggle("Spoof Timezone", isOn: $spoofTimezone)
-                            
-                            if spoofTimezone {
-                                HStack {
-                                    Text("Timezone")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Spacer()
-                                    Picker("Timezone", selection: $spoofTimezoneValue) {
-                                        Text("America/New_York").tag("America/New_York")
-                                        Text("America/Los_Angeles").tag("America/Los_Angeles")
-                                        Text("America/Chicago").tag("America/Chicago")
-                                        Text("Europe/London").tag("Europe/London")
-                                        Text("Europe/Paris").tag("Europe/Paris")
-                                        Text("Asia/Tokyo").tag("Asia/Tokyo")
-                                        Text("Asia/Shanghai").tag("Asia/Shanghai")
-                                        Text("Australia/Sydney").tag("Australia/Sydney")
-                                    }
-                                    .pickerStyle(MenuPickerStyle())
-                                    .frame(maxWidth: 200)
-                                }
-                                .padding(.leading, 20)
-                            }
-                            
-                            // Language Spoofing
-                            Toggle("Spoof Language/Locale", isOn: $spoofLanguage)
-                            
-                            if spoofLanguage {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack {
-                                        Text("Primary Language")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                        Spacer()
-                                        Picker("Language", selection: $spoofPrimaryLanguage) {
-                                            Text("English").tag("en")
-                                            Text("Spanish").tag("es")
-                                            Text("French").tag("fr")
-                                            Text("German").tag("de")
-                                            Text("Chinese").tag("zh")
-                                            Text("Japanese").tag("ja")
-                                        }
-                                        .pickerStyle(MenuPickerStyle())
-                                        .frame(maxWidth: 120)
-                                    }
-                                    
-                                    HStack {
-                                        Text("Region")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                        Spacer()
-                                        Picker("Region", selection: $spoofRegion) {
-                                            Text("United States").tag("US")
-                                            Text("United Kingdom").tag("GB")
-                                            Text("Canada").tag("CA")
-                                            Text("Australia").tag("AU")
-                                            Text("Germany").tag("DE")
-                                            Text("France").tag("FR")
-                                            Text("Japan").tag("JP")
-                                            Text("China").tag("CN")
-                                        }
-                                        .pickerStyle(MenuPickerStyle())
-                                        .frame(maxWidth: 150)
-                                    }
-                                }
-                                .padding(.leading, 20)
-                            }
-                        }
-                    }
-                    
-                    Divider()
-                    
-                    // MARK: - Utility Actions
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Button("🎲 Randomize All") {
-                                randomizeAllIdentifiers()
-                            }
-                            .buttonStyle(.bordered)
-                            
-                            Spacer()
-                            
-                            Button("🔄 Reset to Default") {
-                                resetToDefaultIdentifiers()
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                        
-                        Text("⚠️ Some changes require app restart to take effect")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                    }
-                }
-            }
-        } header: {
-            Text("Device & Identifier Spoofing")
-        } footer: {
-            if spoofDevice {
-                Text("Protects against device fingerprinting by spoofing various device characteristics, identifiers, and system properties.")
-            }
-        }
-    }
-    
-    // MARK: - Helper Functions
-    
-    private func generateRandomString(_ length: Int) -> String {
-        let letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        return String((0..<length).map{ _ in letters.randomElement()! })
-    }
-    
-    private func generateRandomMAC() -> String {
-        return (0..<6).map { _ in
-            String(format: "%02x", Int.random(in: 0...255))
-        }.joined(separator: ":")
-    }
-    
-    private func randomizeAllIdentifiers() {
-        spoofVendorID = UUID().uuidString
-        spoofAdvertisingID = UUID().uuidString
-        spoofInstallationID = generateRandomString(16)
-        spoofMACAddress = generateRandomMAC()
-        
-        // Randomize device info
-        let models = ["iPhone16,1", "iPhone15,4", "iPhone15,2", "iPhone14,7", "iPhone14,2"]
-        let versions = ["17.2", "17.1.1", "17.0", "16.7.2", "16.6.1"]
-        let carriers = ["Verizon", "AT&T", "T-Mobile", "Sprint"]
-        let names = ["iPhone", "John's iPhone", "Sarah's iPhone", "My iPhone"]
-        
-        spoofDeviceModel = models.randomElement() ?? "iPhone15,2"
-        spoofSystemVersion = versions.randomElement() ?? "17.2"
-        spoofCarrierName = carriers.randomElement() ?? "Verizon"
-        spoofDeviceName = names.randomElement() ?? "iPhone"
-        spoofBatteryLevel = Double.random(in: 0.2...0.95)
-        
-        print("🎲 Randomized all device identifiers and properties")
-    }
-    
-    private func resetToDefaultIdentifiers() {
-        spoofVendorID = "12345678-1234-1234-1234-123456789012"
-        spoofAdvertisingID = "87654321-4321-4321-4321-210987654321"
-        spoofInstallationID = "DEFAULT12345678"
-        spoofMACAddress = "02:00:00:00:00:00"
-        spoofDeviceModel = "iPhone15,2"
-        spoofSystemVersion = "17.2"
-        spoofCarrierName = "Verizon"
-        spoofDeviceName = "iPhone"
-        spoofBatteryLevel = 0.85
-        spoofScreenScale = 3.0
-        spoofScreenSize = "1179x2556"
-        spoofTimezoneValue = "America/New_York"
-        spoofPrimaryLanguage = "en"
-        spoofRegion = "US"
-        
-        print("🔄 Reset all device identifiers to defaults")
-    }
-}
-
 // MARK: Main
 
 struct LCAppSettingsView: View {
@@ -2647,134 +2113,8 @@ struct LCAppSettingsView: View {
                 Text("Security Settings")
             }
 
-            // MARK: Device Spoofing (Profile-Based)
-            Section {
-                Toggle(isOn: $model.uiDeviceSpoofingEnabled) {
-                    HStack {
-                        Image(systemName: "iphone")
-                            .foregroundColor(.blue)
-                            .frame(width: 20)
-                        Text("Device Spoofing")
-                    }
-                }
-                
-                if model.uiDeviceSpoofingEnabled {
-                    // Device Profile Selection
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Device Profile")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Picker("Device Profile", selection: $model.uiDeviceSpoofProfile) {
-                            // iOS 26.x - iPhone 17 Series
-                            Section(header: Text("iOS 26.x")) {
-                                Text("iPhone 17 Pro Max").tag("iPhone 17 Pro Max")
-                                Text("iPhone 17 Pro").tag("iPhone 17 Pro")
-                                Text("iPhone 17").tag("iPhone 17")
-                                Text("iPhone 17 Air").tag("iPhone 17 Air")
-                            }
-                            // iOS 18.x - iPhone 16 Series
-                            Section(header: Text("iOS 18.x")) {
-                                Text("iPhone 16 Pro Max").tag("iPhone 16 Pro Max")
-                                Text("iPhone 16 Pro").tag("iPhone 16 Pro")
-                                Text("iPhone 16").tag("iPhone 16")
-                            }
-                            // iOS 17.x - iPhone 15 Series
-                            Section(header: Text("iOS 17.x")) {
-                                Text("iPhone 15 Pro Max").tag("iPhone 15 Pro Max")
-                                Text("iPhone 15 Pro").tag("iPhone 15 Pro")
-                                Text("iPhone 14 Pro Max").tag("iPhone 14 Pro Max")
-                                Text("iPhone 14 Pro").tag("iPhone 14 Pro")
-                                Text("iPhone 13 Pro Max").tag("iPhone 13 Pro Max")
-                                Text("iPhone 13 Pro").tag("iPhone 13 Pro")
-                            }
-                            // iPad Pro
-                            Section(header: Text("iPad")) {
-                                Text("iPad Pro 13-inch (M4)").tag("iPad Pro 13-inch (M4)")
-                                Text("iPad Pro 11-inch (M4)").tag("iPad Pro 11-inch (M4)")
-                                Text("iPad Pro 12.9 (6th gen)").tag("iPad Pro 12.9 (6th gen)")
-                            }
-                        }
-                        .pickerStyle(MenuPickerStyle())
-                    }
-                    
-                    // Profile Info
-                    let profileInfo = getProfileInfo(for: model.uiDeviceSpoofProfile)
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Model:")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .frame(width: 60, alignment: .leading)
-                            Text(profileInfo.model)
-                                .font(.caption)
-                                .foregroundColor(.primary)
-                        }
-                        HStack {
-                            Text("Memory:")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .frame(width: 60, alignment: .leading)
-                            Text(profileInfo.memory)
-                                .font(.caption)
-                                .foregroundColor(.primary)
-                        }
-                        HStack {
-                            Text("iOS:")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .frame(width: 60, alignment: .leading)
-                            Text(profileInfo.version)
-                                .font(.caption)
-                                .foregroundColor(.primary)
-                        }
-                        HStack {
-                            Text("Chip:")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .frame(width: 60, alignment: .leading)
-                            Text(profileInfo.chip)
-                                .font(.caption)
-                                .foregroundColor(.primary)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-            } header: {
-                Text("Device Fingerprinting Protection")
-            } footer: {
-                if model.uiDeviceSpoofingEnabled {
-                    Text("Spoofs sysctlbyname, sysctl, uname, UIDevice, UIScreen, NSProcessInfo, and ASIdentifierManager to protect against device fingerprinting.")
-                }
-            }
-
-            // MARK: Identifier Section (Legacy)
-            DeviceSpoofingSection(
-                spoofDevice: $model.uiSpoofDevice,
-                spoofDeviceModel: $model.uiSpoofDeviceModel,
-                spoofSystemVersion: $model.uiSpoofSystemVersion,
-                spoofDeviceName: $model.uiSpoofDeviceName,
-                spoofCarrierName: $model.uiSpoofCarrierName,
-                spoofCustomCarrier: $model.uiSpoofCustomCarrier,
-                spoofBattery: $model.uiSpoofBattery,
-                spoofBatteryLevel: $model.uiSpoofBatteryLevel,
-                spoofMemory: $model.uiSpoofMemory,
-                spoofMemorySize: $model.uiSpoofMemorySize,
-                spoofIdentifiers: $model.uiSpoofIdentifiers,
-                spoofVendorID: $model.uiSpoofVendorID,
-                spoofAdvertisingID: $model.uiSpoofAdvertisingID,
-                spoofAdTrackingEnabled: $model.uiSpoofAdTrackingEnabled,
-                spoofInstallationID: $model.uiSpoofInstallationID,
-                spoofMACAddress: $model.uiSpoofMACAddress,
-                spoofFingerprint: $model.uiSpoofFingerprint,
-                spoofScreen: $model.uiSpoofScreen,
-                spoofScreenScale: $model.uiSpoofScreenScale,
-                spoofScreenSize: $model.uiSpoofScreenSize,
-                spoofTimezone: $model.uiSpoofTimezone,
-                spoofTimezoneValue: $model.uiSpoofTimezoneValue,
-                spoofLanguage: $model.uiSpoofLanguage,
-                spoofPrimaryLanguage: $model.uiSpoofPrimaryLanguage,
-                spoofRegion: $model.uiSpoofRegion
-            )
+            // MARK: Device Spoofing (Profile-Based) — extracted to reduce type-checker load
+            deviceSpoofingSection()
             
             Section {
                 Toggle(isOn: $model.uiIsJITNeeded) {
@@ -3055,6 +2395,545 @@ struct LCAppSettingsView: View {
         }
         .fileImporter(isPresented: $choosingStorage, allowedContentTypes: [.folder]) { result in
             Task { await importDataStorage(result: result) }
+        }
+    }
+
+    // MARK: - Device Spoofing Section (extracted to reduce type-checker load)
+    @ViewBuilder
+    private func deviceSpoofingSection() -> some View {
+        Section {
+            Toggle(isOn: $model.uiDeviceSpoofingEnabled) {
+                HStack {
+                    Image(systemName: "iphone")
+                        .foregroundColor(.blue)
+                        .frame(width: 20)
+                    Text("Device Spoofing")
+                }
+            }
+
+            if model.uiDeviceSpoofingEnabled {
+                deviceSpoofProfilePicker()
+                deviceSpoofVersionPicker()
+
+                Divider()
+                deviceSpoofDeviceNameSection()
+
+                Divider()
+                deviceSpoofCarrierSection()
+
+                Divider()
+                deviceSpoofIdentifiersSection()
+
+                Divider()
+                deviceSpoofTimezoneSection()
+                deviceSpoofLocaleSection()
+
+                Divider()
+                deviceSpoofBootTimeSection()
+
+                Divider()
+                deviceSpoofUserAgentSection()
+
+                Divider()
+                deviceSpoofBatterySection()
+
+                Divider()
+                deviceSpoofStorageSection()
+
+                Divider()
+                deviceSpoofBrightnessSection()
+
+                Divider()
+                deviceSpoofThermalSection()
+
+                Divider()
+                deviceSpoofLowPowerSection()
+
+                Divider()
+                // Screen Capture / Recording Detection Block
+                Toggle(isOn: $model.uiDeviceSpoofScreenCapture) {
+                    HStack {
+                        Image(systemName: "record.circle")
+                            .foregroundColor(.red)
+                            .frame(width: 20)
+                        Text("Block Screen Capture Detection")
+                    }
+                }
+            }
+        } header: {
+            Text("Device Fingerprinting Protection")
+        } footer: {
+            if model.uiDeviceSpoofingEnabled {
+                Text("Hooks sysctl, uname, UIDevice, NSProcessInfo, ASIdentifierManager, boot time, uptime, user-agent & more. Independent iOS version override lets you report a different OS version than the profile's hardware default.")
+            }
+        }
+    }
+
+    // MARK: Device Profile Picker
+    @ViewBuilder
+    private func deviceSpoofProfilePicker() -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Device Profile")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Picker("Device Profile", selection: $model.uiDeviceSpoofProfile) {
+                Section(header: Text("iOS 26.x — iPhone 17")) {
+                    Text("iPhone 17 Pro Max").tag("iPhone 17 Pro Max")
+                    Text("iPhone 17 Pro").tag("iPhone 17 Pro")
+                    Text("iPhone 17").tag("iPhone 17")
+                    Text("iPhone 17 Air").tag("iPhone 17 Air")
+                }
+                Section(header: Text("iOS 18.x — iPhone 16")) {
+                    Text("iPhone 16 Pro Max").tag("iPhone 16 Pro Max")
+                    Text("iPhone 16 Pro").tag("iPhone 16 Pro")
+                    Text("iPhone 16").tag("iPhone 16")
+                }
+                Section(header: Text("iOS 17.x")) {
+                    Text("iPhone 15 Pro Max").tag("iPhone 15 Pro Max")
+                    Text("iPhone 15 Pro").tag("iPhone 15 Pro")
+                    Text("iPhone 14 Pro Max").tag("iPhone 14 Pro Max")
+                    Text("iPhone 14 Pro").tag("iPhone 14 Pro")
+                    Text("iPhone 13 Pro Max").tag("iPhone 13 Pro Max")
+                    Text("iPhone 13 Pro").tag("iPhone 13 Pro")
+                }
+                Section(header: Text("iPad")) {
+                    Text("iPad Pro 13-inch (M4)").tag("iPad Pro 13-inch (M4)")
+                    Text("iPad Pro 11-inch (M4)").tag("iPad Pro 11-inch (M4)")
+                    Text("iPad Pro 12.9 (6th gen)").tag("iPad Pro 12.9 (6th gen)")
+                }
+            }
+            .pickerStyle(MenuPickerStyle())
+        }
+    }
+
+    // MARK: iOS Version Override Picker
+    @ViewBuilder
+    private func deviceSpoofVersionPicker() -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("iOS Version Override")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Picker("iOS Version", selection: $model.uiDeviceSpoofCustomVersion) {
+                Text("Use Profile Default").tag("")
+                Section(header: Text("iOS 26.x")) {
+                    Text("26.0").tag("26.0")
+                    Text("26.0.1").tag("26.0.1")
+                    Text("26.1").tag("26.1")
+                }
+                Section(header: Text("iOS 18.x")) {
+                    Text("18.5.1").tag("18.5.1")
+                    Text("18.5").tag("18.5")
+                    Text("18.4.1").tag("18.4.1")
+                    Text("18.3.2").tag("18.3.2")
+                    Text("18.2.1").tag("18.2.1")
+                    Text("18.1.1").tag("18.1.1")
+                    Text("18.1").tag("18.1")
+                    Text("18.0.1").tag("18.0.1")
+                }
+                Section(header: Text("iOS 17.x")) {
+                    Text("17.7.6").tag("17.7.6")
+                    Text("17.7.2").tag("17.7.2")
+                    Text("17.6.1").tag("17.6.1")
+                    Text("17.5.1").tag("17.5.1")
+                    Text("17.4.1").tag("17.4.1")
+                    Text("17.3.1").tag("17.3.1")
+                    Text("17.2.1").tag("17.2.1")
+                    Text("17.1.2").tag("17.1.2")
+                    Text("17.0.3").tag("17.0.3")
+                }
+                Section(header: Text("iOS 16.x")) {
+                    Text("16.7.2").tag("16.7.2")
+                    Text("16.6.1").tag("16.6.1")
+                    Text("16.5").tag("16.5")
+                }
+            }
+            .pickerStyle(MenuPickerStyle())
+            if !model.uiDeviceSpoofCustomVersion.isEmpty {
+                Text("Overrides the profile's built-in iOS version")
+                    .font(.caption2)
+                    .foregroundColor(.orange)
+            }
+        }
+    }
+
+    // MARK: Device Name
+    @ViewBuilder
+    private func deviceSpoofDeviceNameSection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofDeviceName) {
+            HStack {
+                Image(systemName: "textformat")
+                    .foregroundColor(.gray)
+                    .frame(width: 20)
+                Text("Spoof Device Name")
+            }
+        }
+        if model.uiDeviceSpoofDeviceName {
+            TextField("Device Name", text: $model.uiDeviceSpoofDeviceNameValue)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .padding(.leading, 28)
+        }
+    }
+
+    // MARK: Carrier
+    @ViewBuilder
+    private func deviceSpoofCarrierSection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofCarrier) {
+            HStack {
+                Image(systemName: "antenna.radiowaves.left.and.right")
+                    .foregroundColor(.green)
+                    .frame(width: 20)
+                Text("Spoof Carrier")
+            }
+        }
+        if model.uiDeviceSpoofCarrier {
+            VStack(alignment: .leading, spacing: 8) {
+                Picker("Carrier", selection: $model.uiDeviceSpoofCarrierName) {
+                    Text("Verizon").tag("Verizon")
+                    Text("AT&T").tag("AT&T")
+                    Text("T-Mobile").tag("T-Mobile")
+                    Text("Sprint").tag("Sprint")
+                    Text("Vodafone").tag("Vodafone")
+                    Text("O2").tag("O2")
+                    Text("EE").tag("EE")
+                    Text("Three").tag("Three")
+                }
+                .pickerStyle(MenuPickerStyle())
+
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("MCC")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        TextField("311", text: $model.uiDeviceSpoofMCC)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .font(.system(.caption, design: .monospaced))
+                            .frame(maxWidth: 70)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("MNC")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        TextField("480", text: $model.uiDeviceSpoofMNC)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .font(.system(.caption, design: .monospaced))
+                            .frame(maxWidth: 70)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Country")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        TextField("us", text: $model.uiDeviceSpoofCarrierCountry)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .font(.system(.caption, design: .monospaced))
+                            .frame(maxWidth: 70)
+                    }
+                }
+            }
+            .padding(.leading, 28)
+        }
+    }
+
+    // MARK: Identifiers (IDFV / IDFA)
+    @ViewBuilder
+    private func deviceSpoofIdentifiersSection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofIdentifiers) {
+            HStack {
+                Image(systemName: "qrcode")
+                    .foregroundColor(.purple)
+                    .frame(width: 20)
+                Text("Spoof Identifiers")
+            }
+        }
+        if model.uiDeviceSpoofIdentifiers {
+            VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Vendor ID (IDFV)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    HStack {
+                        TextField("IDFV", text: $model.uiDeviceSpoofVendorID)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .font(.system(.caption, design: .monospaced))
+                        Button {
+                            model.uiDeviceSpoofVendorID = UUID().uuidString
+                        } label: {
+                            Image(systemName: "dice")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Advertising ID (IDFA)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    HStack {
+                        TextField("IDFA", text: $model.uiDeviceSpoofAdvertisingID)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .font(.system(.caption, design: .monospaced))
+                        Button {
+                            model.uiDeviceSpoofAdvertisingID = UUID().uuidString
+                        } label: {
+                            Image(systemName: "dice")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+            }
+            .padding(.leading, 28)
+        }
+    }
+
+    // MARK: Timezone
+    @ViewBuilder
+    private func deviceSpoofTimezoneSection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofTimezone) {
+            HStack {
+                Image(systemName: "clock")
+                    .foregroundColor(.orange)
+                    .frame(width: 20)
+                Text("Spoof Timezone")
+            }
+        }
+        if model.uiDeviceSpoofTimezone {
+            Picker("Timezone", selection: $model.uiDeviceSpoofTimezoneValue) {
+                Text("America/New_York").tag("America/New_York")
+                Text("America/Chicago").tag("America/Chicago")
+                Text("America/Denver").tag("America/Denver")
+                Text("America/Los_Angeles").tag("America/Los_Angeles")
+                Text("Europe/London").tag("Europe/London")
+                Text("Europe/Paris").tag("Europe/Paris")
+                Text("Europe/Berlin").tag("Europe/Berlin")
+                Text("Asia/Tokyo").tag("Asia/Tokyo")
+                Text("Asia/Shanghai").tag("Asia/Shanghai")
+                Text("Asia/Kolkata").tag("Asia/Kolkata")
+                Text("Australia/Sydney").tag("Australia/Sydney")
+            }
+            .pickerStyle(MenuPickerStyle())
+            .padding(.leading, 28)
+        }
+    }
+
+    // MARK: Locale
+    @ViewBuilder
+    private func deviceSpoofLocaleSection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofLocale) {
+            HStack {
+                Image(systemName: "globe")
+                    .foregroundColor(.cyan)
+                    .frame(width: 20)
+                Text("Spoof Locale")
+            }
+        }
+        if model.uiDeviceSpoofLocale {
+            Picker("Locale", selection: $model.uiDeviceSpoofLocaleValue) {
+                Text("English (US) — en_US").tag("en_US")
+                Text("English (GB) — en_GB").tag("en_GB")
+                Text("English (AU) — en_AU").tag("en_AU")
+                Text("French — fr_FR").tag("fr_FR")
+                Text("German — de_DE").tag("de_DE")
+                Text("Spanish — es_ES").tag("es_ES")
+                Text("Japanese — ja_JP").tag("ja_JP")
+                Text("Chinese — zh_CN").tag("zh_CN")
+                Text("Korean — ko_KR").tag("ko_KR")
+                Text("Portuguese — pt_BR").tag("pt_BR")
+            }
+            .pickerStyle(MenuPickerStyle())
+            .padding(.leading, 28)
+        }
+    }
+
+    // MARK: Boot Time & Uptime (inspired by Project-X BootTimeHooks)
+    @ViewBuilder
+    private func deviceSpoofBootTimeSection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofBootTime) {
+            HStack {
+                Image(systemName: "power")
+                    .foregroundColor(.mint)
+                    .frame(width: 20)
+                Text("Spoof Boot Time / Uptime")
+            }
+        }
+        if model.uiDeviceSpoofBootTime {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Randomises KERN_BOOTTIME and NSProcessInfo.systemUptime so the device appears freshly rebooted on each launch.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Picker("Simulated uptime", selection: $model.uiDeviceSpoofBootTimeRange) {
+                    Text("1 – 4 hours").tag("short")
+                    Text("4 – 24 hours").tag("medium")
+                    Text("1 – 3 days").tag("long")
+                    Text("3 – 7 days").tag("week")
+                }
+                .pickerStyle(MenuPickerStyle())
+            }
+            .padding(.leading, 28)
+        }
+    }
+
+    // MARK: User-Agent
+    @ViewBuilder
+    private func deviceSpoofUserAgentSection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofUserAgent) {
+            HStack {
+                Image(systemName: "safari")
+                    .foregroundColor(.blue)
+                    .frame(width: 20)
+                Text("Spoof User-Agent")
+            }
+        }
+        if model.uiDeviceSpoofUserAgent {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Custom User-Agent string for WKWebView & NSURLSession requests.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                TextField("Mozilla/5.0 …", text: $model.uiDeviceSpoofUserAgentValue)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .font(.system(.caption, design: .monospaced))
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+                Button {
+                    // Auto-build a plausible UA from the selected profile + version
+                    let profile = model.uiDeviceSpoofProfile
+                    let ver = model.uiDeviceSpoofCustomVersion.isEmpty ? "18.4.1" : model.uiDeviceSpoofCustomVersion
+                    let verU = ver.replacingOccurrences(of: ".", with: "_")
+                    model.uiDeviceSpoofUserAgentValue = "Mozilla/5.0 (\(profile); CPU iPhone OS \(verU) like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/\(ver) Mobile/15E148 Safari/604.1"
+                } label: {
+                    Label("Generate from profile", systemImage: "wand.and.stars")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            .padding(.leading, 28)
+        }
+    }
+
+    // MARK: Battery (Project-X BatteryHooks parity)
+    @ViewBuilder
+    private func deviceSpoofBatterySection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofBattery) {
+            HStack {
+                Image(systemName: "battery.75percent")
+                    .foregroundColor(.green)
+                    .frame(width: 20)
+                Text("Spoof Battery")
+            }
+        }
+        if model.uiDeviceSpoofBattery {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Level")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Slider(value: $model.uiDeviceSpoofBatteryLevel, in: 0.05...1.0, step: 0.05)
+                    Text("\(Int(model.uiDeviceSpoofBatteryLevel * 100))%")
+                        .font(.system(.caption, design: .monospaced))
+                        .frame(width: 40, alignment: .trailing)
+                }
+                Picker("State", selection: $model.uiDeviceSpoofBatteryState) {
+                    Text("Unknown").tag(0)
+                    Text("Unplugged").tag(1)
+                    Text("Charging").tag(2)
+                    Text("Full").tag(3)
+                }
+                .pickerStyle(SegmentedPickerStyle())
+            }
+            .padding(.leading, 28)
+        }
+    }
+
+    // MARK: Storage (Project-X DeviceSpecHooks parity)
+    @ViewBuilder
+    private func deviceSpoofStorageSection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofStorage) {
+            HStack {
+                Image(systemName: "internaldrive")
+                    .foregroundColor(.gray)
+                    .frame(width: 20)
+                Text("Spoof Storage Capacity")
+            }
+        }
+        if model.uiDeviceSpoofStorage {
+            Picker("Capacity", selection: $model.uiDeviceSpoofStorageCapacity) {
+                Text("64 GB").tag("64")
+                Text("128 GB").tag("128")
+                Text("256 GB").tag("256")
+                Text("512 GB").tag("512")
+                Text("1 TB").tag("1024")
+            }
+            .pickerStyle(MenuPickerStyle())
+            .padding(.leading, 28)
+        }
+    }
+
+    // MARK: Brightness
+    @ViewBuilder
+    private func deviceSpoofBrightnessSection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofBrightness) {
+            HStack {
+                Image(systemName: "sun.max")
+                    .foregroundColor(.yellow)
+                    .frame(width: 20)
+                Text("Spoof Screen Brightness")
+            }
+        }
+        if model.uiDeviceSpoofBrightness {
+            HStack {
+                Image(systemName: "sun.min")
+                    .foregroundColor(.secondary)
+                Slider(value: $model.uiDeviceSpoofBrightnessValue, in: 0.0...1.0, step: 0.05)
+                Image(systemName: "sun.max")
+                    .foregroundColor(.secondary)
+                Text("\(Int(model.uiDeviceSpoofBrightnessValue * 100))%")
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(width: 40, alignment: .trailing)
+            }
+            .padding(.leading, 28)
+        }
+    }
+
+    // MARK: Thermal State (Project-X parity)
+    @ViewBuilder
+    private func deviceSpoofThermalSection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofThermal) {
+            HStack {
+                Image(systemName: "thermometer.medium")
+                    .foregroundColor(.orange)
+                    .frame(width: 20)
+                Text("Spoof Thermal State")
+            }
+        }
+        if model.uiDeviceSpoofThermal {
+            Picker("State", selection: $model.uiDeviceSpoofThermalState) {
+                Text("Nominal").tag(0)
+                Text("Fair").tag(1)
+                Text("Serious").tag(2)
+                Text("Critical").tag(3)
+            }
+            .pickerStyle(SegmentedPickerStyle())
+            .padding(.leading, 28)
+        }
+    }
+
+    // MARK: Low Power Mode
+    @ViewBuilder
+    private func deviceSpoofLowPowerSection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofLowPowerMode) {
+            HStack {
+                Image(systemName: "bolt.slash")
+                    .foregroundColor(.yellow)
+                    .frame(width: 20)
+                Text("Force Low Power Mode Value")
+            }
+        }
+        if model.uiDeviceSpoofLowPowerMode {
+            Toggle(isOn: $model.uiDeviceSpoofLowPowerModeValue) {
+                Text("Report Low Power Mode as ON")
+                    .font(.caption)
+            }
+            .padding(.leading, 28)
         }
     }
 

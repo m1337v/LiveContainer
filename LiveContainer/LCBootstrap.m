@@ -477,13 +477,111 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         initDead10ccFix();
     }
     
-    // Initialize Ghost-style device spoofing (profile-based only)
+    // Initialize Ghost-style device spoofing (profile-based with per-feature overrides)
     BOOL useProfileSpoofing = [guestAppInfo[@"deviceSpoofingEnabled"] boolValue];
 
     if(useProfileSpoofing) {
         NSString *deviceProfile = guestAppInfo[@"deviceSpoofProfile"];
         if (deviceProfile.length > 0) {
             LCSetDeviceProfile(deviceProfile);
+        }
+
+        // Independent iOS version override
+        NSString *customVersion = guestAppInfo[@"deviceSpoofCustomVersion"];
+        if (customVersion.length > 0) {
+            LCSetSpoofedSystemVersion(customVersion);
+        }
+
+        // Device name spoofing
+        if ([guestAppInfo[@"deviceSpoofDeviceName"] boolValue]) {
+            NSString *deviceName = guestAppInfo[@"deviceSpoofDeviceNameValue"];
+            if (deviceName.length > 0) {
+                LCSetSpoofedDeviceName(deviceName);
+            }
+        }
+
+        // Carrier spoofing
+        if ([guestAppInfo[@"deviceSpoofCarrier"] boolValue]) {
+            NSString *carrierName = guestAppInfo[@"deviceSpoofCarrierName"];
+            if (carrierName.length > 0) {
+                LCSetSpoofedCarrierName(carrierName);
+            }
+        }
+
+        // Identifier spoofing (IDFV / IDFA)
+        if ([guestAppInfo[@"deviceSpoofIdentifiers"] boolValue]) {
+            NSString *vendorID = guestAppInfo[@"deviceSpoofVendorID"];
+            if (vendorID.length > 0) {
+                LCSetSpoofedVendorID(vendorID);
+            }
+            NSString *advertisingID = guestAppInfo[@"deviceSpoofAdvertisingID"];
+            if (advertisingID.length > 0) {
+                LCSetSpoofedAdvertisingID(advertisingID);
+            }
+        }
+
+        // Timezone spoofing
+        if ([guestAppInfo[@"deviceSpoofTimezone"] boolValue]) {
+            NSString *timezone = guestAppInfo[@"deviceSpoofTimezoneValue"];
+            if (timezone.length > 0) {
+                LCSetSpoofedTimezone(timezone);
+            }
+        }
+
+        // Locale spoofing
+        if ([guestAppInfo[@"deviceSpoofLocale"] boolValue]) {
+            NSString *locale = guestAppInfo[@"deviceSpoofLocaleValue"];
+            if (locale.length > 0) {
+                LCSetSpoofedLocale(locale);
+            }
+        }
+
+        // Screen capture detection blocking
+        if ([guestAppInfo[@"deviceSpoofScreenCapture"] boolValue]) {
+            LCSetScreenCaptureBlockEnabled(YES);
+        }
+
+        // Boot time / uptime spoofing (Project-X BootTimeHooks parity)
+        if ([guestAppInfo[@"deviceSpoofBootTime"] boolValue]) {
+            NSString *range = guestAppInfo[@"deviceSpoofBootTimeRange"] ?: @"medium";
+            LCSetSpoofedBootTimeRange(range);
+        }
+
+        // User-Agent spoofing
+        if ([guestAppInfo[@"deviceSpoofUserAgent"] boolValue]) {
+            NSString *ua = guestAppInfo[@"deviceSpoofUserAgentValue"];
+            if (ua.length > 0) {
+                LCSetSpoofedUserAgent(ua);
+            }
+        }
+
+        // Battery spoofing (Project-X BatteryHooks parity)
+        if ([guestAppInfo[@"deviceSpoofBattery"] boolValue]) {
+            float level = [guestAppInfo[@"deviceSpoofBatteryLevel"] floatValue];
+            int state = [guestAppInfo[@"deviceSpoofBatteryState"] intValue];
+            LCSetSpoofedBatteryLevel(level);
+            LCSetSpoofedBatteryState(state);
+        }
+
+        // Storage capacity spoofing
+        if ([guestAppInfo[@"deviceSpoofStorage"] boolValue]) {
+            NSString *cap = guestAppInfo[@"deviceSpoofStorageCapacity"] ?: @"256";
+            LCSetSpoofedStorageCapacity([cap longLongValue]);
+        }
+
+        // Brightness spoofing
+        if ([guestAppInfo[@"deviceSpoofBrightness"] boolValue]) {
+            LCSetSpoofedBrightness([guestAppInfo[@"deviceSpoofBrightnessValue"] floatValue]);
+        }
+
+        // Thermal state spoofing
+        if ([guestAppInfo[@"deviceSpoofThermal"] boolValue]) {
+            LCSetSpoofedThermalState([guestAppInfo[@"deviceSpoofThermalState"] intValue]);
+        }
+
+        // Low power mode spoofing
+        if ([guestAppInfo[@"deviceSpoofLowPowerMode"] boolValue]) {
+            LCSetSpoofedLowPowerMode(YES, [guestAppInfo[@"deviceSpoofLowPowerModeValue"] boolValue]);
         }
 
         LCSetDeviceSpoofingEnabled(YES);

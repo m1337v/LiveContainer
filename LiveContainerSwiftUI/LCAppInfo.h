@@ -72,36 +72,44 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 // SSL section
 @property bool bypassSSLPinning;
 
-// Device Addon Section
+// Device Addon Section (Ghost-style profile + per-feature toggles)
 @property bool deviceSpoofingEnabled;
 @property (nonatomic) NSString* deviceSpoofProfile;
+@property (nonatomic) NSString* deviceSpoofCustomVersion; // Independent iOS version override
 
-// Legacy Device & Identifier Spoofing Section
-@property bool legacySpoofDevice;
-@property (nonatomic) NSString* legacySpoofDeviceModel;
-@property (nonatomic) NSString* legacySpoofSystemVersion;
-@property (nonatomic) NSString* legacySpoofDeviceName;
-@property (nonatomic) NSString* legacySpoofCarrierName;
-@property (nonatomic) NSString* legacySpoofCustomCarrier;
-@property bool legacySpoofBattery;
-@property double legacySpoofBatteryLevel;
-@property bool legacySpoofMemory;
-@property int legacySpoofMemorySize;
-@property bool legacySpoofIdentifiers;
-@property (nonatomic) NSString* legacySpoofVendorID;
-@property (nonatomic) NSString* legacySpoofAdvertisingID;
-@property bool legacySpoofAdTrackingEnabled;
-@property (nonatomic) NSString* legacySpoofInstallationID;
-@property (nonatomic) NSString* legacySpoofMACAddress;
-@property bool legacySpoofFingerprint;
-@property bool legacySpoofScreen;
-@property double legacySpoofScreenScale;
-@property (nonatomic) NSString* legacySpoofScreenSize;
-@property bool legacySpoofTimezone;
-@property (nonatomic) NSString* legacySpoofTimezoneValue;
-@property bool legacySpoofLanguage;
-@property (nonatomic) NSString* legacySpoofPrimaryLanguage;
-@property (nonatomic) NSString* legacySpoofRegion;
+// Per-feature toggles (Ghost parity)
+@property bool deviceSpoofDeviceName;
+@property (nonatomic) NSString* deviceSpoofDeviceNameValue;
+@property bool deviceSpoofCarrier;
+@property (nonatomic) NSString* deviceSpoofCarrierName;
+@property (nonatomic) NSString* deviceSpoofMCC;
+@property (nonatomic) NSString* deviceSpoofMNC;
+@property (nonatomic) NSString* deviceSpoofCarrierCountry;
+@property bool deviceSpoofIdentifiers;
+@property (nonatomic) NSString* deviceSpoofVendorID;
+@property (nonatomic) NSString* deviceSpoofAdvertisingID;
+@property bool deviceSpoofTimezone;
+@property (nonatomic) NSString* deviceSpoofTimezoneValue;
+@property bool deviceSpoofLocale;
+@property (nonatomic) NSString* deviceSpoofLocaleValue;
+@property bool deviceSpoofScreenCapture;
+
+// Extended spoofing (Ghost + Project-X parity)
+@property bool deviceSpoofBootTime;
+@property (nonatomic) NSString* deviceSpoofBootTimeRange; // "short","medium","long","week"
+@property bool deviceSpoofUserAgent;
+@property (nonatomic) NSString* deviceSpoofUserAgentValue;
+@property bool deviceSpoofBattery;
+@property float deviceSpoofBatteryLevel;      // 0.0 – 1.0
+@property int deviceSpoofBatteryState;         // 0=unknown,1=unplugged,2=charging,3=full
+@property bool deviceSpoofStorage;
+@property (nonatomic) NSString* deviceSpoofStorageCapacity; // GB string e.g. "256"
+@property bool deviceSpoofBrightness;
+@property float deviceSpoofBrightnessValue;    // 0.0 – 1.0
+@property bool deviceSpoofThermal;
+@property int deviceSpoofThermalState;         // 0=nominal,1=fair,2=serious,3=critical
+@property bool deviceSpoofLowPowerMode;
+@property bool deviceSpoofLowPowerModeValue;
 
 - (void)setBundlePath:(NSString*)newBundlePath;
 - (NSMutableDictionary*)info;

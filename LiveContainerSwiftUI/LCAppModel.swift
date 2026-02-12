@@ -231,7 +231,7 @@ class LCAppModel: ObservableObject, Hashable {
         }
     }
 
-    // MARK: Device Spoofing Addon
+    // MARK: Device Spoofing Addon (Ghost-style)
     @Published var uiDeviceSpoofingEnabled: Bool {
         didSet {
             appInfo.deviceSpoofingEnabled = uiDeviceSpoofingEnabled
@@ -242,131 +242,161 @@ class LCAppModel: ObservableObject, Hashable {
             appInfo.deviceSpoofProfile = uiDeviceSpoofProfile
         }
     }
-    
-    // Legacy identifier spoofing fields
-    @Published var uiSpoofDevice: Bool {
+    @Published var uiDeviceSpoofCustomVersion: String {
         didSet {
-            appInfo.legacySpoofDevice = uiSpoofDevice
+            appInfo.deviceSpoofCustomVersion = uiDeviceSpoofCustomVersion
         }
     }
-    @Published var uiSpoofDeviceModel: String {
+    @Published var uiDeviceSpoofDeviceName: Bool {
         didSet {
-            appInfo.legacySpoofDeviceModel = uiSpoofDeviceModel
+            appInfo.deviceSpoofDeviceName = uiDeviceSpoofDeviceName
         }
     }
-    @Published var uiSpoofSystemVersion: String {
+    @Published var uiDeviceSpoofDeviceNameValue: String {
         didSet {
-            appInfo.legacySpoofSystemVersion = uiSpoofSystemVersion
+            appInfo.deviceSpoofDeviceNameValue = uiDeviceSpoofDeviceNameValue
         }
     }
-    @Published var uiSpoofDeviceName: String {
+    @Published var uiDeviceSpoofCarrier: Bool {
         didSet {
-            appInfo.legacySpoofDeviceName = uiSpoofDeviceName
+            appInfo.deviceSpoofCarrier = uiDeviceSpoofCarrier
         }
     }
-    @Published var uiSpoofCarrierName: String {
+    @Published var uiDeviceSpoofCarrierName: String {
         didSet {
-            appInfo.legacySpoofCarrierName = uiSpoofCarrierName
+            appInfo.deviceSpoofCarrierName = uiDeviceSpoofCarrierName
         }
     }
-    @Published var uiSpoofCustomCarrier: String {
+    @Published var uiDeviceSpoofMCC: String {
         didSet {
-            appInfo.legacySpoofCustomCarrier = uiSpoofCustomCarrier
+            appInfo.deviceSpoofMCC = uiDeviceSpoofMCC
         }
     }
-    @Published var uiSpoofBattery: Bool {
+    @Published var uiDeviceSpoofMNC: String {
         didSet {
-            appInfo.legacySpoofBattery = uiSpoofBattery
+            appInfo.deviceSpoofMNC = uiDeviceSpoofMNC
         }
     }
-    @Published var uiSpoofBatteryLevel: Double {
+    @Published var uiDeviceSpoofCarrierCountry: String {
         didSet {
-            appInfo.legacySpoofBatteryLevel = uiSpoofBatteryLevel
+            appInfo.deviceSpoofCarrierCountry = uiDeviceSpoofCarrierCountry
         }
     }
-    @Published var uiSpoofMemory: Bool {
+    @Published var uiDeviceSpoofIdentifiers: Bool {
         didSet {
-            appInfo.legacySpoofMemory = uiSpoofMemory
+            appInfo.deviceSpoofIdentifiers = uiDeviceSpoofIdentifiers
         }
     }
-    @Published var uiSpoofMemorySize: Int {
+    @Published var uiDeviceSpoofVendorID: String {
         didSet {
-            appInfo.legacySpoofMemorySize = Int32(uiSpoofMemorySize)
+            appInfo.deviceSpoofVendorID = uiDeviceSpoofVendorID
         }
     }
-    @Published var uiSpoofIdentifiers: Bool {
+    @Published var uiDeviceSpoofAdvertisingID: String {
         didSet {
-            appInfo.legacySpoofIdentifiers = uiSpoofIdentifiers
+            appInfo.deviceSpoofAdvertisingID = uiDeviceSpoofAdvertisingID
         }
     }
-    @Published var uiSpoofVendorID: String {
+    @Published var uiDeviceSpoofTimezone: Bool {
         didSet {
-            appInfo.legacySpoofVendorID = uiSpoofVendorID
+            appInfo.deviceSpoofTimezone = uiDeviceSpoofTimezone
         }
     }
-    @Published var uiSpoofAdvertisingID: String {
+    @Published var uiDeviceSpoofTimezoneValue: String {
         didSet {
-            appInfo.legacySpoofAdvertisingID = uiSpoofAdvertisingID
+            appInfo.deviceSpoofTimezoneValue = uiDeviceSpoofTimezoneValue
         }
     }
-    @Published var uiSpoofAdTrackingEnabled: Bool {
+    @Published var uiDeviceSpoofLocale: Bool {
         didSet {
-            appInfo.legacySpoofAdTrackingEnabled = uiSpoofAdTrackingEnabled
+            appInfo.deviceSpoofLocale = uiDeviceSpoofLocale
         }
     }
-    @Published var uiSpoofInstallationID: String {
+    @Published var uiDeviceSpoofLocaleValue: String {
         didSet {
-            appInfo.legacySpoofInstallationID = uiSpoofInstallationID
+            appInfo.deviceSpoofLocaleValue = uiDeviceSpoofLocaleValue
         }
     }
-    @Published var uiSpoofMACAddress: String {
+    @Published var uiDeviceSpoofScreenCapture: Bool {
         didSet {
-            appInfo.legacySpoofMACAddress = uiSpoofMACAddress
+            appInfo.deviceSpoofScreenCapture = uiDeviceSpoofScreenCapture
         }
     }
-    @Published var uiSpoofFingerprint: Bool {
+
+    // MARK: Extended Spoofing (Ghost + Project-X parity)
+    @Published var uiDeviceSpoofBootTime: Bool {
         didSet {
-            appInfo.legacySpoofFingerprint = uiSpoofFingerprint
+            appInfo.deviceSpoofBootTime = uiDeviceSpoofBootTime
         }
     }
-    @Published var uiSpoofScreen: Bool {
+    @Published var uiDeviceSpoofBootTimeRange: String {
         didSet {
-            appInfo.legacySpoofScreen = uiSpoofScreen
+            appInfo.deviceSpoofBootTimeRange = uiDeviceSpoofBootTimeRange
         }
     }
-    @Published var uiSpoofScreenScale: Double {
+    @Published var uiDeviceSpoofUserAgent: Bool {
         didSet {
-            appInfo.legacySpoofScreenScale = uiSpoofScreenScale
+            appInfo.deviceSpoofUserAgent = uiDeviceSpoofUserAgent
         }
     }
-    @Published var uiSpoofScreenSize: String {
+    @Published var uiDeviceSpoofUserAgentValue: String {
         didSet {
-            appInfo.legacySpoofScreenSize = uiSpoofScreenSize
+            appInfo.deviceSpoofUserAgentValue = uiDeviceSpoofUserAgentValue
         }
     }
-    @Published var uiSpoofTimezone: Bool {
+    @Published var uiDeviceSpoofBattery: Bool {
         didSet {
-            appInfo.legacySpoofTimezone = uiSpoofTimezone
+            appInfo.deviceSpoofBattery = uiDeviceSpoofBattery
         }
     }
-    @Published var uiSpoofTimezoneValue: String {
+    @Published var uiDeviceSpoofBatteryLevel: Float {
         didSet {
-            appInfo.legacySpoofTimezoneValue = uiSpoofTimezoneValue
+            appInfo.deviceSpoofBatteryLevel = uiDeviceSpoofBatteryLevel
         }
     }
-    @Published var uiSpoofLanguage: Bool {
+    @Published var uiDeviceSpoofBatteryState: Int {
         didSet {
-            appInfo.legacySpoofLanguage = uiSpoofLanguage
+            appInfo.deviceSpoofBatteryState = Int32(uiDeviceSpoofBatteryState)
         }
     }
-    @Published var uiSpoofPrimaryLanguage: String {
+    @Published var uiDeviceSpoofStorage: Bool {
         didSet {
-            appInfo.legacySpoofPrimaryLanguage = uiSpoofPrimaryLanguage
+            appInfo.deviceSpoofStorage = uiDeviceSpoofStorage
         }
     }
-    @Published var uiSpoofRegion: String {
+    @Published var uiDeviceSpoofStorageCapacity: String {
         didSet {
-            appInfo.legacySpoofRegion = uiSpoofRegion
+            appInfo.deviceSpoofStorageCapacity = uiDeviceSpoofStorageCapacity
+        }
+    }
+    @Published var uiDeviceSpoofBrightness: Bool {
+        didSet {
+            appInfo.deviceSpoofBrightness = uiDeviceSpoofBrightness
+        }
+    }
+    @Published var uiDeviceSpoofBrightnessValue: Float {
+        didSet {
+            appInfo.deviceSpoofBrightnessValue = uiDeviceSpoofBrightnessValue
+        }
+    }
+    @Published var uiDeviceSpoofThermal: Bool {
+        didSet {
+            appInfo.deviceSpoofThermal = uiDeviceSpoofThermal
+        }
+    }
+    @Published var uiDeviceSpoofThermalState: Int {
+        didSet {
+            appInfo.deviceSpoofThermalState = Int32(uiDeviceSpoofThermalState)
+        }
+    }
+    @Published var uiDeviceSpoofLowPowerMode: Bool {
+        didSet {
+            appInfo.deviceSpoofLowPowerMode = uiDeviceSpoofLowPowerMode
+        }
+    }
+    @Published var uiDeviceSpoofLowPowerModeValue: Bool {
+        didSet {
+            appInfo.deviceSpoofLowPowerModeValue = uiDeviceSpoofLowPowerModeValue
         }
     }
 
@@ -434,36 +464,42 @@ class LCAppModel: ObservableObject, Hashable {
         // MARK: SSL Addon Section
         self.uiBypassSSLPinning = appInfo.bypassSSLPinning
 
-        // MARK: Device Addon Section
+        // MARK: Device Addon Section (Ghost-style)
         self.uiDeviceSpoofingEnabled = appInfo.deviceSpoofingEnabled
         self.uiDeviceSpoofProfile = appInfo.deviceSpoofProfile ?? "iPhone 15 Pro Max"
-        
-        // MARK: Legacy Device & Identifier Spoofing Section
-        self.uiSpoofDevice = appInfo.legacySpoofDevice
-        self.uiSpoofDeviceModel = appInfo.legacySpoofDeviceModel ?? "iPhone15,2"
-        self.uiSpoofSystemVersion = appInfo.legacySpoofSystemVersion ?? "17.2"
-        self.uiSpoofDeviceName = appInfo.legacySpoofDeviceName ?? "iPhone"
-        self.uiSpoofCarrierName = appInfo.legacySpoofCarrierName ?? "Verizon"
-        self.uiSpoofCustomCarrier = appInfo.legacySpoofCustomCarrier ?? ""
-        self.uiSpoofBattery = appInfo.legacySpoofBattery
-        self.uiSpoofBatteryLevel = appInfo.legacySpoofBatteryLevel
-        self.uiSpoofMemory = appInfo.legacySpoofMemory
-        self.uiSpoofMemorySize = Int(appInfo.legacySpoofMemorySize)
-        self.uiSpoofIdentifiers = appInfo.legacySpoofIdentifiers
-        self.uiSpoofVendorID = appInfo.legacySpoofVendorID ?? "12345678-1234-1234-1234-123456789012"
-        self.uiSpoofAdvertisingID = appInfo.legacySpoofAdvertisingID ?? "87654321-4321-4321-4321-210987654321"
-        self.uiSpoofAdTrackingEnabled = appInfo.legacySpoofAdTrackingEnabled
-        self.uiSpoofInstallationID = appInfo.legacySpoofInstallationID ?? "DEFAULT12345678"
-        self.uiSpoofMACAddress = appInfo.legacySpoofMACAddress ?? "02:00:00:00:00:00"
-        self.uiSpoofFingerprint = appInfo.legacySpoofFingerprint
-        self.uiSpoofScreen = appInfo.legacySpoofScreen
-        self.uiSpoofScreenScale = appInfo.legacySpoofScreenScale
-        self.uiSpoofScreenSize = appInfo.legacySpoofScreenSize ?? "1179x2556"
-        self.uiSpoofTimezone = appInfo.legacySpoofTimezone
-        self.uiSpoofTimezoneValue = appInfo.legacySpoofTimezoneValue ?? "America/New_York"
-        self.uiSpoofLanguage = appInfo.legacySpoofLanguage
-        self.uiSpoofPrimaryLanguage = appInfo.legacySpoofPrimaryLanguage ?? "en"
-        self.uiSpoofRegion = appInfo.legacySpoofRegion ?? "US"
+        self.uiDeviceSpoofCustomVersion = appInfo.deviceSpoofCustomVersion ?? ""
+        self.uiDeviceSpoofDeviceName = appInfo.deviceSpoofDeviceName
+        self.uiDeviceSpoofDeviceNameValue = appInfo.deviceSpoofDeviceNameValue ?? "iPhone"
+        self.uiDeviceSpoofCarrier = appInfo.deviceSpoofCarrier
+        self.uiDeviceSpoofCarrierName = appInfo.deviceSpoofCarrierName ?? "Verizon"
+        self.uiDeviceSpoofMCC = appInfo.deviceSpoofMCC ?? "311"
+        self.uiDeviceSpoofMNC = appInfo.deviceSpoofMNC ?? "480"
+        self.uiDeviceSpoofCarrierCountry = appInfo.deviceSpoofCarrierCountry ?? "us"
+        self.uiDeviceSpoofIdentifiers = appInfo.deviceSpoofIdentifiers
+        self.uiDeviceSpoofVendorID = appInfo.deviceSpoofVendorID ?? ""
+        self.uiDeviceSpoofAdvertisingID = appInfo.deviceSpoofAdvertisingID ?? ""
+        self.uiDeviceSpoofTimezone = appInfo.deviceSpoofTimezone
+        self.uiDeviceSpoofTimezoneValue = appInfo.deviceSpoofTimezoneValue ?? "America/New_York"
+        self.uiDeviceSpoofLocale = appInfo.deviceSpoofLocale
+        self.uiDeviceSpoofLocaleValue = appInfo.deviceSpoofLocaleValue ?? "en_US"
+        self.uiDeviceSpoofScreenCapture = appInfo.deviceSpoofScreenCapture
+
+        // Extended spoofing
+        self.uiDeviceSpoofBootTime = appInfo.deviceSpoofBootTime
+        self.uiDeviceSpoofBootTimeRange = appInfo.deviceSpoofBootTimeRange ?? "medium"
+        self.uiDeviceSpoofUserAgent = appInfo.deviceSpoofUserAgent
+        self.uiDeviceSpoofUserAgentValue = appInfo.deviceSpoofUserAgentValue ?? ""
+        self.uiDeviceSpoofBattery = appInfo.deviceSpoofBattery
+        self.uiDeviceSpoofBatteryLevel = appInfo.deviceSpoofBatteryLevel
+        self.uiDeviceSpoofBatteryState = Int(appInfo.deviceSpoofBatteryState)
+        self.uiDeviceSpoofStorage = appInfo.deviceSpoofStorage
+        self.uiDeviceSpoofStorageCapacity = appInfo.deviceSpoofStorageCapacity ?? "256"
+        self.uiDeviceSpoofBrightness = appInfo.deviceSpoofBrightness
+        self.uiDeviceSpoofBrightnessValue = appInfo.deviceSpoofBrightnessValue
+        self.uiDeviceSpoofThermal = appInfo.deviceSpoofThermal
+        self.uiDeviceSpoofThermalState = Int(appInfo.deviceSpoofThermalState)
+        self.uiDeviceSpoofLowPowerMode = appInfo.deviceSpoofLowPowerMode
+        self.uiDeviceSpoofLowPowerModeValue = appInfo.deviceSpoofLowPowerModeValue
 
         for container in uiContainers {
             if container.folderName == uiDefaultDataFolder {

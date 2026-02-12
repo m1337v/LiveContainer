@@ -87,6 +87,7 @@ void LCSetSpoofedBrightness(float brightness);     // 0.0-1.0
 void LCRandomizeBrightness(void);
 
 // Fingerprint spoofing - Uptime/Boot Time (critical fingerprinting vectors!)
+void LCSetSpoofedBootTimeRange(NSString *range); // "short","medium","long","week"
 void LCSetUptimeOffset(NSTimeInterval offset);     // Offset in seconds to add to uptime
 void LCRandomizeUptime(void);                      // Randomize uptime to 1-7 days
 void LCSetSpoofedBootTime(time_t bootTimestamp);   // Set specific boot time (Unix timestamp)
@@ -100,7 +101,7 @@ void LCSetSpoofedLowPowerMode(BOOL enabled, BOOL value);
 // Storage spoofing - based on Project-X StorageManager approach
 void LCSetStorageSpoofingEnabled(BOOL enabled);
 BOOL LCIsStorageSpoofingEnabled(void);
-void LCSetSpoofedStorageCapacity(NSString *capacityGB);  // e.g., "128" for 128GB
+void LCSetSpoofedStorageCapacity(long long capacityGB);  // e.g., 128 for 128GB
 void LCSetSpoofedStorageFree(NSString *freeGB);          // e.g., "45.2" for 45.2GB free
 void LCSetSpoofedStorageBytes(uint64_t totalBytes, uint64_t freeBytes);
 NSDictionary *LCGenerateStorageForCapacity(NSString *capacityGB);  // Generate realistic storage values
@@ -167,6 +168,18 @@ void LCSetUserAgentSpoofingEnabled(BOOL enabled);  // Enable/disable User-Agent 
 BOOL LCIsUserAgentSpoofingEnabled(void);           // Check if User-Agent spoofing is enabled
 NSString *LCGetCurrentUserAgent(void);             // Get current spoofed User-Agent string
 void LCUpdateUserAgentForProfile(void);            // Auto-update User-Agent based on device profile
+
+// Timezone spoofing
+void LCSetSpoofedTimezone(NSString *timezone);       // e.g., "America/New_York"
+NSString *LCGetSpoofedTimezone(void);
+
+// Locale spoofing
+void LCSetSpoofedLocale(NSString *locale);           // e.g., "en_US"
+NSString *LCGetSpoofedLocale(void);
+
+// Screen capture detection blocking
+void LCSetScreenCaptureBlockEnabled(BOOL enabled);   // Block UIScreen.isCaptured
+BOOL LCIsScreenCaptureBlockEnabled(void);
 
 // Random generation helpers
 NSString *LCGenerateRandomUUID(void);
