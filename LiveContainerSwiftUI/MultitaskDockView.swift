@@ -843,8 +843,7 @@ public struct MultitaskDockSwiftView: View {
 
     private var dockRootView: some View {
         GeometryReader { geometry in
-            dockBaseContent(in: geometry)
-                .background(dockBackgroundView)
+            dockStyledContent(in: geometry)
         }
         .ignoresSafeArea()
         .gesture(dragGesture)
@@ -865,6 +864,22 @@ public struct MultitaskDockSwiftView: View {
             TooltipView(app: app)
                 .transition(.opacity)
         }
+    }
+
+    @ViewBuilder
+    private func dockStyledContent(in geometry: GeometryProxy) -> some View {
+#if compiler(>=6.2)
+        if #available(iOS 26.0, *), SharedModel.isLiquidGlassEnabled {
+            dockBaseContent(in: geometry)
+                .glassEffect(.regular, in: .rect(cornerRadius: 15))
+        } else {
+            dockBaseContent(in: geometry)
+                .background(dockBackgroundView)
+        }
+#else
+        dockBaseContent(in: geometry)
+            .background(dockBackgroundView)
+#endif
     }
 
     private func dockBaseContent(in geometry: GeometryProxy) -> some View {
