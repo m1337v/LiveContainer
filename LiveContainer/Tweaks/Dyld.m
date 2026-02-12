@@ -1749,6 +1749,7 @@ static BOOL lc_swizzleInstanceMethodSafely(Class cls, SEL originalSel, SEL swizz
 }
 
 static void setupNetworkFrameworkSwizzling(void) {
+    static BOOL nwPathInterfacesSwizzled = NO;
     static BOOL nwInterfaceTypeSwizzled = NO;
     static BOOL nwInterfaceNameSwizzled = NO;
     static NSUInteger retryCount = 0;
@@ -1757,14 +1758,15 @@ static void setupNetworkFrameworkSwizzling(void) {
     const NSTimeInterval kSteadyRetryDelaySeconds = 5.0;
     static BOOL loggedSlowRetry = NO;
 
-    if (nwInterfaceTypeSwizzled && nwInterfaceNameSwizzled) {
+    if (nwPathInterfacesSwizzled && nwInterfaceTypeSwizzled && nwInterfaceNameSwizzled) {
         return;
     }
 
     Class nwInterfaceClass = NSClassFromString(@"NWInterface");
+    Class nwPathClass = NSClassFromString(@"NWPath");
 
     // Fallback for cases where classes are loaded lazily and string lookups fail early.
-    if (!nwInterfaceClass) {
+    if (!nwInterfaceClass || !nwPathClass) {
         Class monitorClass = NSClassFromString(@"NWPathMonitor");
         id monitor = nil;
         if (monitorClass) {
@@ -1778,6 +1780,10 @@ static void setupNetworkFrameworkSwizzling(void) {
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
                 currentPath = [monitor performSelector:@selector(currentPath)];
 #pragma clang diagnostic pop
+            }
+
+            if (!nwPathClass && currentPath) {
+                nwPathClass = [currentPath class];
             }
 
             if (!nwInterfaceClass && currentPath && [currentPath respondsToSelector:@selector(interface)]) {
@@ -1798,6 +1804,15 @@ static void setupNetworkFrameworkSwizzling(void) {
             [monitor performSelector:@selector(cancel)];
 #pragma clang diagnostic pop
         }
+    }
+
+    if (!nwPathInterfacesSwizzled &&
+        nwPathClass &&
+        [nwPathClass instancesRespondToSelector:@selector(availableInterfaces)] &&
+        [nwPathClass instancesRespondToSelector:@selector(lc_availableInterfaces)] &&
+        lc_swizzleInstanceMethodSafely(nwPathClass, @selector(availableInterfaces), @selector(lc_availableInterfaces))) {
+        nwPathInterfacesSwizzled = YES;
+        NSLog(@"[LC] ✅ Safely swizzled NWPath.availableInterfaces");
     }
 
     if (!nwInterfaceNameSwizzled && nwInterfaceClass) {
@@ -1822,16 +1837,18 @@ static void setupNetworkFrameworkSwizzling(void) {
         NSLog(@"[LC] ✅ Safely swizzled NWInterface.type");
     }
 
-    if (nwInterfaceTypeSwizzled && nwInterfaceNameSwizzled) {
+    if (nwPathInterfacesSwizzled && nwInterfaceTypeSwizzled && nwInterfaceNameSwizzled) {
         NSLog(@"[LC] ✅ Network framework swizzling complete");
         return;
     }
 
     if (!loggedSlowRetry && retryCount >= kFastRetryCount) {
         loggedSlowRetry = YES;
-        NSLog(@"[LC] ⚠️ Network framework swizzling incomplete (interfaceType=%d interfaceName=%d class=%@)",
+        NSLog(@"[LC] ⚠️ Network framework swizzling incomplete (pathInterfaces=%d interfaceType=%d interfaceName=%d pathClass=%@ interfaceClass=%@)",
+              nwPathInterfacesSwizzled,
               nwInterfaceTypeSwizzled,
               nwInterfaceNameSwizzled,
+              nwPathClass ? NSStringFromClass(nwPathClass) : @"(nil)",
               nwInterfaceClass ? NSStringFromClass(nwInterfaceClass) : @"(nil)");
     }
 
@@ -2118,7 +2135,7 @@ int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigacti
         memset(oact, 0, sizeof(struct sigaction));
         oact->sa_handler = SIG_DFL; // Default handler
 
-        NSLog(@"[LC] 🎭 Hiding signal handler for signal %d", sig);
+        // NSLog(@"[LC] 🎭 Hiding signal handler for signal %d", sig);
     }
 
     return result;
@@ -2297,7 +2314,7 @@ static NSDictionary* hook_NSBundle_infoDictionary(id self, SEL _cmd) {
 
     if (useLCBundleID) {
         modifiedDict[@"CFBundleIdentifier"] = bundleIDToExpose;
-        NSLog(@"[LC] 🎭 Modified Info.plist bundle ID for system API");
+        // NSLog(@"[LC] 🎭 Modified Info.plist bundle ID for system API");
     } else {
         modifiedDict[@"CFBundleIdentifier"] = bundleIDToExpose;
         // NSLog(@"[LC] 🎭 Preserved original bundle ID for security check");
