@@ -871,6 +871,20 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
     return result;
 }
 
+static const char* hook_nw_interface_get_name(nw_interface_t interface) {
+    if (!orig_nw_interface_get_name) {
+        return NULL;
+    }
+
+    const char *name = orig_nw_interface_get_name(interface);
+    if (shouldFilterVPNInterfaceNameCStr(name)) {
+        NSLog(@"[LC] 🎭 nw_interface_get_name - spoofing VPN interface: %s -> en0", name);
+        return "en0";
+    }
+
+    return name;
+}
+
 static void hook_nw_path_enumerate_interfaces(nw_path_t path,
                                               nw_path_enumerate_interfaces_block_t enumerate_block) {
     if (!orig_nw_path_enumerate_interfaces) {
@@ -882,7 +896,7 @@ static void hook_nw_path_enumerate_interfaces(nw_path_t path,
     }
 
     orig_nw_path_enumerate_interfaces(path, ^bool(nw_interface_t interface) {
-        const char *name = orig_nw_interface_get_name ? orig_nw_interface_get_name(interface) : nw_interface_get_name(interface);
+        const char *name = orig_nw_interface_get_name ? orig_nw_interface_get_name(interface) : NULL;
         if (shouldFilterVPNInterfaceNameCStr(name)) {
             NSLog(@"[LC] 🎭 nw_path_enumerate_interfaces - filtering VPN interface: %s", name);
             return true;
@@ -1069,9 +1083,21 @@ static void setupNetworkFrameworkSwizzling(void) {
 
     // Fallback for cases where classes are loaded lazily and string lookups fail early.
     if (!nwPathClass || !nwInterfaceClass) {
-        NWPathMonitor *monitor = [[NWPathMonitor alloc] init];
+        Class monitorClass = NSClassFromString(@"NWPathMonitor");
+        id monitor = nil;
+        if (monitorClass) {
+            monitor = [[monitorClass alloc] init];
+        }
+
         @try {
-            id currentPath = monitor.currentPath;
+            id currentPath = nil;
+            if (monitor && [monitor respondsToSelector:@selector(currentPath)]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                currentPath = [monitor performSelector:@selector(currentPath)];
+#pragma clang diagnostic pop
+            }
+
             if (!nwPathClass && currentPath) {
                 nwPathClass = [currentPath class];
             }
@@ -1087,7 +1113,13 @@ static void setupNetworkFrameworkSwizzling(void) {
             }
         } @catch (__unused NSException *e) {
         }
-        [monitor cancel];
+
+        if (monitor && [monitor respondsToSelector:@selector(cancel)]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            [monitor performSelector:@selector(cancel)];
+#pragma clang diagnostic pop
+        }
     }
 
     if (!nwPathInterfacesSwizzled && nwPathClass &&
@@ -1734,13 +1766,14 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
         // Use litehook_hook_function for framework/libc functions instead of rebind_symbols
         // _dyld_register_func_for_add_image((void (*)(const struct mach_header *, intptr_t))hideLiveContainerImageCallback);
 
-        rebind_symbols((struct rebinding[5]){
+        rebind_symbols((struct rebinding[6]){
                     {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
                     {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
+                    {"nw_interface_get_name", (void *)hook_nw_interface_get_name, (void **)&orig_nw_interface_get_name},
                     {"nw_path_enumerate_interfaces", (void *)hook_nw_path_enumerate_interfaces, (void **)&orig_nw_path_enumerate_interfaces},
                     {"if_nameindex", (void *)hook_if_nameindex, (void **)&orig_if_nameindex},
-        }, 5);
+        }, 6);
 
         if (!orig_nw_interface_get_name) {
             orig_nw_interface_get_name = (const char* (*)(nw_interface_t))orig_dlsym(RTLD_DEFAULT, "nw_interface_get_name");
