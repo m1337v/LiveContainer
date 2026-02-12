@@ -1395,25 +1395,50 @@ static NSString *lc_rawNWInterfaceName(id interface) {
 
 @end
 
+static BOOL lc_swizzleInstanceMethodSafely(Class cls, SEL originalSel, SEL swizzledSel) {
+    if (!cls) {
+        return NO;
+    }
+
+    Method originalMethod = class_getInstanceMethod(cls, originalSel);
+    Method swizzledMethod = class_getInstanceMethod(cls, swizzledSel);
+    if (!originalMethod || !swizzledMethod) {
+        return NO;
+    }
+
+    // If the original method is inherited, add a class-local override first.
+    BOOL didAddOriginal = class_addMethod(cls,
+                                          originalSel,
+                                          method_getImplementation(swizzledMethod),
+                                          method_getTypeEncoding(swizzledMethod));
+    if (didAddOriginal) {
+        class_replaceMethod(cls,
+                            swizzledSel,
+                            method_getImplementation(originalMethod),
+                            method_getTypeEncoding(originalMethod));
+    } else {
+        method_exchangeImplementations(originalMethod, swizzledMethod);
+    }
+
+    return YES;
+}
+
 static void setupNetworkFrameworkSwizzling(void) {
     static BOOL nwPathInterfacesSwizzled = NO;
-    static BOOL nwPathDescriptionSwizzled = NO;
-    static BOOL nwPathDebugDescriptionSwizzled = NO;
-    static BOOL nwInterfaceTypeSwizzled = NO;
-    static BOOL nwInterfaceNameSwizzled = NO;
-    static BOOL nwInterfaceDescriptionSwizzled = NO;
-    static BOOL nwInterfaceDebugDescriptionSwizzled = NO;
     static NSUInteger retryCount = 0;
     static const NSUInteger kFastRetryCount = 20;
     const NSTimeInterval kFastRetryDelaySeconds = 0.5;
     const NSTimeInterval kSteadyRetryDelaySeconds = 5.0;
     static BOOL loggedSlowRetry = NO;
 
+    if (nwPathInterfacesSwizzled) {
+        return;
+    }
+
     Class nwPathClass = NSClassFromString(@"NWPath");
-    Class nwInterfaceClass = NSClassFromString(@"NWInterface");
 
     // Fallback for cases where classes are loaded lazily and string lookups fail early.
-    if (!nwPathClass || !nwInterfaceClass) {
+    if (!nwPathClass) {
         Class monitorClass = NSClassFromString(@"NWPathMonitor");
         id monitor = nil;
         if (monitorClass) {
@@ -1432,16 +1457,6 @@ static void setupNetworkFrameworkSwizzling(void) {
             if (!nwPathClass && currentPath) {
                 nwPathClass = [currentPath class];
             }
-
-            if (!nwInterfaceClass && currentPath && [currentPath respondsToSelector:@selector(availableInterfaces)]) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-                id interfaces = [currentPath performSelector:@selector(availableInterfaces)];
-#pragma clang diagnostic pop
-                if ([interfaces isKindOfClass:[NSArray class]] && [interfaces count] > 0) {
-                    nwInterfaceClass = [[interfaces firstObject] class];
-                }
-            }
         } @catch (__unused NSException *e) {
         }
 
@@ -1456,69 +1471,17 @@ static void setupNetworkFrameworkSwizzling(void) {
     if (!nwPathInterfacesSwizzled && nwPathClass &&
         [nwPathClass instancesRespondToSelector:@selector(availableInterfaces)] &&
         [nwPathClass instancesRespondToSelector:@selector(lc_availableInterfaces)]) {
-        swizzle(nwPathClass, @selector(availableInterfaces), @selector(lc_availableInterfaces));
-        nwPathInterfacesSwizzled = YES;
-        NSLog(@"[LC] ✅ Swizzled NWPath.availableInterfaces");
-    }
-    if (!nwPathDescriptionSwizzled && nwPathClass &&
-        [nwPathClass instancesRespondToSelector:@selector(description)] &&
-        [nwPathClass instancesRespondToSelector:@selector(lc_description)]) {
-        swizzle(nwPathClass, @selector(description), @selector(lc_description));
-        nwPathDescriptionSwizzled = YES;
-        NSLog(@"[LC] ✅ Swizzled NWPath.description");
-    }
-    if (!nwPathDebugDescriptionSwizzled && nwPathClass &&
-        [nwPathClass instancesRespondToSelector:@selector(debugDescription)] &&
-        [nwPathClass instancesRespondToSelector:@selector(lc_debugDescription)]) {
-        swizzle(nwPathClass, @selector(debugDescription), @selector(lc_debugDescription));
-        nwPathDebugDescriptionSwizzled = YES;
-        NSLog(@"[LC] ✅ Swizzled NWPath.debugDescription");
-    }
-
-    if (!nwInterfaceTypeSwizzled && nwInterfaceClass &&
-        [nwInterfaceClass instancesRespondToSelector:@selector(type)] &&
-        [nwInterfaceClass instancesRespondToSelector:@selector(lc_type)]) {
-        swizzle(nwInterfaceClass, @selector(type), @selector(lc_type));
-        nwInterfaceTypeSwizzled = YES;
-        NSLog(@"[LC] ✅ Swizzled NWInterface.type");
-    }
-    if (!nwInterfaceNameSwizzled && nwInterfaceClass &&
-        [nwInterfaceClass instancesRespondToSelector:@selector(name)] &&
-        [nwInterfaceClass instancesRespondToSelector:@selector(lc_name)]) {
-        swizzle(nwInterfaceClass, @selector(name), @selector(lc_name));
-        nwInterfaceNameSwizzled = YES;
-        NSLog(@"[LC] ✅ Swizzled NWInterface.name");
-    }
-    if (!nwInterfaceDescriptionSwizzled && nwInterfaceClass &&
-        [nwInterfaceClass instancesRespondToSelector:@selector(description)] &&
-        [nwInterfaceClass instancesRespondToSelector:@selector(lc_description)]) {
-        swizzle(nwInterfaceClass, @selector(description), @selector(lc_description));
-        nwInterfaceDescriptionSwizzled = YES;
-        NSLog(@"[LC] ✅ Swizzled NWInterface.description");
-    }
-    if (!nwInterfaceDebugDescriptionSwizzled && nwInterfaceClass &&
-        [nwInterfaceClass instancesRespondToSelector:@selector(debugDescription)] &&
-        [nwInterfaceClass instancesRespondToSelector:@selector(lc_debugDescription)]) {
-        swizzle(nwInterfaceClass, @selector(debugDescription), @selector(lc_debugDescription));
-        nwInterfaceDebugDescriptionSwizzled = YES;
-        NSLog(@"[LC] ✅ Swizzled NWInterface.debugDescription");
-    }
-
-    if (nwPathInterfacesSwizzled && nwInterfaceTypeSwizzled && nwInterfaceNameSwizzled) {
-        NSLog(@"[LC] ✅ Network framework swizzling complete");
-        return;
+        if (lc_swizzleInstanceMethodSafely(nwPathClass, @selector(availableInterfaces), @selector(lc_availableInterfaces))) {
+            nwPathInterfacesSwizzled = YES;
+            NSLog(@"[LC] ✅ Safely swizzled NWPath.availableInterfaces");
+            return;
+        }
     }
 
     if (!loggedSlowRetry && retryCount >= kFastRetryCount) {
         loggedSlowRetry = YES;
-        NSLog(@"[LC] ⚠️ Network framework swizzling incomplete (pathInterfaces=%d pathDescription=%d pathDebugDescription=%d interfaceType=%d interfaceName=%d interfaceDescription=%d interfaceDebugDescription=%d)",
-              nwPathInterfacesSwizzled,
-              nwPathDescriptionSwizzled,
-              nwPathDebugDescriptionSwizzled,
-              nwInterfaceTypeSwizzled,
-              nwInterfaceNameSwizzled,
-              nwInterfaceDescriptionSwizzled,
-              nwInterfaceDebugDescriptionSwizzled);
+        NSLog(@"[LC] ⚠️ Network framework swizzling incomplete (pathInterfaces=%d)",
+              nwPathInterfacesSwizzled);
     }
 
     NSTimeInterval retryDelaySeconds = retryCount < kFastRetryCount ? kFastRetryDelaySeconds : kSteadyRetryDelaySeconds;
@@ -2158,8 +2121,9 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_delegate_interface, (void *)hook_nw_path_copy_delegate_interface, nil);
     }
 
-    // Avoid risky Objective-C Network swizzling; rely on C-level hooks for interface filtering.
-    // This prevents inherited-method swizzle crashes in unrelated classes.
+    // Use only a narrowly-scoped, safe swizzle for NWPath.availableInterfaces.
+    // Avoids inherited-method swizzle crashes while covering Swift Network interface enumeration.
+    setupNetworkFrameworkSwizzling();
 
     if (bypassSSLPinning) {
         setupSSLPinningBypass();
