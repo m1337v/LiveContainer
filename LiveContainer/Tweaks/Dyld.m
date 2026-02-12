@@ -1515,6 +1515,12 @@ static char *hook_if_indextoname(unsigned int ifindex, char *ifname) {
         return NULL;
     }
 
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: if_indextoname");
+    }
+
     char *name = orig_if_indextoname(ifindex, ifname);
     if (!name) {
         return NULL;
@@ -1529,6 +1535,35 @@ static char *hook_if_indextoname(unsigned int ifindex, char *ifname) {
     }
 
     return name;
+}
+
+static unsigned int hook_if_nametoindex(const char *ifname) {
+    if (!orig_if_nametoindex) {
+        lc_resolveNetworkSymbolPointers();
+    }
+    if (!orig_if_nametoindex) {
+        return 0;
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: if_nametoindex");
+    }
+
+    if (!ifname) {
+        return 0;
+    }
+
+    if (shouldFilterVPNInterfaceNameCStr(ifname)) {
+        unsigned int en0Index = orig_if_nametoindex("en0");
+        NSLog(@"[LC] 🎭 if_nametoindex - remapping VPN interface %s -> en0 (index=%u)",
+              ifname ? ifname : "(null)",
+              en0Index);
+        return en0Index;
+    }
+
+    return orig_if_nametoindex(ifname);
 }
 
 static NSString *lc_rawNWInterfaceName(id interface) {
@@ -2382,7 +2417,7 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }
 
     // Keep network/VPN filtering hooks active regardless of hideLiveContainer setting.
-    rebind_symbols((struct rebinding[20]){
+    rebind_symbols((struct rebinding[21]){
                 {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                 {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
                 {"nw_interface_get_name", (void *)hook_nw_interface_get_name, (void **)&orig_nw_interface_get_name},
@@ -2393,6 +2428,7 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
                 {"nw_path_enumerate_interfaces", (void *)hook_nw_path_enumerate_interfaces, (void **)&orig_nw_path_enumerate_interfaces},
                 {"if_nameindex", (void *)hook_if_nameindex, (void **)&orig_if_nameindex},
                 {"if_indextoname", (void *)hook_if_indextoname, (void **)&orig_if_indextoname},
+                {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
                 {"nw_path_get_interface_index", (void *)hook_nw_path_get_interface_index, (void **)&orig_nw_path_get_interface_index},
                 {"nw_path_get_connected_interface_index", (void *)hook_nw_path_get_connected_interface_index, (void **)&orig_nw_path_get_connected_interface_index},
                 {"nw_path_get_scoped_interface_index", (void *)hook_nw_path_get_scoped_interface_index, (void **)&orig_nw_path_get_scoped_interface_index},
@@ -2403,7 +2439,7 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
                 {"nw_path_copy_direct_interface", (void *)hook_nw_path_copy_direct_interface, (void **)&orig_nw_path_copy_direct_interface},
                 {"nw_path_copy_scoped_interface", (void *)hook_nw_path_copy_scoped_interface, (void **)&orig_nw_path_copy_scoped_interface},
                 {"nw_path_copy_delegate_interface", (void *)hook_nw_path_copy_delegate_interface, (void **)&orig_nw_path_copy_delegate_interface},
-    }, 20);
+    }, 21);
     lc_resolveNetworkSymbolPointers();
 
     // Network.framework internally uses direct branches for some hot paths
@@ -2444,6 +2480,9 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }
     if (orig_if_indextoname) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_if_indextoname, (void *)hook_if_indextoname, nil);
+    }
+    if (orig_if_nametoindex) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_if_nametoindex, (void *)hook_if_nametoindex, nil);
     }
     if (orig_nw_path_get_interface_index) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_get_interface_index, (void *)hook_nw_path_get_interface_index, nil);
