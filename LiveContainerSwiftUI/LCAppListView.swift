@@ -414,13 +414,20 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         }
         .onAppear() {
             if !isViewAppeared {
+                if let webpageUrlStr = UserDefaults.standard.string(forKey: "webPageToOpen") {
+                    Task { await openWebView(urlString: webpageUrlStr) }
+                    UserDefaults.standard.set(nil, forKey: "webPageToOpen")
+                }
+                
                 guard sharedModel.selectedTab == .apps, let link = sharedModel.deepLink else { return }
+                sharedModel.deepLink = nil
                 handleURL(url: link)
                 isViewAppeared = true
             }
         }
         .onChange(of: sharedModel.deepLink) { link in
             guard sharedModel.selectedTab == .apps, let link else { return }
+            sharedModel.deepLink = nil
             handleURL(url: link)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.InstallAppNotification)) { obj in

@@ -4250,21 +4250,22 @@ struct CameraVideoPickerView: View {
     private func loadSelectedVideo(_ item: PhotosPickerItem) async {
         do {
             if let movieData = try await item.loadTransferable(type: Data.self) {
-                let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-                let cameraVideosFolder = documentsPath.appendingPathComponent("CameraSpoof/Videos")
-                
-                // Create directory if it doesn't exist
-                try FileManager.default.createDirectory(at: cameraVideosFolder, withIntermediateDirectories: true)
-                
-                // Generate unique filename
-                let fileName = "camera_video_\(Date().timeIntervalSince1970).mp4"
-                let filePath = cameraVideosFolder.appendingPathComponent(fileName)
-                
-                // Save the video
-                try movieData.write(to: filePath)
+                let cameraVideosFolder = try cameraVideosDirectory()
+                let stagedURL = cameraVideosFolder.appendingPathComponent("camera_video_import_\(UUID().uuidString).mp4")
+                try movieData.write(to: stagedURL, options: .atomic)
+
+                let normalizedURL = try await normalizeImportedVideo(
+                    at: stagedURL,
+                    outputBaseName: "camera_video",
+                    in: cameraVideosFolder
+                )
+                if stagedURL.path != normalizedURL.path,
+                   FileManager.default.fileExists(atPath: stagedURL.path) {
+                    try? FileManager.default.removeItem(at: stagedURL)
+                }
                 
                 await MainActor.run {
-                    videoPath = filePath.path
+                    videoPath = normalizedURL.path
                     loadVideoPreview(from: videoPath)
                 }
             }
@@ -4280,34 +4281,212 @@ struct CameraVideoPickerView: View {
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
-            
-            do {
-                let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-                let cameraVideosFolder = documentsPath.appendingPathComponent("CameraSpoof/Videos")
-                
-                // Create directory if it doesn't exist
-                try FileManager.default.createDirectory(at: cameraVideosFolder, withIntermediateDirectories: true)
-                
-                let fileName = url.lastPathComponent
-                let destinationPath = cameraVideosFolder.appendingPathComponent(fileName)
-                
-                // Copy file to documents
-                if FileManager.default.fileExists(atPath: destinationPath.path) {
-                    try FileManager.default.removeItem(at: destinationPath)
+            Task {
+                do {
+                    let cameraVideosFolder = try cameraVideosDirectory()
+                    let stagedURL = try stageImportedVideo(url, in: cameraVideosFolder)
+                    let sourceBaseName = url.deletingPathExtension().lastPathComponent
+
+                    let normalizedURL = try await normalizeImportedVideo(
+                        at: stagedURL,
+                        outputBaseName: sourceBaseName.isEmpty ? "camera_video" : sourceBaseName,
+                        in: cameraVideosFolder
+                    )
+                    if stagedURL.path != normalizedURL.path,
+                       FileManager.default.fileExists(atPath: stagedURL.path) {
+                        try? FileManager.default.removeItem(at: stagedURL)
+                    }
+
+                    await MainActor.run {
+                        videoPath = normalizedURL.path
+                        loadVideoPreview(from: videoPath)
+                    }
+                } catch {
+                    await MainActor.run {
+                        errorInfo = "Failed to import video file: \(error.localizedDescription)"
+                        errorShow = true
+                    }
                 }
-                try FileManager.default.copyItem(at: url, to: destinationPath)
-                
-                videoPath = destinationPath.path
-                loadVideoPreview(from: videoPath)
-                
-            } catch {
-                errorInfo = "Failed to import video file: \(error.localizedDescription)"
-                errorShow = true
             }
             
         case .failure(let error):
             errorInfo = "File selection failed: \(error.localizedDescription)"
             errorShow = true
+        }
+    }
+
+    private func cameraVideosDirectory() throws -> URL {
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let cameraVideosFolder = documentsPath.appendingPathComponent("CameraSpoof/Videos", isDirectory: true)
+        try FileManager.default.createDirectory(at: cameraVideosFolder, withIntermediateDirectories: true)
+        return cameraVideosFolder
+    }
+
+    private func stageImportedVideo(_ sourceURL: URL, in folder: URL) throws -> URL {
+        let hasSecurityScope = sourceURL.startAccessingSecurityScopedResource()
+        defer {
+            if hasSecurityScope {
+                sourceURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        let sourceExtension = sourceURL.pathExtension.isEmpty ? "mov" : sourceURL.pathExtension
+        let stagedURL = folder.appendingPathComponent("camera_video_import_\(UUID().uuidString).\(sourceExtension)")
+        if FileManager.default.fileExists(atPath: stagedURL.path) {
+            try FileManager.default.removeItem(at: stagedURL)
+        }
+        try FileManager.default.copyItem(at: sourceURL, to: stagedURL)
+        return stagedURL
+    }
+
+    private func makeUniqueVideoURL(in folder: URL, baseName: String, fileExtension: String) -> URL {
+        let rawBaseName = baseName.isEmpty ? "camera_video" : baseName
+        let safeBaseName = rawBaseName
+            .replacingOccurrences(of: "[^A-Za-z0-9_-]+", with: "_", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+        let normalizedBaseName = safeBaseName.isEmpty ? "camera_video" : safeBaseName
+        let timestamp = Int(Date().timeIntervalSince1970)
+
+        var candidate = folder.appendingPathComponent("\(normalizedBaseName)_\(timestamp).\(fileExtension)")
+        var counter = 1
+        while FileManager.default.fileExists(atPath: candidate.path) {
+            candidate = folder.appendingPathComponent("\(normalizedBaseName)_\(timestamp)_\(counter).\(fileExtension)")
+            counter += 1
+        }
+        return candidate
+    }
+
+    private func normalizeImportedVideo(
+        at inputURL: URL,
+        outputBaseName: String,
+        in outputFolder: URL
+    ) async throws -> URL {
+        let asset = AVAsset(url: inputURL)
+
+        guard let videoTrack = try await asset.loadTracks(withMediaType: .video).first else {
+            throw NSError(
+                domain: "CameraVideoImport",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "No video track found in selected file"]
+            )
+        }
+
+        let duration = try await asset.load(.duration)
+        let naturalSize = try await videoTrack.load(.naturalSize)
+        let preferredTransform = try await videoTrack.load(.preferredTransform)
+        let nominalFrameRate = try await videoTrack.load(.nominalFrameRate)
+
+        let composition = AVMutableComposition()
+        guard let compositionVideoTrack = composition.addMutableTrack(
+            withMediaType: .video,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else {
+            throw NSError(
+                domain: "CameraVideoImport",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to create composition video track"]
+            )
+        }
+
+        try compositionVideoTrack.insertTimeRange(
+            CMTimeRange(start: .zero, duration: duration),
+            of: videoTrack,
+            at: .zero
+        )
+        compositionVideoTrack.preferredTransform = .identity
+
+        if let audioTrack = try await asset.loadTracks(withMediaType: .audio).first,
+           let compositionAudioTrack = composition.addMutableTrack(
+               withMediaType: .audio,
+               preferredTrackID: kCMPersistentTrackID_Invalid
+           ) {
+            try compositionAudioTrack.insertTimeRange(
+                CMTimeRange(start: .zero, duration: duration),
+                of: audioTrack,
+                at: .zero
+            )
+        }
+
+        // Bake the track transform into pixels so downstream consumers don't depend on orientation metadata.
+        let transformedRect = CGRect(origin: .zero, size: naturalSize).applying(preferredTransform)
+        var renderWidth = max(2, Int(ceil(abs(transformedRect.width))))
+        var renderHeight = max(2, Int(ceil(abs(transformedRect.height))))
+        if renderWidth % 2 != 0 { renderWidth += 1 }
+        if renderHeight % 2 != 0 { renderHeight += 1 }
+        let renderSize = CGSize(width: renderWidth, height: renderHeight)
+        let normalizedTransform = preferredTransform.concatenating(
+            CGAffineTransform(translationX: -transformedRect.origin.x, y: -transformedRect.origin.y)
+        )
+
+        let instruction = AVMutableVideoCompositionInstruction()
+        instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
+
+        let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compositionVideoTrack)
+        layerInstruction.setTransform(normalizedTransform, at: .zero)
+        instruction.layerInstructions = [layerInstruction]
+
+        let videoComposition = AVMutableVideoComposition()
+        videoComposition.instructions = [instruction]
+        videoComposition.renderSize = renderSize
+        let frameRate = nominalFrameRate > 0 ? Int32(max(1, min(120, Int(nominalFrameRate.rounded())))) : 30
+        videoComposition.frameDuration = CMTime(value: 1, timescale: frameRate)
+
+        guard let exportSession = AVAssetExportSession(
+            asset: composition,
+            presetName: AVAssetExportPresetHighestQuality
+        ) else {
+            throw NSError(
+                domain: "CameraVideoImport",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to create export session"]
+            )
+        }
+
+        let supportsMP4 = exportSession.supportedFileTypes.contains(.mp4)
+        let outputType: AVFileType = supportsMP4 ? .mp4 : .mov
+        let outputExtension = supportsMP4 ? "mp4" : "mov"
+        let outputURL = makeUniqueVideoURL(in: outputFolder, baseName: outputBaseName, fileExtension: outputExtension)
+
+        if FileManager.default.fileExists(atPath: outputURL.path) {
+            try FileManager.default.removeItem(at: outputURL)
+        }
+
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = outputType
+        exportSession.videoComposition = videoComposition
+        exportSession.shouldOptimizeForNetworkUse = true
+
+        return try await withCheckedThrowingContinuation { continuation in
+            exportSession.exportAsynchronously {
+                switch exportSession.status {
+                case .completed:
+                    continuation.resume(returning: outputURL)
+                case .failed:
+                    continuation.resume(
+                        throwing: NSError(
+                            domain: "CameraVideoImport",
+                            code: 4,
+                            userInfo: [NSLocalizedDescriptionKey: exportSession.error?.localizedDescription ?? "Video export failed"]
+                        )
+                    )
+                case .cancelled:
+                    continuation.resume(
+                        throwing: NSError(
+                            domain: "CameraVideoImport",
+                            code: 5,
+                            userInfo: [NSLocalizedDescriptionKey: "Video export was cancelled"]
+                        )
+                    )
+                default:
+                    continuation.resume(
+                        throwing: NSError(
+                            domain: "CameraVideoImport",
+                            code: 6,
+                            userInfo: [NSLocalizedDescriptionKey: "Video export ended in unexpected state: \(exportSession.status.rawValue)"]
+                        )
+                    )
+                }
+            }
         }
     }
     

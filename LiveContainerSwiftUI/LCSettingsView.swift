@@ -497,12 +497,14 @@ struct LCSettingsView: View {
         .onAppear() {
             if !isViewAppeared {
                 guard sharedModel.selectedTab == .settings, let link = sharedModel.deepLink else { return }
+                sharedModel.deepLink = nil
                 handleURL(url: link)
                 isViewAppeared = true
             }
         }
         .onChange(of: sharedModel.deepLink) { link in
             guard sharedModel.selectedTab == .settings, let link else { return }
+            sharedModel.deepLink = nil
             handleURL(url: link)
         }
     }

@@ -8,6 +8,10 @@ on:
 jobs:
   update-source:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
@@ -39,17 +43,17 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        python update_json.py
-        git config --global user.name 'GitHub Action'
-        git config --global user.email 'action@github.com'
-        git add apps.json
-        if git diff --staged --quiet; then
-          echo "changes=false" >> $GITHUB_OUTPUT
-        else
-          git commit -m "Updated source with latest release"
-          git push
-          echo "changes=true" >> $GITHUB_OUTPUT
-        fi
+        python .github/update_json.py
+
+    - name: Update apps.json in Release 1.0
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: "1.0"
+        files: |
+          .github/apps.json
+          .github/apps_ss_lc.json
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Calculate job duration
       id: duration
