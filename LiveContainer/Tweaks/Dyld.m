@@ -862,6 +862,15 @@ static void lc_resolveNetworkSymbolPointers(void) {
             orig_if_nameindex = (struct if_nameindex* (*)(void))orig_dlsym(RTLD_DEFAULT, "if_nameindex");
         }
     }
+
+    static BOOL loggedSymbolResolution = NO;
+    if (!loggedSymbolResolution) {
+        loggedSymbolResolution = YES;
+        NSLog(@"[LC] 🌐 network symbols resolved: nw_interface_get_name=%p nw_path_enumerate_interfaces=%p if_nameindex=%p",
+              orig_nw_interface_get_name,
+              orig_nw_path_enumerate_interfaces,
+              orig_if_nameindex);
+    }
 }
 
 static int hook_getifaddrs(struct ifaddrs **ifap) {
@@ -913,6 +922,12 @@ static const char* hook_nw_interface_get_name(nw_interface_t interface) {
         return NULL;
     }
 
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: nw_interface_get_name");
+    }
+
     const char *name = orig_nw_interface_get_name(interface);
     if (shouldFilterVPNInterfaceNameCStr(name)) {
         NSLog(@"[LC] 🎭 nw_interface_get_name - spoofing VPN interface: %s -> en0", name);
@@ -930,6 +945,13 @@ static void hook_nw_path_enumerate_interfaces(nw_path_t path,
     if (!orig_nw_path_enumerate_interfaces) {
         return;
     }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: nw_path_enumerate_interfaces");
+    }
+
     if (!enumerate_block) {
         orig_nw_path_enumerate_interfaces(path, enumerate_block);
         return;
@@ -1824,8 +1846,22 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }, 5);
     lc_resolveNetworkSymbolPointers();
 
-    // Apply network swizzling immediately and keep retry loop for late framework loading.
-    setupNetworkFrameworkSwizzling();
+    // Also rebind by raw function address across loaded/new images, including auth-got paths.
+    if (orig_nw_interface_get_name) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_interface_get_name, (void *)hook_nw_interface_get_name, nil);
+    }
+    if (orig_nw_path_enumerate_interfaces) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_enumerate_interfaces, (void *)hook_nw_path_enumerate_interfaces, nil);
+    }
+    if (orig_if_nameindex) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_if_nameindex, (void *)hook_if_nameindex, nil);
+    }
+    if (orig_getifaddrs) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_getifaddrs, (void *)hook_getifaddrs, nil);
+    }
+
+    // Avoid risky Objective-C Network swizzling; rely on C-level hooks for interface filtering.
+    // This prevents inherited-method swizzle crashes in unrelated classes.
 
     if (bypassSSLPinning) {
         setupSSLPinningBypass();
