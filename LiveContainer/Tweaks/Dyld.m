@@ -67,6 +67,7 @@ static nw_interface_type_t (*orig_nw_interface_get_type)(nw_interface_t interfac
 static nw_interface_t (*orig_nw_interface_create_with_name)(const char *name);
 static nw_interface_t (*orig_nw_interface_create_with_index)(unsigned int index);
 static nw_interface_t (*orig_nw_interface_create_with_index_and_name)(unsigned int index, const char *name);
+static nw_interface_t (*orig_nw_interface_create_from_necp)(int necp_fd, unsigned int index);
 static unsigned int (*orig_nw_interface_get_index)(nw_interface_t interface);
 static nw_interface_t (*orig_nw_path_copy_interface)(nw_path_t path);
 static nw_interface_t (*orig_nw_path_copy_interface_from_cache)(nw_path_t path);
@@ -79,10 +80,13 @@ static unsigned int (*orig_nw_path_get_connected_interface_index)(nw_path_t path
 static unsigned int (*orig_nw_path_get_scoped_interface_index)(nw_path_t path);
 static unsigned int (*orig_nw_path_get_fallback_interface_index)(nw_path_t path);
 static bool (*orig_nw_path_uses_interface_type)(nw_path_t path, nw_interface_type_t interface_type);
+static bool (*orig_nw_path_uses_interface_subtype)(nw_path_t path, int interface_subtype);
+static bool (*orig_nw_path_may_span_multiple_interfaces)(nw_path_t path);
 static struct if_nameindex* (*orig_if_nameindex)(void);
 static char *(*orig_if_indextoname)(unsigned int ifindex, char *ifname);
 static unsigned int (*orig_if_nametoindex)(const char *ifname);
 static BOOL gDidInlineHookNWInterfaceCreateWithIndex = NO;
+static BOOL gDidInlineHookNWInterfaceCreateFromNECP = NO;
 // Signal handlers
 // Interface
 @interface NWPath (PrivateMethods)
@@ -849,6 +853,18 @@ static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
     return CFBridgingRetain(emptySettings);
 }
 
+static void *lc_findNetworkDSCSymbol(const char *symbolName) {
+    if (!symbolName || !symbolName[0]) {
+        return NULL;
+    }
+
+    void *symbol = litehook_find_dsc_symbol("/System/Library/Frameworks/Network.framework/Network", symbolName);
+    if (!symbol) {
+        symbol = litehook_find_dsc_symbol("/usr/lib/libnetwork.dylib", symbolName);
+    }
+    return symbol;
+}
+
 static void lc_resolveNetworkSymbolPointers(void) {
     void *libnetworkHandle = NULL;
     if (orig_dlopen) {
@@ -861,6 +877,7 @@ static void lc_resolveNetworkSymbolPointers(void) {
         nw_interface_t (*resolvedCreateWithName)(const char *) = NULL;
         nw_interface_t (*resolvedCreateWithIndex)(unsigned int) = NULL;
         nw_interface_t (*resolvedCreateWithIndexAndName)(unsigned int, const char *) = NULL;
+        nw_interface_t (*resolvedCreateFromNECP)(int, unsigned int) = NULL;
         unsigned int (*resolvedInterfaceGetIndex)(nw_interface_t) = NULL;
         void (*resolvedEnumerate)(nw_path_t, nw_path_enumerate_interfaces_block_t) = NULL;
         nw_interface_t (*resolvedCopyInterface)(nw_path_t) = NULL;
@@ -874,6 +891,8 @@ static void lc_resolveNetworkSymbolPointers(void) {
         unsigned int (*resolvedPathGetScopedInterfaceIndex)(nw_path_t) = NULL;
         unsigned int (*resolvedPathGetFallbackInterfaceIndex)(nw_path_t) = NULL;
         bool (*resolvedPathUsesInterfaceType)(nw_path_t, nw_interface_type_t) = NULL;
+        bool (*resolvedPathUsesInterfaceSubtype)(nw_path_t, int) = NULL;
+        bool (*resolvedPathMaySpanMultipleInterfaces)(nw_path_t) = NULL;
 
         if (libnetworkHandle) {
             resolvedGetName = (const char *(*)(nw_interface_t))orig_dlsym(libnetworkHandle, "nw_interface_get_name");
@@ -881,6 +900,7 @@ static void lc_resolveNetworkSymbolPointers(void) {
             resolvedCreateWithName = (nw_interface_t (*)(const char *))orig_dlsym(libnetworkHandle, "nw_interface_create_with_name");
             resolvedCreateWithIndex = (nw_interface_t (*)(unsigned int))orig_dlsym(libnetworkHandle, "nw_interface_create_with_index");
             resolvedCreateWithIndexAndName = (nw_interface_t (*)(unsigned int, const char *))orig_dlsym(libnetworkHandle, "nw_interface_create_with_index_and_name");
+            resolvedCreateFromNECP = (nw_interface_t (*)(int, unsigned int))orig_dlsym(libnetworkHandle, "nw_interface_create_from_necp");
             resolvedInterfaceGetIndex = (unsigned int (*)(nw_interface_t))orig_dlsym(libnetworkHandle, "nw_interface_get_index");
             resolvedEnumerate = (void (*)(nw_path_t, nw_path_enumerate_interfaces_block_t))orig_dlsym(libnetworkHandle, "nw_path_enumerate_interfaces");
             resolvedCopyInterface = (nw_interface_t (*)(nw_path_t))orig_dlsym(libnetworkHandle, "nw_path_copy_interface");
@@ -894,6 +914,8 @@ static void lc_resolveNetworkSymbolPointers(void) {
             resolvedPathGetScopedInterfaceIndex = (unsigned int (*)(nw_path_t))orig_dlsym(libnetworkHandle, "nw_path_get_scoped_interface_index");
             resolvedPathGetFallbackInterfaceIndex = (unsigned int (*)(nw_path_t))orig_dlsym(libnetworkHandle, "nw_path_get_fallback_interface_index");
             resolvedPathUsesInterfaceType = (bool (*)(nw_path_t, nw_interface_type_t))orig_dlsym(libnetworkHandle, "nw_path_uses_interface_type");
+            resolvedPathUsesInterfaceSubtype = (bool (*)(nw_path_t, int))orig_dlsym(libnetworkHandle, "nw_path_uses_interface_subtype");
+            resolvedPathMaySpanMultipleInterfaces = (bool (*)(nw_path_t))orig_dlsym(libnetworkHandle, "nw_path_may_span_multiple_interfaces");
         }
 
         if (!resolvedGetName) {
@@ -910,6 +932,9 @@ static void lc_resolveNetworkSymbolPointers(void) {
         }
         if (!resolvedCreateWithIndexAndName) {
             resolvedCreateWithIndexAndName = (nw_interface_t (*)(unsigned int, const char *))orig_dlsym(RTLD_DEFAULT, "nw_interface_create_with_index_and_name");
+        }
+        if (!resolvedCreateFromNECP) {
+            resolvedCreateFromNECP = (nw_interface_t (*)(int, unsigned int))orig_dlsym(RTLD_DEFAULT, "nw_interface_create_from_necp");
         }
         if (!resolvedInterfaceGetIndex) {
             resolvedInterfaceGetIndex = (unsigned int (*)(nw_interface_t))orig_dlsym(RTLD_DEFAULT, "nw_interface_get_index");
@@ -950,6 +975,12 @@ static void lc_resolveNetworkSymbolPointers(void) {
         if (!resolvedPathUsesInterfaceType) {
             resolvedPathUsesInterfaceType = (bool (*)(nw_path_t, nw_interface_type_t))orig_dlsym(RTLD_DEFAULT, "nw_path_uses_interface_type");
         }
+        if (!resolvedPathUsesInterfaceSubtype) {
+            resolvedPathUsesInterfaceSubtype = (bool (*)(nw_path_t, int))orig_dlsym(RTLD_DEFAULT, "nw_path_uses_interface_subtype");
+        }
+        if (!resolvedPathMaySpanMultipleInterfaces) {
+            resolvedPathMaySpanMultipleInterfaces = (bool (*)(nw_path_t))orig_dlsym(RTLD_DEFAULT, "nw_path_may_span_multiple_interfaces");
+        }
 
         if (resolvedGetName) {
             orig_nw_interface_get_name = resolvedGetName;
@@ -965,6 +996,9 @@ static void lc_resolveNetworkSymbolPointers(void) {
         }
         if (resolvedCreateWithIndexAndName) {
             orig_nw_interface_create_with_index_and_name = resolvedCreateWithIndexAndName;
+        }
+        if (resolvedCreateFromNECP) {
+            orig_nw_interface_create_from_necp = resolvedCreateFromNECP;
         }
         if (resolvedInterfaceGetIndex) {
             orig_nw_interface_get_index = resolvedInterfaceGetIndex;
@@ -1005,6 +1039,12 @@ static void lc_resolveNetworkSymbolPointers(void) {
         if (resolvedPathUsesInterfaceType) {
             orig_nw_path_uses_interface_type = resolvedPathUsesInterfaceType;
         }
+        if (resolvedPathUsesInterfaceSubtype) {
+            orig_nw_path_uses_interface_subtype = resolvedPathUsesInterfaceSubtype;
+        }
+        if (resolvedPathMaySpanMultipleInterfaces) {
+            orig_nw_path_may_span_multiple_interfaces = resolvedPathMaySpanMultipleInterfaces;
+        }
         if (!orig_if_nameindex) {
             orig_if_nameindex = (struct if_nameindex* (*)(void))orig_dlsym(RTLD_DEFAULT, "if_nameindex");
         }
@@ -1016,12 +1056,80 @@ static void lc_resolveNetworkSymbolPointers(void) {
         }
     }
 
+    // Prefer canonical dyld-cache symbols over per-image stubs when available.
+    // This improves low-level rebinding coverage across frameworks.
+    const char *(*dscGetName)(nw_interface_t) =
+        (const char *(*)(nw_interface_t))lc_findNetworkDSCSymbol("_nw_interface_get_name");
+    nw_interface_type_t (*dscGetType)(nw_interface_t) =
+        (nw_interface_type_t (*)(nw_interface_t))lc_findNetworkDSCSymbol("_nw_interface_get_type");
+    unsigned int (*dscGetIndex)(nw_interface_t) =
+        (unsigned int (*)(nw_interface_t))lc_findNetworkDSCSymbol("_nw_interface_get_index");
+    nw_interface_t (*dscCreateWithName)(const char *) =
+        (nw_interface_t (*)(const char *))lc_findNetworkDSCSymbol("_nw_interface_create_with_name");
+    nw_interface_t (*dscCreateWithIndex)(unsigned int) =
+        (nw_interface_t (*)(unsigned int))lc_findNetworkDSCSymbol("_nw_interface_create_with_index");
+    nw_interface_t (*dscCreateWithIndexAndName)(unsigned int, const char *) =
+        (nw_interface_t (*)(unsigned int, const char *))lc_findNetworkDSCSymbol("_nw_interface_create_with_index_and_name");
+    nw_interface_t (*dscCreateFromNECP)(int, unsigned int) =
+        (nw_interface_t (*)(int, unsigned int))lc_findNetworkDSCSymbol("_nw_interface_create_from_necp");
+    void (*dscEnumerateInterfaces)(nw_path_t, nw_path_enumerate_interfaces_block_t) =
+        (void (*)(nw_path_t, nw_path_enumerate_interfaces_block_t))lc_findNetworkDSCSymbol("_nw_path_enumerate_interfaces");
+    nw_interface_t (*dscCopyInterface)(nw_path_t) =
+        (nw_interface_t (*)(nw_path_t))lc_findNetworkDSCSymbol("_nw_path_copy_interface");
+    nw_interface_t (*dscCopyInterfaceFromCache)(nw_path_t) =
+        (nw_interface_t (*)(nw_path_t))lc_findNetworkDSCSymbol("_nw_path_copy_interface_from_cache");
+    nw_interface_t (*dscCopyConnectedInterface)(nw_path_t) =
+        (nw_interface_t (*)(nw_path_t))lc_findNetworkDSCSymbol("_nw_path_copy_connected_interface");
+    nw_interface_t (*dscCopyDirectInterface)(nw_path_t) =
+        (nw_interface_t (*)(nw_path_t))lc_findNetworkDSCSymbol("_nw_path_copy_direct_interface");
+    nw_interface_t (*dscCopyScopedInterface)(nw_path_t) =
+        (nw_interface_t (*)(nw_path_t))lc_findNetworkDSCSymbol("_nw_path_copy_scoped_interface");
+    nw_interface_t (*dscCopyDelegateInterface)(nw_path_t) =
+        (nw_interface_t (*)(nw_path_t))lc_findNetworkDSCSymbol("_nw_path_copy_delegate_interface");
+    unsigned int (*dscGetInterfaceIndex)(nw_path_t) =
+        (unsigned int (*)(nw_path_t))lc_findNetworkDSCSymbol("_nw_path_get_interface_index");
+    unsigned int (*dscGetConnectedInterfaceIndex)(nw_path_t) =
+        (unsigned int (*)(nw_path_t))lc_findNetworkDSCSymbol("_nw_path_get_connected_interface_index");
+    unsigned int (*dscGetScopedInterfaceIndex)(nw_path_t) =
+        (unsigned int (*)(nw_path_t))lc_findNetworkDSCSymbol("_nw_path_get_scoped_interface_index");
+    unsigned int (*dscGetFallbackInterfaceIndex)(nw_path_t) =
+        (unsigned int (*)(nw_path_t))lc_findNetworkDSCSymbol("_nw_path_get_fallback_interface_index");
+    bool (*dscUsesInterfaceType)(nw_path_t, nw_interface_type_t) =
+        (bool (*)(nw_path_t, nw_interface_type_t))lc_findNetworkDSCSymbol("_nw_path_uses_interface_type");
+    bool (*dscUsesInterfaceSubtype)(nw_path_t, int) =
+        (bool (*)(nw_path_t, int))lc_findNetworkDSCSymbol("_nw_path_uses_interface_subtype");
+    bool (*dscMaySpanMultipleInterfaces)(nw_path_t) =
+        (bool (*)(nw_path_t))lc_findNetworkDSCSymbol("_nw_path_may_span_multiple_interfaces");
+
+    if (dscGetName) orig_nw_interface_get_name = dscGetName;
+    if (dscGetType) orig_nw_interface_get_type = dscGetType;
+    if (dscGetIndex) orig_nw_interface_get_index = dscGetIndex;
+    if (dscCreateWithName) orig_nw_interface_create_with_name = dscCreateWithName;
+    if (dscCreateWithIndex) orig_nw_interface_create_with_index = dscCreateWithIndex;
+    if (dscCreateWithIndexAndName) orig_nw_interface_create_with_index_and_name = dscCreateWithIndexAndName;
+    if (dscCreateFromNECP) orig_nw_interface_create_from_necp = dscCreateFromNECP;
+    if (dscEnumerateInterfaces) orig_nw_path_enumerate_interfaces = dscEnumerateInterfaces;
+    if (dscCopyInterface) orig_nw_path_copy_interface = dscCopyInterface;
+    if (dscCopyInterfaceFromCache) orig_nw_path_copy_interface_from_cache = dscCopyInterfaceFromCache;
+    if (dscCopyConnectedInterface) orig_nw_path_copy_connected_interface = dscCopyConnectedInterface;
+    if (dscCopyDirectInterface) orig_nw_path_copy_direct_interface = dscCopyDirectInterface;
+    if (dscCopyScopedInterface) orig_nw_path_copy_scoped_interface = dscCopyScopedInterface;
+    if (dscCopyDelegateInterface) orig_nw_path_copy_delegate_interface = dscCopyDelegateInterface;
+    if (dscGetInterfaceIndex) orig_nw_path_get_interface_index = dscGetInterfaceIndex;
+    if (dscGetConnectedInterfaceIndex) orig_nw_path_get_connected_interface_index = dscGetConnectedInterfaceIndex;
+    if (dscGetScopedInterfaceIndex) orig_nw_path_get_scoped_interface_index = dscGetScopedInterfaceIndex;
+    if (dscGetFallbackInterfaceIndex) orig_nw_path_get_fallback_interface_index = dscGetFallbackInterfaceIndex;
+    if (dscUsesInterfaceType) orig_nw_path_uses_interface_type = dscUsesInterfaceType;
+    if (dscUsesInterfaceSubtype) orig_nw_path_uses_interface_subtype = dscUsesInterfaceSubtype;
+    if (dscMaySpanMultipleInterfaces) orig_nw_path_may_span_multiple_interfaces = dscMaySpanMultipleInterfaces;
+
     static BOOL loggedSymbolResolution = NO;
     if (!loggedSymbolResolution) {
         loggedSymbolResolution = YES;
-        NSLog(@"[LC] 🌐 network symbols resolved: nw_interface_get_name=%p nw_interface_get_type=%p nw_path_enumerate_interfaces=%p if_nameindex=%p if_indextoname=%p if_nametoindex=%p nw_path_copy_interface=%p nw_path_copy_interface_from_cache=%p nw_path_get_interface_index=%p nw_path_uses_interface_type=%p",
+        NSLog(@"[LC] 🌐 network symbols resolved: nw_interface_get_name=%p nw_interface_get_type=%p nw_interface_create_from_necp=%p nw_path_enumerate_interfaces=%p if_nameindex=%p if_indextoname=%p if_nametoindex=%p nw_path_copy_interface=%p nw_path_copy_interface_from_cache=%p nw_path_get_interface_index=%p nw_path_uses_interface_type=%p nw_path_uses_interface_subtype=%p nw_path_may_span_multiple_interfaces=%p",
               orig_nw_interface_get_name,
               orig_nw_interface_get_type,
+              orig_nw_interface_create_from_necp,
               orig_nw_path_enumerate_interfaces,
               orig_if_nameindex,
               orig_if_indextoname,
@@ -1029,7 +1137,9 @@ static void lc_resolveNetworkSymbolPointers(void) {
               orig_nw_path_copy_interface,
               orig_nw_path_copy_interface_from_cache,
               orig_nw_path_get_interface_index,
-              orig_nw_path_uses_interface_type);
+              orig_nw_path_uses_interface_type,
+              orig_nw_path_uses_interface_subtype,
+              orig_nw_path_may_span_multiple_interfaces);
     }
 }
 
@@ -1180,27 +1290,7 @@ static unsigned int lc_sanitizeInterfaceIndex(const char *context, unsigned int 
     return ifindex;
 }
 
-static nw_interface_t hook_nw_interface_create_with_index(unsigned int index) {
-    if (!orig_nw_interface_create_with_index ||
-        !orig_nw_interface_create_with_index_and_name ||
-        !orig_if_indextoname ||
-        !orig_nw_interface_create_with_name) {
-        lc_resolveNetworkSymbolPointers();
-    }
-    if (!orig_nw_interface_create_with_index &&
-        !orig_nw_interface_create_with_index_and_name &&
-        !orig_nw_interface_create_with_name) {
-        return NULL;
-    }
-
-    static BOOL loggedHookHit = NO;
-    if (!loggedHookHit) {
-        loggedHookHit = YES;
-        NSLog(@"[LC] ✅ hook hit: nw_interface_create_with_index");
-    }
-
-    unsigned int sanitizedIndex = lc_sanitizeInterfaceIndex("nw_interface_create_with_index", index);
-
+static nw_interface_t lc_createInterfaceFromSanitizedIndex(const char *context, unsigned int sanitizedIndex) {
     char ifname[IF_NAMESIZE] = {0};
     const char *resolvedName = NULL;
     if (orig_if_indextoname && sanitizedIndex > 0) {
@@ -1224,13 +1314,41 @@ static nw_interface_t hook_nw_interface_create_with_index(unsigned int index) {
         }
     }
 
-    // Fallback to the original implementation only when we did not inline patch
-    // this symbol; otherwise calling it would recurse into this hook.
+    // If create_with_index was inline-hooked, calling this pointer recurses.
     if (!gDidInlineHookNWInterfaceCreateWithIndex && orig_nw_interface_create_with_index) {
-        return orig_nw_interface_create_with_index(sanitizedIndex);
+        nw_interface_t iface = orig_nw_interface_create_with_index(sanitizedIndex);
+        if (iface) {
+            return iface;
+        }
     }
 
+    if (context) {
+        NSLog(@"[LC] ⚠️ %s - failed to synthesize interface for index %u", context, sanitizedIndex);
+    }
     return NULL;
+}
+
+static nw_interface_t hook_nw_interface_create_with_index(unsigned int index) {
+    if (!orig_nw_interface_create_with_index ||
+        !orig_nw_interface_create_with_index_and_name ||
+        !orig_if_indextoname ||
+        !orig_nw_interface_create_with_name) {
+        lc_resolveNetworkSymbolPointers();
+    }
+    if (!orig_nw_interface_create_with_index &&
+        !orig_nw_interface_create_with_index_and_name &&
+        !orig_nw_interface_create_with_name) {
+        return NULL;
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: nw_interface_create_with_index");
+    }
+
+    unsigned int sanitizedIndex = lc_sanitizeInterfaceIndex("nw_interface_create_with_index", index);
+    return lc_createInterfaceFromSanitizedIndex("nw_interface_create_with_index", sanitizedIndex);
 }
 
 static nw_interface_t hook_nw_interface_create_with_index_and_name(unsigned int index, const char *name) {
@@ -1255,6 +1373,35 @@ static nw_interface_t hook_nw_interface_create_with_index_and_name(unsigned int 
     }
 
     return orig_nw_interface_create_with_index_and_name(sanitizedIndex, sanitizedName);
+}
+
+static nw_interface_t hook_nw_interface_create_from_necp(int necp_fd, unsigned int index) {
+    if (!orig_nw_interface_create_from_necp ||
+        !orig_nw_interface_create_with_index_and_name ||
+        !orig_nw_interface_create_with_name ||
+        !orig_if_indextoname) {
+        lc_resolveNetworkSymbolPointers();
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: nw_interface_create_from_necp");
+    }
+
+    unsigned int sanitizedIndex = lc_sanitizeInterfaceIndex("nw_interface_create_from_necp", index);
+
+    // In rebinding mode we can call original then sanitize; in inline mode this recurses.
+    if (!gDidInlineHookNWInterfaceCreateFromNECP && orig_nw_interface_create_from_necp) {
+        nw_interface_t iface = orig_nw_interface_create_from_necp(necp_fd, sanitizedIndex);
+        nw_interface_t sanitized = lc_sanitizePrivatePathInterface("nw_interface_create_from_necp", iface);
+        if (sanitized) {
+            return sanitized;
+        }
+    }
+
+    // Inline-mode fallback or missing original path: synthesize from sanitized index/name.
+    return lc_createInterfaceFromSanitizedIndex("nw_interface_create_from_necp", sanitizedIndex);
 }
 
 static unsigned int hook_nw_interface_get_index(nw_interface_t interface) {
@@ -1371,6 +1518,58 @@ static bool hook_nw_path_uses_interface_type(nw_path_t path, nw_interface_type_t
     }
 
     return orig_nw_path_uses_interface_type(path, interface_type);
+}
+
+static bool hook_nw_path_uses_interface_subtype(nw_path_t path, int interface_subtype) {
+    if (!orig_nw_path_uses_interface_subtype) {
+        lc_resolveNetworkSymbolPointers();
+    }
+    if (!orig_nw_path_uses_interface_subtype) {
+        return false;
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: nw_path_uses_interface_subtype");
+    }
+
+    bool original = orig_nw_path_uses_interface_subtype(path, interface_subtype);
+    bool hasOther = false;
+    if (orig_nw_path_uses_interface_type) {
+        hasOther = orig_nw_path_uses_interface_type(path, nw_interface_type_other);
+    }
+    if (original && hasOther) {
+        NSLog(@"[LC] 🎭 nw_path_uses_interface_subtype - hiding subtype=%d on VPN-like path", interface_subtype);
+        return false;
+    }
+    return original;
+}
+
+static bool hook_nw_path_may_span_multiple_interfaces(nw_path_t path) {
+    if (!orig_nw_path_may_span_multiple_interfaces) {
+        lc_resolveNetworkSymbolPointers();
+    }
+    if (!orig_nw_path_may_span_multiple_interfaces) {
+        return false;
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: nw_path_may_span_multiple_interfaces");
+    }
+
+    bool original = orig_nw_path_may_span_multiple_interfaces(path);
+    bool hasOther = false;
+    if (orig_nw_path_uses_interface_type) {
+        hasOther = orig_nw_path_uses_interface_type(path, nw_interface_type_other);
+    }
+    if (original && hasOther) {
+        NSLog(@"[LC] 🎭 nw_path_may_span_multiple_interfaces - forcing false on VPN-like path");
+        return false;
+    }
+    return original;
 }
 
 static nw_interface_t hook_nw_path_copy_interface(nw_path_t path) {
@@ -2537,7 +2736,7 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }
 
     // Keep network/VPN filtering hooks active regardless of hideLiveContainer setting.
-    rebind_symbols((struct rebinding[22]){
+    rebind_symbols((struct rebinding[25]){
                 {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                 {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
                 {"nw_interface_get_name", (void *)hook_nw_interface_get_name, (void **)&orig_nw_interface_get_name},
@@ -2545,6 +2744,7 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
                 {"nw_interface_get_index", (void *)hook_nw_interface_get_index, (void **)&orig_nw_interface_get_index},
                 {"nw_interface_create_with_index", (void *)hook_nw_interface_create_with_index, (void **)&orig_nw_interface_create_with_index},
                 {"nw_interface_create_with_index_and_name", (void *)hook_nw_interface_create_with_index_and_name, (void **)&orig_nw_interface_create_with_index_and_name},
+                {"nw_interface_create_from_necp", (void *)hook_nw_interface_create_from_necp, (void **)&orig_nw_interface_create_from_necp},
                 {"nw_path_enumerate_interfaces", (void *)hook_nw_path_enumerate_interfaces, (void **)&orig_nw_path_enumerate_interfaces},
                 {"if_nameindex", (void *)hook_if_nameindex, (void **)&orig_if_nameindex},
                 {"if_indextoname", (void *)hook_if_indextoname, (void **)&orig_if_indextoname},
@@ -2554,13 +2754,15 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
                 {"nw_path_get_scoped_interface_index", (void *)hook_nw_path_get_scoped_interface_index, (void **)&orig_nw_path_get_scoped_interface_index},
                 {"nw_path_get_fallback_interface_index", (void *)hook_nw_path_get_fallback_interface_index, (void **)&orig_nw_path_get_fallback_interface_index},
                 {"nw_path_uses_interface_type", (void *)hook_nw_path_uses_interface_type, (void **)&orig_nw_path_uses_interface_type},
+                {"nw_path_uses_interface_subtype", (void *)hook_nw_path_uses_interface_subtype, (void **)&orig_nw_path_uses_interface_subtype},
+                {"nw_path_may_span_multiple_interfaces", (void *)hook_nw_path_may_span_multiple_interfaces, (void **)&orig_nw_path_may_span_multiple_interfaces},
                 {"nw_path_copy_interface", (void *)hook_nw_path_copy_interface, (void **)&orig_nw_path_copy_interface},
                 {"nw_path_copy_interface_from_cache", (void *)hook_nw_path_copy_interface_from_cache, (void **)&orig_nw_path_copy_interface_from_cache},
                 {"nw_path_copy_connected_interface", (void *)hook_nw_path_copy_connected_interface, (void **)&orig_nw_path_copy_connected_interface},
                 {"nw_path_copy_direct_interface", (void *)hook_nw_path_copy_direct_interface, (void **)&orig_nw_path_copy_direct_interface},
                 {"nw_path_copy_scoped_interface", (void *)hook_nw_path_copy_scoped_interface, (void **)&orig_nw_path_copy_scoped_interface},
                 {"nw_path_copy_delegate_interface", (void *)hook_nw_path_copy_delegate_interface, (void **)&orig_nw_path_copy_delegate_interface},
-    }, 22);
+    }, 25);
     lc_resolveNetworkSymbolPointers();
 
     // Network.framework internally uses direct branches for some hot paths
@@ -2574,6 +2776,16 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
             NSLog(@"[LC] ✅ Inline hooked nw_interface_create_with_index");
         } else {
             NSLog(@"[LC] ⚠️ Failed to inline hook nw_interface_create_with_index (kr=%d)", kr);
+        }
+    }
+    if (orig_nw_interface_create_from_necp && !gDidInlineHookNWInterfaceCreateFromNECP) {
+        kern_return_t kr = litehook_hook_function((void *)orig_nw_interface_create_from_necp,
+                                                  (void *)hook_nw_interface_create_from_necp);
+        if (kr == KERN_SUCCESS) {
+            gDidInlineHookNWInterfaceCreateFromNECP = YES;
+            NSLog(@"[LC] ✅ Inline hooked nw_interface_create_from_necp");
+        } else {
+            NSLog(@"[LC] ⚠️ Failed to inline hook nw_interface_create_from_necp (kr=%d)", kr);
         }
     }
 
@@ -2592,6 +2804,9 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }
     if (orig_nw_interface_create_with_index_and_name) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_interface_create_with_index_and_name, (void *)hook_nw_interface_create_with_index_and_name, nil);
+    }
+    if (orig_nw_interface_create_from_necp) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_interface_create_from_necp, (void *)hook_nw_interface_create_from_necp, nil);
     }
     if (orig_nw_path_enumerate_interfaces) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_enumerate_interfaces, (void *)hook_nw_path_enumerate_interfaces, nil);
@@ -2619,6 +2834,12 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }
     if (orig_nw_path_uses_interface_type) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_uses_interface_type, (void *)hook_nw_path_uses_interface_type, nil);
+    }
+    if (orig_nw_path_uses_interface_subtype) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_uses_interface_subtype, (void *)hook_nw_path_uses_interface_subtype, nil);
+    }
+    if (orig_nw_path_may_span_multiple_interfaces) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_may_span_multiple_interfaces, (void *)hook_nw_path_may_span_multiple_interfaces, nil);
     }
     if (orig_getifaddrs) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_getifaddrs, (void *)hook_getifaddrs, nil);
