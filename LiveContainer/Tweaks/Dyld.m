@@ -1613,15 +1613,16 @@ static NSString *lc_rawNWInterfaceName(id interface) {
 
 @interface NWPath (GuestHooks)
 - (NSArray *)lc_availableInterfaces;
+- (NSArray *)lc_interfaces;
+- (NSArray *)lc__availableInterfaces;
+- (NSArray *)lc__interfaces;
 - (NSString *)lc_description;
 - (NSString *)lc_debugDescription;
 @end
 
 @implementation NWPath (GuestHooks)
 
-- (NSArray *)lc_availableInterfaces {
-    NSArray *originalInterfaces = [self lc_availableInterfaces];
-
+static NSArray *lc_filterNWPathInterfacesArray(NSArray *originalInterfaces, NSString *context) {
     if (![originalInterfaces isKindOfClass:[NSArray class]]) {
         return originalInterfaces;
     }
@@ -1640,15 +1641,32 @@ static NSString *lc_rawNWInterfaceName(id interface) {
             [filtered addObject:interface];
         } @catch (NSException *e) {
             [filtered addObject:interface];
-            NSLog(@"[LC] NWPath.availableInterfaces filtering exception: %@", e);
+            NSLog(@"[LC] NWPath.%@ filtering exception: %@", context, e);
         }
     }
 
-    NSLog(@"[LC] 🎭 NWPath.availableInterfaces: returned %lu interfaces (filtered %lu)",
+    NSLog(@"[LC] 🎭 NWPath.%@: returned %lu interfaces (filtered %lu)",
+          context,
           (unsigned long)filtered.count,
           (unsigned long)(originalInterfaces.count - filtered.count));
 
     return [filtered copy];
+}
+
+- (NSArray *)lc_availableInterfaces {
+    return lc_filterNWPathInterfacesArray([self lc_availableInterfaces], @"availableInterfaces");
+}
+
+- (NSArray *)lc_interfaces {
+    return lc_filterNWPathInterfacesArray([self lc_interfaces], @"interfaces");
+}
+
+- (NSArray *)lc__availableInterfaces {
+    return lc_filterNWPathInterfacesArray([self lc__availableInterfaces], @"_availableInterfaces");
+}
+
+- (NSArray *)lc__interfaces {
+    return lc_filterNWPathInterfacesArray([self lc__interfaces], @"_interfaces");
 }
 
 - (NSString *)lc_description {
@@ -1748,10 +1766,33 @@ static BOOL lc_swizzleInstanceMethodSafely(Class cls, SEL originalSel, SEL swizz
     return YES;
 }
 
+static BOOL lc_trySwizzleNWPathInterfacesSelector(Class nwPathClass,
+                                                  SEL originalSel,
+                                                  SEL swizzledSel,
+                                                  NSString *displayName) {
+    if (!nwPathClass || !originalSel || !swizzledSel) {
+        return NO;
+    }
+
+    BOOL hasOriginal = [nwPathClass instancesRespondToSelector:originalSel];
+    BOOL hasSwizzled = [nwPathClass instancesRespondToSelector:swizzledSel];
+    if (!hasOriginal || !hasSwizzled) {
+        return NO;
+    }
+
+    if (lc_swizzleInstanceMethodSafely(nwPathClass, originalSel, swizzledSel)) {
+        NSLog(@"[LC] ✅ Safely swizzled NWPath.%@", displayName);
+        return YES;
+    }
+
+    return NO;
+}
+
 static void setupNetworkFrameworkSwizzling(void) {
     static BOOL nwPathInterfacesSwizzled = NO;
     static BOOL nwInterfaceTypeSwizzled = NO;
     static BOOL nwInterfaceNameSwizzled = NO;
+    static BOOL loggedNWPathSelectorState = NO;
     static NSUInteger retryCount = 0;
     static const NSUInteger kFastRetryCount = 20;
     const NSTimeInterval kFastRetryDelaySeconds = 0.5;
@@ -1806,13 +1847,39 @@ static void setupNetworkFrameworkSwizzling(void) {
         }
     }
 
-    if (!nwPathInterfacesSwizzled &&
-        nwPathClass &&
-        [nwPathClass instancesRespondToSelector:@selector(availableInterfaces)] &&
-        [nwPathClass instancesRespondToSelector:@selector(lc_availableInterfaces)] &&
-        lc_swizzleInstanceMethodSafely(nwPathClass, @selector(availableInterfaces), @selector(lc_availableInterfaces))) {
-        nwPathInterfacesSwizzled = YES;
-        NSLog(@"[LC] ✅ Safely swizzled NWPath.availableInterfaces");
+    if (!nwPathInterfacesSwizzled && nwPathClass) {
+        BOOL didSwizzle = NO;
+        didSwizzle |= lc_trySwizzleNWPathInterfacesSelector(nwPathClass,
+                                                            @selector(availableInterfaces),
+                                                            @selector(lc_availableInterfaces),
+                                                            @"availableInterfaces");
+        didSwizzle |= lc_trySwizzleNWPathInterfacesSelector(nwPathClass,
+                                                            NSSelectorFromString(@"interfaces"),
+                                                            @selector(lc_interfaces),
+                                                            @"interfaces");
+        didSwizzle |= lc_trySwizzleNWPathInterfacesSelector(nwPathClass,
+                                                            NSSelectorFromString(@"_availableInterfaces"),
+                                                            @selector(lc__availableInterfaces),
+                                                            @"_availableInterfaces");
+        didSwizzle |= lc_trySwizzleNWPathInterfacesSelector(nwPathClass,
+                                                            NSSelectorFromString(@"_interfaces"),
+                                                            @selector(lc__interfaces),
+                                                            @"_interfaces");
+
+        nwPathInterfacesSwizzled = didSwizzle;
+
+        if (!nwPathInterfacesSwizzled && !loggedNWPathSelectorState) {
+            loggedNWPathSelectorState = YES;
+            NSLog(@"[LC] ⚠️ NWPath selector state: availableInterfaces=%d interfaces=%d _availableInterfaces=%d _interfaces=%d lc_availableInterfaces=%d lc_interfaces=%d lc__availableInterfaces=%d lc__interfaces=%d",
+                  [nwPathClass instancesRespondToSelector:@selector(availableInterfaces)],
+                  [nwPathClass instancesRespondToSelector:NSSelectorFromString(@"interfaces")],
+                  [nwPathClass instancesRespondToSelector:NSSelectorFromString(@"_availableInterfaces")],
+                  [nwPathClass instancesRespondToSelector:NSSelectorFromString(@"_interfaces")],
+                  [nwPathClass instancesRespondToSelector:@selector(lc_availableInterfaces)],
+                  [nwPathClass instancesRespondToSelector:@selector(lc_interfaces)],
+                  [nwPathClass instancesRespondToSelector:@selector(lc__availableInterfaces)],
+                  [nwPathClass instancesRespondToSelector:@selector(lc__interfaces)]);
+        }
     }
 
     if (!nwInterfaceNameSwizzled && nwInterfaceClass) {
