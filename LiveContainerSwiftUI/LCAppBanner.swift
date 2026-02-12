@@ -123,18 +123,10 @@ struct LCAppBanner : View {
                             //         Capsule().fill(Color.red)
                             //     )
                         }
-                        if model.uiSpoofNetwork {
-                            Image(systemName: "network")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.red)
-                                    // .frame(width: 16, height: 16)
-                            // Image(systemName: "network.fill")
-                            //     .font(.system(size: 10, weight: .bold))
-                            //     .foregroundColor(.red)
-                            //     .frame(width: 16, height:16)
-                            //     .background(
-                            //         Capsule().fill(Color.red)
-                            //     )
+                        if model.uiDeviceSpoofingEnabled {
+                            Image(systemName: "iphone.gen3")
+                                .font(.system(size: 16))
+                                .foregroundColor(.red)
                         }
                     }
                     

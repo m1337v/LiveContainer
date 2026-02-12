@@ -1805,90 +1805,6 @@ struct CameraSettingsSection: View {
 }
 
 
-// MARK: Network Settings Section
-struct NetworkSettingsSection: View {
-    @Binding var spoofNetwork: Bool
-    @Binding var proxyHost: String
-    @Binding var proxyPort: Int32
-    @Binding var proxyUsername: String
-    @Binding var proxyPassword: String
-    
-    var body: some View {
-        Section {
-            Toggle(isOn: $spoofNetwork) {
-                HStack {
-                    Image(systemName: "network")
-                        .foregroundColor(.blue)
-                        .frame(width: 20)
-                    Text("SOCKS5 Proxy")
-                }
-            }
-            
-            if spoofNetwork {
-                // Proxy Host
-                HStack {
-                    Image(systemName: "server.rack")
-                        .foregroundColor(.gray)
-                        .frame(width: 20)
-                    VStack(alignment: .leading) {
-                        Text("Proxy Host")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        TextField("e.g., 127.0.0.1", text: $proxyHost)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                    }
-                }
-                
-                // Proxy Port
-                HStack {
-                    Image(systemName: "number")
-                        .foregroundColor(.gray)
-                        .frame(width: 20)
-                    VStack(alignment: .leading) {
-                        Text("Proxy Port")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        TextField("1080", value: $proxyPort, format: .number)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .keyboardType(.numberPad)
-                    }
-                }
-                
-                // Authentication (optional)
-                DisclosureGroup("Authentication") {
-                    HStack {
-                        Image(systemName: "person")
-                            .foregroundColor(.gray)
-                            .frame(width: 20)
-                        VStack(alignment: .leading) {
-                            Text("Username")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            TextField("Optional", text: $proxyUsername)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                        }
-                    }
-                    
-                    HStack {
-                        Image(systemName: "key")
-                            .foregroundColor(.gray)
-                            .frame(width: 20)
-                        VStack(alignment: .leading) {
-                            Text("Password")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            SecureField("Optional", text: $proxyPassword)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                        }
-                    }
-                }
-            }
-        } header: {
-            Text("Network Settings")
-        }
-    }
-}
-
 extension AVAssetExportSession.Status {
     var isFinished: Bool {
         switch self {
@@ -2081,14 +1997,8 @@ struct LCAppSettingsView: View {
             )
            
 
-            // MARK: Network Settings init
-            NetworkSettingsSection(
-                spoofNetwork: $model.uiSpoofNetwork,
-                proxyHost: $model.uiProxyHost,
-                proxyPort: $model.uiProxyPort,
-                proxyUsername: $model.uiProxyUsername,
-                proxyPassword: $model.uiProxyPassword
-            )
+            // MARK: Device Spoofing (Profile-Based) — moved to old network section location
+            deviceSpoofingSection()
 
             // MARK: Security Section
             Section {
@@ -2113,9 +2023,6 @@ struct LCAppSettingsView: View {
                 Text("Security Settings")
             }
 
-            // MARK: Device Spoofing (Profile-Based) — extracted to reduce type-checker load
-            deviceSpoofingSection()
-            
             Section {
                 Toggle(isOn: $model.uiIsJITNeeded) {
                     Text("lc.appSettings.launchWithJit".loc)

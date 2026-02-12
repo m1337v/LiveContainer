@@ -193,37 +193,6 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var isProcessingVideo = false
     @Published var videoProcessingProgress: Double = 0.0
 
-    // MARK: Network Addon
-    @Published var uiSpoofNetwork: Bool {
-        didSet {
-            appInfo.spoofNetwork = uiSpoofNetwork
-        }
-    }
-
-    @Published var uiProxyHost: String {
-        didSet {
-            appInfo.proxyHost = uiProxyHost
-        }
-    }
-
-    @Published var uiProxyPort: Int32 {
-        didSet {
-            appInfo.proxyPort = uiProxyPort
-        }
-    }
-
-    @Published var uiProxyUsername: String {
-        didSet {
-            appInfo.proxyUsername = uiProxyUsername
-        }
-    }
-
-    @Published var uiProxyPassword: String {
-        didSet {
-            appInfo.proxyPassword = uiProxyPassword
-        }
-    }
-
     // MARK: SSL Addon
     @Published var uiBypassSSLPinning: Bool {
         didSet {
@@ -454,13 +423,6 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiSpoofCameraTransformScale = appInfo.spoofCameraTransformScale
         self.uiSpoofCameraTransformFlip = appInfo.spoofCameraTransformFlip
         
-        // MARK: Proxy Addon Section
-        self.uiSpoofNetwork = appInfo.spoofNetwork
-        self.uiProxyHost = appInfo.proxyHost ?? ""
-        self.uiProxyPort = appInfo.proxyPort
-        self.uiProxyUsername = appInfo.proxyUsername ?? ""
-        self.uiProxyPassword = appInfo.proxyPassword ?? ""
-
         // MARK: SSL Addon Section
         self.uiBypassSSLPinning = appInfo.bypassSSLPinning
 

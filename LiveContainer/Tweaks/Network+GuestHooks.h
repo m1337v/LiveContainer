@@ -2,22 +2,10 @@
 //  Network+GuestHooks.h
 //  LiveContainer
 //
-//  Network spoofing hooks for routing traffic through proxies
+//  Legacy proxy hooks (retired)
 //
 
 #import <Foundation/Foundation.h>
 
-// Initialize network hooks
+// Retained as a no-op for binary/source compatibility.
 void NetworkGuestHooksInit(void);
-
-// Proxy configuration structure
-typedef struct {
-    BOOL enabled;
-    NSString *host;
-    int port;
-    NSString *username;
-    NSString *password;
-} LCProxyConfig;
-
-// Get current proxy configuration
-LCProxyConfig* getCurrentProxyConfig(void);

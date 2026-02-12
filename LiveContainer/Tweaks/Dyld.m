@@ -21,7 +21,6 @@
 #import "../utils.h"
 #import "CoreLocation+GuestHooks.h"
 #import "AVFoundation+GuestHooks.h"
-#import "Network+GuestHooks.h"
 #import <AuthenticationServices/AuthenticationServices.h>
 #import <objc/runtime.h>
 #import <Security/Security.h>
@@ -116,9 +115,8 @@ uint32_t (*orig_dyld_get_program_sdk_version)(void* dyldPtr);
 static bool bypassSSLPinning = false;
 void CoreLocationGuestHooksInit(void);
 void AVFoundationGuestHooksInit(void);
-void NetworkGuestHooksInit(void);
 
-// Global variable to track Sign in with Apple context  
+// Global variable to track Sign in with Apple context
 static BOOL isSignInWithAppleActive = NO;
 
 static void overwriteAppExecutableFileType(void) {
@@ -139,16 +137,16 @@ static NSMutableSet<NSString *> *loadedTweakNames = nil;
 
 static void detectConfiguredTweaksEarly(void) {
     if (loadedTweakNames) return; // Already detected
-    
+
     loadedTweakNames = [[NSMutableSet alloc] init];
-    
+
     @try {
         // Method 1: Check environment variable before TweakLoader unsets it
         const char *tweakFolderC = getenv("LC_GLOBAL_TWEAKS_FOLDER");
         if (tweakFolderC) {
             NSString *globalTweakFolder = @(tweakFolderC);
             NSArray *globalTweaks = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:globalTweakFolder error:nil];
-            
+
             for (NSString *tweakName in globalTweaks) {
                 if ([tweakName hasSuffix:@".dylib"]) {
                     [loadedTweakNames addObject:tweakName];
@@ -156,14 +154,14 @@ static void detectConfiguredTweaksEarly(void) {
                 }
             }
         }
-        
+
         // Method 2: Use hardcoded path as fallback
         NSString *lcBundlePath = [[NSBundle mainBundle] bundlePath];
         NSString *globalTweakFolder = [lcBundlePath stringByAppendingPathComponent:@"Frameworks/TweakLoader.framework/GlobalTweaks"];
-        
+
         if ([[NSFileManager defaultManager] fileExistsAtPath:globalTweakFolder]) {
             NSArray *globalTweaks = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:globalTweakFolder error:nil];
-            
+
             for (NSString *tweakName in globalTweaks) {
                 if ([tweakName hasSuffix:@".dylib"]) {
                     [loadedTweakNames addObject:tweakName];
@@ -171,15 +169,15 @@ static void detectConfiguredTweaksEarly(void) {
                 }
             }
         }
-        
+
         // Method 3: App-specific tweaks
         NSString *tweakFolderName = NSUserDefaults.guestAppInfo[@"LCTweakFolder"];
         if (tweakFolderName.length > 0) {
             NSString *documentsPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
             NSString *tweakFolderPath = [documentsPath stringByAppendingPathComponent:tweakFolderName];
-            
+
             NSArray *appTweaks = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:tweakFolderPath error:nil];
-            
+
             for (NSString *tweakName in appTweaks) {
                 if ([tweakName hasSuffix:@".dylib"]) {
                     [loadedTweakNames addObject:tweakName];
@@ -187,9 +185,9 @@ static void detectConfiguredTweaksEarly(void) {
                 }
             }
         }
-        
+
         NSLog(@"[LC] 🕵️ Early detection complete - total tweaks to hide: %lu", (unsigned long)loadedTweakNames.count);
-        
+
     } @catch (NSException *exception) {
         NSLog(@"[LC] ❌ Error in early tweak detection: %@", exception.reason);
     }
@@ -197,7 +195,7 @@ static void detectConfiguredTweaksEarly(void) {
 
 // static bool shouldHideLibrary(const char* imageName) {
 //     if (!imageName) return false;
-    
+
 //     // Convert to lowercase for case-insensitive comparison
 //     char lowerImageName[1024];
 //     strlcpy(lowerImageName, imageName, sizeof(lowerImageName));
@@ -215,14 +213,14 @@ static void detectConfiguredTweaksEarly(void) {
 // Enhanced shouldHideLibrary function
 static bool shouldHideLibrary(const char* imageName) {
     if (!imageName) return false;
-    
+
     NSString *fileName = [@(imageName) lastPathComponent];
-    
+
     // Check against pre-detected configured tweaks
     if (loadedTweakNames && [loadedTweakNames containsObject:fileName]) {
         return true;
     }
-    
+
     // Convert to lowercase for hardcoded patterns
     char lowerImageName[1024];
     strlcpy(lowerImageName, imageName, sizeof(lowerImageName));
@@ -240,22 +238,22 @@ static void ensureAppMainIndexIsSet(void) {
     if (appMainImageIndex != 0) {
         return; // Already found
     }
-    
+
     // Find the guest app executable (not LiveContainer)
     int imageCount = orig_dyld_image_count();
     for(int i = 0; i < imageCount; ++i) {
         const struct mach_header* currentImageHeader = orig_dyld_get_image_header(i);
         const char* imageName = orig_dyld_get_image_name(i);
-        
-        if(currentImageHeader && currentImageHeader->filetype == MH_EXECUTE && 
+
+        if(currentImageHeader && currentImageHeader->filetype == MH_EXECUTE &&
            imageName && i != lcImageIndex && !strstr(imageName, "LiveContainer.app")) {
-            
+
             appMainImageIndex = i;
             NSLog(@"[LC] Found guest app at index %d: %s", i, imageName);
             return;
         }
     }
-    
+
     NSLog(@"[LC] ERROR: Could not find guest app executable!");
 }
 
@@ -281,10 +279,10 @@ static void ensureAppMainIndexIsSet(void) {
 //             overwriteAppExecutableFileType();
 //             appExecutableFileTypeOverwritten = true;
 //         }
-        
+
 //         return appMainImageIndex;
 //     }
-    
+
 //     // find tweakloader index
 //     if(tweakLoaderLoaded && tweakLoaderIndex == 0) {
 //         const char* tweakloaderPath = [[[[NSUserDefaults lcMainBundle] bundlePath] stringByAppendingPathComponent:@"Frameworks/TweakLoader.dylib"] UTF8String];
@@ -303,7 +301,7 @@ static void ensureAppMainIndexIsSet(void) {
 //             tweakLoaderIndex = -1; // can't find, don't search again in the future
 //         }
 //     }
-    
+
 //     if(tweakLoaderLoaded && tweakLoaderIndex > 0 && origin >= tweakLoaderIndex) {
 //         return origin + 2;
 //     } else if(origin >= appMainImageIndex) {
@@ -339,11 +337,11 @@ void* hook_dlsym(void * __handle, const char * __symbol) {
         strcmp(__symbol, "LHHookFunction") == 0 ||
         strcmp(__symbol, "LHHookFunctions") == 0 ||
         strcmp(__symbol, "LHFindSymbol") == 0 ||
-        
+
          // Theos/Logo
         strcmp(__symbol, "_logos_method_orig") == 0 ||
         strcmp(__symbol, "_logos_method_called") == 0 ||
-        strcmp(__symbol, "_logos_register_hook") == 0 || 
+        strcmp(__symbol, "_logos_register_hook") == 0 ||
         strcmp(__symbol, "_logos_method_replaced") == 0 ||
 
         // Objective-C runtime introspection: Crashing some apps
@@ -406,7 +404,7 @@ void* hook_dlsym(void * __handle, const char * __symbol) {
         }
         return ans;
     }
-    
+
     __attribute__((musttail)) return orig_dlsym(__handle, __symbol);
 }
 
@@ -415,7 +413,7 @@ void* hook_dlsym(void * __handle, const char * __symbol) {
 // }
 uint32_t hook_dyld_image_count(void) {
     uint32_t count = orig_dyld_image_count();
-    
+
     // Count visible (non-hidden) images INCLUDING LiveContainer (which will be replaced)
     uint32_t visibleCount = 0;
     for(uint32_t i = 0; i < count; i++) {
@@ -424,7 +422,7 @@ uint32_t hook_dyld_image_count(void) {
             visibleCount++;
         }
     }
-    
+
     return visibleCount;
 }
 
@@ -441,30 +439,30 @@ const struct mach_header* hook_dyld_get_image_header(uint32_t image_index) {
         }
         return orig_dyld_get_image_header(appMainImageIndex);
     }
-    
+
     // Before we're ready to hide libraries, use simple passthrough
     if(!appExecutableFileTypeOverwritten) {
         return orig_dyld_get_image_header(image_index);
     }
-    
+
     // After we're ready, use the hiding logic
     uint32_t realCount = orig_dyld_image_count();
     uint32_t visibleIndex = 0;
-    
+
     for(uint32_t i = 0; i < realCount; i++) {
         const char* imageName = orig_dyld_get_image_name(i);
-        
+
         if(shouldHideLibrary(imageName)) {
             continue;
         }
-        
+
         if(visibleIndex == image_index) {
             return orig_dyld_get_image_header(i);
         }
-        
+
         visibleIndex++;
     }
-    
+
     return NULL;
 }
 
@@ -480,30 +478,30 @@ intptr_t hook_dyld_get_image_vmaddr_slide(uint32_t image_index) {
         }
         return orig_dyld_get_image_vmaddr_slide(appMainImageIndex);
     }
-    
+
     // Before we're ready to hide libraries, use simple passthrough
     if(!appExecutableFileTypeOverwritten) {
         return orig_dyld_get_image_vmaddr_slide(image_index);
     }
-    
+
     // After we're ready, use the hiding logic
     uint32_t realCount = orig_dyld_image_count();
     uint32_t visibleIndex = 0;
-    
+
     for(uint32_t i = 0; i < realCount; i++) {
         const char* imageName = orig_dyld_get_image_name(i);
-        
+
         if(shouldHideLibrary(imageName)) {
             continue;
         }
-        
+
         if(visibleIndex == image_index) {
             return orig_dyld_get_image_vmaddr_slide(i);
         }
-        
+
         visibleIndex++;
     }
-    
+
     return 0;
 }
 
@@ -520,30 +518,30 @@ const char* hook_dyld_get_image_name(uint32_t image_index) {
         }
         return orig_dyld_get_image_name(appMainImageIndex);
     }
-    
+
     // Before we're ready to hide libraries, use simple passthrough
     if(!appExecutableFileTypeOverwritten) {
         return orig_dyld_get_image_name(image_index);
     }
-    
+
     // Use EXACT SAME logic as hook_dyld_image_count
     uint32_t realCount = orig_dyld_image_count();
     uint32_t visibleIndex = 0;
-    
+
     for(uint32_t i = 0; i < realCount; i++) {
         const char* imageName = orig_dyld_get_image_name(i);
-        
+
         if(shouldHideLibrary(imageName)) {
             continue;
         }
-        
+
         if(visibleIndex == image_index) {
             return imageName;
         }
-        
+
         visibleIndex++;
     }
-    
+
     return NULL;
 }
 
@@ -566,7 +564,7 @@ void hideLiveContainerImageCallback(const struct mach_header* header, intptr_t v
 
 void* getDSCAddr(void) {
     task_dyld_info_data_t dyldInfo;
-    
+
     uint32_t count = TASK_DYLD_INFO_COUNT;
     task_info(mach_task_self_, TASK_DYLD_INFO, (task_info_t)&dyldInfo, &count);
     struct dyld_all_image_infos *infos = (struct dyld_all_image_infos *)dyldInfo.all_image_info_addr;
@@ -586,7 +584,7 @@ void* getCachedSymbol(NSString* symbolName, mach_header_u* header) {
     if(!uuid || memcmp(uuid, [cachedSymbolUUID bytes], 16)) {
         return NULL;
     }
-    
+
     return (void*)header + [symbolOffsetDict[@"offset"] unsignedLongLongValue];
 }
 
@@ -595,7 +593,7 @@ void saveCachedSymbol(NSString* symbolName, mach_header_u* header, uint64_t offs
     if(!allSymbolOffsetDict) {
         allSymbolOffsetDict = [[NSMutableDictionary alloc] init];
     }
-    
+
     allSymbolOffsetDict[symbolName] = @{
         @"uuid": [NSData dataWithBytes:LCGetMachOUUID(header) length:16],
         @"offset": @(offset),
@@ -619,7 +617,7 @@ uint32_t hook_dyld_get_program_sdk_version(void* dyldApiInstancePtr) {
 }
 
 bool performHookDyldApi(const char* functionName, uint32_t adrpOffset, void** origFunction, void* hookFunction) {
-    
+
     uint32_t* baseAddr = dlsym(RTLD_DEFAULT, functionName);
     assert(baseAddr != 0);
     /*
@@ -652,20 +650,20 @@ bool performHookDyldApi(const char* functionName, uint32_t adrpOffset, void** or
     uint32_t immlo = (*adrpInstPtr & 0x60000000) >> 29;
     uint32_t immhi = (*adrpInstPtr & 0xFFFFE0) >> 5;
     int64_t imm = (((int64_t)((immhi << 2) | immlo)) << 43) >> 31;
-    
+
     void* gdyldPtr = (void*)(((uint64_t)baseAddr & 0xfffffffffffff000) + imm);
-    
+
     uint32_t* ldrInstPtr1 = baseAddr + adrpOffset + 1;
     // check if the instruction is ldr Unsigned offset
     assert((*ldrInstPtr1 & 0xBFC00000) == 0xB9400000);
     uint32_t size = (*ldrInstPtr1 & 0xC0000000) >> 30;
     uint32_t imm12 = (*ldrInstPtr1 & 0x3FFC00) >> 10;
     gdyldPtr += (imm12 << size);
-    
+
     assert(gdyldPtr != 0);
     assert(*(void**)gdyldPtr != 0);
     void* vtablePtr = **(void***)gdyldPtr;
-    
+
     void* vtableFunctionPtr = 0;
     uint32_t* movInstPtr = baseAddr + adrpOffset + 6;
 
@@ -686,7 +684,7 @@ bool performHookDyldApi(const char* functionName, uint32_t adrpOffset, void** or
         vtableFunctionPtr = vtablePtr + (imm12_2 << size2);
     }
 
-    
+
     kern_return_t ret = builtin_vm_protect(mach_task_self(), (mach_vm_address_t)vtableFunctionPtr, sizeof(uintptr_t), false, PROT_READ | PROT_WRITE | VM_PROT_COPY);
     assert(ret == KERN_SUCCESS);
     *origFunction = (void*)*(void**)vtableFunctionPtr;
@@ -710,7 +708,7 @@ bool initGuestSDKVersionInfo(void) {
         versionMapPtr = dyldBase + offset;
         saveCachedSymbol(@"__ZN5dyld3L11sVersionMapE", dyldBase, offset);
     }
-    
+
     assert(versionMapPtr);
     // however sVersionMap's struct size is also unknown, but we can figure it out
     // we assume the size is 10K so we won't need to change this line until maybe iOS 40
@@ -727,10 +725,10 @@ bool initGuestSDKVersionInfo(void) {
         }
     }
     assert(size);
-    
+
     NSOperatingSystemVersion currentVersion = [[NSProcessInfo processInfo] operatingSystemVersion];
     uint32_t maxVersion = ((uint32_t)currentVersion.majorVersion << 16) | ((uint32_t)currentVersion.minorVersion << 8);
-    
+
     uint32_t candidateVersion = 0;
     uint32_t candidateVersionEquivalent = 0;
     uint32_t newVersionSetVersion = 0;
@@ -741,13 +739,13 @@ bool initGuestSDKVersionInfo(void) {
         candidateVersionEquivalent = nowVersionMapItem[0];
         if(newVersionSetVersion >= maxVersion) { break; }
     }
-    
+
     if (newVersionSetVersion == 0xffffffff && candidateVersion == 0) {
         candidateVersionEquivalent = newVersionSetVersion;
     }
 
     guestAppSdkVersionSet = candidateVersionEquivalent;
-    
+
     return true;
 }
 
@@ -774,23 +772,12 @@ static BOOL shouldFilterVPNInterfaceNameCStr(const char *name) {
     if (!name || name[0] == '\0') {
         return NO;
     }
-    
-    // Keep low-numbered utun interfaces that are often system-managed.
+
+    // utun interfaces are a high-signal VPN/proxy indicator.
     if (strncmp(name, "utun", 4) == 0) {
-        const char *suffix = name + 4;
-        if (*suffix == '\0') {
-            return YES;
-        }
-        
-        char *endPtr = NULL;
-        long utunNumber = strtol(suffix, &endPtr, 10);
-        if (endPtr == suffix) {
-            return YES;
-        }
-        
-        return utunNumber >= 6;
+        return YES;
     }
-    
+
     return (strncmp(name, "tap", 3) == 0 ||
             strncmp(name, "tun", 3) == 0 ||
             strncmp(name, "ppp", 3) == 0 ||
@@ -806,32 +793,59 @@ static BOOL shouldFilterVPNInterfaceName(NSString *name) {
     if (name.length == 0) {
         return NO;
     }
-    
+
     return shouldFilterVPNInterfaceNameCStr(name.UTF8String);
+}
+
+static NSString *sanitizeVPNMarkersInString(NSString *text) {
+    if (![text isKindOfClass:[NSString class]] || text.length == 0) {
+        return text;
+    }
+
+    static NSRegularExpression *vpnRegex = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        vpnRegex = [NSRegularExpression regularExpressionWithPattern:@"\\b(?:utun\\d*|tap\\d*|tun\\d*|ppp\\d*|bridge\\d*|ipsec\\d*|gif\\d*|stf\\d*|wg\\d*|pptp\\d*)\\b"
+                                                             options:NSRegularExpressionCaseInsensitive
+                                                               error:nil];
+    });
+
+    if (!vpnRegex) {
+        return text;
+    }
+
+    return [vpnRegex stringByReplacingMatchesInString:text
+                                              options:0
+                                                range:NSMakeRange(0, text.length)
+                                         withTemplate:@"en0"];
 }
 
 static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
     // Return completely empty dictionary - exactly like cellular connection
     NSDictionary *emptySettings = @{};
-    
+
     return CFBridgingRetain(emptySettings);
 }
 
 static int hook_getifaddrs(struct ifaddrs **ifap) {
+    if (!orig_getifaddrs) {
+        return -1;
+    }
+
     int result = orig_getifaddrs(ifap);
     if (result != 0 || !ifap || !*ifap) {
         return result;
     }
-    
+
     struct ifaddrs *current = *ifap;
     struct ifaddrs *prev = NULL;
-    
+
     while (current != NULL) {
         BOOL shouldFilter = shouldFilterVPNInterfaceNameCStr(current->ifa_name);
         if (shouldFilter && current->ifa_name) {
             NSLog(@"[LC] 🎭 getifaddrs - filtering VPN interface: %s", current->ifa_name);
         }
-        
+
         if (shouldFilter) {
             // Remove this interface from the linked list
             if (prev) {
@@ -839,10 +853,10 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
             } else {
                 *ifap = current->ifa_next;
             }
-            
+
             struct ifaddrs *toFree = current;
             current = current->ifa_next;
-            
+
             // DON'T manually free - let the system handle it with freeifaddrs()
             toFree->ifa_next = NULL;
         } else {
@@ -850,7 +864,7 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
             current = current->ifa_next;
         }
     }
-    
+
     return result;
 }
 
@@ -858,23 +872,25 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
 
 @interface NWPath (GuestHooks)
 - (NSArray *)lc_availableInterfaces;
+- (NSString *)lc_description;
+- (NSString *)lc_debugDescription;
 @end
 
 @implementation NWPath (GuestHooks)
 
 - (NSArray *)lc_availableInterfaces {
     NSArray *originalInterfaces = [self lc_availableInterfaces];
-    
+
     if (![originalInterfaces isKindOfClass:[NSArray class]]) {
         return originalInterfaces;
     }
 
     NSMutableArray *filtered = [NSMutableArray array];
-    
+
     for (id interface in originalInterfaces) {
         @try {
             NSString *name = [interface performSelector:@selector(name)];
-            
+
             if (name && shouldFilterVPNInterfaceName(name)) {
                 NSLog(@"[LC] 🎭 NWPath filtered VPN interface: %@", name);
                 continue;
@@ -886,77 +902,155 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
             NSLog(@"[LC] NWPath.availableInterfaces filtering exception: %@", e);
         }
     }
-    
-    NSLog(@"[LC] 🎭 NWPath.availableInterfaces: returned %lu interfaces (filtered %lu)", 
+
+    NSLog(@"[LC] 🎭 NWPath.availableInterfaces: returned %lu interfaces (filtered %lu)",
           (unsigned long)filtered.count,
           (unsigned long)(originalInterfaces.count - filtered.count));
-    
+
     return [filtered copy];
+}
+
+- (NSString *)lc_description {
+    NSString *originalDescription = [self lc_description];
+    return sanitizeVPNMarkersInString(originalDescription);
+}
+
+- (NSString *)lc_debugDescription {
+    NSString *originalDebugDescription = [self lc_debugDescription];
+    return sanitizeVPNMarkersInString(originalDebugDescription);
 }
 
 @end
 
 @interface NWInterface (GuestHooks)
 - (NSInteger)lc_type;
+- (NSString *)lc_name;
+- (NSString *)lc_description;
+- (NSString *)lc_debugDescription;
 @end
 
 @implementation NWInterface (GuestHooks)
 
 - (NSInteger)lc_type {
     NSInteger originalType = [self lc_type];
-    
+
     @try {
         NSString *name = [self performSelector:@selector(name)];
-        
-        if (name && originalType == 0 && shouldFilterVPNInterfaceName(name)) { // .other = 0
+
+        if (name && shouldFilterVPNInterfaceName(name)) {
             NSLog(@"[LC] 🎭 NWInterface.type spoofed for VPN interface %@", name);
             return 1; // .wifi = 1
         }
     } @catch (NSException *e) {
         NSLog(@"[LC] NWInterface.type name lookup exception: %@", e);
     }
-    
+
     return originalType;
+}
+
+- (NSString *)lc_name {
+    NSString *originalName = [self lc_name];
+    if (shouldFilterVPNInterfaceName(originalName)) {
+        NSLog(@"[LC] 🎭 NWInterface.name spoofed for VPN interface %@", originalName);
+        return @"en0";
+    }
+    return originalName;
+}
+
+- (NSString *)lc_description {
+    NSString *originalDescription = [self lc_description];
+    return sanitizeVPNMarkersInString(originalDescription);
+}
+
+- (NSString *)lc_debugDescription {
+    NSString *originalDebugDescription = [self lc_debugDescription];
+    return sanitizeVPNMarkersInString(originalDebugDescription);
 }
 
 @end
 
 static void setupNetworkFrameworkSwizzling(void) {
-    static BOOL nwPathSwizzled = NO;
-    static BOOL nwInterfaceSwizzled = NO;
+    static BOOL nwPathInterfacesSwizzled = NO;
+    static BOOL nwPathDescriptionSwizzled = NO;
+    static BOOL nwPathDebugDescriptionSwizzled = NO;
+    static BOOL nwInterfaceTypeSwizzled = NO;
+    static BOOL nwInterfaceNameSwizzled = NO;
+    static BOOL nwInterfaceDescriptionSwizzled = NO;
+    static BOOL nwInterfaceDebugDescriptionSwizzled = NO;
     static NSUInteger retryCount = 0;
     static const NSUInteger kMaxRetries = 20;
     const NSTimeInterval kRetryDelaySeconds = 0.5;
-    
+
     Class nwPathClass = NSClassFromString(@"NWPath");
-    if (!nwPathSwizzled && nwPathClass &&
+    if (!nwPathInterfacesSwizzled && nwPathClass &&
         [nwPathClass instancesRespondToSelector:@selector(availableInterfaces)] &&
         [nwPathClass instancesRespondToSelector:@selector(lc_availableInterfaces)]) {
         swizzle(nwPathClass, @selector(availableInterfaces), @selector(lc_availableInterfaces));
-        nwPathSwizzled = YES;
+        nwPathInterfacesSwizzled = YES;
         NSLog(@"[LC] ✅ Swizzled NWPath.availableInterfaces");
     }
-    
+    if (!nwPathDescriptionSwizzled && nwPathClass &&
+        [nwPathClass instancesRespondToSelector:@selector(description)] &&
+        [nwPathClass instancesRespondToSelector:@selector(lc_description)]) {
+        swizzle(nwPathClass, @selector(description), @selector(lc_description));
+        nwPathDescriptionSwizzled = YES;
+        NSLog(@"[LC] ✅ Swizzled NWPath.description");
+    }
+    if (!nwPathDebugDescriptionSwizzled && nwPathClass &&
+        [nwPathClass instancesRespondToSelector:@selector(debugDescription)] &&
+        [nwPathClass instancesRespondToSelector:@selector(lc_debugDescription)]) {
+        swizzle(nwPathClass, @selector(debugDescription), @selector(lc_debugDescription));
+        nwPathDebugDescriptionSwizzled = YES;
+        NSLog(@"[LC] ✅ Swizzled NWPath.debugDescription");
+    }
+
     Class nwInterfaceClass = NSClassFromString(@"NWInterface");
-    if (!nwInterfaceSwizzled && nwInterfaceClass &&
+    if (!nwInterfaceTypeSwizzled && nwInterfaceClass &&
         [nwInterfaceClass instancesRespondToSelector:@selector(type)] &&
         [nwInterfaceClass instancesRespondToSelector:@selector(lc_type)]) {
         swizzle(nwInterfaceClass, @selector(type), @selector(lc_type));
-        nwInterfaceSwizzled = YES;
+        nwInterfaceTypeSwizzled = YES;
         NSLog(@"[LC] ✅ Swizzled NWInterface.type");
     }
-    
-    if (nwPathSwizzled && nwInterfaceSwizzled) {
+    if (!nwInterfaceNameSwizzled && nwInterfaceClass &&
+        [nwInterfaceClass instancesRespondToSelector:@selector(name)] &&
+        [nwInterfaceClass instancesRespondToSelector:@selector(lc_name)]) {
+        swizzle(nwInterfaceClass, @selector(name), @selector(lc_name));
+        nwInterfaceNameSwizzled = YES;
+        NSLog(@"[LC] ✅ Swizzled NWInterface.name");
+    }
+    if (!nwInterfaceDescriptionSwizzled && nwInterfaceClass &&
+        [nwInterfaceClass instancesRespondToSelector:@selector(description)] &&
+        [nwInterfaceClass instancesRespondToSelector:@selector(lc_description)]) {
+        swizzle(nwInterfaceClass, @selector(description), @selector(lc_description));
+        nwInterfaceDescriptionSwizzled = YES;
+        NSLog(@"[LC] ✅ Swizzled NWInterface.description");
+    }
+    if (!nwInterfaceDebugDescriptionSwizzled && nwInterfaceClass &&
+        [nwInterfaceClass instancesRespondToSelector:@selector(debugDescription)] &&
+        [nwInterfaceClass instancesRespondToSelector:@selector(lc_debugDescription)]) {
+        swizzle(nwInterfaceClass, @selector(debugDescription), @selector(lc_debugDescription));
+        nwInterfaceDebugDescriptionSwizzled = YES;
+        NSLog(@"[LC] ✅ Swizzled NWInterface.debugDescription");
+    }
+
+    if (nwPathInterfacesSwizzled && nwInterfaceTypeSwizzled && nwInterfaceNameSwizzled) {
         NSLog(@"[LC] ✅ Network framework swizzling complete");
         return;
     }
-    
+
     if (retryCount >= kMaxRetries) {
-        NSLog(@"[LC] ⚠️ Network framework swizzling incomplete (NWPath=%d NWInterface=%d)",
-              nwPathSwizzled, nwInterfaceSwizzled);
+        NSLog(@"[LC] ⚠️ Network framework swizzling incomplete (pathInterfaces=%d pathDescription=%d pathDebugDescription=%d interfaceType=%d interfaceName=%d interfaceDescription=%d interfaceDebugDescription=%d)",
+              nwPathInterfacesSwizzled,
+              nwPathDescriptionSwizzled,
+              nwPathDebugDescriptionSwizzled,
+              nwInterfaceTypeSwizzled,
+              nwInterfaceNameSwizzled,
+              nwInterfaceDescriptionSwizzled,
+              nwInterfaceDebugDescriptionSwizzled);
         return;
     }
-    
+
     retryCount++;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kRetryDelaySeconds * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
@@ -972,7 +1066,7 @@ static void setupNetworkFrameworkSwizzling(void) {
 
 static void hook_afSecurityPolicySetSSLPinningMode(id self, SEL _cmd, NSUInteger mode) {
     NSLog(@"[LC] 🔓 AFNetworking: setSSLPinningMode called with mode %lu, forcing to 0 (None)", (unsigned long)mode);
-    
+
     // Call original with mode 0 (AFSSLPinningModeNone)
     void (*original)(id, SEL, NSUInteger) = (void (*)(id, SEL, NSUInteger))orig_afSecurityPolicySetSSLPinningMode;
     original(self, _cmd, 0);
@@ -980,7 +1074,7 @@ static void hook_afSecurityPolicySetSSLPinningMode(id self, SEL _cmd, NSUInteger
 
 static void hook_afSecurityPolicySetAllowInvalidCertificates(id self, SEL _cmd, BOOL allow) {
     NSLog(@"[LC] 🔓 AFNetworking: setAllowInvalidCertificates called with %d, forcing to YES", allow);
-    
+
     // Call original with YES
     void (*original)(id, SEL, BOOL) = (void (*)(id, SEL, BOOL))orig_afSecurityPolicySetAllowInvalidCertificates;
     original(self, _cmd, YES);
@@ -988,7 +1082,7 @@ static void hook_afSecurityPolicySetAllowInvalidCertificates(id self, SEL _cmd, 
 
 static id hook_afSecurityPolicyPolicyWithPinningMode(id self, SEL _cmd, NSUInteger mode) {
     NSLog(@"[LC] 🔓 AFNetworking: policyWithPinningMode called with mode %lu, forcing to 0 (None)", (unsigned long)mode);
-    
+
     // Call original with mode 0 (AFSSLPinningModeNone)
     id (*original)(id, SEL, NSUInteger) = (id (*)(id, SEL, NSUInteger))orig_afSecurityPolicyPolicyWithPinningMode;
     return original(self, _cmd, 0);
@@ -996,7 +1090,7 @@ static id hook_afSecurityPolicyPolicyWithPinningMode(id self, SEL _cmd, NSUInteg
 
 static id hook_afSecurityPolicyPolicyWithPinningModeWithPinnedCertificates(id self, SEL _cmd, NSUInteger mode, NSSet *pinnedCertificates) {
     NSLog(@"[LC] 🔓 AFNetworking: policyWithPinningMode:withPinnedCertificates called with mode %lu, forcing to 0 (None)", (unsigned long)mode);
-    
+
     // Call original with mode 0 (AFSSLPinningModeNone)
     id (*original)(id, SEL, NSUInteger, NSSet *) = (id (*)(id, SEL, NSUInteger, NSSet *))orig_afSecurityPolicyPolicyWithPinningModeWithPinnedCertificates;
     return original(self, _cmd, 0, pinnedCertificates);
@@ -1006,7 +1100,7 @@ static id hook_afSecurityPolicyPolicyWithPinningModeWithPinnedCertificates(id se
 
 static BOOL hook_tskPinningValidatorEvaluateTrust(id self, SEL _cmd, SecTrustRef trust, NSString *hostname) {
     NSLog(@"[LC] 🔓 TrustKit: evaluateTrust:forHostname called for %@, returning YES", hostname);
-    
+
     // Always return YES (trust is valid)
     return YES;
 }
@@ -1015,7 +1109,7 @@ static BOOL hook_tskPinningValidatorEvaluateTrust(id self, SEL _cmd, SecTrustRef
 
 static BOOL hook_customURLConnectionDelegateIsFingerprintTrusted(id self, SEL _cmd, NSString *fingerprint) {
     NSLog(@"[LC] 🔓 Cordova SSLCertificateChecker: isFingerprintTrusted called, returning YES");
-    
+
     // Always return YES (fingerprint is trusted)
     return YES;
 }
@@ -1024,11 +1118,11 @@ static BOOL hook_customURLConnectionDelegateIsFingerprintTrusted(id self, SEL _c
 
 static void hook_urlSessionDidReceiveChallenge(id self, SEL _cmd, NSURLSession *session, NSURLAuthenticationChallenge *challenge, void (^completionHandler)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
     NSLog(@"[LC] 🔓 NSURLSession: URLSession:didReceiveChallenge:completionHandler bypassing certificate validation");
-    
+
     // Create credential for the server trust and use it
     NSURLCredential *credential = [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust];
     [challenge.sender useCredential:credential forAuthenticationChallenge:challenge];
-    
+
     // Call completion handler with success
     completionHandler(NSURLSessionAuthChallengeUseCredential, credential);
 }
@@ -1041,31 +1135,31 @@ static OSStatus hook_SSLSetSessionOption(SSLContextRef context, SSLSessionOption
         NSLog(@"[LC] 🔓 SSL: SSLSetSessionOption called with kSSLSessionOptionBreakOnServerAuth, blocking");
         return noErr; // Don't allow modification of this option
     }
-    
+
     return orig_SSLSetSessionOption(context, option, value);
 }
 
 static SSLContextRef hook_SSLCreateContext(CFAllocatorRef alloc, SSLProtocolSide protocolSide, SSLConnectionType connectionType) {
     SSLContextRef context = orig_SSLCreateContext(alloc, protocolSide, connectionType);
-    
+
     if (context && orig_SSLSetSessionOption) {
         // Immediately set kSSLSessionOptionBreakOnServerAuth to disable cert validation
         orig_SSLSetSessionOption(context, 0, true); // kSSLSessionOptionBreakOnServerAuth = 0
         NSLog(@"[LC] 🔓 SSL: SSLCreateContext called, disabled certificate validation");
     }
-    
+
     return context;
 }
 
 static OSStatus hook_SSLHandshake(SSLContextRef context) {
     OSStatus result = orig_SSLHandshake(context);
-    
+
     // errSSLServerAuthCompared = -9481
     if (result == -9481) {
         NSLog(@"[LC] 🔓 SSL: SSLHandshake got errSSLServerAuthCompared, calling again to bypass");
         return orig_SSLHandshake(context);
     }
-    
+
     return result;
 }
 
@@ -1076,29 +1170,29 @@ static void setupAFNetworkingHooks(void) {
     if (!afSecurityPolicy) {
         return;
     }
-    
+
     NSLog(@"[LC] 🔓 Found AFNetworking, hooking SSL pinning methods");
-    
+
     // Hook instance methods using direct method replacement
     Method setSSLPinningModeMethod = class_getInstanceMethod(afSecurityPolicy, @selector(setSSLPinningMode:));
     if (setSSLPinningModeMethod) {
         orig_afSecurityPolicySetSSLPinningMode = method_getImplementation(setSSLPinningModeMethod);
         method_setImplementation(setSSLPinningModeMethod, (IMP)hook_afSecurityPolicySetSSLPinningMode);
     }
-    
+
     Method setAllowInvalidCertificatesMethod = class_getInstanceMethod(afSecurityPolicy, @selector(setAllowInvalidCertificates:));
     if (setAllowInvalidCertificatesMethod) {
         orig_afSecurityPolicySetAllowInvalidCertificates = method_getImplementation(setAllowInvalidCertificatesMethod);
         method_setImplementation(setAllowInvalidCertificatesMethod, (IMP)hook_afSecurityPolicySetAllowInvalidCertificates);
     }
-    
+
     // Hook class methods - keep as is since they work
     Method policyMethod = class_getClassMethod(afSecurityPolicy, @selector(policyWithPinningMode:));
     if (policyMethod) {
         orig_afSecurityPolicyPolicyWithPinningMode = method_getImplementation(policyMethod);
         method_setImplementation(policyMethod, (IMP)hook_afSecurityPolicyPolicyWithPinningMode);
     }
-    
+
     Method policyWithCertsMethod = class_getClassMethod(afSecurityPolicy, @selector(policyWithPinningMode:withPinnedCertificates:));
     if (policyWithCertsMethod) {
         orig_afSecurityPolicyPolicyWithPinningModeWithPinnedCertificates = method_getImplementation(policyWithCertsMethod);
@@ -1111,9 +1205,9 @@ static void setupTrustKitHooks(void) {
     if (!tskPinningValidator) {
         return;
     }
-    
+
     NSLog(@"[LC] 🔓 Found TrustKit, hooking pinning validation");
-    
+
     Method evaluateTrustMethod = class_getInstanceMethod(tskPinningValidator, @selector(evaluateTrust:forHostname:));
     if (evaluateTrustMethod) {
         orig_tskPinningValidatorEvaluateTrust = method_getImplementation(evaluateTrustMethod);
@@ -1126,9 +1220,9 @@ static void setupCordovaHooks(void) {
     if (!customURLConnectionDelegate) {
         return;
     }
-    
+
     NSLog(@"[LC] 🔓 Found Cordova SSLCertificateChecker plugin, hooking fingerprint validation");
-    
+
     Method isFingerprintTrustedMethod = class_getInstanceMethod(customURLConnectionDelegate, @selector(isFingerprintTrusted:));
     if (isFingerprintTrustedMethod) {
         orig_customURLConnectionDelegateIsFingerprintTrusted = method_getImplementation(isFingerprintTrustedMethod);
@@ -1140,50 +1234,50 @@ static void setupNSURLSessionHooks(void) {
     // Find all classes that implement URLSession:didReceiveChallenge:completionHandler:
     unsigned int classCount;
     Class *classes = objc_copyClassList(&classCount);
-    
+
     for (unsigned int i = 0; i < classCount; i++) {
         Class cls = classes[i];
         Method method = class_getInstanceMethod(cls, @selector(URLSession:didReceiveChallenge:completionHandler:));
-        
+
         if (method) {
             NSLog(@"[LC] 🔓 Found NSURLSession delegate in class %s, hooking challenge method", class_getName(cls));
-            
+
             // Get original implementation before replacing
             IMP originalImp = method_getImplementation(method);
-            
+
             // Replace with our hook
             method_setImplementation(method, (IMP)hook_urlSessionDidReceiveChallenge);
         }
     }
-    
+
     free(classes);
 }
 
 static void setupLowLevelSSLHooks(void) {
     NSLog(@"[LC] 🔓 Setting up low-level SSL/TLS hooks");
-    
+
     // Hook SSL functions using fishhook
     struct rebinding ssl_rebindings[] = {
         {"SSLSetSessionOption", (void *)hook_SSLSetSessionOption, (void **)&orig_SSLSetSessionOption},
         {"SSLCreateContext", (void *)hook_SSLCreateContext, (void **)&orig_SSLCreateContext},
         {"SSLHandshake", (void *)hook_SSLHandshake, (void **)&orig_SSLHandshake},
     };
-    
+
     rebind_symbols(ssl_rebindings, 3);
 }
 
 static void setupSSLPinningBypass(void) {
     NSLog(@"[LC] 🔓 Initializing SSL pinning bypass");
-    
+
     // Framework-level hooks
     setupAFNetworkingHooks();
     setupTrustKitHooks();
     setupCordovaHooks();
     setupNSURLSessionHooks();
-    
+
     // Low-level SSL/TLS hooks
     setupLowLevelSSLHooks();
-    
+
     NSLog(@"[LC] 🔓 SSL pinning bypass setup complete");
 }
 
@@ -1232,23 +1326,23 @@ static void hook_SSL_CTX_set_custom_verify(void *ctx, int mode, int (*callback)(
 int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact) {
     // Call the original function first
     int result = orig_sigaction(sig, act, oact);
-    
+
     // If this is a query (act is NULL) and oact is not NULL, spoof the result
     if (act == NULL && oact != NULL) {
         // Make it look like no signal handler is installed
         memset(oact, 0, sizeof(struct sigaction));
         oact->sa_handler = SIG_DFL; // Default handler
-        
+
         NSLog(@"[LC] 🎭 Hiding signal handler for signal %d", sig);
     }
-    
+
     return result;
 }
 
 // Advanced Signal handler hook
 // int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact) {
 //     int result = orig_sigaction(sig, act, oact);
-    
+
 //     if (act == NULL && oact != NULL) {
 //         // List of signals commonly checked by anti-debugging
 //         static const int suspiciousSignals[] = {
@@ -1262,7 +1356,7 @@ int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigacti
 //             SIGABRT,  // Abort signal
 //             SIGFPE,   // Floating point exception
 //         };
-        
+
 //         // Check if this signal is commonly monitored
 //         bool shouldSpoof = false;
 //         for (int i = 0; i < sizeof(suspiciousSignals)/sizeof(int); i++) {
@@ -1271,7 +1365,7 @@ int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigacti
 //                 break;
 //             }
 //         }
-        
+
 //         if (shouldSpoof) {
 //             // Clear the signal handler to look clean
 //             memset(oact, 0, sizeof(struct sigaction));
@@ -1279,7 +1373,7 @@ int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigacti
 //             NSLog(@"[LC] 🎭 Spoofed signal handler for signal %d (%s)", sig, strsignal(sig));
 //         }
 //     }
-    
+
 //     return result;
 // }
 
@@ -1288,7 +1382,7 @@ int hook_sigaction(int sig, const struct sigaction *restrict act, struct sigacti
 static BOOL shouldUseLiveContainerBundleId(void) {
     // Get the call stack to determine context
     NSArray *callStack = [NSThread callStackSymbols];
-    
+
     // Check for system framework calls that need LiveContainer's bundle ID
     for (NSString *frame in callStack) {
         // Notification permission requests
@@ -1297,7 +1391,7 @@ static BOOL shouldUseLiveContainerBundleId(void) {
             [frame containsString:@"requestAuthorizationWithOptions"]) {
             return YES;
         }
-        
+
         // File picker and document interaction
         if ([frame containsString:@"UIDocumentPickerViewController"] ||
             [frame containsString:@"UIDocumentInteractionController"] ||
@@ -1305,42 +1399,42 @@ static BOOL shouldUseLiveContainerBundleId(void) {
             [frame containsString:@"_UIDocumentPicker"]) {
             return YES;
         }
-        
+
         // Photo library access
         if ([frame containsString:@"Photos"] ||
             [frame containsString:@"PHPhotoLibrary"] ||
             [frame containsString:@"PHAuthorizationStatus"]) {
             return YES;
         }
-        
+
         // Camera and microphone permissions
         if ([frame containsString:@"AVCaptureDevice"] ||
             [frame containsString:@"AVAudioSession"] ||
             [frame containsString:@"requestAccessForMediaType"]) {
             return YES;
         }
-        
+
         // Location services
         if ([frame containsString:@"CoreLocation"] ||
             [frame containsString:@"CLLocationManager"] ||
             [frame containsString:@"requestWhenInUseAuthorization"]) {
             return YES;
         }
-        
+
         // Contacts access
         if ([frame containsString:@"ContactsUI"] ||
             [frame containsString:@"CNContactStore"] ||
             [frame containsString:@"requestAccessForEntityType"]) {
             return YES;
         }
-        
+
         // App Store and system services
         if ([frame containsString:@"StoreKit"] ||
             [frame containsString:@"SKStoreProductViewController"] ||
             [frame containsString:@"openURL"]) {
             return YES;
         }
-        
+
         // Keychain access (system level)
         if ([frame containsString:@"SecItem"] ||
             [frame containsString:@"keychain"] ||
@@ -1348,7 +1442,7 @@ static BOOL shouldUseLiveContainerBundleId(void) {
             return YES;
         }
     }
-    
+
     // Check for specific security validation patterns that should see original bundle ID
     for (NSString *frame in callStack) {
         // Internal security checks - these should see original bundle ID
@@ -1362,7 +1456,7 @@ static BOOL shouldUseLiveContainerBundleId(void) {
             [frame containsString:@"yw_1222"]) { // Your specific security file
             return NO;
         }
-        
+
         // Anti-tampering checks
         if ([frame containsString:@"tamper"] ||
             [frame containsString:@"jailbreak"] ||
@@ -1371,18 +1465,18 @@ static BOOL shouldUseLiveContainerBundleId(void) {
             return NO;
         }
     }
-    
+
     // Default: use original bundle ID for unknown contexts
     return NO;
 }
 
 static NSString* hook_NSBundle_bundleIdentifier(id self, SEL _cmd) {
     NSString* result = orig_NSBundle_bundleIdentifier(self, _cmd);
-    
+
     if (!useSelectiveBundleIdSpoofing || ![self isEqual:[NSBundle mainBundle]]) {
         return result;
     }
-    
+
     // Get calling context to determine which bundle ID to return
     if (shouldUseLiveContainerBundleId()) {
         if (liveContainerBundleId.length > 0) {
@@ -1400,16 +1494,16 @@ static NSString* hook_NSBundle_bundleIdentifier(id self, SEL _cmd) {
 
 static NSDictionary* hook_NSBundle_infoDictionary(id self, SEL _cmd) {
     NSDictionary* result = orig_NSBundle_infoDictionary(self, _cmd);
-    
+
     if (!useSelectiveBundleIdSpoofing || ![self isEqual:[NSBundle mainBundle]]) {
         return result;
     }
-    
+
     NSMutableDictionary* modifiedDict = [result mutableCopy];
     if (!modifiedDict) {
         return result;
     }
-    
+
     BOOL useLCBundleID = shouldUseLiveContainerBundleId();
     NSString *bundleIDToExpose = useLCBundleID ? liveContainerBundleId : originalGuestBundleId;
     if (bundleIDToExpose.length == 0) {
@@ -1423,7 +1517,7 @@ static NSDictionary* hook_NSBundle_infoDictionary(id self, SEL _cmd) {
         modifiedDict[@"CFBundleIdentifier"] = bundleIDToExpose;
         NSLog(@"[LC] 🎭 Preserved original bundle ID for security check");
     }
-    
+
     return [modifiedDict copy];
 }
 
@@ -1431,7 +1525,7 @@ static id hook_NSBundle_objectForInfoDictionaryKey(id self, SEL _cmd, NSString *
     if (!useSelectiveBundleIdSpoofing || ![self isEqual:[NSBundle mainBundle]] || ![key isEqualToString:@"CFBundleIdentifier"]) {
         return orig_NSBundle_objectForInfoDictionaryKey(self, _cmd, key);
     }
-    
+
     BOOL useLCBundleID = shouldUseLiveContainerBundleId();
     NSString *bundleIDToExpose = useLCBundleID ? liveContainerBundleId : originalGuestBundleId;
     if (bundleIDToExpose.length > 0) {
@@ -1513,14 +1607,14 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
             break;
         }
     }
-    
+
     if(NSUserDefaults.isLiveProcess) {
         lcMainBundlePath = NSUserDefaults.lcMainBundle.bundlePath.stringByDeletingLastPathComponent.stringByDeletingLastPathComponent.fileSystemRepresentation;
     } else {
         lcMainBundlePath = NSUserDefaults.lcMainBundle.bundlePath.fileSystemRepresentation;
     }
     orig_dyld_get_image_header = _dyld_get_image_header;
-    
+
     // hook dlsym to solve RTLD_MAIN_ONLY, hook other functions to hide LiveContainer itself
     litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, dlsym, hook_dlsym, nil);
     if(hideLiveContainer) {
@@ -1537,18 +1631,16 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
                     {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
                     {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
         }, 3);
-        
-        // NWPath swizzling
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            setupNetworkFrameworkSwizzling();
-        });
+
+        // Apply network swizzling immediately and keep retry loop for late framework loading.
+        setupNetworkFrameworkSwizzling();
     }
     if (bypassSSLPinning) {
         setupSSLPinningBypass();
     }
 
     appExecutableFileTypeOverwritten = !hideLiveContainer;
-    
+
     if(spoofSDKVersion) {
         guestAppSdkVersion = spoofSDKVersion;
         if(!initGuestSDKVersionInfo() ||
@@ -1562,22 +1654,17 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     if (NSUserDefaults.guestAppInfo[@"spoofGPS"] && [NSUserDefaults.guestAppInfo[@"spoofGPS"] boolValue]) {
         CoreLocationGuestHooksInit();
     }
-    
+
     // Camera Addon Section
     if (NSUserDefaults.guestAppInfo[@"spoofCamera"] && [NSUserDefaults.guestAppInfo[@"spoofCamera"] boolValue]) {
         AVFoundationGuestHooksInit();
     }
 
-    // Network Addon Section
-    if (NSUserDefaults.guestAppInfo[@"spoofNetwork"] && [NSUserDefaults.guestAppInfo[@"spoofNetwork"] boolValue]) {
-        NetworkGuestHooksInit();
-    }
-    
     hookedDlopen = hookDlopen;
     if(hookDlopen) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, dlopen, jitless_hook_dlopen, nil);
     }
-    
+
 #if TARGET_OS_MACCATALYST || TARGET_OS_SIMULATOR
     DyldHookLoadableIntoProcess();
 #endif
@@ -1617,7 +1704,7 @@ void *dlopen_nolock(const char *path, int mode) {
         void **vtableLibSystemHelpers = litehook_find_dsc_symbol(libdyldPath, "__ZTVN5dyld416LibSystemHelpersE");
         void *lockFunc = litehook_find_dsc_symbol(libdyldPath, "__ZNK5dyld416LibSystemHelpers42os_unfair_recursive_lock_lock_with_optionsEP26os_unfair_recursive_lock_s24os_unfair_lock_options_t");
         void *unlockFunc = litehook_find_dsc_symbol(libdyldPath, "__ZNK5dyld416LibSystemHelpers31os_unfair_recursive_lock_unlockEP26os_unfair_recursive_lock_s");
-        
+
         // Find the pointers in vtable storing the lock and unlock functions, they must be there or this loop will hit unreadable memory region and crash
         while(!lockUnlockPtr) {
             if(vtableLibSystemHelpers[0] == lockFunc) {
@@ -1630,7 +1717,7 @@ void *dlopen_nolock(const char *path, int mode) {
         }
         saveCachedSymbol(lockUnlockPtrName, libdyldHeader, (uintptr_t)lockUnlockPtr - (uintptr_t)libdyldHeader);
     }
-    
+
     kern_return_t ret;
     ret = builtin_vm_protect(mach_task_self(), (mach_vm_address_t)lockUnlockPtr, sizeof(uintptr_t[2]), false, PROT_READ | PROT_WRITE | VM_PROT_COPY);
     assert(ret == KERN_SUCCESS);
@@ -1643,12 +1730,12 @@ void *dlopen_nolock(const char *path, int mode) {
     } else {
         result = dlopen(path, mode);
     }
-    
+
     ret = builtin_vm_protect(mach_task_self(), (mach_vm_address_t)lockUnlockPtr, sizeof(uintptr_t[2]), false, PROT_READ | PROT_WRITE);
     assert(ret == KERN_SUCCESS);
     lockUnlockPtr[0] = origLockPtr;
     lockUnlockPtr[1] = origUnlockPtr;
-    
+
     ret = builtin_vm_protect(mach_task_self(), (mach_vm_address_t)lockUnlockPtr, sizeof(uintptr_t[2]), false, PROT_READ);
     assert(ret == KERN_SUCCESS);
 #else
@@ -1677,7 +1764,7 @@ void *jitless_hook_dlopen(const char *path, int mode) {
         pthread_t thread;
         pthread_create(&thread, NULL, exception_handler, NULL);
     }
-    
+
     // save old thread states
     exception_mask_t masks[32];
     mach_msg_type_number_t masksCnt;
@@ -1689,14 +1776,14 @@ void *jitless_hook_dlopen(const char *path, int mode) {
     thread_get_state(thread, ARM_DEBUG_STATE64, (thread_state_t)&origDebugState, &(mach_msg_type_number_t){ARM_DEBUG_STATE64_COUNT});
     thread_get_exception_ports(thread, EXC_MASK_BREAKPOINT, masks, &masksCnt, handlers, behaviors, flavors);
     thread_set_exception_ports(thread, EXC_MASK_BREAKPOINT, excPort, EXCEPTION_STATE | MACH_EXCEPTION_CODES, ARM_THREAD_STATE64);
-    
+
     // hook dyld's mmap
     arm_debug_state64_t hookDebugState = {
         .__bvr = {(uint64_t)orig_dyld_mmap},
         .__bcr = {0x1e5},
     };
     thread_set_state(thread, ARM_DEBUG_STATE64, (thread_state_t)&hookDebugState, ARM_DEBUG_STATE64_COUNT);
-    
+
     // fixup @loader_path since we cannot use musttail here
     void *result;
     void *callerAddr = __builtin_return_address(0);
@@ -1708,14 +1795,14 @@ void *jitless_hook_dlopen(const char *path, int mode) {
     } else {
         result = orig_dlopen(path, mode);
     }
-    
+
     // restore old thread states
     thread_set_state(thread, ARM_DEBUG_STATE64, (thread_state_t)&origDebugState, ARM_DEBUG_STATE64_COUNT);
     for (int i = 0; i < masksCnt; i++){
         thread_set_exception_ports(mach_thread_self(), EXC_MASK_BREAKPOINT, handlers[i], behaviors[i], flavors[i]);
         mach_port_deallocate(mach_task_self(), handlers[i]);
     }
-    
+
     return result;
 }
 
@@ -1724,7 +1811,7 @@ void* jitless_hook_mmap(void *addr, size_t len, int prot, int flags, int fd, off
     void *map = __mmap(addr, len, prot, flags, fd, offset);
     // only handle mapping __TEXT segment from fd outside of permitted path
     if (map != MAP_FAILED || !(prot & PROT_EXEC) || fd < 0) return map;
-    
+
     // to get around `file system sandbox blocked mmap()` we temporarily move it to permitted path
     char filePath[PATH_MAX];
     if (fcntl(fd, F_GETPATH, filePath) != 0) return map;
@@ -1733,7 +1820,7 @@ void* jitless_hook_mmap(void *addr, size_t len, int prot, int flags, int fd, off
     rename(filePath, newTmpPath);
     map = __mmap(addr, len, prot, flags, fd, offset);
     rename(newTmpPath, filePath);
-    
+
     return map;
 }
 

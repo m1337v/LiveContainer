@@ -62,13 +62,6 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property (nonatomic) NSString* spoofCameraTransformScale;       // "fit", "fill", "crop"
 @property (nonatomic) NSString* spoofCameraTransformFlip;        // "none", "horizontal", "vertical"
 
-// Network Addon Section
-@property BOOL spoofNetwork;
-@property NSString* proxyHost;
-@property int proxyPort;
-@property NSString* proxyUsername;
-@property NSString* proxyPassword;
-
 // SSL section
 @property bool bypassSSLPinning;
 
