@@ -477,86 +477,15 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         initDead10ccFix();
     }
     
-    // Initialize device spoofing if enabled (Profile-based or Legacy)
+    // Initialize Ghost-style device spoofing (profile-based only)
     BOOL useProfileSpoofing = [guestAppInfo[@"deviceSpoofingEnabled"] boolValue];
-    BOOL useLegacySpoofing = [guestAppInfo[@"legacySpoofDevice"] boolValue];
-    
-    if(useProfileSpoofing || useLegacySpoofing) {
-        if (useProfileSpoofing) {
-            // Profile-based spoofing
-            NSString *deviceProfile = guestAppInfo[@"deviceSpoofProfile"];
-            if (deviceProfile) {
-                LCSetDeviceProfile(deviceProfile);
-            }
+
+    if(useProfileSpoofing) {
+        NSString *deviceProfile = guestAppInfo[@"deviceSpoofProfile"];
+        if (deviceProfile.length > 0) {
+            LCSetDeviceProfile(deviceProfile);
         }
-        
-        if (useLegacySpoofing) {
-            // Legacy spoofing - apply individual settings
-            NSString *deviceModel = guestAppInfo[@"legacySpoofDeviceModel"];
-            NSString *systemVersion = guestAppInfo[@"legacySpoofSystemVersion"];
-            NSString *deviceName = guestAppInfo[@"legacySpoofDeviceName"];
-            NSString *carrierName = guestAppInfo[@"legacySpoofCarrierName"];
-            NSString *customCarrier = guestAppInfo[@"legacySpoofCustomCarrier"];
-            
-            if (deviceModel && deviceModel.length > 0) {
-                LCSetSpoofedDeviceModel(deviceModel);
-            }
-            if (systemVersion && systemVersion.length > 0) {
-                LCSetSpoofedSystemVersion(systemVersion);
-            }
-            if (deviceName && deviceName.length > 0) {
-                LCSetSpoofedDeviceName(deviceName);
-            }
-            if (carrierName && carrierName.length > 0) {
-                if ([carrierName isEqualToString:@"Custom"] && customCarrier.length > 0) {
-                    LCSetSpoofedCarrierName(customCarrier);
-                } else {
-                    LCSetSpoofedCarrierName(carrierName);
-                }
-            }
-            
-            // Battery spoofing
-            if ([guestAppInfo[@"legacySpoofBattery"] boolValue]) {
-                double batteryLevel = [guestAppInfo[@"legacySpoofBatteryLevel"] doubleValue];
-                LCSetSpoofedBatteryLevel((float)batteryLevel);
-            }
-            
-            // Memory spoofing
-            if ([guestAppInfo[@"legacySpoofMemory"] boolValue]) {
-                int memorySize = [guestAppInfo[@"legacySpoofMemorySize"] intValue];
-                LCSetSpoofedPhysicalMemory((uint64_t)memorySize * 1024ULL * 1024ULL * 1024ULL);
-            }
-            
-            // Identifier spoofing
-            if ([guestAppInfo[@"legacySpoofIdentifiers"] boolValue]) {
-                NSString *vendorID = guestAppInfo[@"legacySpoofVendorID"];
-                NSString *advertisingID = guestAppInfo[@"legacySpoofAdvertisingID"];
-                NSString *installationID = guestAppInfo[@"legacySpoofInstallationID"];
-                NSString *macAddress = guestAppInfo[@"legacySpoofMACAddress"];
-                BOOL adTrackingEnabled = [guestAppInfo[@"legacySpoofAdTrackingEnabled"] boolValue];
-                
-                if (vendorID && vendorID.length > 0) {
-                    LCSetSpoofedVendorID(vendorID);
-                }
-                if (advertisingID && advertisingID.length > 0) {
-                    LCSetSpoofedAdvertisingID(advertisingID);
-                }
-                if (installationID && installationID.length > 0) {
-                    LCSetSpoofedInstallationID(installationID);
-                }
-                if (macAddress && macAddress.length > 0) {
-                    LCSetSpoofedMACAddress(macAddress);
-                }
-                LCSetSpoofedAdTrackingEnabled(adTrackingEnabled);
-            }
-        }
-        
-        // Enable iCloud/CloudKit privacy protection (blocks iCloud fingerprinting)
-        LCSetICloudPrivacyProtectionEnabled(YES);
-        
-        // Enable Siri privacy protection (blocks Siri authorization)
-        LCSetSiriPrivacyProtectionEnabled(YES);
-        
+
         LCSetDeviceSpoofingEnabled(YES);
         DeviceSpoofingGuestHooksInit();
     }
