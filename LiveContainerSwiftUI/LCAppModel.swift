@@ -957,9 +957,18 @@ class LCAppModel: ObservableObject, Hashable {
 
         if let currentFolder = resolvedAddonSettingsContainerFolderName(),
            uiContainers.contains(where: { $0.folderName == currentFolder }) {
-            uiAddonSettingsContainerFolderName = currentFolder
-            if uiSelectedContainer == nil {
-                uiSelectedContainer = addonContainer(withFolderName: currentFolder)
+            let shouldSwitch =
+                appInfo.dataUUID != currentFolder ||
+                uiDefaultDataFolder != currentFolder ||
+                uiSelectedContainer?.folderName != currentFolder
+
+            if shouldSwitch {
+                switchAddonSettingsContainer(to: currentFolder)
+            } else {
+                uiAddonSettingsContainerFolderName = currentFolder
+                if uiSelectedContainer == nil {
+                    uiSelectedContainer = addonContainer(withFolderName: currentFolder)
+                }
             }
             return
         }

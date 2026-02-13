@@ -1953,9 +1953,7 @@ struct LCAppSettingsView: View {
                     }
                     .pickerStyle(MenuPickerStyle())
                     .onChange(of: model.uiAddonSettingsContainerFolderName) { folderName in
-                        if model.uiDefaultDataFolder != folderName {
-                            model.switchAddonSettingsContainer(to: folderName)
-                        }
+                        model.switchAddonSettingsContainer(to: folderName)
                     }
                     .onAppear {
                         model.refreshAddonSettingsContainerSelection()

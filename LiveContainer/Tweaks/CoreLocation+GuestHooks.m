@@ -7,6 +7,13 @@ static BOOL spoofGPSEnabled = NO;
 static CLLocationCoordinate2D spoofedCoordinate = {37.7749, -122.4194};
 static CLLocationDistance spoofedAltitude = 0.0;
 
+static id LCValidValueOrNil(id value) {
+    if (value == nil || [value isKindOfClass:NSNull.class]) {
+        return nil;
+    }
+    return value;
+}
+
 static double LCDoubleValueOrFallback(id value, double fallback) {
     if (value && [value respondsToSelector:@selector(doubleValue)]) {
         return [value doubleValue];
@@ -26,7 +33,18 @@ static NSString *LCActiveContainerFolderName(void) {
     return home.lastPathComponent;
 }
 
-static NSDictionary *LCContainerScopedLocationSettingsFromAppInfoFile(void) {
+static NSString *LCContainerFolderNameFromGuestAppInfo(NSDictionary *guestAppInfo) {
+    id containerIdObj = guestAppInfo[@"LCDataUUID"];
+    if ([containerIdObj isKindOfClass:NSString.class]) {
+        NSString *containerId = (NSString *)containerIdObj;
+        if (containerId.length > 0) {
+            return containerId;
+        }
+    }
+    return LCActiveContainerFolderName();
+}
+
+static NSDictionary *LCContainerScopedLocationSettingsFromAppInfoFile(NSDictionary *guestAppInfo) {
     NSString *bundlePath = NSBundle.mainBundle.bundlePath;
     if (bundlePath.length == 0) {
         return nil;
@@ -37,7 +55,7 @@ static NSDictionary *LCContainerScopedLocationSettingsFromAppInfoFile(void) {
         return nil;
     }
 
-    NSString *containerFolder = LCActiveContainerFolderName();
+    NSString *containerFolder = LCContainerFolderNameFromGuestAppInfo(guestAppInfo);
     if (containerFolder.length == 0) {
         return nil;
     }
@@ -116,7 +134,7 @@ static NSDictionary *LCContainerScopedLocationSettingsFromAppInfoFile(void) {
 void CoreLocationGuestHooksInit(void) {
     @try {
         NSDictionary *guestAppInfo = NSUserDefaults.guestAppInfo;
-        NSDictionary *containerScopedSettings = LCContainerScopedLocationSettingsFromAppInfoFile();
+        NSDictionary *containerScopedSettings = LCContainerScopedLocationSettingsFromAppInfoFile(guestAppInfo);
         
         NSLog(@"[LC] CoreLocationGuestHooksInit: guestAppInfo = %@", guestAppInfo);
         if (containerScopedSettings) {
@@ -124,33 +142,49 @@ void CoreLocationGuestHooksInit(void) {
         }
         
         if (guestAppInfo) {
-            id scopedSpoofGPS = containerScopedSettings[@"spoofGPS"];
-            if ([scopedSpoofGPS respondsToSelector:@selector(boolValue)]) {
-                spoofGPSEnabled = [scopedSpoofGPS boolValue];
-            } else {
-                spoofGPSEnabled = [guestAppInfo[@"spoofGPS"] boolValue];
+            id spoofGPSValue = LCValidValueOrNil(guestAppInfo[@"spoofGPS"]);
+            NSString *spoofGPSSource = @"guestAppInfo";
+            if (![spoofGPSValue respondsToSelector:@selector(boolValue)]) {
+                spoofGPSValue = LCValidValueOrNil(containerScopedSettings[@"spoofGPS"]);
+                spoofGPSSource = @"containerScopedSettings";
             }
+            spoofGPSEnabled = [spoofGPSValue boolValue];
 
             NSLog(@"[LC] spoofGPS from guestAppInfo: %@", guestAppInfo[@"spoofGPS"]);
             if (containerScopedSettings) {
                 NSLog(@"[LC] spoofGPS from containerScopedSettings: %@", containerScopedSettings[@"spoofGPS"]);
             }
-            NSLog(@"[LC] spoofGPSEnabled: %d", spoofGPSEnabled);
+            NSLog(@"[LC] spoofGPSEnabled: %d (source=%@)", spoofGPSEnabled, spoofGPSSource);
             
             if (spoofGPSEnabled) {
-                // Ensure we're getting the right values with explicit type conversion
-                id latValue = containerScopedSettings[@"spoofLatitude"] ?: guestAppInfo[@"spoofLatitude"];
-                id lonValue = containerScopedSettings[@"spoofLongitude"] ?: guestAppInfo[@"spoofLongitude"];
-                id altValue = containerScopedSettings[@"spoofAltitude"] ?: guestAppInfo[@"spoofAltitude"];
+                id latValue = LCValidValueOrNil(guestAppInfo[@"spoofLatitude"]);
+                id lonValue = LCValidValueOrNil(guestAppInfo[@"spoofLongitude"]);
+                id altValue = LCValidValueOrNil(guestAppInfo[@"spoofAltitude"]);
+                NSString *latSource = @"guestAppInfo";
+                NSString *lonSource = @"guestAppInfo";
+                NSString *altSource = @"guestAppInfo";
+
+                if (![latValue respondsToSelector:@selector(doubleValue)]) {
+                    latValue = LCValidValueOrNil(containerScopedSettings[@"spoofLatitude"]);
+                    latSource = @"containerScopedSettings";
+                }
+                if (![lonValue respondsToSelector:@selector(doubleValue)]) {
+                    lonValue = LCValidValueOrNil(containerScopedSettings[@"spoofLongitude"]);
+                    lonSource = @"containerScopedSettings";
+                }
+                if (![altValue respondsToSelector:@selector(doubleValue)]) {
+                    altValue = LCValidValueOrNil(containerScopedSettings[@"spoofAltitude"]);
+                    altSource = @"containerScopedSettings";
+                }
 
                 spoofedCoordinate.latitude = LCDoubleValueOrFallback(latValue, 37.7749);
                 spoofedCoordinate.longitude = LCDoubleValueOrFallback(lonValue, -122.4194);
                 spoofedAltitude = LCDoubleValueOrFallback(altValue, 0.0);
                 
                 NSLog(@"[LC] GPS coordinates from guestAppInfo:");
-                NSLog(@"[LC] - spoofLatitude: %@ (%@) -> %f", latValue, [latValue class], spoofedCoordinate.latitude);
-                NSLog(@"[LC] - spoofLongitude: %@ (%@) -> %f", lonValue, [lonValue class], spoofedCoordinate.longitude);
-                NSLog(@"[LC] - spoofAltitude: %@ (%@) -> %f", altValue, [altValue class], spoofedAltitude);
+                NSLog(@"[LC] - spoofLatitude: %@ (%@) -> %f (source=%@)", latValue, [latValue class], spoofedCoordinate.latitude, latSource);
+                NSLog(@"[LC] - spoofLongitude: %@ (%@) -> %f (source=%@)", lonValue, [lonValue class], spoofedCoordinate.longitude, lonSource);
+                NSLog(@"[LC] - spoofAltitude: %@ (%@) -> %f (source=%@)", altValue, [altValue class], spoofedAltitude, altSource);
                 
                 NSLog(@"[LC] Final GPS spoofing coordinates: %f, %f, %f", 
                       spoofedCoordinate.latitude, 

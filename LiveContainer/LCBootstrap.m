@@ -214,6 +214,10 @@ static NSDictionary *LCGuestAppInfoWithMergedAddonSettings(NSDictionary *appInfo
         [merged removeObjectForKey:@"deviceSpoofVendorID"];
     }
 
+    if (containerId.length > 0) {
+        merged[@"LCDataUUID"] = containerId;
+    }
+
     NSLog(@"[LC] addon merge container=%@ hasContainerSettings=%@ spoofGPS=%@ lat=%@ lon=%@",
           containerId ?: @"(nil)",
           containerSettings ? @"YES" : @"NO",
