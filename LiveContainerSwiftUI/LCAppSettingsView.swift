@@ -2668,13 +2668,23 @@ struct LCAppSettingsView: View {
                 Text("Randomises KERN_BOOTTIME and NSProcessInfo.systemUptime so the device appears freshly rebooted on each launch.")
                     .font(.caption2)
                     .foregroundColor(.secondary)
+                Toggle(isOn: $model.uiDeviceSpoofBootTimeRandomize) {
+                    Text("Randomize within selected preset")
+                        .font(.caption)
+                }
                 Picker("Simulated uptime", selection: $model.uiDeviceSpoofBootTimeRange) {
+                    Text("Exactly 1 hour").tag("1h")
                     Text("1 – 4 hours").tag("short")
                     Text("4 – 24 hours").tag("medium")
                     Text("1 – 3 days").tag("long")
                     Text("3 – 7 days").tag("week")
                 }
                 .pickerStyle(MenuPickerStyle())
+                if !model.uiDeviceSpoofBootTimeRandomize {
+                    Text("Uses a fixed target uptime instead of randomizing the preset.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
             }
             .padding(.leading, 28)
         }
@@ -2731,22 +2741,32 @@ struct LCAppSettingsView: View {
         }
         if model.uiDeviceSpoofBattery {
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Level")
+                Toggle(isOn: $model.uiDeviceSpoofBatteryRandomize) {
+                    Text("Randomize battery on launch")
                         .font(.caption)
+                }
+                if model.uiDeviceSpoofBatteryRandomize {
+                    Text("Generates realistic level/state each launch to reduce static fingerprints.")
+                        .font(.caption2)
                         .foregroundColor(.secondary)
-                    Slider(value: $model.uiDeviceSpoofBatteryLevel, in: 0.05...1.0, step: 0.05)
-                    Text("\(Int(model.uiDeviceSpoofBatteryLevel * 100))%")
-                        .font(.system(.caption, design: .monospaced))
-                        .frame(width: 40, alignment: .trailing)
+                } else {
+                    HStack {
+                        Text("Level")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Slider(value: $model.uiDeviceSpoofBatteryLevel, in: 0.05...1.0, step: 0.05)
+                        Text("\(Int(model.uiDeviceSpoofBatteryLevel * 100))%")
+                            .font(.system(.caption, design: .monospaced))
+                            .frame(width: 40, alignment: .trailing)
+                    }
+                    Picker("State", selection: $model.uiDeviceSpoofBatteryState) {
+                        Text("Unknown").tag(0)
+                        Text("Unplugged").tag(1)
+                        Text("Charging").tag(2)
+                        Text("Full").tag(3)
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
                 }
-                Picker("State", selection: $model.uiDeviceSpoofBatteryState) {
-                    Text("Unknown").tag(0)
-                    Text("Unplugged").tag(1)
-                    Text("Charging").tag(2)
-                    Text("Full").tag(3)
-                }
-                .pickerStyle(SegmentedPickerStyle())
             }
             .padding(.leading, 28)
         }
@@ -2764,14 +2784,23 @@ struct LCAppSettingsView: View {
             }
         }
         if model.uiDeviceSpoofStorage {
-            Picker("Capacity", selection: $model.uiDeviceSpoofStorageCapacity) {
-                Text("64 GB").tag("64")
-                Text("128 GB").tag("128")
-                Text("256 GB").tag("256")
-                Text("512 GB").tag("512")
-                Text("1 TB").tag("1024")
+            VStack(alignment: .leading, spacing: 8) {
+                Picker("Capacity", selection: $model.uiDeviceSpoofStorageCapacity) {
+                    Text("64 GB").tag("64")
+                    Text("128 GB").tag("128")
+                    Text("256 GB").tag("256")
+                    Text("512 GB").tag("512")
+                    Text("1 TB").tag("1024")
+                }
+                .pickerStyle(MenuPickerStyle())
+                Toggle(isOn: $model.uiDeviceSpoofStorageRandomFree) {
+                    Text("Randomize free storage")
+                        .font(.caption)
+                }
+                Text("Adjusts available bytes per launch so free space is plausible for the selected capacity.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
-            .pickerStyle(MenuPickerStyle())
             .padding(.leading, 28)
         }
     }

@@ -90,13 +90,16 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 // Extended spoofing (Ghost + Project-X parity)
 @property bool deviceSpoofBootTime;
 @property (nonatomic) NSString* deviceSpoofBootTimeRange; // "short","medium","long","week"
+@property bool deviceSpoofBootTimeRandomize;
 @property bool deviceSpoofUserAgent;
 @property (nonatomic) NSString* deviceSpoofUserAgentValue;
 @property bool deviceSpoofBattery;
+@property bool deviceSpoofBatteryRandomize;
 @property float deviceSpoofBatteryLevel;      // 0.0 – 1.0
 @property int deviceSpoofBatteryState;         // 0=unknown,1=unplugged,2=charging,3=full
 @property bool deviceSpoofStorage;
 @property (nonatomic) NSString* deviceSpoofStorageCapacity; // GB string e.g. "256"
+@property bool deviceSpoofStorageRandomFree;
 @property bool deviceSpoofBrightness;
 @property float deviceSpoofBrightnessValue;    // 0.0 – 1.0
 @property bool deviceSpoofThermal;

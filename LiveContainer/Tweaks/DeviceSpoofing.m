@@ -12,15 +12,47 @@
 #import <AdSupport/AdSupport.h>
 #import <CoreTelephony/CTCarrier.h>
 #import <WebKit/WebKit.h>
+#import <ctype.h>
 #import <dlfcn.h>
 #import <errno.h>
+#import <mach/host_info.h>
+#import <mach/mach.h>
+#import <mach/machine.h>
+#import <mach/vm_statistics.h>
 #import <objc/runtime.h>
+#import <sys/mount.h>
 #import <sys/sysctl.h>
 #import <sys/utsname.h>
+#import <time.h>
+
+#if __has_include(<IOKit/IOKitLib.h>)
+#import <IOKit/IOKitLib.h>
+#define LC_HAS_IOKIT 1
+#else
+#define LC_HAS_IOKIT 0
+typedef uint32_t io_registry_entry_t;
+typedef uint32_t IOOptionBits;
+#endif
 
 #import "../../fishhook/fishhook.h"
 
 #pragma mark - Profiles
+
+typedef struct {
+    uint32_t f_type;
+    uint32_t f_bsize;
+    uint64_t f_blocks;
+    uint64_t f_bfree;
+    uint64_t f_bavail;
+    uint64_t f_files;
+    uint64_t f_ffree;
+    fsid_t f_fsid;
+    uint32_t f_flags;
+    uint32_t f_namelen;
+    char f_fstypename[MFSNAMELEN];
+    char f_mntonname[MNAMELEN];
+    char f_mntfromname[MNAMELEN];
+} LCStatfs64;
 
 const LCDeviceProfile kDeviceProfileiPhone16ProMax = {
     .modelIdentifier = "iPhone17,2",
@@ -322,8 +354,10 @@ static BOOL g_lowPowerModeValue = NO;
 
 // Compatibility-only state for deprecated surfaces.
 static BOOL g_storageSpoofingEnabled = NO;
+static BOOL g_storageRandomFreeEnabled = YES;
 static uint64_t g_spoofedStorageTotal = 0;
 static uint64_t g_spoofedStorageFree = 0;
+static BOOL g_storageFreeExplicitlySet = NO;
 static NSString *g_spoofedStorageCapacityGB = nil;
 static NSString *g_spoofedStorageFreeGB = nil;
 static BOOL g_canvasFingerprintProtectionEnabled = NO;
@@ -347,6 +381,14 @@ static BOOL g_screenCaptureBlockEnabled = NO;
 static int (*orig_uname)(struct utsname *name) = NULL;
 static int (*orig_sysctlbyname)(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) = NULL;
 static int (*orig_sysctl)(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) = NULL;
+static int (*orig_statfs)(const char *path, struct statfs *buf) = NULL;
+static int (*orig_statfs64)(const char *path, void *buf) = NULL;
+static int (*orig_fstatfs)(int fd, struct statfs *buf) = NULL;
+static int (*orig_getfsstat)(struct statfs *buf, int bufsize, int flags) = NULL;
+static int (*orig_getfsstat64)(void *buf, int bufsize, int flags) = NULL;
+static int (*orig_clock_gettime)(clockid_t clk_id, struct timespec *tp) = NULL;
+static uint64_t (*orig_clock_gettime_nsec_np)(clockid_t clk_id) = NULL;
+static kern_return_t (*orig_host_statistics64)(host_t host, host_flavor_t flavor, host_info64_t info, mach_msg_type_number_t *count) = NULL;
 
 static NSString *(*orig_UIDevice_systemVersion)(id self, SEL _cmd) = NULL;
 static NSString *(*orig_UIDevice_name)(id self, SEL _cmd) = NULL;
@@ -374,7 +416,12 @@ static NSTimeInterval (*orig_NSProcessInfo_systemUptime)(id self, SEL _cmd) = NU
 
 static id (*orig_NSFileManager_ubiquityIdentityToken)(id self, SEL _cmd) = NULL;
 static NSDictionary *(*orig_NSFileManager_attributesOfFileSystemForPath)(id self, SEL _cmd, NSString *path, NSError **error) = NULL;
+static unsigned long long (*orig_NSFileManager_volumeAvailableCapacityForImportantUsageForURL)(id self, SEL _cmd, NSURL *url, NSError **error) = NULL;
+static unsigned long long (*orig_NSFileManager_volumeAvailableCapacityForOpportunisticUsageForURL)(id self, SEL _cmd, NSURL *url, NSError **error) = NULL;
+static unsigned long long (*orig_NSFileManager_volumeTotalCapacityForURL)(id self, SEL _cmd, NSURL *url, NSError **error) = NULL;
 static NSString *(*orig_CTCarrier_carrierName)(id self, SEL _cmd) = NULL;
+static BOOL (*orig_NSURL_getResourceValue_forKey_error)(id self, SEL _cmd, id *value, NSURLResourceKey key, NSError **error) = NULL;
+static NSDictionary<NSURLResourceKey, id> *(*orig_NSURL_resourceValuesForKeys_error)(id self, SEL _cmd, NSArray<NSURLResourceKey> *keys, NSError **error) = NULL;
 
 static NSString *(*orig_WKWebView_customUserAgent)(id self, SEL _cmd) = NULL;
 static WKWebView *(*orig_WKWebView_initWithFrame)(id self, SEL _cmd, CGRect frame, WKWebViewConfiguration *config) = NULL;
@@ -400,6 +447,12 @@ static NSLocale *(*orig_NSLocale_autoupdatingCurrentLocale)(id self, SEL _cmd) =
 static BOOL (*orig_UIScreen_isCaptured)(id self, SEL _cmd) = NULL;
 
 static CFTypeRef (*orig_MGCopyAnswer)(CFStringRef key) = NULL;
+static CFTypeRef (*orig_IORegistryEntryCreateCFProperty)(io_registry_entry_t entry, CFStringRef key, CFAllocatorRef allocator, IOOptionBits options) = NULL;
+static CFDictionaryRef (*orig_CFCopySystemVersionDictionary)(void) = NULL;
+static id (*orig_MTLCreateSystemDefaultDevice)(void) = NULL;
+static NSArray *(*orig_MTLCopyAllDevices)(void) = NULL;
+static NSString *(*orig_MTLDevice_name)(id self, SEL _cmd) = NULL;
+static NSString *(*orig_MTLDevice_familyName)(id self, SEL _cmd) = NULL;
 
 #pragma mark - Helpers
 
@@ -451,6 +504,241 @@ static uint32_t LCSpoofedCPUCount(void) {
     return 0;
 }
 
+static const char *LCSpoofedChipName(void) {
+    if (g_currentProfile) return g_currentProfile->chipName;
+    return NULL;
+}
+
+static const char *LCSpoofedGPUName(void) {
+    if (g_currentProfile) return g_currentProfile->gpuName;
+    return NULL;
+}
+
+static inline BOOL LCStorageSpoofingActive(void) {
+    return LCDeviceSpoofingIsActive() && g_storageSpoofingEnabled && g_spoofedStorageTotal > 0;
+}
+
+static NSInteger LCSpoofedChipSeries(void) {
+    const char *chipName = LCSpoofedChipName();
+    if (!chipName || chipName[0] == '\0') return 0;
+
+    const char *p = chipName;
+    while (*p) {
+        if ((*p == 'A' || *p == 'a') && isdigit((unsigned char)*(p + 1))) {
+            return (NSInteger)strtol(p + 1, NULL, 10);
+        }
+        if ((*p == 'M' || *p == 'm') && isdigit((unsigned char)*(p + 1))) {
+            return (NSInteger)(100 + strtol(p + 1, NULL, 10));
+        }
+        p++;
+    }
+    return 0;
+}
+
+static uint32_t LCSpoofedCPUSubtype(void) {
+    NSInteger series = LCSpoofedChipSeries();
+    if (series >= 12 || series >= 100) {
+        return (uint32_t)CPU_SUBTYPE_ARM64E;
+    }
+    return (uint32_t)CPU_SUBTYPE_ARM64_ALL;
+}
+
+static uint32_t LCSpoofedCPUFamily(void) {
+    NSInteger series = LCSpoofedChipSeries();
+    switch (series) {
+        case 15: return 0xDA33D83D;
+        case 16: return 0x8765EDEA;
+        case 17: return 0xAF4F32CB;
+        case 18: return 0x1B588BB3;
+        case 19: return 0x458F4D97;
+        case 101: return 0x458F4D97;
+        case 102: return 0x1B588BB3;
+        default: return 0xDA33D83D;
+    }
+}
+
+static uint64_t LCSpoofedCPUFrequencyHz(void) {
+    NSInteger series = LCSpoofedChipSeries();
+    switch (series) {
+        case 15: return 3230000000ULL;
+        case 16: return 3460000000ULL;
+        case 17: return 3780000000ULL;
+        case 18: return 4050000000ULL;
+        case 19: return 4200000000ULL;
+        case 101: return 3200000000ULL;
+        case 102: return 3490000000ULL;
+        default: return 3000000000ULL;
+    }
+}
+
+static void LCSpoofedCacheValues(uint32_t *outL1ICache, uint32_t *outL1DCache, uint32_t *outL2Cache, uint32_t *outCacheLine) {
+    if (outL1ICache) *outL1ICache = 65536U;
+    if (outL1DCache) *outL1DCache = 65536U;
+    if (outL2Cache) *outL2Cache = 12582912U;
+    if (outCacheLine) *outCacheLine = 128U;
+
+    NSInteger series = LCSpoofedChipSeries();
+    if (series >= 18) {
+        if (outL1ICache) *outL1ICache = 131072U;
+        if (outL1DCache) *outL1DCache = 131072U;
+        if (outL2Cache) *outL2Cache = 16777216U;
+    } else if (series >= 16) {
+        if (outL2Cache) *outL2Cache = 16777216U;
+    } else if (series >= 15) {
+        if (outL2Cache) *outL2Cache = 12582912U;
+    }
+}
+
+static const char *LCSpoofedCPUFeatures(void) {
+    NSInteger series = LCSpoofedChipSeries();
+    if (series >= 17 || series >= 100) {
+        return "NEON AES SHA1 SHA2 CRC32 ATOMICS FP16 JSCVT FCMA LRCPC";
+    }
+    if (series >= 15) {
+        return "NEON AES SHA1 SHA2 CRC32 ATOMICS FP16 JSCVT";
+    }
+    return "NEON AES SHA1 SHA2 CRC32 ATOMICS";
+}
+
+static BOOL LCSpoofedOptionalCPUFeature(const char *name) {
+    if (!name) return NO;
+    NSInteger series = LCSpoofedChipSeries();
+    if (strstr(name, "arm64e")) {
+        return (series >= 12 || series >= 100);
+    }
+    if (strstr(name, "armv8_3")) {
+        return (series >= 12 || series >= 100);
+    }
+    return YES;
+}
+
+static BOOL LCShouldSpoofMountPoint(const char *mountPoint) {
+    if (!mountPoint) return NO;
+    if (strcmp(mountPoint, "/") == 0) return YES;
+    if (strcmp(mountPoint, "/var") == 0) return YES;
+    if (strcmp(mountPoint, "/private/var") == 0) return YES;
+    if (strncmp(mountPoint, "/var/mobile", 11) == 0) return YES;
+    if (strncmp(mountPoint, "/private/var/mobile", 19) == 0) return YES;
+    return NO;
+}
+
+static uint64_t LCSpoofedStorageOpportunisticFreeBytes(void) {
+    if (g_spoofedStorageFree == 0) return 0;
+    uint64_t value = (uint64_t)((double)g_spoofedStorageFree * 0.9);
+    return value > 0 ? value : g_spoofedStorageFree;
+}
+
+static BOOL LCCFStringEqualsIgnoreCase(CFStringRef lhs, CFStringRef rhs) {
+    if (!lhs || !rhs) return NO;
+    return CFStringCompare(lhs, rhs, kCFCompareCaseInsensitive) == kCFCompareEqualTo;
+}
+
+static uint64_t LCCalculateSpoofedStorageFreeBytes(uint64_t totalBytes) {
+    if (totalBytes == 0) return 0;
+
+    double totalGB = (double)totalBytes / 1e9;
+    double minRatio = 0.35;
+    double maxRatio = 0.35;
+
+    if (g_storageRandomFreeEnabled) {
+        if (totalGB <= 64.0) {
+            minRatio = 0.08; maxRatio = 0.40;
+        } else if (totalGB <= 128.0) {
+            minRatio = 0.10; maxRatio = 0.45;
+        } else if (totalGB <= 256.0) {
+            minRatio = 0.12; maxRatio = 0.55;
+        } else if (totalGB <= 512.0) {
+            minRatio = 0.15; maxRatio = 0.65;
+        } else {
+            minRatio = 0.20; maxRatio = 0.75;
+        }
+    }
+
+    double ratio = minRatio;
+    if (maxRatio > minRatio) {
+        ratio += ((double)arc4random_uniform(10001) / 10000.0) * (maxRatio - minRatio);
+    }
+
+    uint64_t freeBytes = (uint64_t)(totalBytes * ratio);
+    uint64_t minBytes = 2ULL * 1000ULL * 1000ULL * 1000ULL;
+    if (freeBytes < minBytes) freeBytes = minBytes;
+    if (freeBytes >= totalBytes) {
+        freeBytes = totalBytes > minBytes ? (totalBytes - minBytes) : (totalBytes / 2);
+    }
+    return freeBytes;
+}
+
+static BOOL LCGetUptimeBounds(NSString *range, NSTimeInterval *outLo, NSTimeInterval *outHi) {
+    if (!outLo || !outHi) return NO;
+
+    NSString *value = [[range ?: @"medium" lowercaseString] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if ([value isEqualToString:@"short"]) {
+        *outLo = 1 * 3600;  *outHi = 4 * 3600;      // 1-4 h
+        return YES;
+    }
+    if ([value isEqualToString:@"medium"]) {
+        *outLo = 4 * 3600;  *outHi = 24 * 3600;     // 4-24 h
+        return YES;
+    }
+    if ([value isEqualToString:@"long"]) {
+        *outLo = 24 * 3600; *outHi = 72 * 3600;     // 1-3 d
+        return YES;
+    }
+    if ([value isEqualToString:@"week"]) {
+        *outLo = 72 * 3600; *outHi = 168 * 3600;    // 3-7 d
+        return YES;
+    }
+
+    if (value.length >= 2) {
+        unichar suffix = [value characterAtIndex:value.length - 1];
+        NSString *numberPart = [value substringToIndex:value.length - 1];
+        NSInteger unitCount = numberPart.integerValue;
+        if (unitCount > 0) {
+            if (suffix == 'h') {
+                *outLo = *outHi = unitCount * 3600.0;
+                return YES;
+            }
+            if (suffix == 'd') {
+                *outLo = *outHi = unitCount * 24.0 * 3600.0;
+                return YES;
+            }
+        }
+    }
+
+    return NO;
+}
+
+static void LCApplySpoofedUptimeTarget(NSTimeInterval targetUptime) {
+    if (targetUptime < 60) targetUptime = 60;
+    g_uptimeTarget = targetUptime;
+    NSTimeInterval realUptime = orig_NSProcessInfo_systemUptime
+        ? orig_NSProcessInfo_systemUptime(NSProcessInfo.processInfo, @selector(systemUptime))
+        : NSProcessInfo.processInfo.systemUptime;
+    g_bootTimeOffset = g_uptimeTarget - realUptime;
+    g_bootTimeSpoofingEnabled = YES;
+}
+
+static BOOL LCIsMonotonicUptimeClock(clockid_t clockId) {
+    switch (clockId) {
+        case CLOCK_MONOTONIC:
+#ifdef CLOCK_MONOTONIC_RAW
+        case CLOCK_MONOTONIC_RAW:
+#endif
+#ifdef CLOCK_MONOTONIC_RAW_APPROX
+        case CLOCK_MONOTONIC_RAW_APPROX:
+#endif
+#ifdef CLOCK_UPTIME_RAW
+        case CLOCK_UPTIME_RAW:
+#endif
+#ifdef CLOCK_UPTIME_RAW_APPROX
+        case CLOCK_UPTIME_RAW_APPROX:
+#endif
+            return YES;
+        default:
+            return NO;
+    }
+}
+
 static NSOperatingSystemVersion LCParseOSVersion(NSString *versionString) {
     NSOperatingSystemVersion v = {0, 0, 0};
     NSArray<NSString *> *parts = [versionString componentsSeparatedByString:@"."];
@@ -481,6 +769,17 @@ static CFTypeRef LCCopySpoofedGestaltValue(CFStringRef key) {
         if (value) return CFBridgingRetain(@(value));
     } else if (CFEqual(key, CFSTR("HardwareModel"))) {
         const char *value = LCSpoofedHardwareModel();
+        if (value) return CFBridgingRetain(@(value));
+    } else if (CFEqual(key, CFSTR("ProductName")) || CFEqual(key, CFSTR("MarketingProductName"))) {
+        if (g_currentProfile && g_currentProfile->marketingName) return CFBridgingRetain(@(g_currentProfile->marketingName));
+    } else if (CFEqual(key, CFSTR("HardwarePlatform"))) {
+        const char *value = LCSpoofedHardwareModel();
+        if (value) return CFBridgingRetain(@(value));
+    } else if (CFEqual(key, CFSTR("ChipName"))) {
+        const char *value = LCSpoofedChipName();
+        if (value) return CFBridgingRetain(@(value));
+    } else if (CFEqual(key, CFSTR("GPUName")) || CFEqual(key, CFSTR("GPUModel"))) {
+        const char *value = LCSpoofedGPUName();
         if (value) return CFBridgingRetain(@(value));
     }
 
@@ -557,6 +856,24 @@ static int LCWriteU64Value(void *oldp, size_t *oldlenp, uint64_t value) {
     return 0;
 }
 
+static void LCBuildSpoofedMemoryBuckets(uint64_t totalBytes, uint64_t *outFree, uint64_t *outWired, uint64_t *outActive, uint64_t *outInactive) {
+    if (outFree) *outFree = 0;
+    if (outWired) *outWired = 0;
+    if (outActive) *outActive = 0;
+    if (outInactive) *outInactive = 0;
+    if (totalBytes == 0) return;
+
+    uint64_t freeBytes = (uint64_t)((double)totalBytes * 0.16);
+    uint64_t wiredBytes = (uint64_t)((double)totalBytes * 0.24);
+    uint64_t activeBytes = (uint64_t)((double)totalBytes * 0.38);
+    uint64_t inactiveBytes = totalBytes - (freeBytes + wiredBytes + activeBytes);
+
+    if (outFree) *outFree = freeBytes;
+    if (outWired) *outWired = wiredBytes;
+    if (outActive) *outActive = activeBytes;
+    if (outInactive) *outInactive = inactiveBytes;
+}
+
 static NSUUID *LCUUIDFromOverrideString(NSString *value) {
     if (value.length == 0) return nil;
     NSUUID *uuid = [[NSUUID alloc] initWithUUIDString:value];
@@ -612,15 +929,80 @@ static int hook_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void
         } else if (strcmp(name, "hw.product") == 0) {
             const char *value = LCSpoofedMachineModel();
             if (value) return LCWriteCStringValue(oldp, oldlenp, value);
-        } else if (strcmp(name, "hw.ncpu") == 0 || strcmp(name, "hw.logicalcpu") == 0 || strcmp(name, "hw.physicalcpu") == 0) {
+        } else if (strcmp(name, "hw.ncpu") == 0 || strcmp(name, "hw.activecpu") == 0 ||
+                   strcmp(name, "hw.logicalcpu") == 0 || strcmp(name, "hw.physicalcpu") == 0) {
             uint32_t value = LCSpoofedCPUCount();
             if (value > 0) return LCWriteU32Value(oldp, oldlenp, value);
+        } else if (strcmp(name, "hw.cpu.brand_string") == 0 || strcmp(name, "hw.cpubrand") == 0) {
+            const char *value = LCSpoofedChipName();
+            if (value) return LCWriteCStringValue(oldp, oldlenp, value);
+        } else if (strcmp(name, "hw.cputype") == 0) {
+            return LCWriteU32Value(oldp, oldlenp, (uint32_t)CPU_TYPE_ARM64);
+        } else if (strcmp(name, "hw.cpusubtype") == 0) {
+            return LCWriteU32Value(oldp, oldlenp, LCSpoofedCPUSubtype());
+        } else if (strcmp(name, "hw.cpufamily") == 0) {
+            return LCWriteU32Value(oldp, oldlenp, LCSpoofedCPUFamily());
+        } else if (strcmp(name, "hw.cpufrequency") == 0 || strcmp(name, "hw.cpufrequency_max") == 0 ||
+                   strcmp(name, "hw.cpufrequency_min") == 0) {
+            uint64_t baseHz = LCSpoofedCPUFrequencyHz();
+            if (strcmp(name, "hw.cpufrequency_min") == 0) {
+                baseHz = (uint64_t)((double)baseHz * 0.4);
+            }
+            return LCWriteU64Value(oldp, oldlenp, baseHz);
+        } else if (strcmp(name, "hw.cachelinesize") == 0) {
+            uint32_t l1i = 0, l1d = 0, l2 = 0, line = 0;
+            LCSpoofedCacheValues(&l1i, &l1d, &l2, &line);
+            return LCWriteU32Value(oldp, oldlenp, line);
+        } else if (strcmp(name, "hw.l1icachesize") == 0) {
+            uint32_t l1i = 0, l1d = 0, l2 = 0, line = 0;
+            LCSpoofedCacheValues(&l1i, &l1d, &l2, &line);
+            return LCWriteU32Value(oldp, oldlenp, l1i);
+        } else if (strcmp(name, "hw.l1dcachesize") == 0) {
+            uint32_t l1i = 0, l1d = 0, l2 = 0, line = 0;
+            LCSpoofedCacheValues(&l1i, &l1d, &l2, &line);
+            return LCWriteU32Value(oldp, oldlenp, l1d);
+        } else if (strcmp(name, "hw.l2cachesize") == 0) {
+            uint32_t l1i = 0, l1d = 0, l2 = 0, line = 0;
+            LCSpoofedCacheValues(&l1i, &l1d, &l2, &line);
+            return LCWriteU32Value(oldp, oldlenp, l2);
+        } else if (strncmp(name, "hw.optional.", 12) == 0) {
+            return LCWriteU32Value(oldp, oldlenp, LCSpoofedOptionalCPUFeature(name) ? 1U : 0U);
+        } else if (strcmp(name, "hw.cpu.features") == 0) {
+            const char *value = LCSpoofedCPUFeatures();
+            if (value) return LCWriteCStringValue(oldp, oldlenp, value);
         } else if (strcmp(name, "hw.memsize") == 0) {
             uint64_t value = LCSpoofedPhysicalMemory();
             if (value > 0) return LCWriteU64Value(oldp, oldlenp, value);
         } else if (strcmp(name, "hw.physmem") == 0) {
             uint64_t value = LCSpoofedPhysicalMemory();
             if (value > 0) return LCWriteU32Value(oldp, oldlenp, (uint32_t)MIN(value, UINT32_MAX));
+        } else if (strcmp(name, "vm.swapusage") == 0) {
+            if (!oldlenp) {
+                errno = EINVAL;
+                return -1;
+            }
+
+            size_t needed = sizeof(struct xsw_usage);
+            if (!oldp) {
+                *oldlenp = needed;
+                return 0;
+            }
+            if (*oldlenp < needed) {
+                *oldlenp = needed;
+                errno = ENOMEM;
+                return -1;
+            }
+
+            uint64_t totalMemory = LCSpoofedPhysicalMemory();
+            uint64_t totalSwap = (uint64_t)((double)totalMemory * (totalMemory >= (4ULL * 1024ULL * 1024ULL * 1024ULL) ? 0.5 : 1.0));
+            struct xsw_usage *swapUsage = (struct xsw_usage *)oldp;
+            swapUsage->xsu_total = totalSwap;
+            swapUsage->xsu_avail = (uint64_t)((double)totalSwap * 0.7);
+            swapUsage->xsu_used = totalSwap - swapUsage->xsu_avail;
+            swapUsage->xsu_pagesize = vm_kernel_page_size;
+            swapUsage->xsu_encrypted = 1;
+            *oldlenp = needed;
+            return 0;
         } else if (strcmp(name, "kern.osversion") == 0) {
             const char *value = LCSpoofedBuildVersion();
             if (value) return LCWriteCStringValue(oldp, oldlenp, value);
@@ -726,6 +1108,260 @@ static int hook_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, vo
     }
 
     return orig_sysctl(name, namelen, oldp, oldlenp, newp, newlen);
+}
+
+static void LCApplySpoofedStatfs(struct statfs *buf) {
+    if (!buf || !LCStorageSpoofingActive()) return;
+
+    uint64_t blockSize = buf->f_bsize > 0 ? (uint64_t)buf->f_bsize : 4096ULL;
+    uint64_t totalBlocks = g_spoofedStorageTotal / blockSize;
+    uint64_t freeBlocks = g_spoofedStorageFree / blockSize;
+    if (totalBlocks == 0) totalBlocks = 1;
+    if (freeBlocks == 0) freeBlocks = 1;
+    if (freeBlocks > totalBlocks) freeBlocks = totalBlocks;
+
+    buf->f_blocks = (uint32_t)MIN(totalBlocks, UINT32_MAX);
+    buf->f_bfree = (uint32_t)MIN(freeBlocks, UINT32_MAX);
+    buf->f_bavail = buf->f_bfree;
+}
+
+static void LCApplySpoofedStatfs64(LCStatfs64 *buf) {
+    if (!buf || !LCStorageSpoofingActive()) return;
+
+    uint64_t blockSize = buf->f_bsize > 0 ? (uint64_t)buf->f_bsize : 4096ULL;
+    uint64_t totalBlocks = g_spoofedStorageTotal / blockSize;
+    uint64_t freeBlocks = g_spoofedStorageFree / blockSize;
+    if (totalBlocks == 0) totalBlocks = 1;
+    if (freeBlocks == 0) freeBlocks = 1;
+    if (freeBlocks > totalBlocks) freeBlocks = totalBlocks;
+
+    buf->f_blocks = totalBlocks;
+    buf->f_bfree = freeBlocks;
+    buf->f_bavail = freeBlocks;
+}
+
+static int hook_statfs(const char *path, struct statfs *buf) {
+    if (!orig_statfs) {
+        orig_statfs = (int (*)(const char *, struct statfs *))dlsym(RTLD_DEFAULT, "statfs");
+        if (!orig_statfs) return -1;
+    }
+    int rc = orig_statfs(path, buf);
+    if (rc == 0 && LCShouldSpoofMountPoint(path)) {
+        LCApplySpoofedStatfs(buf);
+    }
+    return rc;
+}
+
+static int hook_statfs64(const char *path, void *buf) {
+    if (!orig_statfs64) {
+        orig_statfs64 = (int (*)(const char *, void *))dlsym(RTLD_DEFAULT, "statfs64");
+        if (!orig_statfs64) {
+            errno = ENOSYS;
+            return -1;
+        }
+    }
+    int rc = orig_statfs64(path, buf);
+    if (rc == 0 && LCShouldSpoofMountPoint(path)) {
+        LCApplySpoofedStatfs64((LCStatfs64 *)buf);
+    }
+    return rc;
+}
+
+static int hook_fstatfs(int fd, struct statfs *buf) {
+    if (!orig_fstatfs) {
+        orig_fstatfs = (int (*)(int, struct statfs *))dlsym(RTLD_DEFAULT, "fstatfs");
+        if (!orig_fstatfs) return -1;
+    }
+    int rc = orig_fstatfs(fd, buf);
+    if (rc == 0) {
+        LCApplySpoofedStatfs(buf);
+    }
+    return rc;
+}
+
+static int hook_getfsstat(struct statfs *buf, int bufsize, int flags) {
+    if (!orig_getfsstat) {
+        orig_getfsstat = (int (*)(struct statfs *, int, int))dlsym(RTLD_DEFAULT, "getfsstat");
+        if (!orig_getfsstat) {
+            errno = ENOSYS;
+            return -1;
+        }
+    }
+
+    int rc = orig_getfsstat(buf, bufsize, flags);
+    if (rc > 0 && buf && LCStorageSpoofingActive()) {
+        for (int i = 0; i < rc; i++) {
+            if (LCShouldSpoofMountPoint(buf[i].f_mntonname)) {
+                LCApplySpoofedStatfs(&buf[i]);
+            }
+        }
+    }
+    return rc;
+}
+
+static int hook_getfsstat64(void *buf, int bufsize, int flags) {
+    if (!orig_getfsstat64) {
+        orig_getfsstat64 = (int (*)(void *, int, int))dlsym(RTLD_DEFAULT, "getfsstat64");
+        if (!orig_getfsstat64) {
+            errno = ENOSYS;
+            return -1;
+        }
+    }
+
+    int rc = orig_getfsstat64(buf, bufsize, flags);
+    if (rc > 0 && buf && LCStorageSpoofingActive()) {
+        LCStatfs64 *entries = (LCStatfs64 *)buf;
+        for (int i = 0; i < rc; i++) {
+            if (LCShouldSpoofMountPoint(entries[i].f_mntonname)) {
+                LCApplySpoofedStatfs64(&entries[i]);
+            }
+        }
+    }
+    return rc;
+}
+
+static int hook_clock_gettime(clockid_t clk_id, struct timespec *tp) {
+    if (!orig_clock_gettime) {
+        orig_clock_gettime = (int (*)(clockid_t, struct timespec *))dlsym(RTLD_DEFAULT, "clock_gettime");
+        if (!orig_clock_gettime) return -1;
+    }
+
+    int rc = orig_clock_gettime(clk_id, tp);
+    if (rc != 0 || !tp) return rc;
+
+    if (LCDeviceSpoofingIsActive() && g_bootTimeSpoofingEnabled && LCIsMonotonicUptimeClock(clk_id)) {
+        double seconds = (double)tp->tv_sec + ((double)tp->tv_nsec / 1e9);
+        seconds += g_bootTimeOffset;
+        if (seconds < 0) seconds = 0;
+        tp->tv_sec = (time_t)seconds;
+        tp->tv_nsec = (long)((seconds - (double)tp->tv_sec) * 1e9);
+    }
+    return rc;
+}
+
+static uint64_t hook_clock_gettime_nsec_np(clockid_t clk_id) {
+    if (!orig_clock_gettime_nsec_np) {
+        orig_clock_gettime_nsec_np = (uint64_t (*)(clockid_t))dlsym(RTLD_DEFAULT, "clock_gettime_nsec_np");
+        if (!orig_clock_gettime_nsec_np) return 0;
+    }
+
+    uint64_t value = orig_clock_gettime_nsec_np(clk_id);
+    if (LCDeviceSpoofingIsActive() && g_bootTimeSpoofingEnabled && LCIsMonotonicUptimeClock(clk_id)) {
+        int64_t adjusted = (int64_t)value + (int64_t)(g_bootTimeOffset * 1e9);
+        if (adjusted < 0) adjusted = 0;
+        return (uint64_t)adjusted;
+    }
+    return value;
+}
+
+static kern_return_t hook_host_statistics64(host_t host, host_flavor_t flavor, host_info64_t info, mach_msg_type_number_t *count) {
+    if (!orig_host_statistics64) {
+        orig_host_statistics64 = (kern_return_t (*)(host_t, host_flavor_t, host_info64_t, mach_msg_type_number_t *))
+            dlsym(RTLD_DEFAULT, "host_statistics64");
+        if (!orig_host_statistics64) return KERN_FAILURE;
+    }
+
+    kern_return_t result = orig_host_statistics64(host, flavor, info, count);
+    if (result != KERN_SUCCESS || !LCDeviceSpoofingIsActive() || !info || !count) {
+        return result;
+    }
+
+    uint64_t totalMemory = LCSpoofedPhysicalMemory();
+    if (totalMemory == 0) {
+        return result;
+    }
+
+    if (flavor == HOST_VM_INFO64 && *count >= HOST_VM_INFO64_COUNT) {
+        vm_statistics64_data_t *vmStats = (vm_statistics64_data_t *)info;
+        uint64_t freeBytes = 0, wiredBytes = 0, activeBytes = 0, inactiveBytes = 0;
+        LCBuildSpoofedMemoryBuckets(totalMemory, &freeBytes, &wiredBytes, &activeBytes, &inactiveBytes);
+
+        vm_size_t pageSize = vm_kernel_page_size;
+        host_page_size(host, &pageSize);
+        if (pageSize == 0) pageSize = 4096;
+
+        vmStats->free_count = freeBytes / pageSize;
+        vmStats->wire_count = wiredBytes / pageSize;
+        vmStats->active_count = activeBytes / pageSize;
+        vmStats->inactive_count = inactiveBytes / pageSize;
+    } else if (flavor == HOST_VM_INFO && *count >= HOST_VM_INFO_COUNT) {
+        vm_statistics_data_t *vmStats = (vm_statistics_data_t *)info;
+        uint64_t freeBytes = 0, wiredBytes = 0, activeBytes = 0, inactiveBytes = 0;
+        LCBuildSpoofedMemoryBuckets(totalMemory, &freeBytes, &wiredBytes, &activeBytes, &inactiveBytes);
+
+        vm_size_t pageSize = vm_kernel_page_size;
+        host_page_size(host, &pageSize);
+        if (pageSize == 0) pageSize = 4096;
+
+        vmStats->free_count = (natural_t)MIN(freeBytes / pageSize, UINT32_MAX);
+        vmStats->wire_count = (natural_t)MIN(wiredBytes / pageSize, UINT32_MAX);
+        vmStats->active_count = (natural_t)MIN(activeBytes / pageSize, UINT32_MAX);
+        vmStats->inactive_count = (natural_t)MIN(inactiveBytes / pageSize, UINT32_MAX);
+    } else if (flavor == HOST_BASIC_INFO && *count >= HOST_BASIC_INFO_COUNT) {
+        host_basic_info_t basicInfo = (host_basic_info_t)info;
+        basicInfo->max_mem = totalMemory;
+    }
+
+    return result;
+}
+
+static NSString *hook_MTLDevice_name(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        const char *gpuName = LCSpoofedGPUName();
+        if (gpuName) return @(gpuName);
+    }
+    if (orig_MTLDevice_name) return orig_MTLDevice_name(self, _cmd);
+    return @"Apple GPU";
+}
+
+static NSString *hook_MTLDevice_familyName(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        const char *gpuName = LCSpoofedGPUName();
+        if (gpuName) return @(gpuName);
+    }
+    if (orig_MTLDevice_familyName) return orig_MTLDevice_familyName(self, _cmd);
+    return @"Apple GPU";
+}
+
+static void LCInstallMTLDeviceHooksIfNeeded(id device) {
+    if (!device) return;
+    Class deviceClass = [device class];
+
+    Method nameMethod = class_getInstanceMethod(deviceClass, @selector(name));
+    if (nameMethod) {
+        IMP currentName = method_getImplementation(nameMethod);
+        if (currentName != (IMP)hook_MTLDevice_name) {
+            if (!orig_MTLDevice_name) {
+                orig_MTLDevice_name = (NSString *(*)(id, SEL))currentName;
+            }
+            method_setImplementation(nameMethod, (IMP)hook_MTLDevice_name);
+        }
+    }
+
+    Method familyMethod = class_getInstanceMethod(deviceClass, @selector(familyName));
+    if (familyMethod) {
+        IMP currentFamily = method_getImplementation(familyMethod);
+        if (currentFamily != (IMP)hook_MTLDevice_familyName) {
+            if (!orig_MTLDevice_familyName) {
+                orig_MTLDevice_familyName = (NSString *(*)(id, SEL))currentFamily;
+            }
+            method_setImplementation(familyMethod, (IMP)hook_MTLDevice_familyName);
+        }
+    }
+}
+
+static id hook_MTLCreateSystemDefaultDevice(void) {
+    id device = orig_MTLCreateSystemDefaultDevice ? orig_MTLCreateSystemDefaultDevice() : nil;
+    if (device) LCInstallMTLDeviceHooksIfNeeded(device);
+    return device;
+}
+
+static NSArray *hook_MTLCopyAllDevices(void) {
+    NSArray *devices = orig_MTLCopyAllDevices ? orig_MTLCopyAllDevices() : nil;
+    for (id device in devices) {
+        LCInstallMTLDeviceHooksIfNeeded(device);
+    }
+    return devices;
 }
 
 #pragma mark - ObjC Hooks
@@ -1083,6 +1719,12 @@ static id hook_UIDevice_deviceInfoForKey(id self, SEL _cmd, NSString *key) {
     } else if ([key isEqualToString:@"DeviceName"]) {
         if (g_customDeviceName.length > 0) return g_customDeviceName;
         if (g_currentProfile && g_currentProfile->marketingName) return @(g_currentProfile->marketingName);
+    } else if ([key isEqualToString:@"ChipName"] || [key isEqualToString:@"CPUModel"] || [key isEqualToString:@"SoCModel"]) {
+        const char *value = LCSpoofedChipName();
+        if (value) return @(value);
+    } else if ([key isEqualToString:@"GPUName"] || [key isEqualToString:@"GPUModel"]) {
+        const char *value = LCSpoofedGPUName();
+        if (value) return @(value);
     }
 
     return original;
@@ -1097,6 +1739,89 @@ static CFTypeRef hook_MGCopyAnswer(CFStringRef key) {
         return orig_MGCopyAnswer(key);
     }
     return NULL;
+}
+
+static CFDictionaryRef hook_CFCopySystemVersionDictionary(void) {
+    CFDictionaryRef original = orig_CFCopySystemVersionDictionary ? orig_CFCopySystemVersionDictionary() : NULL;
+    if (!LCDeviceSpoofingIsActive()) {
+        return original;
+    }
+
+    const char *version = LCSpoofedSystemVersion();
+    const char *build = LCSpoofedBuildVersion();
+    if (!version && !build) {
+        return original;
+    }
+
+    CFMutableDictionaryRef mutableDict = NULL;
+    if (original) {
+        mutableDict = CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, original);
+    } else {
+        mutableDict = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    }
+    if (!mutableDict) {
+        return original;
+    }
+
+    if (version) {
+        CFStringRef value = CFStringCreateWithCString(kCFAllocatorDefault, version, kCFStringEncodingUTF8);
+        if (value) {
+            CFDictionarySetValue(mutableDict, CFSTR("ProductVersion"), value);
+            CFDictionarySetValue(mutableDict, CFSTR("ProductUserVisibleVersion"), value);
+            CFRelease(value);
+        }
+    }
+
+    if (build) {
+        CFStringRef value = CFStringCreateWithCString(kCFAllocatorDefault, build, kCFStringEncodingUTF8);
+        if (value) {
+            CFDictionarySetValue(mutableDict, CFSTR("ProductBuildVersion"), value);
+            CFRelease(value);
+        }
+    }
+
+    if (original) {
+        CFRelease(original);
+    }
+    return mutableDict;
+}
+
+static CFTypeRef hook_IORegistryEntryCreateCFProperty(io_registry_entry_t entry, CFStringRef key, CFAllocatorRef allocator, IOOptionBits options) {
+    CFTypeRef result = orig_IORegistryEntryCreateCFProperty ? orig_IORegistryEntryCreateCFProperty(entry, key, allocator, options) : NULL;
+    if (!LCDeviceSpoofingIsActive() || !key) {
+        return result;
+    }
+
+    // Storage size from IOKit (used by some technical fingerprint apps)
+    if (LCStorageSpoofingActive() &&
+        LCCFStringEqualsIgnoreCase(key, CFSTR("Size")) &&
+        result && CFGetTypeID(result) == CFNumberGetTypeID()) {
+        uint64_t totalBytes = g_spoofedStorageTotal;
+        CFRelease(result);
+        return CFNumberCreate(allocator ?: kCFAllocatorDefault, kCFNumberSInt64Type, &totalBytes);
+    }
+
+    const char *replacement = NULL;
+    if (LCCFStringEqualsIgnoreCase(key, CFSTR("model")) ||
+        LCCFStringEqualsIgnoreCase(key, CFSTR("device-model")) ||
+        LCCFStringEqualsIgnoreCase(key, CFSTR("hw.machine"))) {
+        replacement = LCSpoofedMachineModel();
+    } else if (LCCFStringEqualsIgnoreCase(key, CFSTR("hw.model")) ||
+               LCCFStringEqualsIgnoreCase(key, CFSTR("HWModel"))) {
+        replacement = LCSpoofedHardwareModel();
+    } else if (LCCFStringEqualsIgnoreCase(key, CFSTR("board-id")) ||
+               LCCFStringEqualsIgnoreCase(key, CFSTR("BoardId"))) {
+        replacement = LCSpoofedHardwareModel();
+    }
+
+    if (!replacement) {
+        return result;
+    }
+
+    if (result) {
+        CFRelease(result);
+    }
+    return CFStringCreateWithCString(allocator ?: kCFAllocatorDefault, replacement, kCFStringEncodingUTF8);
 }
 
 // MARK: - NSProcessInfo isOperatingSystemAtLeastVersion
@@ -1171,6 +1896,8 @@ static NSString *LCBuildFingerprintInjectionScript(void) {
             [spoofedUA stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"],
             [[spoofedUA stringByReplacingOccurrencesOfString:@"Mozilla/" withString:@""] stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"]];
     }
+    NSString *gpuRenderer = g_currentProfile && g_currentProfile->gpuName ? @(g_currentProfile->gpuName) : @"Apple GPU";
+    NSString *gpuRendererEscaped = [gpuRenderer stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
 
     return [NSString stringWithFormat:
         @"(function(){\n"
@@ -1218,14 +1945,14 @@ static NSString *LCBuildFingerprintInjectionScript(void) {
         @"  var origGP=WebGLRenderingContext.prototype.getParameter;\n"
         @"  WebGLRenderingContext.prototype.getParameter=function(p){\n"
         @"    if(p===37445)return'Apple Inc.';\n"
-        @"    if(p===37446)return'Apple GPU';\n"
+        @"    if(p===37446)return'%@';\n"
         @"    return origGP.call(this,p);\n"
         @"  };\n"
         @"  if(typeof WebGL2RenderingContext!=='undefined'){\n"
         @"    var origGP2=WebGL2RenderingContext.prototype.getParameter;\n"
         @"    WebGL2RenderingContext.prototype.getParameter=function(p){\n"
         @"      if(p===37445)return'Apple Inc.';\n"
-        @"      if(p===37446)return'Apple GPU';\n"
+        @"      if(p===37446)return'%@';\n"
         @"      return origGP2.call(this,p);\n"
         @"    };\n"
         @"  }\n"
@@ -1264,7 +1991,9 @@ static NSString *LCBuildFingerprintInjectionScript(void) {
         (long)screenW, (long)screenH,
         cpuCores, deviceMem,
         uaJS,
-        arc4random()];
+        arc4random(),
+        gpuRendererEscaped,
+        gpuRendererEscaped];
 }
 
 // MARK: - WKWebView initWithFrame hook (inject UA + fingerprint JS)
@@ -1320,13 +2049,87 @@ static NSDictionary *hook_NSFileManager_attributesOfFileSystemForPath(id self, S
     NSDictionary *attrs = orig_NSFileManager_attributesOfFileSystemForPath
         ? orig_NSFileManager_attributesOfFileSystemForPath(self, _cmd, path, error)
         : nil;
-    if (LCDeviceSpoofingIsActive() && g_storageSpoofingEnabled && g_spoofedStorageTotal > 0 && attrs) {
+    if (LCStorageSpoofingActive() && attrs) {
         NSMutableDictionary *mutable = [attrs mutableCopy];
         mutable[NSFileSystemSize] = @(g_spoofedStorageTotal);
         mutable[NSFileSystemFreeSize] = @(g_spoofedStorageFree);
         return [mutable copy];
     }
     return attrs;
+}
+
+static unsigned long long hook_NSFileManager_volumeAvailableCapacityForImportantUsageForURL(id self, SEL _cmd, NSURL *url, NSError **error) {
+    unsigned long long original = orig_NSFileManager_volumeAvailableCapacityForImportantUsageForURL
+        ? orig_NSFileManager_volumeAvailableCapacityForImportantUsageForURL(self, _cmd, url, error)
+        : 0;
+    if (LCStorageSpoofingActive()) {
+        return g_spoofedStorageFree;
+    }
+    return original;
+}
+
+static unsigned long long hook_NSFileManager_volumeAvailableCapacityForOpportunisticUsageForURL(id self, SEL _cmd, NSURL *url, NSError **error) {
+    unsigned long long original = orig_NSFileManager_volumeAvailableCapacityForOpportunisticUsageForURL
+        ? orig_NSFileManager_volumeAvailableCapacityForOpportunisticUsageForURL(self, _cmd, url, error)
+        : 0;
+    if (LCStorageSpoofingActive()) {
+        return LCSpoofedStorageOpportunisticFreeBytes();
+    }
+    return original;
+}
+
+static unsigned long long hook_NSFileManager_volumeTotalCapacityForURL(id self, SEL _cmd, NSURL *url, NSError **error) {
+    unsigned long long original = orig_NSFileManager_volumeTotalCapacityForURL
+        ? orig_NSFileManager_volumeTotalCapacityForURL(self, _cmd, url, error)
+        : 0;
+    if (LCStorageSpoofingActive()) {
+        return g_spoofedStorageTotal;
+    }
+    return original;
+}
+
+static void LCApplySpoofedNSURLResourceValue(id *value, NSString *key) {
+    if (!value || !key || !LCStorageSpoofingActive()) return;
+
+    if ([key isEqualToString:@"NSURLVolumeTotalCapacityKey"]) {
+        *value = @(g_spoofedStorageTotal);
+    } else if ([key isEqualToString:@"NSURLVolumeAvailableCapacityKey"] ||
+               [key isEqualToString:@"NSURLVolumeAvailableCapacityForImportantUsageKey"]) {
+        *value = @(g_spoofedStorageFree);
+    } else if ([key isEqualToString:@"NSURLVolumeAvailableCapacityForOpportunisticUsageKey"]) {
+        *value = @(LCSpoofedStorageOpportunisticFreeBytes());
+    }
+}
+
+static BOOL hook_NSURL_getResourceValue_forKey_error(id self, SEL _cmd, id *value, NSURLResourceKey key, NSError **error) {
+    BOOL result = orig_NSURL_getResourceValue_forKey_error
+        ? orig_NSURL_getResourceValue_forKey_error(self, _cmd, value, key, error)
+        : NO;
+    if (!result || !value || !key || !LCStorageSpoofingActive()) {
+        return result;
+    }
+
+    LCApplySpoofedNSURLResourceValue(value, (NSString *)key);
+    return result;
+}
+
+static NSDictionary<NSURLResourceKey, id> *hook_NSURL_resourceValuesForKeys_error(id self, SEL _cmd, NSArray<NSURLResourceKey> *keys, NSError **error) {
+    NSDictionary<NSURLResourceKey, id> *values = orig_NSURL_resourceValuesForKeys_error
+        ? orig_NSURL_resourceValuesForKeys_error(self, _cmd, keys, error)
+        : nil;
+    if (!values || !keys || !LCStorageSpoofingActive()) {
+        return values;
+    }
+
+    NSMutableDictionary<NSURLResourceKey, id> *mutable = [values mutableCopy];
+    for (NSURLResourceKey key in keys) {
+        id spoofed = mutable[key];
+        LCApplySpoofedNSURLResourceValue(&spoofed, (NSString *)key);
+        if (spoofed) {
+            mutable[key] = spoofed;
+        }
+    }
+    return [mutable copy];
 }
 
 #pragma mark - Public API
@@ -1478,7 +2281,21 @@ NSInteger LCGetSpoofedBatteryState(void) {
 }
 
 void LCRandomizeBattery(void) {
-    // Ghost-parity mode: no runtime randomization.
+    g_batteryLevelConfigured = YES;
+    g_batteryStateConfigured = YES;
+
+    // Keep values realistic and stable for a session.
+    float level = 0.15f + ((float)arc4random_uniform(81) / 100.0f); // 15%-95%
+    if (level < 0.05f) level = 0.05f;
+    if (level > 1.0f) level = 1.0f;
+    g_spoofedBatteryLevel = level;
+
+    if (level >= 0.97f) {
+        g_spoofedBatteryState = 3; // full
+    } else {
+        // Mostly unplugged, occasionally charging.
+        g_spoofedBatteryState = (arc4random_uniform(100) < 75) ? 1 : 2;
+    }
 }
 
 void LCSetSpoofedBrightness(float brightness) {
@@ -1505,26 +2322,24 @@ void LCSetSpoofedLowPowerMode(BOOL enabled, BOOL value) {
 }
 
 void LCSetSpoofedBootTimeRange(NSString *range) {
-    // Calculate a random uptime within the specified range, then derive
-    // a boot-time offset that shifts KERN_BOOTTIME backwards so that
-    //   now - spoofed_boottime ≈ randomUptime
-    NSTimeInterval lo, hi;
-    if ([range isEqualToString:@"short"]) {
-        lo = 1 * 3600;  hi = 4 * 3600;       // 1–4 h
-    } else if ([range isEqualToString:@"long"]) {
-        lo = 24 * 3600;  hi = 72 * 3600;     // 1–3 d
-    } else if ([range isEqualToString:@"week"]) {
-        lo = 72 * 3600;  hi = 168 * 3600;    // 3–7 d
-    } else { /* medium */
-        lo = 4 * 3600;   hi = 24 * 3600;     // 4–24 h
+    NSTimeInterval lo = 4 * 3600;
+    NSTimeInterval hi = 24 * 3600;
+    if (!LCGetUptimeBounds(range, &lo, &hi)) {
+        // Backwards-compatible fallback
+        lo = 4 * 3600;
+        hi = 24 * 3600;
     }
-    g_uptimeTarget = lo + (arc4random_uniform((uint32_t)(hi - lo)));
 
-    // Derive the offset: how much we need to shift the boot time
-    // Real uptime from NSProcessInfo, target uptime from g_uptimeTarget
-    NSTimeInterval realUptime = NSProcessInfo.processInfo.systemUptime;
-    g_bootTimeOffset = g_uptimeTarget - realUptime;  // can be negative when target > real
-    g_bootTimeSpoofingEnabled = YES;
+    NSTimeInterval target = lo;
+    NSTimeInterval span = hi - lo;
+    if (span > 1) {
+        target = lo + (NSTimeInterval)arc4random_uniform((uint32_t)span + 1);
+    }
+    LCApplySpoofedUptimeTarget(target);
+}
+
+void LCSetSpoofedUptimeSeconds(NSTimeInterval uptimeSeconds) {
+    LCApplySpoofedUptimeTarget(uptimeSeconds);
 }
 
 void LCSetUptimeOffset(NSTimeInterval offset) {
@@ -1533,7 +2348,7 @@ void LCSetUptimeOffset(NSTimeInterval offset) {
 }
 
 void LCRandomizeUptime(void) {
-    LCSetSpoofedBootTimeRange(@"medium");
+    LCSetSpoofedBootTimeRange(@"short");
 }
 
 void LCSetSpoofedBootTime(time_t bootTimestamp) {
@@ -1565,43 +2380,61 @@ NSTimeInterval LCGetSpoofedUptime(void) {
 
 void LCSetStorageSpoofingEnabled(BOOL enabled) { g_storageSpoofingEnabled = enabled; }
 BOOL LCIsStorageSpoofingEnabled(void) { return g_storageSpoofingEnabled; }
+void LCSetStorageRandomFreeEnabled(BOOL enabled) {
+    g_storageRandomFreeEnabled = enabled;
+    if (g_spoofedStorageTotal > 0 && !g_storageFreeExplicitlySet) {
+        g_spoofedStorageFree = LCCalculateSpoofedStorageFreeBytes(g_spoofedStorageTotal);
+        g_spoofedStorageFreeGB = [NSString stringWithFormat:@"%.1f", (double)g_spoofedStorageFree / 1e9];
+    }
+}
+BOOL LCIsStorageRandomFreeEnabled(void) { return g_storageRandomFreeEnabled; }
 
 void LCSetSpoofedStorageCapacity(long long capacityGB) {
     g_spoofedStorageCapacityGB = [NSString stringWithFormat:@"%lld", capacityGB];
     g_storageSpoofingEnabled = YES;
     g_spoofedStorageTotal = (uint64_t)(capacityGB * 1000LL * 1000LL * 1000LL);
-    g_spoofedStorageFree = (uint64_t)((double)g_spoofedStorageTotal * (0.25 + (arc4random_uniform(20) / 100.0)));
-    g_spoofedStorageFreeGB = [NSString stringWithFormat:@"%.1f", g_spoofedStorageFree / 1e9];
+    g_storageFreeExplicitlySet = NO;
+    g_spoofedStorageFree = LCCalculateSpoofedStorageFreeBytes(g_spoofedStorageTotal);
+    g_spoofedStorageFreeGB = [NSString stringWithFormat:@"%.1f", (double)g_spoofedStorageFree / 1e9];
 }
 
 void LCSetSpoofedStorageFree(NSString *freeGB) {
+    g_storageFreeExplicitlySet = YES;
     g_spoofedStorageFreeGB = [freeGB copy];
     g_spoofedStorageFree = (uint64_t)(freeGB.doubleValue * 1000.0 * 1000.0 * 1000.0);
 }
 
 void LCSetSpoofedStorageBytes(uint64_t totalBytes, uint64_t freeBytes) {
+    g_storageFreeExplicitlySet = YES;
     g_spoofedStorageTotal = totalBytes;
     g_spoofedStorageFree = freeBytes;
 }
 
 NSDictionary *LCGenerateStorageForCapacity(NSString *capacityGB) {
     double totalGB = MAX(capacityGB.doubleValue, 0.0);
-    double freeGB = totalGB * 0.35;
+    uint64_t totalBytes = (uint64_t)(totalGB * 1000.0 * 1000.0 * 1000.0);
+    uint64_t freeBytes = LCCalculateSpoofedStorageFreeBytes(totalBytes);
+    double freeGB = (double)freeBytes / 1e9;
     return @{
         @"TotalStorage": [NSString stringWithFormat:@"%.0f", totalGB],
         @"FreeStorage": [NSString stringWithFormat:@"%.1f", freeGB],
-        @"TotalBytes": @((uint64_t)(totalGB * 1000.0 * 1000.0 * 1000.0)),
-        @"FreeBytes": @((uint64_t)(freeGB * 1000.0 * 1000.0 * 1000.0)),
+        @"TotalBytes": @(totalBytes),
+        @"FreeBytes": @(freeBytes),
         @"FilesystemType": @"APFS",
     };
 }
 
 NSString *LCRandomizeStorageCapacity(void) {
-    return @"128";
+    NSArray<NSString *> *capacities = @[@"64", @"128", @"256", @"512", @"1024"];
+    return capacities[arc4random_uniform((uint32_t)capacities.count)];
 }
 
 void LCRandomizeStorage(void) {
-    // Ghost-parity mode: no runtime randomization.
+    long long capacityGB = [LCRandomizeStorageCapacity() longLongValue];
+    LCSetSpoofedStorageCapacity(capacityGB);
+    g_storageFreeExplicitlySet = NO;
+    g_spoofedStorageFree = LCCalculateSpoofedStorageFreeBytes(g_spoofedStorageTotal);
+    g_spoofedStorageFreeGB = [NSString stringWithFormat:@"%.1f", (double)g_spoofedStorageFree / 1e9];
 }
 
 uint64_t LCGetSpoofedStorageTotal(void) { return g_spoofedStorageTotal; }
@@ -1623,7 +2456,9 @@ void LCSetSiriPrivacyProtectionEnabled(BOOL enabled) { g_siriPrivacyProtectionEn
 BOOL LCIsSiriPrivacyProtectionEnabled(void) { return g_siriPrivacyProtectionEnabled; }
 
 void LCInitializeFingerprintProtection(void) {
-    // Ghost-parity mode: deterministic only.
+    LCRandomizeBattery();
+    LCRandomizeUptime();
+    LCRandomizeStorage();
 }
 
 void LCSetSpoofedScreenScale(CGFloat scale) { (void)scale; }
@@ -1684,9 +2519,29 @@ void DeviceSpoofingGuestHooksInit(void) {
             {"uname", (void *)hook_uname, (void **)&orig_uname},
             {"sysctlbyname", (void *)hook_sysctlbyname, (void **)&orig_sysctlbyname},
             {"sysctl", (void *)hook_sysctl, (void **)&orig_sysctl},
+            {"statfs", (void *)hook_statfs, (void **)&orig_statfs},
+            {"statfs64", (void *)hook_statfs64, (void **)&orig_statfs64},
+            {"fstatfs", (void *)hook_fstatfs, (void **)&orig_fstatfs},
+            {"getfsstat", (void *)hook_getfsstat, (void **)&orig_getfsstat},
+            {"getfsstat64", (void *)hook_getfsstat64, (void **)&orig_getfsstat64},
+            {"clock_gettime", (void *)hook_clock_gettime, (void **)&orig_clock_gettime},
+            {"clock_gettime_nsec_np", (void *)hook_clock_gettime_nsec_np, (void **)&orig_clock_gettime_nsec_np},
+            {"host_statistics64", (void *)hook_host_statistics64, (void **)&orig_host_statistics64},
+            {"MTLCreateSystemDefaultDevice", (void *)hook_MTLCreateSystemDefaultDevice, (void **)&orig_MTLCreateSystemDefaultDevice},
+            {"MTLCopyAllDevices", (void *)hook_MTLCopyAllDevices, (void **)&orig_MTLCopyAllDevices},
             {"MGCopyAnswer", (void *)hook_MGCopyAnswer, (void **)&orig_MGCopyAnswer},
+            {"IORegistryEntryCreateCFProperty", (void *)hook_IORegistryEntryCreateCFProperty, (void **)&orig_IORegistryEntryCreateCFProperty},
+            {"CFCopySystemVersionDictionary", (void *)hook_CFCopySystemVersionDictionary, (void **)&orig_CFCopySystemVersionDictionary},
         };
         rebind_symbols(rebindings, sizeof(rebindings) / sizeof(rebindings[0]));
+
+        id (*createMetalDevice)(void) = (id (*)(void))dlsym(RTLD_DEFAULT, "MTLCreateSystemDefaultDevice");
+        if (createMetalDevice) {
+            id metalDevice = createMetalDevice();
+            if (metalDevice) {
+                LCInstallMTLDeviceHooksIfNeeded(metalDevice);
+            }
+        }
 
         Class uiDeviceClass = objc_getClass("UIDevice");
         LCInstallInstanceHook(uiDeviceClass, @selector(systemVersion), (IMP)hook_UIDevice_systemVersion, (IMP *)&orig_UIDevice_systemVersion);
@@ -1775,15 +2630,25 @@ void DeviceSpoofingGuestHooksInit(void) {
             LCInstallInstanceHook(wkConfigClass, @selector(setApplicationNameForUserAgent:), (IMP)hook_WKWebViewConfiguration_setApplicationNameForUserAgent, (IMP *)&orig_WKWebViewConfiguration_setApplicationNameForUserAgent);
         }
 
-        // NSFileManager storage spoofing
-        if (g_storageSpoofingEnabled && g_spoofedStorageTotal > 0) {
-            Class fileManagerClass2 = objc_getClass("NSFileManager");
-            // Hook attributesOfFileSystemForPath:error:
-            Method m = class_getInstanceMethod(fileManagerClass2, @selector(attributesOfFileSystemForPath:error:));
-            if (m) {
-                orig_NSFileManager_attributesOfFileSystemForPath = (NSDictionary *(*)(id, SEL, NSString *, NSError **))
-                    method_setImplementation(m, (IMP)hook_NSFileManager_attributesOfFileSystemForPath);
-            }
+        // NSFileManager + NSURL storage surfaces
+        Class fileManagerClass2 = objc_getClass("NSFileManager");
+        Method fsAttrs = class_getInstanceMethod(fileManagerClass2, @selector(attributesOfFileSystemForPath:error:));
+        if (fsAttrs) {
+            orig_NSFileManager_attributesOfFileSystemForPath = (NSDictionary *(*)(id, SEL, NSString *, NSError **))
+                method_setImplementation(fsAttrs, (IMP)hook_NSFileManager_attributesOfFileSystemForPath);
         }
+        LCInstallInstanceHook(fileManagerClass2, NSSelectorFromString(@"volumeAvailableCapacityForImportantUsageForURL:error:"),
+                              (IMP)hook_NSFileManager_volumeAvailableCapacityForImportantUsageForURL,
+                              (IMP *)&orig_NSFileManager_volumeAvailableCapacityForImportantUsageForURL);
+        LCInstallInstanceHook(fileManagerClass2, NSSelectorFromString(@"volumeAvailableCapacityForOpportunisticUsageForURL:error:"),
+                              (IMP)hook_NSFileManager_volumeAvailableCapacityForOpportunisticUsageForURL,
+                              (IMP *)&orig_NSFileManager_volumeAvailableCapacityForOpportunisticUsageForURL);
+        LCInstallInstanceHook(fileManagerClass2, NSSelectorFromString(@"volumeTotalCapacityForURL:error:"),
+                              (IMP)hook_NSFileManager_volumeTotalCapacityForURL,
+                              (IMP *)&orig_NSFileManager_volumeTotalCapacityForURL);
+
+        Class nsURLClass = objc_getClass("NSURL");
+        LCInstallInstanceHook(nsURLClass, @selector(getResourceValue:forKey:error:), (IMP)hook_NSURL_getResourceValue_forKey_error, (IMP *)&orig_NSURL_getResourceValue_forKey_error);
+        LCInstallInstanceHook(nsURLClass, @selector(resourceValuesForKeys:error:), (IMP)hook_NSURL_resourceValuesForKeys_error, (IMP *)&orig_NSURL_resourceValuesForKeys_error);
     });
 }

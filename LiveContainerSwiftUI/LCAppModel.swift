@@ -303,6 +303,11 @@ class LCAppModel: ObservableObject, Hashable {
             appInfo.deviceSpoofBootTimeRange = uiDeviceSpoofBootTimeRange
         }
     }
+    @Published var uiDeviceSpoofBootTimeRandomize: Bool {
+        didSet {
+            appInfo.deviceSpoofBootTimeRandomize = uiDeviceSpoofBootTimeRandomize
+        }
+    }
     @Published var uiDeviceSpoofUserAgent: Bool {
         didSet {
             appInfo.deviceSpoofUserAgent = uiDeviceSpoofUserAgent
@@ -316,6 +321,11 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var uiDeviceSpoofBattery: Bool {
         didSet {
             appInfo.deviceSpoofBattery = uiDeviceSpoofBattery
+        }
+    }
+    @Published var uiDeviceSpoofBatteryRandomize: Bool {
+        didSet {
+            appInfo.deviceSpoofBatteryRandomize = uiDeviceSpoofBatteryRandomize
         }
     }
     @Published var uiDeviceSpoofBatteryLevel: Float {
@@ -336,6 +346,11 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var uiDeviceSpoofStorageCapacity: String {
         didSet {
             appInfo.deviceSpoofStorageCapacity = uiDeviceSpoofStorageCapacity
+        }
+    }
+    @Published var uiDeviceSpoofStorageRandomFree: Bool {
+        didSet {
+            appInfo.deviceSpoofStorageRandomFree = uiDeviceSpoofStorageRandomFree
         }
     }
     @Published var uiDeviceSpoofBrightness: Bool {
@@ -466,13 +481,16 @@ class LCAppModel: ObservableObject, Hashable {
         // Extended spoofing
         self.uiDeviceSpoofBootTime = appInfo.deviceSpoofBootTime
         self.uiDeviceSpoofBootTimeRange = appInfo.deviceSpoofBootTimeRange ?? "medium"
+        self.uiDeviceSpoofBootTimeRandomize = appInfo.deviceSpoofBootTimeRandomize
         self.uiDeviceSpoofUserAgent = appInfo.deviceSpoofUserAgent
         self.uiDeviceSpoofUserAgentValue = appInfo.deviceSpoofUserAgentValue ?? ""
         self.uiDeviceSpoofBattery = appInfo.deviceSpoofBattery
+        self.uiDeviceSpoofBatteryRandomize = appInfo.deviceSpoofBatteryRandomize
         self.uiDeviceSpoofBatteryLevel = appInfo.deviceSpoofBatteryLevel
         self.uiDeviceSpoofBatteryState = Int(appInfo.deviceSpoofBatteryState)
         self.uiDeviceSpoofStorage = appInfo.deviceSpoofStorage
         self.uiDeviceSpoofStorageCapacity = appInfo.deviceSpoofStorageCapacity ?? "256"
+        self.uiDeviceSpoofStorageRandomFree = appInfo.deviceSpoofStorageRandomFree
         self.uiDeviceSpoofBrightness = appInfo.deviceSpoofBrightness
         self.uiDeviceSpoofBrightnessValue = appInfo.deviceSpoofBrightnessValue
         self.uiDeviceSpoofThermal = appInfo.deviceSpoofThermal

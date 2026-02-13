@@ -1233,6 +1233,17 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     [self save];
 }
 
+- (bool)deviceSpoofBootTimeRandomize {
+    if (_info[@"deviceSpoofBootTimeRandomize"] != nil) {
+        return [_info[@"deviceSpoofBootTimeRandomize"] boolValue];
+    }
+    return YES;
+}
+- (void)setDeviceSpoofBootTimeRandomize:(bool)enabled {
+    _info[@"deviceSpoofBootTimeRandomize"] = @(enabled);
+    [self save];
+}
+
 - (bool)deviceSpoofUserAgent {
     return [_info[@"deviceSpoofUserAgent"] boolValue];
 }
@@ -1258,6 +1269,17 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 }
 - (void)setDeviceSpoofBattery:(bool)enabled {
     _info[@"deviceSpoofBattery"] = @(enabled);
+    [self save];
+}
+
+- (bool)deviceSpoofBatteryRandomize {
+    if (_info[@"deviceSpoofBatteryRandomize"] != nil) {
+        return [_info[@"deviceSpoofBatteryRandomize"] boolValue];
+    }
+    return YES;
+}
+- (void)setDeviceSpoofBatteryRandomize:(bool)enabled {
+    _info[@"deviceSpoofBatteryRandomize"] = @(enabled);
     [self save];
 }
 
@@ -1296,6 +1318,17 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     } else {
         [_info removeObjectForKey:@"deviceSpoofStorageCapacity"];
     }
+    [self save];
+}
+
+- (bool)deviceSpoofStorageRandomFree {
+    if (_info[@"deviceSpoofStorageRandomFree"] != nil) {
+        return [_info[@"deviceSpoofStorageRandomFree"] boolValue];
+    }
+    return YES;
+}
+- (void)setDeviceSpoofStorageRandomFree:(bool)enabled {
+    _info[@"deviceSpoofStorageRandomFree"] = @(enabled);
     [self save];
 }
 

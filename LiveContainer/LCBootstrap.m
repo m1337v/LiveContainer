@@ -53,6 +53,26 @@ static NSString *LCSpoofBuildForSystemVersion(NSString *version) {
     return versionToBuild[version];
 }
 
+static NSTimeInterval LCUptimeSecondsFromPreset(NSString *preset) {
+    NSString *value = [[preset ?: @"medium" lowercaseString] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if ([value isEqualToString:@"short"]) return 2 * 3600;      // midpoint of 1-4h
+    if ([value isEqualToString:@"medium"]) return 12 * 3600;    // midpoint of 4-24h
+    if ([value isEqualToString:@"long"]) return 48 * 3600;      // midpoint of 1-3d
+    if ([value isEqualToString:@"week"]) return 5 * 24 * 3600;  // midpoint of 3-7d
+
+    if (value.length >= 2) {
+        unichar suffix = [value characterAtIndex:value.length - 1];
+        NSString *numberPart = [value substringToIndex:value.length - 1];
+        NSInteger count = numberPart.integerValue;
+        if (count > 0) {
+            if (suffix == 'h') return count * 3600.0;
+            if (suffix == 'd') return count * 24.0 * 3600.0;
+        }
+    }
+
+    return 12 * 3600;
+}
+
 @implementation NSUserDefaults(LiveContainer)
 + (instancetype)lcUserDefaults {
     return lcUserDefaults;
@@ -564,7 +584,13 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         // Boot time / uptime spoofing (Project-X BootTimeHooks parity)
         if ([guestAppInfo[@"deviceSpoofBootTime"] boolValue]) {
             NSString *range = guestAppInfo[@"deviceSpoofBootTimeRange"] ?: @"medium";
-            LCSetSpoofedBootTimeRange(range);
+            id randomizeObj = guestAppInfo[@"deviceSpoofBootTimeRandomize"];
+            BOOL randomize = randomizeObj ? [randomizeObj boolValue] : YES;
+            if (randomize) {
+                LCSetSpoofedBootTimeRange(range);
+            } else {
+                LCSetSpoofedUptimeSeconds(LCUptimeSecondsFromPreset(range));
+            }
         }
 
         // User-Agent spoofing
@@ -577,15 +603,24 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
 
         // Battery spoofing (Project-X BatteryHooks parity)
         if ([guestAppInfo[@"deviceSpoofBattery"] boolValue]) {
-            float level = [guestAppInfo[@"deviceSpoofBatteryLevel"] floatValue];
-            int state = [guestAppInfo[@"deviceSpoofBatteryState"] intValue];
-            LCSetSpoofedBatteryLevel(level);
-            LCSetSpoofedBatteryState(state);
+            id randomizeObj = guestAppInfo[@"deviceSpoofBatteryRandomize"];
+            BOOL randomize = randomizeObj ? [randomizeObj boolValue] : YES;
+            if (randomize) {
+                LCRandomizeBattery();
+            } else {
+                float level = [guestAppInfo[@"deviceSpoofBatteryLevel"] floatValue];
+                int state = [guestAppInfo[@"deviceSpoofBatteryState"] intValue];
+                LCSetSpoofedBatteryLevel(level);
+                LCSetSpoofedBatteryState(state);
+            }
         }
 
         // Storage capacity spoofing
         if ([guestAppInfo[@"deviceSpoofStorage"] boolValue]) {
             NSString *cap = guestAppInfo[@"deviceSpoofStorageCapacity"] ?: @"256";
+            id randomizeFreeObj = guestAppInfo[@"deviceSpoofStorageRandomFree"];
+            BOOL randomizeFree = randomizeFreeObj ? [randomizeFreeObj boolValue] : YES;
+            LCSetStorageRandomFreeEnabled(randomizeFree);
             LCSetSpoofedStorageCapacity([cap longLongValue]);
         }
 

@@ -84,7 +84,8 @@ void LCSetSpoofedBrightness(float brightness);     // 0.0-1.0
 void LCRandomizeBrightness(void);
 
 // Fingerprint spoofing - Uptime/Boot Time (critical fingerprinting vectors!)
-void LCSetSpoofedBootTimeRange(NSString *range); // "short","medium","long","week"
+void LCSetSpoofedBootTimeRange(NSString *range); // "short","medium","long","week" or exact presets like "1h","12h","1d"
+void LCSetSpoofedUptimeSeconds(NSTimeInterval uptimeSeconds); // Set exact spoofed uptime target in seconds
 void LCSetUptimeOffset(NSTimeInterval offset);     // Offset in seconds to add to uptime
 void LCRandomizeUptime(void);                      // Randomize uptime to 1-7 days
 void LCSetSpoofedBootTime(time_t bootTimestamp);   // Set specific boot time (Unix timestamp)
@@ -98,6 +99,8 @@ void LCSetSpoofedLowPowerMode(BOOL enabled, BOOL value);
 // Storage spoofing - based on Project-X StorageManager approach
 void LCSetStorageSpoofingEnabled(BOOL enabled);
 BOOL LCIsStorageSpoofingEnabled(void);
+void LCSetStorageRandomFreeEnabled(BOOL enabled);          // Randomize free space based on selected capacity
+BOOL LCIsStorageRandomFreeEnabled(void);
 void LCSetSpoofedStorageCapacity(long long capacityGB);  // e.g., 128 for 128GB
 void LCSetSpoofedStorageFree(NSString *freeGB);          // e.g., "45.2" for 45.2GB free
 void LCSetSpoofedStorageBytes(uint64_t totalBytes, uint64_t freeBytes);
