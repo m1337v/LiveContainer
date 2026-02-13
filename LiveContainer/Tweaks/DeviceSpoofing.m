@@ -17,8 +17,10 @@
 #import <errno.h>
 #import <mach/host_info.h>
 #import <mach/mach.h>
+#import <mach/mach_time.h>
 #import <mach/machine.h>
 #import <mach/vm_statistics.h>
+#import <math.h>
 #import <objc/runtime.h>
 #import <sys/mount.h>
 #import <sys/sysctl.h>
@@ -388,6 +390,10 @@ static int (*orig_getfsstat)(struct statfs *buf, int bufsize, int flags) = NULL;
 static int (*orig_getfsstat64)(void *buf, int bufsize, int flags) = NULL;
 static int (*orig_clock_gettime)(clockid_t clk_id, struct timespec *tp) = NULL;
 static uint64_t (*orig_clock_gettime_nsec_np)(clockid_t clk_id) = NULL;
+static uint64_t (*orig_mach_absolute_time)(void) = NULL;
+static uint64_t (*orig_mach_approximate_time)(void) = NULL;
+static uint64_t (*orig_mach_continuous_time)(void) = NULL;
+static uint64_t (*orig_mach_continuous_approximate_time)(void) = NULL;
 static kern_return_t (*orig_host_statistics64)(host_t host, host_flavor_t flavor, host_info64_t info, mach_msg_type_number_t *count) = NULL;
 
 static NSString *(*orig_UIDevice_systemVersion)(id self, SEL _cmd) = NULL;
@@ -688,19 +694,43 @@ static BOOL LCGetUptimeBounds(NSString *range, NSTimeInterval *outLo, NSTimeInte
         *outLo = 72 * 3600; *outHi = 168 * 3600;    // 3-7 d
         return YES;
     }
+    if ([value isEqualToString:@"month"]) {
+        *outLo = 30 * 24 * 3600; *outHi = 30 * 24 * 3600; // exact 30 d
+        return YES;
+    }
+    if ([value isEqualToString:@"year"]) {
+        *outLo = 365 * 24 * 3600; *outHi = 365 * 24 * 3600; // exact 365 d
+        return YES;
+    }
 
     if (value.length >= 2) {
-        unichar suffix = [value characterAtIndex:value.length - 1];
-        NSString *numberPart = [value substringToIndex:value.length - 1];
-        NSInteger unitCount = numberPart.integerValue;
-        if (unitCount > 0) {
-            if (suffix == 'h') {
-                *outLo = *outHi = unitCount * 3600.0;
-                return YES;
-            }
-            if (suffix == 'd') {
-                *outLo = *outHi = unitCount * 24.0 * 3600.0;
-                return YES;
+        NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"^\\s*([0-9]+)\\s*([a-z]+)\\s*$" options:NSRegularExpressionCaseInsensitive error:nil];
+        NSTextCheckingResult *match = [regex firstMatchInString:value options:0 range:NSMakeRange(0, value.length)];
+        if (match && match.numberOfRanges >= 3) {
+            NSString *countString = [value substringWithRange:[match rangeAtIndex:1]];
+            NSString *unit = [[value substringWithRange:[match rangeAtIndex:2]] lowercaseString];
+            NSInteger unitCount = countString.integerValue;
+            if (unitCount > 0) {
+                if ([unit isEqualToString:@"h"] || [unit isEqualToString:@"hr"] || [unit isEqualToString:@"hour"] || [unit isEqualToString:@"hours"]) {
+                    *outLo = *outHi = unitCount * 3600.0;
+                    return YES;
+                }
+                if ([unit isEqualToString:@"d"] || [unit isEqualToString:@"day"] || [unit isEqualToString:@"days"]) {
+                    *outLo = *outHi = unitCount * 24.0 * 3600.0;
+                    return YES;
+                }
+                if ([unit isEqualToString:@"w"] || [unit isEqualToString:@"wk"] || [unit isEqualToString:@"week"] || [unit isEqualToString:@"weeks"]) {
+                    *outLo = *outHi = unitCount * 7.0 * 24.0 * 3600.0;
+                    return YES;
+                }
+                if ([unit isEqualToString:@"mo"] || [unit isEqualToString:@"month"] || [unit isEqualToString:@"months"]) {
+                    *outLo = *outHi = unitCount * 30.0 * 24.0 * 3600.0;
+                    return YES;
+                }
+                if ([unit isEqualToString:@"y"] || [unit isEqualToString:@"yr"] || [unit isEqualToString:@"year"] || [unit isEqualToString:@"years"]) {
+                    *outLo = *outHi = unitCount * 365.0 * 24.0 * 3600.0;
+                    return YES;
+                }
             }
         }
     }
@@ -737,6 +767,22 @@ static BOOL LCIsMonotonicUptimeClock(clockid_t clockId) {
         default:
             return NO;
     }
+}
+
+static int64_t LCMachTicksOffsetForBootTimeSpoofing(void) {
+    if (!g_bootTimeSpoofingEnabled || !LCDeviceSpoofingIsActive()) return 0;
+
+    static mach_timebase_info_data_t timebase = {0, 0};
+    if (timebase.denom == 0 || timebase.numer == 0) {
+        mach_timebase_info(&timebase);
+        if (timebase.denom == 0 || timebase.numer == 0) return 0;
+    }
+
+    long double nsOffset = (long double)g_bootTimeOffset * 1000000000.0L;
+    long double ticks = nsOffset * (long double)timebase.denom / (long double)timebase.numer;
+    if (ticks > (long double)INT64_MAX) return INT64_MAX;
+    if (ticks < (long double)INT64_MIN) return INT64_MIN;
+    return (int64_t)llround((double)ticks);
 }
 
 static NSOperatingSystemVersion LCParseOSVersion(NSString *versionString) {
@@ -1248,6 +1294,70 @@ static uint64_t hook_clock_gettime_nsec_np(clockid_t clk_id) {
     uint64_t value = orig_clock_gettime_nsec_np(clk_id);
     if (LCDeviceSpoofingIsActive() && g_bootTimeSpoofingEnabled && LCIsMonotonicUptimeClock(clk_id)) {
         int64_t adjusted = (int64_t)value + (int64_t)(g_bootTimeOffset * 1e9);
+        if (adjusted < 0) adjusted = 0;
+        return (uint64_t)adjusted;
+    }
+    return value;
+}
+
+static uint64_t hook_mach_absolute_time(void) {
+    if (!orig_mach_absolute_time) {
+        orig_mach_absolute_time = (uint64_t (*)(void))dlsym(RTLD_DEFAULT, "mach_absolute_time");
+        if (!orig_mach_absolute_time) return 0;
+    }
+
+    uint64_t value = orig_mach_absolute_time();
+    int64_t offsetTicks = LCMachTicksOffsetForBootTimeSpoofing();
+    if (offsetTicks != 0) {
+        int64_t adjusted = (int64_t)value + offsetTicks;
+        if (adjusted < 0) adjusted = 0;
+        return (uint64_t)adjusted;
+    }
+    return value;
+}
+
+static uint64_t hook_mach_approximate_time(void) {
+    if (!orig_mach_approximate_time) {
+        orig_mach_approximate_time = (uint64_t (*)(void))dlsym(RTLD_DEFAULT, "mach_approximate_time");
+        if (!orig_mach_approximate_time) return 0;
+    }
+
+    uint64_t value = orig_mach_approximate_time();
+    int64_t offsetTicks = LCMachTicksOffsetForBootTimeSpoofing();
+    if (offsetTicks != 0) {
+        int64_t adjusted = (int64_t)value + offsetTicks;
+        if (adjusted < 0) adjusted = 0;
+        return (uint64_t)adjusted;
+    }
+    return value;
+}
+
+static uint64_t hook_mach_continuous_time(void) {
+    if (!orig_mach_continuous_time) {
+        orig_mach_continuous_time = (uint64_t (*)(void))dlsym(RTLD_DEFAULT, "mach_continuous_time");
+        if (!orig_mach_continuous_time) return 0;
+    }
+
+    uint64_t value = orig_mach_continuous_time();
+    int64_t offsetTicks = LCMachTicksOffsetForBootTimeSpoofing();
+    if (offsetTicks != 0) {
+        int64_t adjusted = (int64_t)value + offsetTicks;
+        if (adjusted < 0) adjusted = 0;
+        return (uint64_t)adjusted;
+    }
+    return value;
+}
+
+static uint64_t hook_mach_continuous_approximate_time(void) {
+    if (!orig_mach_continuous_approximate_time) {
+        orig_mach_continuous_approximate_time = (uint64_t (*)(void))dlsym(RTLD_DEFAULT, "mach_continuous_approximate_time");
+        if (!orig_mach_continuous_approximate_time) return 0;
+    }
+
+    uint64_t value = orig_mach_continuous_approximate_time();
+    int64_t offsetTicks = LCMachTicksOffsetForBootTimeSpoofing();
+    if (offsetTicks != 0) {
+        int64_t adjusted = (int64_t)value + offsetTicks;
         if (adjusted < 0) adjusted = 0;
         return (uint64_t)adjusted;
     }
@@ -2526,6 +2636,10 @@ void DeviceSpoofingGuestHooksInit(void) {
             {"getfsstat64", (void *)hook_getfsstat64, (void **)&orig_getfsstat64},
             {"clock_gettime", (void *)hook_clock_gettime, (void **)&orig_clock_gettime},
             {"clock_gettime_nsec_np", (void *)hook_clock_gettime_nsec_np, (void **)&orig_clock_gettime_nsec_np},
+            {"mach_absolute_time", (void *)hook_mach_absolute_time, (void **)&orig_mach_absolute_time},
+            {"mach_approximate_time", (void *)hook_mach_approximate_time, (void **)&orig_mach_approximate_time},
+            {"mach_continuous_time", (void *)hook_mach_continuous_time, (void **)&orig_mach_continuous_time},
+            {"mach_continuous_approximate_time", (void *)hook_mach_continuous_approximate_time, (void **)&orig_mach_continuous_approximate_time},
             {"host_statistics64", (void *)hook_host_statistics64, (void **)&orig_host_statistics64},
             {"MTLCreateSystemDefaultDevice", (void *)hook_MTLCreateSystemDefaultDevice, (void **)&orig_MTLCreateSystemDefaultDevice},
             {"MTLCopyAllDevices", (void *)hook_MTLCopyAllDevices, (void **)&orig_MTLCopyAllDevices},

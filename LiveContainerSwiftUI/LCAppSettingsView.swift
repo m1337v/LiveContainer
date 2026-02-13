@@ -2321,42 +2321,27 @@ struct LCAppSettingsView: View {
             if model.uiDeviceSpoofingEnabled {
                 deviceSpoofProfilePicker()
                 deviceSpoofVersionPicker()
-
-                Divider()
+                deviceSpoofSectionHeader("Identity")
                 deviceSpoofDeviceNameSection()
-
-                Divider()
                 deviceSpoofCarrierSection()
-
-                Divider()
                 deviceSpoofIdentifiersSection()
 
-                Divider()
+                deviceSpoofSectionHeader("Region")
                 deviceSpoofTimezoneSection()
                 deviceSpoofLocaleSection()
 
-                Divider()
+                deviceSpoofSectionHeader("Runtime")
                 deviceSpoofBootTimeSection()
-
-                Divider()
-                deviceSpoofUserAgentSection()
-
-                Divider()
                 deviceSpoofBatterySection()
-
-                Divider()
                 deviceSpoofStorageSection()
-
-                Divider()
                 deviceSpoofBrightnessSection()
-
-                Divider()
                 deviceSpoofThermalSection()
-
-                Divider()
                 deviceSpoofLowPowerSection()
 
-                Divider()
+                deviceSpoofSectionHeader("Web")
+                deviceSpoofUserAgentSection()
+
+                deviceSpoofSectionHeader("Security")
                 // Screen Capture / Recording Detection Block
                 Toggle(isOn: $model.uiDeviceSpoofScreenCapture) {
                     HStack {
@@ -2374,6 +2359,15 @@ struct LCAppSettingsView: View {
                 Text("Hooks sysctl, uname, UIDevice, NSProcessInfo, ASIdentifierManager, boot time, uptime, user-agent & more. Independent iOS version override lets you report a different OS version than the profile's hardware default.")
             }
         }
+    }
+
+    @ViewBuilder
+    private func deviceSpoofSectionHeader(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.caption2)
+            .fontWeight(.semibold)
+            .foregroundColor(.secondary)
+            .padding(.top, 4)
     }
 
     // MARK: Device Profile Picker
@@ -2678,9 +2672,16 @@ struct LCAppSettingsView: View {
                     Text("4 – 24 hours").tag("medium")
                     Text("1 – 3 days").tag("long")
                     Text("3 – 7 days").tag("week")
+                    Text("30 days").tag("30d")
+                    Text("1 year").tag("1y")
                 }
                 .pickerStyle(MenuPickerStyle())
                 if !model.uiDeviceSpoofBootTimeRandomize {
+                    TextField("Custom (e.g. 1h, 14d, 1y)", text: $model.uiDeviceSpoofBootTimeRange)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .font(.system(.caption, design: .monospaced))
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
                     Text("Uses a fixed target uptime instead of randomizing the preset.")
                         .font(.caption2)
                         .foregroundColor(.secondary)

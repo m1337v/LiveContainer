@@ -59,14 +59,21 @@ static NSTimeInterval LCUptimeSecondsFromPreset(NSString *preset) {
     if ([value isEqualToString:@"medium"]) return 12 * 3600;    // midpoint of 4-24h
     if ([value isEqualToString:@"long"]) return 48 * 3600;      // midpoint of 1-3d
     if ([value isEqualToString:@"week"]) return 5 * 24 * 3600;  // midpoint of 3-7d
+    if ([value isEqualToString:@"month"]) return 30 * 24 * 3600;
+    if ([value isEqualToString:@"year"]) return 365 * 24 * 3600;
 
-    if (value.length >= 2) {
-        unichar suffix = [value characterAtIndex:value.length - 1];
-        NSString *numberPart = [value substringToIndex:value.length - 1];
-        NSInteger count = numberPart.integerValue;
+    NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"^\\s*([0-9]+)\\s*([a-z]+)\\s*$" options:NSRegularExpressionCaseInsensitive error:nil];
+    NSTextCheckingResult *match = [regex firstMatchInString:value options:0 range:NSMakeRange(0, value.length)];
+    if (match && match.numberOfRanges >= 3) {
+        NSString *countString = [value substringWithRange:[match rangeAtIndex:1]];
+        NSString *unit = [[value substringWithRange:[match rangeAtIndex:2]] lowercaseString];
+        NSInteger count = countString.integerValue;
         if (count > 0) {
-            if (suffix == 'h') return count * 3600.0;
-            if (suffix == 'd') return count * 24.0 * 3600.0;
+            if ([unit isEqualToString:@"h"] || [unit isEqualToString:@"hr"] || [unit isEqualToString:@"hour"] || [unit isEqualToString:@"hours"]) return count * 3600.0;
+            if ([unit isEqualToString:@"d"] || [unit isEqualToString:@"day"] || [unit isEqualToString:@"days"]) return count * 24.0 * 3600.0;
+            if ([unit isEqualToString:@"w"] || [unit isEqualToString:@"wk"] || [unit isEqualToString:@"week"] || [unit isEqualToString:@"weeks"]) return count * 7.0 * 24.0 * 3600.0;
+            if ([unit isEqualToString:@"mo"] || [unit isEqualToString:@"month"] || [unit isEqualToString:@"months"]) return count * 30.0 * 24.0 * 3600.0;
+            if ([unit isEqualToString:@"y"] || [unit isEqualToString:@"yr"] || [unit isEqualToString:@"year"] || [unit isEqualToString:@"years"]) return count * 365.0 * 24.0 * 3600.0;
         }
     }
 
