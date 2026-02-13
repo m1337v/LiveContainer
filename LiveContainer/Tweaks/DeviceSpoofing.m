@@ -395,6 +395,9 @@ static uint64_t (*orig_mach_absolute_time)(void) = NULL;
 static uint64_t (*orig_mach_approximate_time)(void) = NULL;
 static uint64_t (*orig_mach_continuous_time)(void) = NULL;
 static uint64_t (*orig_mach_continuous_approximate_time)(void) = NULL;
+static CGRect (*orig_CGDisplayBounds)(uint32_t display) = NULL;
+static size_t (*orig_CGDisplayPixelsWide)(uint32_t display) = NULL;
+static size_t (*orig_CGDisplayPixelsHigh)(uint32_t display) = NULL;
 static kern_return_t (*orig_host_statistics)(host_t host, host_flavor_t flavor, host_info_t info, mach_msg_type_number_t *count) = NULL;
 static kern_return_t (*orig_host_statistics64)(host_t host, host_flavor_t flavor, host_info64_t info, mach_msg_type_number_t *count) = NULL;
 
@@ -437,8 +440,21 @@ static void (*orig_WKWebView_didFinishNavigation)(id self, SEL _cmd, WKWebView *
 
 static CGRect (*orig_UIScreen_bounds)(id self, SEL _cmd) = NULL;
 static CGRect (*orig_UIScreen_nativeBounds)(id self, SEL _cmd) = NULL;
+static CGRect (*orig_UIScreen_boundsForInterfaceOrientation)(id self, SEL _cmd, UIInterfaceOrientation orientation) = NULL;
+static CGRect (*orig_UIScreen_referenceBounds)(id self, SEL _cmd) = NULL;
+static CGRect (*orig_UIScreen_privateBounds)(id self, SEL _cmd) = NULL;
+static CGRect (*orig_UIScreen_privateNativeBounds)(id self, SEL _cmd) = NULL;
 static CGFloat (*orig_UIScreen_scale)(id self, SEL _cmd) = NULL;
 static CGFloat (*orig_UIScreen_nativeScale)(id self, SEL _cmd) = NULL;
+static CGRect (*orig_UIScreen_applicationFrame)(id self, SEL _cmd) = NULL;
+static id (*orig_UIScreen_coordinateSpace)(id self, SEL _cmd) = NULL;
+static id (*orig_UIScreen_fixedCoordinateSpace)(id self, SEL _cmd) = NULL;
+static UIScreenMode *(*orig_UIScreen_currentMode)(id self, SEL _cmd) = NULL;
+static UIScreenMode *(*orig_UIScreen_preferredMode)(id self, SEL _cmd) = NULL;
+static NSArray<UIScreenMode *> *(*orig_UIScreen_availableModes)(id self, SEL _cmd) = NULL;
+static NSInteger (*orig_UIScreen_maximumFramesPerSecond)(id self, SEL _cmd) = NULL;
+static CGSize (*orig_UIScreenMode_size)(id self, SEL _cmd) = NULL;
+static CGFloat (*orig_UITraitCollection_displayScale)(id self, SEL _cmd) = NULL;
 
 static NSString *(*orig_UIDevice_model)(id self, SEL _cmd) = NULL;
 static NSString *(*orig_UIDevice_localizedModel)(id self, SEL _cmd) = NULL;
@@ -453,6 +469,8 @@ static NSTimeZone *(*orig_NSTimeZone_systemTimeZone)(id self, SEL _cmd) = NULL;
 static NSLocale *(*orig_NSLocale_currentLocale)(id self, SEL _cmd) = NULL;
 static NSLocale *(*orig_NSLocale_autoupdatingCurrentLocale)(id self, SEL _cmd) = NULL;
 static BOOL (*orig_UIScreen_isCaptured)(id self, SEL _cmd) = NULL;
+static CGRect (*orig_UIApplication_statusBarFrame)(id self, SEL _cmd) = NULL;
+static CGRect (*orig_UIStatusBarManager_statusBarFrame)(id self, SEL _cmd) = NULL;
 
 static CFTypeRef (*orig_MGCopyAnswer)(CFStringRef key) = NULL;
 static CFTypeRef (*orig_IORegistryEntryCreateCFProperty)(io_registry_entry_t entry, CFStringRef key, CFAllocatorRef allocator, IOOptionBits options) = NULL;
@@ -520,6 +538,17 @@ static const char *LCSpoofedChipName(void) {
 static const char *LCSpoofedGPUName(void) {
     if (g_currentProfile) return g_currentProfile->gpuName;
     return NULL;
+}
+
+static CGSize LCSpoofedNativeScreenSize(void) {
+    if (!g_currentProfile) return CGSizeZero;
+    CGFloat scale = g_currentProfile->screenScale > 0.0 ? g_currentProfile->screenScale : 1.0;
+    return CGSizeMake(round(g_currentProfile->screenWidth * scale), round(g_currentProfile->screenHeight * scale));
+}
+
+static NSInteger LCSpoofedMaximumFramesPerSecond(void) {
+    if (!g_currentProfile || !g_currentProfile->marketingName) return 60;
+    return strstr(g_currentProfile->marketingName, "Pro") ? 120 : 60;
 }
 
 static inline BOOL LCStorageSpoofingActive(void) {
@@ -1835,13 +1864,93 @@ static NSString *LCModifyUserAgentVersion(NSString *ua) {
     result = [[r3 stringByReplacingMatchesInString:result options:0 range:NSMakeRange(0, result.length)
         withTemplate:[NSString stringWithFormat:@"$1%s", build]] mutableCopy];
 
+    // Pattern: 1179x2556 (native pixel dimensions used by some app UAs)
+    if (g_currentProfile) {
+        CGSize nativeSize = LCSpoofedNativeScreenSize();
+        NSInteger nativeW = (NSInteger)nativeSize.width;
+        NSInteger nativeH = (NSInteger)nativeSize.height;
+        NSRegularExpression *r4 = [NSRegularExpression regularExpressionWithPattern:@"\\b\\d{3,5}x\\d{3,5}\\b" options:0 error:nil];
+        result = [[r4 stringByReplacingMatchesInString:result options:0 range:NSMakeRange(0, result.length)
+            withTemplate:[NSString stringWithFormat:@"%ldx%ld", (long)nativeW, (long)nativeH]] mutableCopy];
+
+        // Pattern: scale=3.00
+        NSRegularExpression *r5 = [NSRegularExpression regularExpressionWithPattern:@"(scale=)\\d+(?:\\.\\d+)?" options:0 error:nil];
+        result = [[r5 stringByReplacingMatchesInString:result options:0 range:NSMakeRange(0, result.length)
+            withTemplate:[NSString stringWithFormat:@"$1%.2f", g_currentProfile->screenScale]] mutableCopy];
+    }
+
     return result;
+}
+
+static CGRect LCSpoofedScreenBoundsForOrientation(UIInterfaceOrientation orientation) {
+    if (!g_currentProfile) return CGRectZero;
+    CGFloat width = g_currentProfile->screenWidth;
+    CGFloat height = g_currentProfile->screenHeight;
+    if (UIInterfaceOrientationIsLandscape(orientation)) {
+        CGFloat tmp = width;
+        width = height;
+        height = tmp;
+    }
+    return CGRectMake(0, 0, width, height);
+}
+
+static CGRect LCAdjustedStatusBarFrameForProfile(CGRect frame) {
+    if (!LCDeviceSpoofingIsActive() || !g_currentProfile) return frame;
+    if (CGRectIsEmpty(frame)) return frame;
+
+    BOOL isLandscape = frame.size.width > frame.size.height;
+    CGFloat width = isLandscape ? g_currentProfile->screenHeight : g_currentProfile->screenWidth;
+    frame.origin.x = 0;
+    frame.origin.y = 0;
+    frame.size.width = width;
+    return frame;
+}
+
+static CGRect LCSpoofedDisplayBounds(void) {
+    if (!g_currentProfile) return CGRectZero;
+    return CGRectMake(0, 0, g_currentProfile->screenWidth, g_currentProfile->screenHeight);
+}
+
+static size_t LCSpoofedDisplayPixelsWide(void) {
+    if (!g_currentProfile) return 0;
+    CGSize nativeSize = LCSpoofedNativeScreenSize();
+    return (size_t)llround(nativeSize.width);
+}
+
+static size_t LCSpoofedDisplayPixelsHigh(void) {
+    if (!g_currentProfile) return 0;
+    CGSize nativeSize = LCSpoofedNativeScreenSize();
+    return (size_t)llround(nativeSize.height);
+}
+
+static CGRect hook_CGDisplayBounds(uint32_t display) {
+    if (LCDeviceSpoofingIsActive() && g_currentProfile) {
+        return LCSpoofedDisplayBounds();
+    }
+    if (orig_CGDisplayBounds) return orig_CGDisplayBounds(display);
+    return CGRectZero;
+}
+
+static size_t hook_CGDisplayPixelsWide(uint32_t display) {
+    if (LCDeviceSpoofingIsActive() && g_currentProfile) {
+        return LCSpoofedDisplayPixelsWide();
+    }
+    if (orig_CGDisplayPixelsWide) return orig_CGDisplayPixelsWide(display);
+    return 0;
+}
+
+static size_t hook_CGDisplayPixelsHigh(uint32_t display) {
+    if (LCDeviceSpoofingIsActive() && g_currentProfile) {
+        return LCSpoofedDisplayPixelsHigh();
+    }
+    if (orig_CGDisplayPixelsHigh) return orig_CGDisplayPixelsHigh(display);
+    return 0;
 }
 
 // MARK: - UIScreen hooks (screen size spoofing)
 static CGRect hook_UIScreen_bounds(id self, SEL _cmd) {
     if (LCDeviceSpoofingIsActive() && g_currentProfile) {
-        return CGRectMake(0, 0, g_currentProfile->screenWidth, g_currentProfile->screenHeight);
+        return LCSpoofedScreenBoundsForOrientation(UIInterfaceOrientationPortrait);
     }
     if (orig_UIScreen_bounds) return orig_UIScreen_bounds(self, _cmd);
     return CGRectZero;
@@ -1855,6 +1964,39 @@ static CGRect hook_UIScreen_nativeBounds(id self, SEL _cmd) {
             g_currentProfile->screenHeight * scale);
     }
     if (orig_UIScreen_nativeBounds) return orig_UIScreen_nativeBounds(self, _cmd);
+    return CGRectZero;
+}
+
+static CGRect hook_UIScreen_boundsForInterfaceOrientation(id self, SEL _cmd, UIInterfaceOrientation orientation) {
+    if (LCDeviceSpoofingIsActive() && g_currentProfile) {
+        return LCSpoofedScreenBoundsForOrientation(orientation);
+    }
+    if (orig_UIScreen_boundsForInterfaceOrientation) return orig_UIScreen_boundsForInterfaceOrientation(self, _cmd, orientation);
+    return CGRectZero;
+}
+
+static CGRect hook_UIScreen_referenceBounds(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_currentProfile) {
+        return LCSpoofedScreenBoundsForOrientation(UIInterfaceOrientationPortrait);
+    }
+    if (orig_UIScreen_referenceBounds) return orig_UIScreen_referenceBounds(self, _cmd);
+    return CGRectZero;
+}
+
+static CGRect hook_UIScreen_privateBounds(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_currentProfile) {
+        return LCSpoofedScreenBoundsForOrientation(UIInterfaceOrientationPortrait);
+    }
+    if (orig_UIScreen_privateBounds) return orig_UIScreen_privateBounds(self, _cmd);
+    return CGRectZero;
+}
+
+static CGRect hook_UIScreen_privateNativeBounds(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_currentProfile) {
+        CGSize nativeSize = LCSpoofedNativeScreenSize();
+        return CGRectMake(0, 0, nativeSize.width, nativeSize.height);
+    }
+    if (orig_UIScreen_privateNativeBounds) return orig_UIScreen_privateNativeBounds(self, _cmd);
     return CGRectZero;
 }
 
@@ -1872,6 +2014,117 @@ static CGFloat hook_UIScreen_nativeScale(id self, SEL _cmd) {
     }
     if (orig_UIScreen_nativeScale) return orig_UIScreen_nativeScale(self, _cmd);
     return 2.0;
+}
+
+static CGRect hook_UIScreen_applicationFrame(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_currentProfile) {
+        return CGRectMake(0, 0, g_currentProfile->screenWidth, g_currentProfile->screenHeight);
+    }
+    if (orig_UIScreen_applicationFrame) return orig_UIScreen_applicationFrame(self, _cmd);
+    return CGRectZero;
+}
+
+static id hook_UIScreen_coordinateSpace(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_currentProfile) {
+        // Returning UIScreen itself keeps subsequent bounds reads on the spoofed path.
+        return self;
+    }
+    if (orig_UIScreen_coordinateSpace) return orig_UIScreen_coordinateSpace(self, _cmd);
+    return self;
+}
+
+static id hook_UIScreen_fixedCoordinateSpace(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_currentProfile) {
+        return self;
+    }
+    if (orig_UIScreen_fixedCoordinateSpace) return orig_UIScreen_fixedCoordinateSpace(self, _cmd);
+    return self;
+}
+
+static UIScreenMode *hook_UIScreen_currentMode(id self, SEL _cmd) {
+    if (orig_UIScreen_currentMode) {
+        return orig_UIScreen_currentMode(self, _cmd);
+    }
+    if (orig_UIScreen_availableModes) {
+        NSArray<UIScreenMode *> *modes = orig_UIScreen_availableModes(self, @selector(availableModes));
+        if (modes.count > 0) return modes.firstObject;
+    }
+    return nil;
+}
+
+static UIScreenMode *hook_UIScreen_preferredMode(id self, SEL _cmd) {
+    if (orig_UIScreen_preferredMode) {
+        return orig_UIScreen_preferredMode(self, _cmd);
+    }
+    if (orig_UIScreen_currentMode) {
+        return orig_UIScreen_currentMode(self, @selector(currentMode));
+    }
+    return nil;
+}
+
+static NSArray<UIScreenMode *> *hook_UIScreen_availableModes(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_currentProfile) {
+        UIScreenMode *mode = nil;
+        if (orig_UIScreen_currentMode) {
+            mode = orig_UIScreen_currentMode(self, @selector(currentMode));
+        }
+        if (!mode && orig_UIScreen_preferredMode) {
+            mode = orig_UIScreen_preferredMode(self, @selector(preferredMode));
+        }
+        if (mode) {
+            return @[mode];
+        }
+    }
+    if (orig_UIScreen_availableModes) {
+        return orig_UIScreen_availableModes(self, _cmd);
+    }
+    return @[];
+}
+
+static NSInteger hook_UIScreen_maximumFramesPerSecond(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_currentProfile) {
+        return LCSpoofedMaximumFramesPerSecond();
+    }
+    if (orig_UIScreen_maximumFramesPerSecond) {
+        return orig_UIScreen_maximumFramesPerSecond(self, _cmd);
+    }
+    return 60;
+}
+
+static CGSize hook_UIScreenMode_size(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_currentProfile) {
+        return LCSpoofedNativeScreenSize();
+    }
+    if (orig_UIScreenMode_size) {
+        return orig_UIScreenMode_size(self, _cmd);
+    }
+    return CGSizeZero;
+}
+
+static CGFloat hook_UITraitCollection_displayScale(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_currentProfile) {
+        return g_currentProfile->screenScale;
+    }
+    if (orig_UITraitCollection_displayScale) {
+        return orig_UITraitCollection_displayScale(self, _cmd);
+    }
+    return 2.0;
+}
+
+static CGRect hook_UIApplication_statusBarFrame(id self, SEL _cmd) {
+    CGRect frame = CGRectZero;
+    if (orig_UIApplication_statusBarFrame) {
+        frame = orig_UIApplication_statusBarFrame(self, _cmd);
+    }
+    return LCAdjustedStatusBarFrameForProfile(frame);
+}
+
+static CGRect hook_UIStatusBarManager_statusBarFrame(id self, SEL _cmd) {
+    CGRect frame = CGRectZero;
+    if (orig_UIStatusBarManager_statusBarFrame) {
+        frame = orig_UIStatusBarManager_statusBarFrame(self, _cmd);
+    }
+    return LCAdjustedStatusBarFrameForProfile(frame);
 }
 
 // MARK: - UIDevice model hooks
@@ -2736,6 +2989,9 @@ void DeviceSpoofingGuestHooksInit(void) {
             {"mach_approximate_time", (void *)hook_mach_approximate_time, (void **)&orig_mach_approximate_time},
             {"mach_continuous_time", (void *)hook_mach_continuous_time, (void **)&orig_mach_continuous_time},
             {"mach_continuous_approximate_time", (void *)hook_mach_continuous_approximate_time, (void **)&orig_mach_continuous_approximate_time},
+            {"CGDisplayBounds", (void *)hook_CGDisplayBounds, (void **)&orig_CGDisplayBounds},
+            {"CGDisplayPixelsWide", (void *)hook_CGDisplayPixelsWide, (void **)&orig_CGDisplayPixelsWide},
+            {"CGDisplayPixelsHigh", (void *)hook_CGDisplayPixelsHigh, (void **)&orig_CGDisplayPixelsHigh},
             {"host_statistics", (void *)hook_host_statistics, (void **)&orig_host_statistics},
             {"host_statistics64", (void *)hook_host_statistics64, (void **)&orig_host_statistics64},
             {"MTLCreateSystemDefaultDevice", (void *)hook_MTLCreateSystemDefaultDevice, (void **)&orig_MTLCreateSystemDefaultDevice},
@@ -2776,8 +3032,31 @@ void DeviceSpoofingGuestHooksInit(void) {
         LCInstallInstanceHook(uiScreenClass, @selector(brightness), (IMP)hook_UIScreen_brightness, (IMP *)&orig_UIScreen_brightness);
         LCInstallInstanceHook(uiScreenClass, @selector(bounds), (IMP)hook_UIScreen_bounds, (IMP *)&orig_UIScreen_bounds);
         LCInstallInstanceHook(uiScreenClass, @selector(nativeBounds), (IMP)hook_UIScreen_nativeBounds, (IMP *)&orig_UIScreen_nativeBounds);
+        LCInstallInstanceHook(uiScreenClass, NSSelectorFromString(@"boundsForInterfaceOrientation:"), (IMP)hook_UIScreen_boundsForInterfaceOrientation, (IMP *)&orig_UIScreen_boundsForInterfaceOrientation);
+        LCInstallInstanceHook(uiScreenClass, NSSelectorFromString(@"_referenceBounds"), (IMP)hook_UIScreen_referenceBounds, (IMP *)&orig_UIScreen_referenceBounds);
+        LCInstallInstanceHook(uiScreenClass, NSSelectorFromString(@"_bounds"), (IMP)hook_UIScreen_privateBounds, (IMP *)&orig_UIScreen_privateBounds);
+        LCInstallInstanceHook(uiScreenClass, NSSelectorFromString(@"_nativeBounds"), (IMP)hook_UIScreen_privateNativeBounds, (IMP *)&orig_UIScreen_privateNativeBounds);
         LCInstallInstanceHook(uiScreenClass, @selector(scale), (IMP)hook_UIScreen_scale, (IMP *)&orig_UIScreen_scale);
         LCInstallInstanceHook(uiScreenClass, @selector(nativeScale), (IMP)hook_UIScreen_nativeScale, (IMP *)&orig_UIScreen_nativeScale);
+        LCInstallInstanceHook(uiScreenClass, NSSelectorFromString(@"applicationFrame"), (IMP)hook_UIScreen_applicationFrame, (IMP *)&orig_UIScreen_applicationFrame);
+        LCInstallInstanceHook(uiScreenClass, NSSelectorFromString(@"coordinateSpace"), (IMP)hook_UIScreen_coordinateSpace, (IMP *)&orig_UIScreen_coordinateSpace);
+        LCInstallInstanceHook(uiScreenClass, NSSelectorFromString(@"fixedCoordinateSpace"), (IMP)hook_UIScreen_fixedCoordinateSpace, (IMP *)&orig_UIScreen_fixedCoordinateSpace);
+        LCInstallInstanceHook(uiScreenClass, @selector(currentMode), (IMP)hook_UIScreen_currentMode, (IMP *)&orig_UIScreen_currentMode);
+        LCInstallInstanceHook(uiScreenClass, NSSelectorFromString(@"preferredMode"), (IMP)hook_UIScreen_preferredMode, (IMP *)&orig_UIScreen_preferredMode);
+        LCInstallInstanceHook(uiScreenClass, NSSelectorFromString(@"availableModes"), (IMP)hook_UIScreen_availableModes, (IMP *)&orig_UIScreen_availableModes);
+        LCInstallInstanceHook(uiScreenClass, NSSelectorFromString(@"maximumFramesPerSecond"), (IMP)hook_UIScreen_maximumFramesPerSecond, (IMP *)&orig_UIScreen_maximumFramesPerSecond);
+
+        Class uiScreenModeClass = objc_getClass("UIScreenMode");
+        LCInstallInstanceHook(uiScreenModeClass, @selector(size), (IMP)hook_UIScreenMode_size, (IMP *)&orig_UIScreenMode_size);
+
+        Class traitCollectionClass = objc_getClass("UITraitCollection");
+        LCInstallInstanceHook(traitCollectionClass, @selector(displayScale), (IMP)hook_UITraitCollection_displayScale, (IMP *)&orig_UITraitCollection_displayScale);
+
+        Class uiApplicationClass = objc_getClass("UIApplication");
+        LCInstallInstanceHook(uiApplicationClass, NSSelectorFromString(@"statusBarFrame"), (IMP)hook_UIApplication_statusBarFrame, (IMP *)&orig_UIApplication_statusBarFrame);
+
+        Class statusBarManagerClass = objc_getClass("UIStatusBarManager");
+        LCInstallInstanceHook(statusBarManagerClass, NSSelectorFromString(@"statusBarFrame"), (IMP)hook_UIStatusBarManager_statusBarFrame, (IMP *)&orig_UIStatusBarManager_statusBarFrame);
 
         LCInstallInstanceHook(uiDeviceClass, @selector(model), (IMP)hook_UIDevice_model, (IMP *)&orig_UIDevice_model);
         LCInstallInstanceHook(uiDeviceClass, @selector(localizedModel), (IMP)hook_UIDevice_localizedModel, (IMP *)&orig_UIDevice_localizedModel);
