@@ -566,11 +566,19 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
                 LCSetSpoofedCarrierCountryCode(carrierCountry);
                 LCSetSpoofedPreferredCountryCode(carrierCountry);
             }
+        }
 
-            id cellularTypeObj = guestAppInfo[@"deviceSpoofCellularType"] ?: guestAppInfo[@"cellularType"];
-            if (cellularTypeObj != nil) {
-                LCSetSpoofedCellularType([cellularTypeObj integerValue]);
-            }
+        BOOL spoofCellularType = [guestAppInfo[@"deviceSpoofCellularTypeEnabled"] boolValue] ||
+                                 [guestAppInfo[@"enableSpoofCellularType"] boolValue];
+        id cellularTypeObj = guestAppInfo[@"deviceSpoofCellularType"] ?: guestAppInfo[@"cellularType"];
+        if (!spoofCellularType &&
+            guestAppInfo[@"deviceSpoofCellularTypeEnabled"] == nil &&
+            guestAppInfo[@"enableSpoofCellularType"] == nil &&
+            cellularTypeObj != nil) {
+            spoofCellularType = YES;
+        }
+        if (spoofCellularType && cellularTypeObj != nil) {
+            LCSetSpoofedCellularType([cellularTypeObj integerValue]);
         }
 
         // Identifier spoofing (IDFV / IDFA)
@@ -642,7 +650,9 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
                                        [guestAppInfo[@"enableSpoofBugsnag"] boolValue] ||
                                        [guestAppInfo[@"enableSpoofCrane"] boolValue] ||
                                        [guestAppInfo[@"enableSpoofPasteboard"] boolValue] ||
-                                       [guestAppInfo[@"enableSpoofAlbum"] boolValue];
+                                       [guestAppInfo[@"enableSpoofAlbum"] boolValue] ||
+                                       [guestAppInfo[@"enableSpoofAppium"] boolValue] ||
+                                       [guestAppInfo[@"deviceSpoofAppium"] boolValue];
         if (spoofScreenCaptureGroup) {
             LCSetScreenCaptureBlockEnabled(YES);
             id albumBlacklist = guestAppInfo[@"deviceSpoofAlbumBlacklist"] ?: guestAppInfo[@"albumBlacklistArray"];

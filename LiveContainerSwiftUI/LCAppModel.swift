@@ -266,6 +266,21 @@ class LCAppModel: ObservableObject, Hashable {
             appInfo.deviceSpoofAdvertisingID = uiDeviceSpoofAdvertisingID
         }
     }
+    @Published var uiDeviceSpoofCloudToken: Bool {
+        didSet {
+            appInfo.deviceSpoofCloudToken = uiDeviceSpoofCloudToken
+        }
+    }
+    @Published var uiDeviceSpoofDeviceChecker: Bool {
+        didSet {
+            appInfo.deviceSpoofDeviceChecker = uiDeviceSpoofDeviceChecker
+        }
+    }
+    @Published var uiDeviceSpoofAppAttest: Bool {
+        didSet {
+            appInfo.deviceSpoofAppAttest = uiDeviceSpoofAppAttest
+        }
+    }
     @Published var uiDeviceSpoofTimezone: Bool {
         didSet {
             appInfo.deviceSpoofTimezone = uiDeviceSpoofTimezone
@@ -286,9 +301,99 @@ class LCAppModel: ObservableObject, Hashable {
             appInfo.deviceSpoofLocaleValue = uiDeviceSpoofLocaleValue
         }
     }
+    @Published var uiDeviceSpoofPreferredCountry: String {
+        didSet {
+            appInfo.deviceSpoofPreferredCountry = uiDeviceSpoofPreferredCountry
+        }
+    }
+    @Published var uiDeviceSpoofCellularTypeEnabled: Bool {
+        didSet {
+            appInfo.deviceSpoofCellularTypeEnabled = uiDeviceSpoofCellularTypeEnabled
+        }
+    }
+    @Published var uiDeviceSpoofCellularType: Int {
+        didSet {
+            appInfo.deviceSpoofCellularType = Int32(uiDeviceSpoofCellularType)
+        }
+    }
+    @Published var uiDeviceSpoofNetworkInfo: Bool {
+        didSet {
+            appInfo.deviceSpoofNetworkInfo = uiDeviceSpoofNetworkInfo
+        }
+    }
+    @Published var uiDeviceSpoofWiFiAddressEnabled: Bool {
+        didSet {
+            appInfo.deviceSpoofWiFiAddressEnabled = uiDeviceSpoofWiFiAddressEnabled
+        }
+    }
+    @Published var uiDeviceSpoofCellularAddressEnabled: Bool {
+        didSet {
+            appInfo.deviceSpoofCellularAddressEnabled = uiDeviceSpoofCellularAddressEnabled
+        }
+    }
+    @Published var uiDeviceSpoofWiFiAddress: String {
+        didSet {
+            appInfo.deviceSpoofWiFiAddress = uiDeviceSpoofWiFiAddress
+        }
+    }
+    @Published var uiDeviceSpoofCellularAddress: String {
+        didSet {
+            appInfo.deviceSpoofCellularAddress = uiDeviceSpoofCellularAddress
+        }
+    }
+    @Published var uiDeviceSpoofWiFiSSID: String {
+        didSet {
+            appInfo.deviceSpoofWiFiSSID = uiDeviceSpoofWiFiSSID
+        }
+    }
+    @Published var uiDeviceSpoofWiFiBSSID: String {
+        didSet {
+            appInfo.deviceSpoofWiFiBSSID = uiDeviceSpoofWiFiBSSID
+        }
+    }
     @Published var uiDeviceSpoofScreenCapture: Bool {
         didSet {
             appInfo.deviceSpoofScreenCapture = uiDeviceSpoofScreenCapture
+        }
+    }
+    @Published var uiDeviceSpoofMessage: Bool {
+        didSet {
+            appInfo.enableSpoofMessage = uiDeviceSpoofMessage
+        }
+    }
+    @Published var uiDeviceSpoofMail: Bool {
+        didSet {
+            appInfo.enableSpoofMail = uiDeviceSpoofMail
+        }
+    }
+    @Published var uiDeviceSpoofBugsnag: Bool {
+        didSet {
+            appInfo.enableSpoofBugsnag = uiDeviceSpoofBugsnag
+        }
+    }
+    @Published var uiDeviceSpoofCrane: Bool {
+        didSet {
+            appInfo.enableSpoofCrane = uiDeviceSpoofCrane
+        }
+    }
+    @Published var uiDeviceSpoofPasteboard: Bool {
+        didSet {
+            appInfo.enableSpoofPasteboard = uiDeviceSpoofPasteboard
+        }
+    }
+    @Published var uiDeviceSpoofAlbum: Bool {
+        didSet {
+            appInfo.enableSpoofAlbum = uiDeviceSpoofAlbum
+        }
+    }
+    @Published var uiDeviceSpoofAppium: Bool {
+        didSet {
+            appInfo.enableSpoofAppium = uiDeviceSpoofAppium
+        }
+    }
+    @Published var uiDeviceSpoofAlbumBlacklist: [String] {
+        didSet {
+            appInfo.deviceSpoofAlbumBlacklist = uiDeviceSpoofAlbumBlacklist
         }
     }
 
@@ -472,11 +577,32 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDeviceSpoofIdentifiers = appInfo.deviceSpoofIdentifiers
         self.uiDeviceSpoofVendorID = appInfo.deviceSpoofVendorID ?? ""
         self.uiDeviceSpoofAdvertisingID = appInfo.deviceSpoofAdvertisingID ?? ""
+        self.uiDeviceSpoofCloudToken = appInfo.deviceSpoofCloudToken
+        self.uiDeviceSpoofDeviceChecker = appInfo.deviceSpoofDeviceChecker
+        self.uiDeviceSpoofAppAttest = appInfo.deviceSpoofAppAttest
         self.uiDeviceSpoofTimezone = appInfo.deviceSpoofTimezone
         self.uiDeviceSpoofTimezoneValue = appInfo.deviceSpoofTimezoneValue ?? "America/New_York"
         self.uiDeviceSpoofLocale = appInfo.deviceSpoofLocale
         self.uiDeviceSpoofLocaleValue = appInfo.deviceSpoofLocaleValue ?? "en_US"
+        self.uiDeviceSpoofPreferredCountry = appInfo.deviceSpoofPreferredCountry ?? ""
+        self.uiDeviceSpoofCellularTypeEnabled = appInfo.deviceSpoofCellularTypeEnabled
+        self.uiDeviceSpoofCellularType = Int(appInfo.deviceSpoofCellularType)
+        self.uiDeviceSpoofNetworkInfo = appInfo.deviceSpoofNetworkInfo
+        self.uiDeviceSpoofWiFiAddressEnabled = appInfo.deviceSpoofWiFiAddressEnabled
+        self.uiDeviceSpoofCellularAddressEnabled = appInfo.deviceSpoofCellularAddressEnabled
+        self.uiDeviceSpoofWiFiAddress = appInfo.deviceSpoofWiFiAddress ?? ""
+        self.uiDeviceSpoofCellularAddress = appInfo.deviceSpoofCellularAddress ?? ""
+        self.uiDeviceSpoofWiFiSSID = appInfo.deviceSpoofWiFiSSID ?? "Public Network"
+        self.uiDeviceSpoofWiFiBSSID = appInfo.deviceSpoofWiFiBSSID ?? "22:66:99:00"
         self.uiDeviceSpoofScreenCapture = appInfo.deviceSpoofScreenCapture
+        self.uiDeviceSpoofMessage = appInfo.enableSpoofMessage
+        self.uiDeviceSpoofMail = appInfo.enableSpoofMail
+        self.uiDeviceSpoofBugsnag = appInfo.enableSpoofBugsnag
+        self.uiDeviceSpoofCrane = appInfo.enableSpoofCrane
+        self.uiDeviceSpoofPasteboard = appInfo.enableSpoofPasteboard
+        self.uiDeviceSpoofAlbum = appInfo.enableSpoofAlbum
+        self.uiDeviceSpoofAppium = appInfo.enableSpoofAppium
+        self.uiDeviceSpoofAlbumBlacklist = (appInfo.deviceSpoofAlbumBlacklist as? [String]) ?? []
 
         // Extended spoofing
         self.uiDeviceSpoofBootTime = appInfo.deviceSpoofBootTime

@@ -2324,11 +2324,16 @@ struct LCAppSettingsView: View {
                 deviceSpoofSectionHeader("Identity")
                 deviceSpoofDeviceNameSection()
                 deviceSpoofCarrierSection()
+                deviceSpoofCellularTypeSection()
                 deviceSpoofIdentifiersSection()
 
                 deviceSpoofSectionHeader("Region")
                 deviceSpoofTimezoneSection()
                 deviceSpoofLocaleSection()
+                deviceSpoofPreferredCountrySection()
+
+                deviceSpoofSectionHeader("Network")
+                deviceSpoofNetworkSection()
 
                 deviceSpoofSectionHeader("Runtime")
                 deviceSpoofBootTimeSection()
@@ -2342,15 +2347,8 @@ struct LCAppSettingsView: View {
                 deviceSpoofUserAgentSection()
 
                 deviceSpoofSectionHeader("Security")
-                // Screen Capture / Recording Detection Block
-                Toggle(isOn: $model.uiDeviceSpoofScreenCapture) {
-                    HStack {
-                        Image(systemName: "record.circle")
-                            .foregroundColor(.red)
-                            .frame(width: 20)
-                        Text("Block Screen Capture Detection")
-                    }
-                }
+                deviceSpoofSecuritySection()
+                deviceSpoofScreenCaptureSection()
             }
         } header: {
             Text("Device Fingerprinting Protection")
@@ -2535,6 +2533,28 @@ struct LCAppSettingsView: View {
         }
     }
 
+    // MARK: Cellular
+    @ViewBuilder
+    private func deviceSpoofCellularTypeSection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofCellularTypeEnabled) {
+            HStack {
+                Image(systemName: "antenna.radiowaves.left.and.right.slash")
+                    .foregroundColor(.mint)
+                    .frame(width: 20)
+                Text("Spoof Cellular Radio Type")
+            }
+        }
+        if model.uiDeviceSpoofCellularTypeEnabled {
+            Picker("Cellular Type", selection: $model.uiDeviceSpoofCellularType) {
+                Text("5G (NRNSA)").tag(0)
+                Text("LTE").tag(1)
+                Text("WCDMA (3G)").tag(2)
+            }
+            .pickerStyle(SegmentedPickerStyle())
+            .padding(.leading, 28)
+        }
+    }
+
     // MARK: Identifiers (IDFV / IDFA)
     @ViewBuilder
     private func deviceSpoofIdentifiersSection() -> some View {
@@ -2556,6 +2576,15 @@ struct LCAppSettingsView: View {
                         TextField("IDFV", text: $model.uiDeviceSpoofVendorID)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .font(.system(.caption, design: .monospaced))
+                        Button {
+                            model.uiDeviceSpoofVendorID = "00000"
+                            model.uiDeviceSpoofAdvertisingID = "00000000-0000-0000-0000-000000000000"
+                        } label: {
+                            Image(systemName: "hand.raised.fill")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .help("Set IFV to 00000 to force tracking-disabled behavior")
                         Button {
                             model.uiDeviceSpoofVendorID = UUID().uuidString
                         } label: {
@@ -2643,6 +2672,94 @@ struct LCAppSettingsView: View {
             }
             .pickerStyle(MenuPickerStyle())
             .padding(.leading, 28)
+        }
+    }
+
+    // MARK: Preferred Country
+    @ViewBuilder
+    private func deviceSpoofPreferredCountrySection() -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: "flag")
+                    .foregroundColor(.secondary)
+                    .frame(width: 20)
+                Text("Preferred Country Code")
+            }
+            HStack(spacing: 8) {
+                TextField("us", text: $model.uiDeviceSpoofPreferredCountry)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .font(.system(.caption, design: .monospaced))
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+                Button("Clear") {
+                    model.uiDeviceSpoofPreferredCountry = ""
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            Text("Overrides `NSLocale.countryCode` when provided.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .padding(.leading, 28)
+    }
+
+    // MARK: Network
+    @ViewBuilder
+    private func deviceSpoofNetworkSection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofNetworkInfo) {
+            HStack {
+                Image(systemName: "wifi")
+                    .foregroundColor(.blue)
+                    .frame(width: 20)
+                Text("Spoof Wi-Fi SSID / BSSID")
+            }
+        }
+        if model.uiDeviceSpoofNetworkInfo {
+            VStack(alignment: .leading, spacing: 8) {
+                TextField("Wi-Fi SSID", text: $model.uiDeviceSpoofWiFiSSID)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                TextField("Wi-Fi BSSID", text: $model.uiDeviceSpoofWiFiBSSID)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .font(.system(.caption, design: .monospaced))
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+            }
+            .padding(.leading, 28)
+        }
+
+        Toggle(isOn: $model.uiDeviceSpoofWiFiAddressEnabled) {
+            HStack {
+                Image(systemName: "network")
+                    .foregroundColor(.teal)
+                    .frame(width: 20)
+                Text("Spoof Wi-Fi IP Address (en0)")
+            }
+        }
+        if model.uiDeviceSpoofWiFiAddressEnabled {
+            TextField("192.168.1.15", text: $model.uiDeviceSpoofWiFiAddress)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .font(.system(.caption, design: .monospaced))
+                .autocapitalization(.none)
+                .disableAutocorrection(true)
+                .padding(.leading, 28)
+        }
+
+        Toggle(isOn: $model.uiDeviceSpoofCellularAddressEnabled) {
+            HStack {
+                Image(systemName: "cellularbars")
+                    .foregroundColor(.green)
+                    .frame(width: 20)
+                Text("Spoof Cellular IP Address (pdp_ip0)")
+            }
+        }
+        if model.uiDeviceSpoofCellularAddressEnabled {
+            TextField("10.123.45.67", text: $model.uiDeviceSpoofCellularAddress)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .font(.system(.caption, design: .monospaced))
+                .autocapitalization(.none)
+                .disableAutocorrection(true)
+                .padding(.leading, 28)
         }
     }
 
@@ -2873,6 +2990,101 @@ struct LCAppSettingsView: View {
             }
             .padding(.leading, 28)
         }
+    }
+
+    // MARK: Security
+    @ViewBuilder
+    private func deviceSpoofSecuritySection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofCloudToken) {
+            HStack {
+                Image(systemName: "icloud.slash")
+                    .foregroundColor(.blue)
+                    .frame(width: 20)
+                Text("Mask iCloud Identity Token")
+            }
+        }
+        Toggle(isOn: $model.uiDeviceSpoofDeviceChecker) {
+            HStack {
+                Image(systemName: "checkmark.shield")
+                    .foregroundColor(.orange)
+                    .frame(width: 20)
+                Text("Spoof DeviceCheck (DCDevice)")
+            }
+        }
+        Toggle(isOn: $model.uiDeviceSpoofAppAttest) {
+            HStack {
+                Image(systemName: "lock.shield")
+                    .foregroundColor(.orange)
+                    .frame(width: 20)
+                Text("Spoof App Attest")
+            }
+        }
+    }
+
+    // MARK: Screenshot Prevention Group
+    @ViewBuilder
+    private func deviceSpoofScreenCaptureSection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofScreenCapture) {
+            HStack {
+                Image(systemName: "record.circle")
+                    .foregroundColor(.red)
+                    .frame(width: 20)
+                Text("Block Screen Capture Detection")
+            }
+        }
+
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle("Force `canSendText` (Message)", isOn: $model.uiDeviceSpoofMessage)
+                .font(.caption)
+            Toggle("Force `canSendMail` (Mail)", isOn: $model.uiDeviceSpoofMail)
+                .font(.caption)
+            Toggle("Patch Bugsnag jailbreak payloads", isOn: $model.uiDeviceSpoofBugsnag)
+                .font(.caption)
+            Toggle("Hide Crane markers in strings", isOn: $model.uiDeviceSpoofCrane)
+                .font(.caption)
+            Toggle("Disable pasteboard string reads", isOn: $model.uiDeviceSpoofPasteboard)
+                .font(.caption)
+            Toggle("Hide Appium/WebDriver markers", isOn: $model.uiDeviceSpoofAppium)
+                .font(.caption)
+            Toggle("Filter photo albums by blacklist", isOn: $model.uiDeviceSpoofAlbum)
+                .font(.caption)
+
+            if model.uiDeviceSpoofAlbum {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Album Blacklist (`localIdentifier-title`, one per line)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    TextEditor(text: deviceSpoofAlbumBlacklistBinding)
+                        .frame(minHeight: 80, maxHeight: 120)
+                        .font(.system(.caption, design: .monospaced))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                        )
+                }
+            }
+
+            Text("Any toggle in this group enables the shared screenshot-prevention hook set.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .padding(.leading, 28)
+    }
+
+    private var deviceSpoofAlbumBlacklistBinding: Binding<String> {
+        Binding(
+            get: {
+                model.uiDeviceSpoofAlbumBlacklist.joined(separator: "\n")
+            },
+            set: { newValue in
+                let entries = newValue
+                    .split(whereSeparator: \.isNewline)
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                var seen = Set<String>()
+                model.uiDeviceSpoofAlbumBlacklist = entries.filter { seen.insert($0).inserted }
+            }
+        )
     }
 
     func createFolder() async {

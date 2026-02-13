@@ -81,11 +81,32 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property bool deviceSpoofIdentifiers;
 @property (nonatomic) NSString* deviceSpoofVendorID;
 @property (nonatomic) NSString* deviceSpoofAdvertisingID;
+@property bool deviceSpoofCloudToken;
+@property bool deviceSpoofDeviceChecker;
+@property bool deviceSpoofAppAttest;
 @property bool deviceSpoofTimezone;
 @property (nonatomic) NSString* deviceSpoofTimezoneValue;
 @property bool deviceSpoofLocale;
 @property (nonatomic) NSString* deviceSpoofLocaleValue;
+@property (nonatomic) NSString* deviceSpoofPreferredCountry;
+@property bool deviceSpoofCellularTypeEnabled;
+@property int deviceSpoofCellularType; // 0=NRNSA,1=LTE,2=WCDMA
+@property bool deviceSpoofNetworkInfo;
+@property bool deviceSpoofWiFiAddressEnabled;
+@property bool deviceSpoofCellularAddressEnabled;
+@property (nonatomic) NSString* deviceSpoofWiFiAddress;
+@property (nonatomic) NSString* deviceSpoofCellularAddress;
+@property (nonatomic) NSString* deviceSpoofWiFiSSID;
+@property (nonatomic) NSString* deviceSpoofWiFiBSSID;
 @property bool deviceSpoofScreenCapture;
+@property bool enableSpoofMessage;
+@property bool enableSpoofMail;
+@property bool enableSpoofBugsnag;
+@property bool enableSpoofCrane;
+@property bool enableSpoofPasteboard;
+@property bool enableSpoofAlbum;
+@property bool enableSpoofAppium;
+@property (nonatomic) NSArray<NSString *>* deviceSpoofAlbumBlacklist;
 
 // Extended spoofing (Ghost + Project-X parity)
 @property bool deviceSpoofBootTime;

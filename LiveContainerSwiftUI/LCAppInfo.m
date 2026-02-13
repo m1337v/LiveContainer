@@ -1158,6 +1158,51 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     [self save];
 }
 
+- (bool)deviceSpoofCloudToken {
+    if (_info[@"deviceSpoofCloudToken"] != nil) {
+        return [_info[@"deviceSpoofCloudToken"] boolValue];
+    }
+    if (_info[@"enableSpoofCloudToken"] != nil) {
+        return [_info[@"enableSpoofCloudToken"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setDeviceSpoofCloudToken:(bool)enabled {
+    _info[@"deviceSpoofCloudToken"] = @(enabled);
+    [self save];
+}
+
+- (bool)deviceSpoofDeviceChecker {
+    if (_info[@"deviceSpoofDeviceChecker"] != nil) {
+        return [_info[@"deviceSpoofDeviceChecker"] boolValue];
+    }
+    if (_info[@"enableSpoofDeviceChecker"] != nil) {
+        return [_info[@"enableSpoofDeviceChecker"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setDeviceSpoofDeviceChecker:(bool)enabled {
+    _info[@"deviceSpoofDeviceChecker"] = @(enabled);
+    [self save];
+}
+
+- (bool)deviceSpoofAppAttest {
+    if (_info[@"deviceSpoofAppAttest"] != nil) {
+        return [_info[@"deviceSpoofAppAttest"] boolValue];
+    }
+    if (_info[@"enableSpoofAppAttest"] != nil) {
+        return [_info[@"enableSpoofAppAttest"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setDeviceSpoofAppAttest:(bool)enabled {
+    _info[@"deviceSpoofAppAttest"] = @(enabled);
+    [self save];
+}
+
 - (bool)deviceSpoofTimezone {
     return [_info[@"deviceSpoofTimezone"] boolValue];
 }
@@ -1202,12 +1247,270 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     [self save];
 }
 
+- (NSString *)deviceSpoofPreferredCountry {
+    NSString *country = _info[@"deviceSpoofPreferredCountry"];
+    if (country.length > 0) {
+        return country;
+    }
+    country = _info[@"localeCountryCode"];
+    if (country.length > 0) {
+        return country;
+    }
+    return @"";
+}
+
+- (void)setDeviceSpoofPreferredCountry:(NSString *)country {
+    if (country.length > 0) {
+        _info[@"deviceSpoofPreferredCountry"] = country;
+    } else {
+        [_info removeObjectForKey:@"deviceSpoofPreferredCountry"];
+    }
+    [self save];
+}
+
+- (bool)deviceSpoofCellularTypeEnabled {
+    if (_info[@"deviceSpoofCellularTypeEnabled"] != nil) {
+        return [_info[@"deviceSpoofCellularTypeEnabled"] boolValue];
+    }
+    if (_info[@"enableSpoofCellularType"] != nil) {
+        return [_info[@"enableSpoofCellularType"] boolValue];
+    }
+    if (_info[@"deviceSpoofCellularType"] != nil || _info[@"cellularType"] != nil) {
+        return YES;
+    }
+    return NO;
+}
+
+- (void)setDeviceSpoofCellularTypeEnabled:(bool)enabled {
+    _info[@"deviceSpoofCellularTypeEnabled"] = @(enabled);
+    [self save];
+}
+
+- (int)deviceSpoofCellularType {
+    if (_info[@"deviceSpoofCellularType"] != nil) {
+        return [_info[@"deviceSpoofCellularType"] intValue];
+    }
+    if (_info[@"cellularType"] != nil) {
+        return [_info[@"cellularType"] intValue];
+    }
+    return 0;
+}
+
+- (void)setDeviceSpoofCellularType:(int)type {
+    _info[@"deviceSpoofCellularType"] = @(type);
+    [self save];
+}
+
+- (bool)deviceSpoofNetworkInfo {
+    if (_info[@"deviceSpoofNetworkInfo"] != nil) {
+        return [_info[@"deviceSpoofNetworkInfo"] boolValue];
+    }
+    if (_info[@"enableSpoofNetworkInfo"] != nil) {
+        return [_info[@"enableSpoofNetworkInfo"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setDeviceSpoofNetworkInfo:(bool)enabled {
+    _info[@"deviceSpoofNetworkInfo"] = @(enabled);
+    [self save];
+}
+
+- (bool)deviceSpoofWiFiAddressEnabled {
+    if (_info[@"deviceSpoofWiFiAddressEnabled"] != nil) {
+        return [_info[@"deviceSpoofWiFiAddressEnabled"] boolValue];
+    }
+    if (_info[@"enableSpoofWiFi"] != nil) {
+        return [_info[@"enableSpoofWiFi"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setDeviceSpoofWiFiAddressEnabled:(bool)enabled {
+    _info[@"deviceSpoofWiFiAddressEnabled"] = @(enabled);
+    [self save];
+}
+
+- (bool)deviceSpoofCellularAddressEnabled {
+    if (_info[@"deviceSpoofCellularAddressEnabled"] != nil) {
+        return [_info[@"deviceSpoofCellularAddressEnabled"] boolValue];
+    }
+    if (_info[@"enableSpoofCellular"] != nil) {
+        return [_info[@"enableSpoofCellular"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setDeviceSpoofCellularAddressEnabled:(bool)enabled {
+    _info[@"deviceSpoofCellularAddressEnabled"] = @(enabled);
+    [self save];
+}
+
+- (NSString *)deviceSpoofWiFiAddress {
+    NSString *addr = _info[@"deviceSpoofWiFiAddress"];
+    if (addr.length > 0) {
+        return addr;
+    }
+    addr = _info[@"wifiAddress"];
+    return addr.length > 0 ? addr : @"";
+}
+
+- (void)setDeviceSpoofWiFiAddress:(NSString *)address {
+    if (address.length > 0) {
+        _info[@"deviceSpoofWiFiAddress"] = address;
+    } else {
+        [_info removeObjectForKey:@"deviceSpoofWiFiAddress"];
+    }
+    [self save];
+}
+
+- (NSString *)deviceSpoofCellularAddress {
+    NSString *addr = _info[@"deviceSpoofCellularAddress"];
+    if (addr.length > 0) {
+        return addr;
+    }
+    addr = _info[@"cellularAddress"];
+    return addr.length > 0 ? addr : @"";
+}
+
+- (void)setDeviceSpoofCellularAddress:(NSString *)address {
+    if (address.length > 0) {
+        _info[@"deviceSpoofCellularAddress"] = address;
+    } else {
+        [_info removeObjectForKey:@"deviceSpoofCellularAddress"];
+    }
+    [self save];
+}
+
+- (NSString *)deviceSpoofWiFiSSID {
+    NSString *ssid = _info[@"deviceSpoofWiFiSSID"];
+    if (ssid.length > 0) {
+        return ssid;
+    }
+    ssid = _info[@"wifiSSID"];
+    return ssid.length > 0 ? ssid : @"Public Network";
+}
+
+- (void)setDeviceSpoofWiFiSSID:(NSString *)ssid {
+    if (ssid.length > 0) {
+        _info[@"deviceSpoofWiFiSSID"] = ssid;
+    } else {
+        [_info removeObjectForKey:@"deviceSpoofWiFiSSID"];
+    }
+    [self save];
+}
+
+- (NSString *)deviceSpoofWiFiBSSID {
+    NSString *bssid = _info[@"deviceSpoofWiFiBSSID"];
+    if (bssid.length > 0) {
+        return bssid;
+    }
+    bssid = _info[@"wifiBSSID"];
+    return bssid.length > 0 ? bssid : @"22:66:99:00";
+}
+
+- (void)setDeviceSpoofWiFiBSSID:(NSString *)bssid {
+    if (bssid.length > 0) {
+        _info[@"deviceSpoofWiFiBSSID"] = bssid;
+    } else {
+        [_info removeObjectForKey:@"deviceSpoofWiFiBSSID"];
+    }
+    [self save];
+}
+
 - (bool)deviceSpoofScreenCapture {
     return [_info[@"deviceSpoofScreenCapture"] boolValue];
 }
 
 - (void)setDeviceSpoofScreenCapture:(bool)enabled {
     _info[@"deviceSpoofScreenCapture"] = @(enabled);
+    [self save];
+}
+
+- (bool)enableSpoofMessage {
+    return [_info[@"enableSpoofMessage"] boolValue];
+}
+
+- (void)setEnableSpoofMessage:(bool)enabled {
+    _info[@"enableSpoofMessage"] = @(enabled);
+    [self save];
+}
+
+- (bool)enableSpoofMail {
+    return [_info[@"enableSpoofMail"] boolValue];
+}
+
+- (void)setEnableSpoofMail:(bool)enabled {
+    _info[@"enableSpoofMail"] = @(enabled);
+    [self save];
+}
+
+- (bool)enableSpoofBugsnag {
+    return [_info[@"enableSpoofBugsnag"] boolValue];
+}
+
+- (void)setEnableSpoofBugsnag:(bool)enabled {
+    _info[@"enableSpoofBugsnag"] = @(enabled);
+    [self save];
+}
+
+- (bool)enableSpoofCrane {
+    return [_info[@"enableSpoofCrane"] boolValue];
+}
+
+- (void)setEnableSpoofCrane:(bool)enabled {
+    _info[@"enableSpoofCrane"] = @(enabled);
+    [self save];
+}
+
+- (bool)enableSpoofPasteboard {
+    return [_info[@"enableSpoofPasteboard"] boolValue];
+}
+
+- (void)setEnableSpoofPasteboard:(bool)enabled {
+    _info[@"enableSpoofPasteboard"] = @(enabled);
+    [self save];
+}
+
+- (bool)enableSpoofAlbum {
+    return [_info[@"enableSpoofAlbum"] boolValue];
+}
+
+- (void)setEnableSpoofAlbum:(bool)enabled {
+    _info[@"enableSpoofAlbum"] = @(enabled);
+    [self save];
+}
+
+- (bool)enableSpoofAppium {
+    if (_info[@"enableSpoofAppium"] != nil) {
+        return [_info[@"enableSpoofAppium"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setEnableSpoofAppium:(bool)enabled {
+    _info[@"enableSpoofAppium"] = @(enabled);
+    [self save];
+}
+
+- (NSArray<NSString *> *)deviceSpoofAlbumBlacklist {
+    id blacklist = _info[@"deviceSpoofAlbumBlacklist"];
+    if ([blacklist isKindOfClass:[NSArray class]]) {
+        return blacklist;
+    }
+    blacklist = _info[@"albumBlacklistArray"];
+    if ([blacklist isKindOfClass:[NSArray class]]) {
+        return blacklist;
+    }
+    return @[];
+}
+
+- (void)setDeviceSpoofAlbumBlacklist:(NSArray<NSString *> *)blacklist {
+    if ([blacklist isKindOfClass:[NSArray class]] && blacklist.count > 0) {
+        _info[@"deviceSpoofAlbumBlacklist"] = blacklist;
+    } else {
+        [_info removeObjectForKey:@"deviceSpoofAlbumBlacklist"];
+    }
     [self save];
 }
 
