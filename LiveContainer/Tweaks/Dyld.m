@@ -141,11 +141,18 @@ static void (*orig_SSL_CTX_set_custom_verify)(void *, int, int (*)(void *, uint8
 // Bundle
 static NSString *originalGuestBundleId = nil;
 static NSString *liveContainerBundleId = nil;
+static NSString *hostTeamIdentifier = nil;
 static BOOL useSelectiveBundleIdSpoofing = NO;
+static BOOL useBundleIdentityCompatibilityShims = NO;
+static BOOL hideProvisioningArtifacts = NO;
 static BOOL didInstallSelectiveBundleHooks = NO;
 static NSString* (*orig_NSBundle_bundleIdentifier)(id self, SEL _cmd);
 static NSDictionary* (*orig_NSBundle_infoDictionary)(id self, SEL _cmd);
 static id (*orig_NSBundle_objectForInfoDictionaryKey)(id self, SEL _cmd, NSString *key);
+static NSString* (*orig_NSBundle_pathForResource_ofType)(id self, SEL _cmd, NSString *name, NSString *ext);
+static NSURL* (*orig_NSBundle_URLForResource_withExtension)(id self, SEL _cmd, NSString *name, NSString *ext);
+static NSURL* (*orig_NSBundle_appStoreReceiptURL)(id self, SEL _cmd);
+static BOOL (*orig_NSFileManager_fileExistsAtPath)(id self, SEL _cmd, NSString *path);
 
 // LC specific variables
 uint32_t guestAppSdkVersion = 0;
@@ -2825,6 +2832,86 @@ static BOOL shouldUseLiveContainerBundleId(void) {
     return NO;
 }
 
+static NSString *LCResolvedBundleIDForCurrentContext(void) {
+    if (useSelectiveBundleIdSpoofing) {
+        BOOL useLCBundleID = shouldUseLiveContainerBundleId();
+        NSString *bundleIDToExpose = useLCBundleID ? liveContainerBundleId : originalGuestBundleId;
+        if (bundleIDToExpose.length > 0) {
+            return bundleIDToExpose;
+        }
+    }
+    if (originalGuestBundleId.length > 0) {
+        return originalGuestBundleId;
+    }
+    return NSBundle.mainBundle.bundleIdentifier;
+}
+
+static NSString *LCRewrittenAccessGroup(NSString *accessGroup, NSString *fallbackBundleID) {
+    if (hostTeamIdentifier.length == 0) {
+        return [accessGroup isKindOfClass:NSString.class] ? accessGroup : nil;
+    }
+    if ([accessGroup isKindOfClass:NSString.class] && accessGroup.length > 0) {
+        NSRange dotRange = [accessGroup rangeOfString:@"."];
+        if (dotRange.location != NSNotFound && dotRange.location + 1 < accessGroup.length) {
+            NSString *suffix = [accessGroup substringFromIndex:dotRange.location + 1];
+            return [NSString stringWithFormat:@"%@.%@", hostTeamIdentifier, suffix];
+        }
+    }
+    if (fallbackBundleID.length > 0) {
+        return [NSString stringWithFormat:@"%@.%@", hostTeamIdentifier, fallbackBundleID];
+    }
+    return [accessGroup isKindOfClass:NSString.class] ? accessGroup : nil;
+}
+
+static NSString *LCRewrittenAppIdentifierPrefix(void) {
+    if (hostTeamIdentifier.length == 0) {
+        return nil;
+    }
+    return [hostTeamIdentifier hasSuffix:@"."] ? hostTeamIdentifier : [hostTeamIdentifier stringByAppendingString:@"."];
+}
+
+static void LCApplyBundleIdentityCompatibility(NSMutableDictionary *dictionary, NSString *fallbackBundleID) {
+    if (!useBundleIdentityCompatibilityShims || ![dictionary isKindOfClass:NSDictionary.class]) {
+        return;
+    }
+    NSString *rewrittenGroup = LCRewrittenAccessGroup(dictionary[@"SharedKeychainAccessGroup"], fallbackBundleID);
+    if (rewrittenGroup.length > 0) {
+        dictionary[@"SharedKeychainAccessGroup"] = rewrittenGroup;
+    }
+
+    NSString *rewrittenPrefix = LCRewrittenAppIdentifierPrefix();
+    if (rewrittenPrefix.length > 0) {
+        id existingPrefix = dictionary[@"AppIdentifierPrefix"];
+        if ([existingPrefix isKindOfClass:NSArray.class]) {
+            dictionary[@"AppIdentifierPrefix"] = @[rewrittenPrefix];
+        } else {
+            dictionary[@"AppIdentifierPrefix"] = rewrittenPrefix;
+        }
+    }
+}
+
+static BOOL LCIsEmbeddedMobileProvisionRequest(NSString *name, NSString *ext) {
+    if (![name isKindOfClass:NSString.class] || name.length == 0) {
+        return NO;
+    }
+    NSString *lowerName = name.lowercaseString;
+    NSString *lowerExt = [ext isKindOfClass:NSString.class] ? ext.lowercaseString : @"";
+    if ([lowerName isEqualToString:@"embedded"] && [lowerExt isEqualToString:@"mobileprovision"]) {
+        return YES;
+    }
+    if ([lowerName isEqualToString:@"embedded.mobileprovision"]) {
+        return YES;
+    }
+    return [lowerName hasSuffix:@"/embedded.mobileprovision"];
+}
+
+static BOOL LCShouldHideProvisioningPath(NSString *path) {
+    if (!hideProvisioningArtifacts || ![path isKindOfClass:NSString.class] || path.length == 0) {
+        return NO;
+    }
+    return [path.lowercaseString hasSuffix:@"embedded.mobileprovision"];
+}
+
 static NSString* hook_NSBundle_bundleIdentifier(id self, SEL _cmd) {
     NSString* result = orig_NSBundle_bundleIdentifier(self, _cmd);
 
@@ -2850,7 +2937,11 @@ static NSString* hook_NSBundle_bundleIdentifier(id self, SEL _cmd) {
 static NSDictionary* hook_NSBundle_infoDictionary(id self, SEL _cmd) {
     NSDictionary* result = orig_NSBundle_infoDictionary(self, _cmd);
 
-    if (!useSelectiveBundleIdSpoofing || ![self isEqual:[NSBundle mainBundle]]) {
+    if (![self isEqual:[NSBundle mainBundle]]) {
+        return result;
+    }
+
+    if (!useSelectiveBundleIdSpoofing && !useBundleIdentityCompatibilityShims) {
         return result;
     }
 
@@ -2859,35 +2950,98 @@ static NSDictionary* hook_NSBundle_infoDictionary(id self, SEL _cmd) {
         return result;
     }
 
-    BOOL useLCBundleID = shouldUseLiveContainerBundleId();
-    NSString *bundleIDToExpose = useLCBundleID ? liveContainerBundleId : originalGuestBundleId;
+    NSString *bundleIDToExpose = LCResolvedBundleIDForCurrentContext();
     if (bundleIDToExpose.length == 0) {
         return result;
     }
 
-    if (useLCBundleID) {
+    if (useSelectiveBundleIdSpoofing) {
         modifiedDict[@"CFBundleIdentifier"] = bundleIDToExpose;
-        // NSLog(@"[LC] 🎭 Modified Info.plist bundle ID for system API");
-    } else {
-        modifiedDict[@"CFBundleIdentifier"] = bundleIDToExpose;
-        // NSLog(@"[LC] 🎭 Preserved original bundle ID for security check");
     }
 
+    LCApplyBundleIdentityCompatibility(modifiedDict, bundleIDToExpose);
     return [modifiedDict copy];
 }
 
 static id hook_NSBundle_objectForInfoDictionaryKey(id self, SEL _cmd, NSString *key) {
-    if (!useSelectiveBundleIdSpoofing || ![self isEqual:[NSBundle mainBundle]] || ![key isEqualToString:@"CFBundleIdentifier"]) {
+    if (![self isEqual:[NSBundle mainBundle]]) {
         return orig_NSBundle_objectForInfoDictionaryKey(self, _cmd, key);
     }
 
-    BOOL useLCBundleID = shouldUseLiveContainerBundleId();
-    NSString *bundleIDToExpose = useLCBundleID ? liveContainerBundleId : originalGuestBundleId;
-    if (bundleIDToExpose.length > 0) {
-        NSLog(@"[LC] 🎭 Returning %@ bundle ID for key access: %@", useLCBundleID ? @"LiveContainer" : @"original", bundleIDToExpose);
+    id originalValue = orig_NSBundle_objectForInfoDictionaryKey(self, _cmd, key);
+    if (![key isKindOfClass:NSString.class]) {
+        return originalValue;
+    }
+
+    NSString *bundleIDToExpose = LCResolvedBundleIDForCurrentContext();
+    if (useSelectiveBundleIdSpoofing && [key isEqualToString:@"CFBundleIdentifier"] && bundleIDToExpose.length > 0) {
         return bundleIDToExpose;
     }
-    return orig_NSBundle_objectForInfoDictionaryKey(self, _cmd, key);
+
+    if (useBundleIdentityCompatibilityShims) {
+        if ([key isEqualToString:@"SharedKeychainAccessGroup"]) {
+            NSString *rewrittenGroup = LCRewrittenAccessGroup(originalValue, bundleIDToExpose);
+            if (rewrittenGroup.length > 0) {
+                return rewrittenGroup;
+            }
+        }
+        if ([key isEqualToString:@"AppIdentifierPrefix"]) {
+            NSString *rewrittenPrefix = LCRewrittenAppIdentifierPrefix();
+            if (rewrittenPrefix.length > 0) {
+                if ([originalValue isKindOfClass:NSArray.class]) {
+                    return @[rewrittenPrefix];
+                }
+                return rewrittenPrefix;
+            }
+        }
+    }
+    return originalValue;
+}
+
+static NSString *hook_NSBundle_pathForResource_ofType(id self, SEL _cmd, NSString *name, NSString *ext) {
+    if (hideProvisioningArtifacts &&
+        [self isEqual:NSBundle.mainBundle] &&
+        LCIsEmbeddedMobileProvisionRequest(name, ext)) {
+        return nil;
+    }
+    if (orig_NSBundle_pathForResource_ofType) {
+        return orig_NSBundle_pathForResource_ofType(self, _cmd, name, ext);
+    }
+    return nil;
+}
+
+static NSURL *hook_NSBundle_URLForResource_withExtension(id self, SEL _cmd, NSString *name, NSString *ext) {
+    if (hideProvisioningArtifacts &&
+        [self isEqual:NSBundle.mainBundle] &&
+        LCIsEmbeddedMobileProvisionRequest(name, ext)) {
+        return nil;
+    }
+    if (orig_NSBundle_URLForResource_withExtension) {
+        return orig_NSBundle_URLForResource_withExtension(self, _cmd, name, ext);
+    }
+    return nil;
+}
+
+static NSURL *hook_NSBundle_appStoreReceiptURL(id self, SEL _cmd) {
+    NSURL *url = orig_NSBundle_appStoreReceiptURL ? orig_NSBundle_appStoreReceiptURL(self, _cmd) : nil;
+    if (!hideProvisioningArtifacts || ![self isEqual:NSBundle.mainBundle] || ![url isKindOfClass:NSURL.class]) {
+        return url;
+    }
+    NSString *last = url.lastPathComponent.lowercaseString ?: @"";
+    if ([last isEqualToString:@"sandboxreceipt"]) {
+        return [[url URLByDeletingLastPathComponent] URLByAppendingPathComponent:@"receipt"];
+    }
+    return url;
+}
+
+static BOOL hook_NSFileManager_fileExistsAtPath(id self, SEL _cmd, NSString *path) {
+    if (LCShouldHideProvisioningPath(path)) {
+        return NO;
+    }
+    if (orig_NSFileManager_fileExistsAtPath) {
+        return orig_NSFileManager_fileExistsAtPath(self, _cmd, path);
+    }
+    return NO;
 }
 
 static NSString *LCExpectedHostBundleIdentifier(void) {
@@ -2906,6 +3060,22 @@ static NSString *LCExpectedHostBundleIdentifier(void) {
     return [applicationIdentifier substringFromIndex:dotRange.location + 1];
 }
 
+static NSString *LCExpectedHostTeamIdentifier(void) {
+    void *task = SecTaskCreateFromSelf(NULL);
+    if (!task) return nil;
+
+    CFTypeRef value = SecTaskCopyValueForEntitlement(task, CFSTR("application-identifier"), NULL);
+    CFRelease(task);
+    if (!value) return nil;
+
+    NSString *applicationIdentifier = CFBridgingRelease(value);
+    NSRange dotRange = [applicationIdentifier rangeOfString:@"."];
+    if (dotRange.location == NSNotFound || dotRange.location == 0) {
+        return nil;
+    }
+    return [applicationIdentifier substringToIndex:dotRange.location];
+}
+
 static void configureSelectiveBundleIdSpoofing(NSDictionary *guestAppInfo, BOOL hideLiveContainer) {
     NSString *originalFromConfig = guestAppInfo[@"LCOrignalBundleIdentifier"];
     if ([originalFromConfig isKindOfClass:NSString.class] && originalFromConfig.length > 0) {
@@ -2922,7 +3092,11 @@ static void configureSelectiveBundleIdSpoofing(NSDictionary *guestAppInfo, BOOL 
 
     BOOL forceHostBundle = [guestAppInfo[@"doUseLCBundleId"] boolValue];
     useSelectiveBundleIdSpoofing = hideLiveContainer || forceHostBundle;
-    if (!useSelectiveBundleIdSpoofing || didInstallSelectiveBundleHooks) {
+    useBundleIdentityCompatibilityShims = YES;
+    hideProvisioningArtifacts = YES;
+    hostTeamIdentifier = LCExpectedHostTeamIdentifier();
+    if ((!useSelectiveBundleIdSpoofing && !useBundleIdentityCompatibilityShims && !hideProvisioningArtifacts) ||
+        didInstallSelectiveBundleHooks) {
         return;
     }
 
@@ -2940,6 +3114,26 @@ static void configureSelectiveBundleIdSpoofing(NSDictionary *guestAppInfo, BOOL 
     Method objectForInfoDictionaryKeyMethod = class_getInstanceMethod(bundleClass, @selector(objectForInfoDictionaryKey:));
     if (objectForInfoDictionaryKeyMethod && !orig_NSBundle_objectForInfoDictionaryKey) {
         orig_NSBundle_objectForInfoDictionaryKey = (id (*)(id, SEL, NSString *))method_setImplementation(objectForInfoDictionaryKeyMethod, (IMP)hook_NSBundle_objectForInfoDictionaryKey);
+    }
+
+    Method pathForResourceMethod = class_getInstanceMethod(bundleClass, @selector(pathForResource:ofType:));
+    if (pathForResourceMethod && !orig_NSBundle_pathForResource_ofType) {
+        orig_NSBundle_pathForResource_ofType = (NSString *(*)(id, SEL, NSString *, NSString *))method_setImplementation(pathForResourceMethod, (IMP)hook_NSBundle_pathForResource_ofType);
+    }
+
+    Method urlForResourceMethod = class_getInstanceMethod(bundleClass, @selector(URLForResource:withExtension:));
+    if (urlForResourceMethod && !orig_NSBundle_URLForResource_withExtension) {
+        orig_NSBundle_URLForResource_withExtension = (NSURL *(*)(id, SEL, NSString *, NSString *))method_setImplementation(urlForResourceMethod, (IMP)hook_NSBundle_URLForResource_withExtension);
+    }
+
+    Method appStoreReceiptURLMethod = class_getInstanceMethod(bundleClass, @selector(appStoreReceiptURL));
+    if (appStoreReceiptURLMethod && !orig_NSBundle_appStoreReceiptURL) {
+        orig_NSBundle_appStoreReceiptURL = (NSURL *(*)(id, SEL))method_setImplementation(appStoreReceiptURLMethod, (IMP)hook_NSBundle_appStoreReceiptURL);
+    }
+
+    Method fileExistsMethod = class_getInstanceMethod(NSFileManager.class, @selector(fileExistsAtPath:));
+    if (fileExistsMethod && !orig_NSFileManager_fileExistsAtPath) {
+        orig_NSFileManager_fileExistsAtPath = (BOOL (*)(id, SEL, NSString *))method_setImplementation(fileExistsMethod, (IMP)hook_NSFileManager_fileExistsAtPath);
     }
 
     didInstallSelectiveBundleHooks = YES;

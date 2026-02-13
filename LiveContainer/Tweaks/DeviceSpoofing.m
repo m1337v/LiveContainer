@@ -2681,76 +2681,85 @@ static id hook_NSURLSession_uploadTaskWithRequest_fromData_completionHandler(id 
     return nil;
 }
 
-typedef void (^LCDeviceCheckTokenCompletion)(NSData *token, NSError *error);
-typedef void (^LCAppAttestKeyCompletion)(NSString *keyId, NSError *error);
-typedef void (^LCAppAttestBlobCompletion)(NSData *blob, NSError *error);
+static void LCDispatchAttestationCompletion(id completion, id firstValue, NSError *error) {
+    if (!completion) {
+        return;
+    }
+    id copiedCompletion = [completion copy];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        void (^callback)(id value, NSError *callbackError) = copiedCompletion;
+        callback(firstValue, error);
+    });
+}
 
 static BOOL hook_DCDevice_isSupported(id self, SEL _cmd) {
-    if (LCDeviceSpoofingIsActive() && g_deviceCheckSpoofingEnabled) {
-        return NO;
-    }
     if (orig_DCDevice_isSupported) return orig_DCDevice_isSupported(self, _cmd);
-    return NO;
+    return YES;
 }
 
 static void hook_DCDevice_generateTokenWithCompletionHandler(id self, SEL _cmd, id completion) {
-    if (LCDeviceSpoofingIsActive() && g_deviceCheckSpoofingEnabled) {
-        LCDeviceCheckTokenCompletion block = (LCDeviceCheckTokenCompletion)completion;
-        if (block) {
-            block(nil, LCMakeSpoofingError(@"DeviceCheck token blocked"));
+    if (!LCDeviceSpoofingIsActive() || !g_deviceCheckSpoofingEnabled) {
+        if (orig_DCDevice_generateTokenWithCompletionHandler) {
+            orig_DCDevice_generateTokenWithCompletionHandler(self, _cmd, completion);
         }
         return;
     }
+
     if (orig_DCDevice_generateTokenWithCompletionHandler) {
         orig_DCDevice_generateTokenWithCompletionHandler(self, _cmd, completion);
+        return;
     }
+    LCDispatchAttestationCompletion(completion, nil, nil);
 }
 
 static BOOL hook_DCAppAttestService_isSupported(id self, SEL _cmd) {
-    if (LCDeviceSpoofingIsActive() && g_appAttestSpoofingEnabled) {
-        return NO;
-    }
     if (orig_DCAppAttestService_isSupported) return orig_DCAppAttestService_isSupported(self, _cmd);
-    return NO;
+    return YES;
 }
 
 static void hook_DCAppAttestService_generateKeyWithCompletionHandler(id self, SEL _cmd, id completion) {
-    if (LCDeviceSpoofingIsActive() && g_appAttestSpoofingEnabled) {
-        LCAppAttestKeyCompletion block = (LCAppAttestKeyCompletion)completion;
-        if (block) {
-            block(nil, LCMakeSpoofingError(@"App Attest key generation blocked"));
+    if (!LCDeviceSpoofingIsActive() || !g_appAttestSpoofingEnabled) {
+        if (orig_DCAppAttestService_generateKeyWithCompletionHandler) {
+            orig_DCAppAttestService_generateKeyWithCompletionHandler(self, _cmd, completion);
         }
         return;
     }
+
     if (orig_DCAppAttestService_generateKeyWithCompletionHandler) {
         orig_DCAppAttestService_generateKeyWithCompletionHandler(self, _cmd, completion);
+        return;
     }
+    LCDispatchAttestationCompletion(completion, nil, nil);
 }
 
 static void hook_DCAppAttestService_attestKey_clientDataHash_completionHandler(id self, SEL _cmd, NSString *keyId, NSData *clientDataHash, id completion) {
-    if (LCDeviceSpoofingIsActive() && g_appAttestSpoofingEnabled) {
-        LCAppAttestBlobCompletion block = (LCAppAttestBlobCompletion)completion;
-        if (block) {
-            block(nil, LCMakeSpoofingError(@"App Attest attestation blocked"));
+    if (!LCDeviceSpoofingIsActive() || !g_appAttestSpoofingEnabled) {
+        if (orig_DCAppAttestService_attestKey_clientDataHash_completionHandler) {
+            orig_DCAppAttestService_attestKey_clientDataHash_completionHandler(self, _cmd, keyId, clientDataHash, completion);
         }
         return;
     }
+
     if (orig_DCAppAttestService_attestKey_clientDataHash_completionHandler) {
         orig_DCAppAttestService_attestKey_clientDataHash_completionHandler(self, _cmd, keyId, clientDataHash, completion);
+        return;
     }
+    LCDispatchAttestationCompletion(completion, nil, nil);
 }
 
 static void hook_DCAppAttestService_generateAssertion_clientDataHash_completionHandler(id self, SEL _cmd, NSString *keyId, NSData *clientDataHash, id completion) {
-    if (LCDeviceSpoofingIsActive() && g_appAttestSpoofingEnabled) {
-        LCAppAttestBlobCompletion block = (LCAppAttestBlobCompletion)completion;
-        if (block) {
-            block(nil, LCMakeSpoofingError(@"App Attest assertion blocked"));
+    if (!LCDeviceSpoofingIsActive() || !g_appAttestSpoofingEnabled) {
+        if (orig_DCAppAttestService_generateAssertion_clientDataHash_completionHandler) {
+            orig_DCAppAttestService_generateAssertion_clientDataHash_completionHandler(self, _cmd, keyId, clientDataHash, completion);
         }
         return;
     }
+
     if (orig_DCAppAttestService_generateAssertion_clientDataHash_completionHandler) {
         orig_DCAppAttestService_generateAssertion_clientDataHash_completionHandler(self, _cmd, keyId, clientDataHash, completion);
+        return;
     }
+    LCDispatchAttestationCompletion(completion, nil, nil);
 }
 
 // MARK: - Screen capture block hook

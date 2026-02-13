@@ -816,9 +816,11 @@ struct LCMapPickerView: View {
                     MapMarker(coordinate: pin.coordinate, tint: .red)
                 }
                 .onChange(of: region.center.latitude) { _ in
+                    pinLocation = region.center
                     handleRegionChange()
                 }
                 .onChange(of: region.center.longitude) { _ in
+                    pinLocation = region.center
                     handleRegionChange()
                 }
                 .overlay(
@@ -911,15 +913,17 @@ struct LCMapPickerView: View {
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("OK") {
-                        latitude = pinLocation.latitude
-                        longitude = pinLocation.longitude
+                        let selectedCoordinate = region.center
+                        pinLocation = selectedCoordinate
+                        latitude = selectedCoordinate.latitude
+                        longitude = selectedCoordinate.longitude
                         locationName = currentLocationName // Use the geocoded name
 
                         // Save the location to history
                         LCLocationHistory.shared.addLocation(
                             name: currentLocationName,
-                            latitude: pinLocation.latitude,
-                            longitude: pinLocation.longitude
+                            latitude: selectedCoordinate.latitude,
+                            longitude: selectedCoordinate.longitude
                         )
 
                         isPresented = false
