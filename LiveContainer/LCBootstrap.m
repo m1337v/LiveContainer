@@ -522,6 +522,10 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     
     // Initialize Ghost-style device spoofing (profile-based with per-feature overrides)
     BOOL useProfileSpoofing = [guestAppInfo[@"deviceSpoofingEnabled"] boolValue];
+    BOOL legacyContainerIDFVEnabled = [guestContainerInfo[@"spoofIdentifierForVendor"] boolValue];
+    if (!useProfileSpoofing && legacyContainerIDFVEnabled) {
+        useProfileSpoofing = YES;
+    }
 
     if(useProfileSpoofing) {
         NSString *deviceProfile = guestAppInfo[@"deviceSpoofProfile"];
@@ -643,8 +647,13 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         }
 
         // Identifier spoofing (IDFV / IDFA)
-        if ([guestAppInfo[@"deviceSpoofIdentifiers"] boolValue]) {
+        id spoofIdentifiersObj = guestAppInfo[@"deviceSpoofIdentifiers"];
+        BOOL spoofIdentifiers = spoofIdentifiersObj ? [spoofIdentifiersObj boolValue] : legacyContainerIDFVEnabled;
+        if (spoofIdentifiers) {
             NSString *vendorID = guestAppInfo[@"deviceSpoofVendorID"];
+            if (vendorID.length == 0) {
+                vendorID = guestContainerInfo[@"spoofedIdentifierForVendor"];
+            }
             if (vendorID.length > 0) {
                 LCSetSpoofedVendorID(vendorID);
             }
@@ -654,12 +663,21 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             }
         }
 
-        BOOL spoofDeviceCheck = [guestAppInfo[@"deviceSpoofDeviceChecker"] boolValue] ||
-                                [guestAppInfo[@"enableSpoofDeviceChecker"] boolValue] ||
-                                [guestAppInfo[@"deviceSpoofIdentifiers"] boolValue];
-        BOOL spoofAppAttest = [guestAppInfo[@"deviceSpoofAppAttest"] boolValue] ||
-                              [guestAppInfo[@"enableSpoofAppAttest"] boolValue] ||
-                              spoofDeviceCheck;
+        id securityMasterObj = guestAppInfo[@"deviceSpoofSecurityEnabled"];
+        BOOL securityMasterEnabled = securityMasterObj ? [securityMasterObj boolValue] : YES;
+
+        id deviceCheckerObj = guestAppInfo[@"deviceSpoofDeviceChecker"];
+        if (deviceCheckerObj == nil) {
+            deviceCheckerObj = guestAppInfo[@"enableSpoofDeviceChecker"];
+        }
+        BOOL spoofDeviceCheck = deviceCheckerObj ? [deviceCheckerObj boolValue] :
+                                (securityMasterEnabled || [guestAppInfo[@"deviceSpoofIdentifiers"] boolValue]);
+
+        id appAttestObj = guestAppInfo[@"deviceSpoofAppAttest"];
+        if (appAttestObj == nil) {
+            appAttestObj = guestAppInfo[@"enableSpoofAppAttest"];
+        }
+        BOOL spoofAppAttest = appAttestObj ? [appAttestObj boolValue] : spoofDeviceCheck;
         LCSetDeviceCheckSpoofingEnabled(spoofDeviceCheck);
         LCSetAppAttestSpoofingEnabled(spoofAppAttest);
 
@@ -667,9 +685,8 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         if (cloudTokenSetting == nil) {
             cloudTokenSetting = guestAppInfo[@"enableSpoofCloudToken"];
         }
-        if (cloudTokenSetting != nil) {
-            LCSetICloudPrivacyProtectionEnabled([cloudTokenSetting boolValue]);
-        }
+        BOOL spoofCloudToken = cloudTokenSetting ? [cloudTokenSetting boolValue] : securityMasterEnabled;
+        LCSetICloudPrivacyProtectionEnabled(spoofCloudToken);
 
         // Timezone spoofing
         if ([guestAppInfo[@"deviceSpoofTimezone"] boolValue]) {
@@ -799,14 +816,23 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         LCSetGyroscopeSpoofingEnabled(spoofGyroscope);
 
         // Screen capture detection blocking
-        BOOL spoofMessage = [guestAppInfo[@"enableSpoofMessage"] boolValue];
-        BOOL spoofMail = [guestAppInfo[@"enableSpoofMail"] boolValue];
-        BOOL spoofBugsnag = [guestAppInfo[@"enableSpoofBugsnag"] boolValue];
-        BOOL spoofCrane = [guestAppInfo[@"enableSpoofCrane"] boolValue];
-        BOOL spoofPasteboard = [guestAppInfo[@"enableSpoofPasteboard"] boolValue];
-        BOOL spoofAlbum = [guestAppInfo[@"enableSpoofAlbum"] boolValue];
-        BOOL spoofAppium = [guestAppInfo[@"enableSpoofAppium"] boolValue] ||
-                           [guestAppInfo[@"deviceSpoofAppium"] boolValue];
+        id spoofMessageObj = guestAppInfo[@"enableSpoofMessage"];
+        BOOL spoofMessage = spoofMessageObj ? [spoofMessageObj boolValue] : securityMasterEnabled;
+        id spoofMailObj = guestAppInfo[@"enableSpoofMail"];
+        BOOL spoofMail = spoofMailObj ? [spoofMailObj boolValue] : securityMasterEnabled;
+        id spoofBugsnagObj = guestAppInfo[@"enableSpoofBugsnag"];
+        BOOL spoofBugsnag = spoofBugsnagObj ? [spoofBugsnagObj boolValue] : securityMasterEnabled;
+        id spoofCraneObj = guestAppInfo[@"enableSpoofCrane"];
+        BOOL spoofCrane = spoofCraneObj ? [spoofCraneObj boolValue] : securityMasterEnabled;
+        id spoofPasteboardObj = guestAppInfo[@"enableSpoofPasteboard"];
+        BOOL spoofPasteboard = spoofPasteboardObj ? [spoofPasteboardObj boolValue] : securityMasterEnabled;
+        id spoofAlbumObj = guestAppInfo[@"enableSpoofAlbum"];
+        BOOL spoofAlbum = spoofAlbumObj ? [spoofAlbumObj boolValue] : securityMasterEnabled;
+        id spoofAppiumObj = guestAppInfo[@"enableSpoofAppium"];
+        if (spoofAppiumObj == nil) {
+            spoofAppiumObj = guestAppInfo[@"deviceSpoofAppium"];
+        }
+        BOOL spoofAppium = spoofAppiumObj ? [spoofAppiumObj boolValue] : securityMasterEnabled;
         LCSetSpoofMessageEnabled(spoofMessage);
         LCSetSpoofMailEnabled(spoofMail);
         LCSetSpoofBugsnagEnabled(spoofBugsnag);
@@ -815,8 +841,12 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         LCSetSpoofAlbumEnabled(spoofAlbum);
         LCSetSpoofAppiumEnabled(spoofAppium);
 
-        BOOL spoofScreenCaptureGroup = [guestAppInfo[@"deviceSpoofScreenCapture"] boolValue] ||
-                                       [guestAppInfo[@"enableSpoofScreenCapture"] boolValue] ||
+        id spoofScreenCaptureObj = guestAppInfo[@"deviceSpoofScreenCapture"];
+        if (spoofScreenCaptureObj == nil) {
+            spoofScreenCaptureObj = guestAppInfo[@"enableSpoofScreenCapture"];
+        }
+        BOOL spoofScreenCaptureMaster = spoofScreenCaptureObj ? [spoofScreenCaptureObj boolValue] : securityMasterEnabled;
+        BOOL spoofScreenCaptureGroup = spoofScreenCaptureMaster ||
                                        spoofMessage || spoofMail || spoofBugsnag || spoofCrane ||
                                        spoofPasteboard || spoofAlbum || spoofAppium;
         if (spoofScreenCaptureGroup) {
@@ -872,7 +902,13 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
 
         // Brightness spoofing
         if ([guestAppInfo[@"deviceSpoofBrightness"] boolValue]) {
-            LCSetSpoofedBrightness([guestAppInfo[@"deviceSpoofBrightnessValue"] floatValue]);
+            id randomizeObj = guestAppInfo[@"deviceSpoofBrightnessRandomize"];
+            BOOL randomize = randomizeObj ? [randomizeObj boolValue] : NO;
+            if (randomize) {
+                LCRandomizeBrightness();
+            } else {
+                LCSetSpoofedBrightness([guestAppInfo[@"deviceSpoofBrightnessValue"] floatValue]);
+            }
         }
 
         // Thermal state spoofing

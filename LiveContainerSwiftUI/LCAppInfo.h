@@ -82,6 +82,7 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property (nonatomic) NSString* deviceSpoofVendorID;
 @property (nonatomic) NSString* deviceSpoofAdvertisingID;
 @property (nonatomic) NSString* deviceSpoofPersistentDeviceID;
+@property bool deviceSpoofSecurityEnabled;
 @property bool deviceSpoofCloudToken;
 @property bool deviceSpoofDeviceChecker;
 @property bool deviceSpoofAppAttest;
@@ -136,6 +137,7 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property (nonatomic) NSString* deviceSpoofStorageCapacity; // GB string e.g. "256"
 @property bool deviceSpoofStorageRandomFree;
 @property bool deviceSpoofBrightness;
+@property bool deviceSpoofBrightnessRandomize;
 @property float deviceSpoofBrightnessValue;    // 0.0 – 1.0
 @property bool deviceSpoofThermal;
 @property int deviceSpoofThermalState;         // 0=nominal,1=fair,2=serious,3=critical
@@ -155,5 +157,9 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 - (UIImage *)generateLiveContainerWrappedIconWithStyle:(GeneratedIconStyle)style;
 - (NSDictionary *)generateWebClipConfigWithContainerId:(NSString*)containerId iconStyle:(GeneratedIconStyle)style;
 - (void)save;
+- (void)saveAddonSettingsForContainer:(NSString *)containerId;
+- (void)loadAddonSettingsForContainer:(NSString *)containerId
+          fallbackSpoofIdentifierForVendor:(BOOL)fallbackSpoofIdentifierForVendor
+                           fallbackVendorID:(NSString * _Nullable)fallbackVendorID;
 - (void)patchExecAndSignIfNeedWithCompletionHandler:(void(^)(bool success, NSString* errorInfo))completetionHandler progressHandler:(void(^)(NSProgress* progress))progressHandler  forceSign:(BOOL)forceSign;
 @end

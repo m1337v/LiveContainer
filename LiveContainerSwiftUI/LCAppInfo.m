@@ -12,7 +12,46 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 @interface LCAppInfo()
 @property UIImage* cachedIcon;
 @property UIImage* cachedIconDark;
+@property (nonatomic, readonly) NSMutableDictionary *lcMutableAddonSettingsByContainer;
+@property (nonatomic, readonly) NSDictionary *lcCurrentContainerAddonSettings;
+@property (nonatomic, readonly) NSString *lcCurrentAddonContainerId;
 @end
+
+static NSString * const kLCAddonSettingsByContainerKey = @"LCAddonSettingsByContainer";
+
+static NSSet<NSString *> *LCAddonScopedLegacyKeys(void) {
+    static NSSet<NSString *> *keys = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        keys = [NSSet setWithArray:@[
+            @"spoofGPS",
+            @"spoofLatitude",
+            @"spoofLongitude",
+            @"spoofAltitude",
+            @"spoofLocationName",
+            @"spoofCamera",
+            @"spoofCameraType",
+            @"spoofCameraImagePath",
+            @"spoofCameraVideoPath",
+            @"spoofCameraLoop",
+            @"spoofCameraMode",
+            @"spoofCameraTransformOrientation",
+            @"spoofCameraTransformScale",
+            @"spoofCameraTransformFlip",
+        ]];
+    });
+    return keys;
+}
+
+static BOOL LCIsContainerScopedAddonKey(NSString *key) {
+    if (key.length == 0) {
+        return NO;
+    }
+    if ([key hasPrefix:@"deviceSpoof"] || [key hasPrefix:@"enableSpoof"]) {
+        return YES;
+    }
+    return [LCAddonScopedLegacyKeys() containsObject:key];
+}
 
 @implementation LCAppInfo
 
@@ -292,6 +331,119 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     };
 }
 
+- (NSString *)lcCurrentAddonContainerId {
+    NSString *containerId = _info[@"LCDataUUID"];
+    if ([containerId isKindOfClass:[NSString class]] && containerId.length > 0) {
+        return containerId;
+    }
+    return nil;
+}
+
+- (NSMutableDictionary *)lcMutableAddonSettingsByContainer {
+    id existing = _info[kLCAddonSettingsByContainerKey];
+    NSMutableDictionary *mutable = nil;
+    if ([existing isKindOfClass:[NSDictionary class]]) {
+        mutable = [((NSDictionary *)existing) mutableCopy];
+    }
+    if (!mutable) {
+        mutable = [NSMutableDictionary dictionary];
+    }
+    _info[kLCAddonSettingsByContainerKey] = mutable;
+    return mutable;
+}
+
+- (NSDictionary *)lcCurrentContainerAddonSettings {
+    NSString *containerId = self.lcCurrentAddonContainerId;
+    if (containerId.length == 0) {
+        return nil;
+    }
+    NSDictionary *settingsByContainer = _info[kLCAddonSettingsByContainerKey];
+    if (![settingsByContainer isKindOfClass:[NSDictionary class]]) {
+        return nil;
+    }
+    id settings = settingsByContainer[containerId];
+    return [settings isKindOfClass:[NSDictionary class]] ? settings : nil;
+}
+
+- (void)lcSyncAddonSettingsForContainer:(NSString *)containerId {
+    if (containerId.length == 0) {
+        return;
+    }
+
+    NSMutableDictionary *settings = [NSMutableDictionary dictionary];
+    for (NSString *key in [_info allKeys]) {
+        if (!LCIsContainerScopedAddonKey(key)) {
+            continue;
+        }
+        id value = _info[key];
+        if (value != nil) {
+            settings[key] = value;
+        }
+    }
+
+    NSMutableDictionary *settingsByContainer = self.lcMutableAddonSettingsByContainer;
+    if (settings.count > 0) {
+        settingsByContainer[containerId] = settings;
+    } else {
+        [settingsByContainer removeObjectForKey:containerId];
+    }
+}
+
+- (void)saveAddonSettingsForContainer:(NSString *)containerId {
+    [self lcSyncAddonSettingsForContainer:containerId];
+    [self save];
+}
+
+- (void)loadAddonSettingsForContainer:(NSString *)containerId
+          fallbackSpoofIdentifierForVendor:(BOOL)fallbackSpoofIdentifierForVendor
+                           fallbackVendorID:(NSString *)fallbackVendorID {
+    NSDictionary *settingsByContainer = _info[kLCAddonSettingsByContainerKey];
+    NSDictionary *containerSettings = nil;
+    if ([settingsByContainer isKindOfClass:[NSDictionary class]] && containerId.length > 0) {
+        id settings = settingsByContainer[containerId];
+        if ([settings isKindOfClass:[NSDictionary class]]) {
+            containerSettings = settings;
+        }
+    }
+
+    NSArray<NSString *> *existingKeys = [[_info allKeys] copy];
+    for (NSString *key in existingKeys) {
+        if (LCIsContainerScopedAddonKey(key)) {
+            [_info removeObjectForKey:key];
+        }
+    }
+
+    if (containerSettings) {
+        [containerSettings enumerateKeysAndObjectsUsingBlock:^(NSString *key, id value, BOOL *stop) {
+            if (LCIsContainerScopedAddonKey(key) && value != nil && ![value isKindOfClass:[NSNull class]]) {
+                _info[key] = value;
+            }
+        }];
+    }
+
+    BOOL spoofIDFV = fallbackSpoofIdentifierForVendor;
+    _info[@"deviceSpoofIdentifiers"] = @(spoofIDFV);
+
+    NSString *vendorID = @"";
+    if ([fallbackVendorID isKindOfClass:[NSString class]]) {
+        vendorID = fallbackVendorID;
+    }
+    id scopedVendor = containerSettings[@"deviceSpoofVendorID"];
+    if (vendorID.length == 0 && [scopedVendor isKindOfClass:[NSString class]]) {
+        vendorID = scopedVendor;
+    }
+
+    if (spoofIDFV) {
+        if (vendorID.length == 0) {
+            vendorID = [NSUUID UUID].UUIDString;
+        }
+        _info[@"deviceSpoofVendorID"] = vendorID;
+        _info[@"deviceSpoofingEnabled"] = @YES;
+    } else {
+        [_info removeObjectForKey:@"deviceSpoofVendorID"];
+    }
+}
+
 - (void)save {
     NSArray<NSString *> *deprecatedProxyKeys = @[
         @"spoofNetwork",
@@ -303,6 +455,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
         @"spoofNetworkMode"
     ];
     [_info removeObjectsForKeys:deprecatedProxyKeys];
+    [self lcSyncAddonSettingsForContainer:self.lcCurrentAddonContainerId];
 
     if(!_autoSaveDisabled) {
         [_info writeBinToFile:[NSString stringWithFormat:@"%@/LCAppInfo.plist", _bundlePath] atomically:YES];
@@ -1180,6 +1333,18 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     [self save];
 }
 
+- (bool)deviceSpoofSecurityEnabled {
+    if (_info[@"deviceSpoofSecurityEnabled"] != nil) {
+        return [_info[@"deviceSpoofSecurityEnabled"] boolValue];
+    }
+    return YES;
+}
+
+- (void)setDeviceSpoofSecurityEnabled:(bool)enabled {
+    _info[@"deviceSpoofSecurityEnabled"] = @(enabled);
+    [self save];
+}
+
 - (bool)deviceSpoofCloudToken {
     if (_info[@"deviceSpoofCloudToken"] != nil) {
         return [_info[@"deviceSpoofCloudToken"] boolValue];
@@ -1187,7 +1352,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     if (_info[@"enableSpoofCloudToken"] != nil) {
         return [_info[@"enableSpoofCloudToken"] boolValue];
     }
-    return NO;
+    return self.deviceSpoofSecurityEnabled;
 }
 
 - (void)setDeviceSpoofCloudToken:(bool)enabled {
@@ -1202,7 +1367,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     if (_info[@"enableSpoofDeviceChecker"] != nil) {
         return [_info[@"enableSpoofDeviceChecker"] boolValue];
     }
-    return NO;
+    return self.deviceSpoofSecurityEnabled;
 }
 
 - (void)setDeviceSpoofDeviceChecker:(bool)enabled {
@@ -1217,7 +1382,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     if (_info[@"enableSpoofAppAttest"] != nil) {
         return [_info[@"enableSpoofAppAttest"] boolValue];
     }
-    return NO;
+    return self.deviceSpoofSecurityEnabled;
 }
 
 - (void)setDeviceSpoofAppAttest:(bool)enabled {
@@ -1477,7 +1642,10 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 }
 
 - (bool)deviceSpoofScreenCapture {
-    return [_info[@"deviceSpoofScreenCapture"] boolValue];
+    if (_info[@"deviceSpoofScreenCapture"] != nil) {
+        return [_info[@"deviceSpoofScreenCapture"] boolValue];
+    }
+    return self.deviceSpoofSecurityEnabled;
 }
 
 - (void)setDeviceSpoofScreenCapture:(bool)enabled {
@@ -1486,7 +1654,10 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 }
 
 - (bool)enableSpoofMessage {
-    return [_info[@"enableSpoofMessage"] boolValue];
+    if (_info[@"enableSpoofMessage"] != nil) {
+        return [_info[@"enableSpoofMessage"] boolValue];
+    }
+    return self.deviceSpoofSecurityEnabled;
 }
 
 - (void)setEnableSpoofMessage:(bool)enabled {
@@ -1495,7 +1666,10 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 }
 
 - (bool)enableSpoofMail {
-    return [_info[@"enableSpoofMail"] boolValue];
+    if (_info[@"enableSpoofMail"] != nil) {
+        return [_info[@"enableSpoofMail"] boolValue];
+    }
+    return self.deviceSpoofSecurityEnabled;
 }
 
 - (void)setEnableSpoofMail:(bool)enabled {
@@ -1504,7 +1678,10 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 }
 
 - (bool)enableSpoofBugsnag {
-    return [_info[@"enableSpoofBugsnag"] boolValue];
+    if (_info[@"enableSpoofBugsnag"] != nil) {
+        return [_info[@"enableSpoofBugsnag"] boolValue];
+    }
+    return self.deviceSpoofSecurityEnabled;
 }
 
 - (void)setEnableSpoofBugsnag:(bool)enabled {
@@ -1513,7 +1690,10 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 }
 
 - (bool)enableSpoofCrane {
-    return [_info[@"enableSpoofCrane"] boolValue];
+    if (_info[@"enableSpoofCrane"] != nil) {
+        return [_info[@"enableSpoofCrane"] boolValue];
+    }
+    return self.deviceSpoofSecurityEnabled;
 }
 
 - (void)setEnableSpoofCrane:(bool)enabled {
@@ -1522,7 +1702,10 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 }
 
 - (bool)enableSpoofPasteboard {
-    return [_info[@"enableSpoofPasteboard"] boolValue];
+    if (_info[@"enableSpoofPasteboard"] != nil) {
+        return [_info[@"enableSpoofPasteboard"] boolValue];
+    }
+    return self.deviceSpoofSecurityEnabled;
 }
 
 - (void)setEnableSpoofPasteboard:(bool)enabled {
@@ -1531,7 +1714,10 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 }
 
 - (bool)enableSpoofAlbum {
-    return [_info[@"enableSpoofAlbum"] boolValue];
+    if (_info[@"enableSpoofAlbum"] != nil) {
+        return [_info[@"enableSpoofAlbum"] boolValue];
+    }
+    return self.deviceSpoofSecurityEnabled;
 }
 
 - (void)setEnableSpoofAlbum:(bool)enabled {
@@ -1543,7 +1729,7 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     if (_info[@"enableSpoofAppium"] != nil) {
         return [_info[@"enableSpoofAppium"] boolValue];
     }
-    return NO;
+    return self.deviceSpoofSecurityEnabled;
 }
 
 - (void)setEnableSpoofAppium:(bool)enabled {
@@ -1898,6 +2084,17 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 }
 - (void)setDeviceSpoofBrightness:(bool)enabled {
     _info[@"deviceSpoofBrightness"] = @(enabled);
+    [self save];
+}
+
+- (bool)deviceSpoofBrightnessRandomize {
+    if (_info[@"deviceSpoofBrightnessRandomize"] != nil) {
+        return [_info[@"deviceSpoofBrightnessRandomize"] boolValue];
+    }
+    return NO;
+}
+- (void)setDeviceSpoofBrightnessRandomize:(bool)enabled {
+    _info[@"deviceSpoofBrightnessRandomize"] = @(enabled);
     [self save];
 }
 

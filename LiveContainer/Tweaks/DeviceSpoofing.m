@@ -3484,7 +3484,12 @@ float LCGetSpoofedBrightness(void) {
 }
 
 void LCRandomizeBrightness(void) {
-    // Ghost-parity mode: no runtime randomization.
+    g_brightnessConfigured = YES;
+    // Keep realistic values and avoid extreme always-min/max outputs.
+    float value = 0.18f + ((float)arc4random_uniform(73) / 100.0f); // 0.18 - 0.90
+    if (value < 0.05f) value = 0.05f;
+    if (value > 1.0f) value = 1.0f;
+    g_spoofedBrightness = value;
 }
 
 void LCSetSpoofedThermalState(NSInteger state) {

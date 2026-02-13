@@ -1944,6 +1944,30 @@ struct LCAppSettingsView: View {
                         }
                     }
                 }
+
+                if !model.uiContainers.isEmpty {
+                    Picker("Addon Settings Container", selection: $model.uiAddonSettingsContainerFolderName) {
+                        ForEach(model.uiContainers, id: \.folderName) { container in
+                            Text(container.name).tag(container.folderName)
+                        }
+                    }
+                    .pickerStyle(MenuPickerStyle())
+                    .onChange(of: model.uiAddonSettingsContainerFolderName) { folderName in
+                        if model.uiDefaultDataFolder != folderName {
+                            model.switchAddonSettingsContainer(to: folderName)
+                        }
+                    }
+                    .onAppear {
+                        model.refreshAddonSettingsContainerSelection()
+                    }
+                    .onChange(of: model.uiContainers.count) { _ in
+                        model.refreshAddonSettingsContainerSelection()
+                    }
+
+                    Text("Location, camera, and device fingerprinting settings below are saved per selected container. Selecting one also sets it as the default container.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
                 
                 if(model.uiContainers.count < SharedModel.keychainAccessGroupCount) {
                     Button {
@@ -2339,11 +2363,15 @@ struct LCAppSettingsView: View {
                 deviceSpoofSectionHeader("Runtime")
                 deviceSpoofHardwareSection()
                 deviceSpoofKernelSection()
-                deviceSpoofSensorsSection()
                 deviceSpoofBootTimeSection()
-                deviceSpoofBatterySection()
                 deviceSpoofStorageSection()
+
+                deviceSpoofSectionHeader("Screen")
+                deviceSpoofSensorsSection()
                 deviceSpoofBrightnessSection()
+
+                deviceSpoofSectionHeader("Battery")
+                deviceSpoofBatterySection()
                 deviceSpoofThermalSection()
                 deviceSpoofLowPowerSection()
 
@@ -2352,7 +2380,6 @@ struct LCAppSettingsView: View {
 
                 deviceSpoofSectionHeader("Security")
                 deviceSpoofSecuritySection()
-                deviceSpoofScreenCaptureSection()
             }
         } header: {
             Text("Device Fingerprinting Protection")
@@ -2402,6 +2429,9 @@ struct LCAppSettingsView: View {
                 }
             }
             .pickerStyle(MenuPickerStyle())
+        }
+        .onChange(of: model.uiDeviceSpoofProfile) { _ in
+            applyProfileDefaultsIfNeeded(force: false)
         }
     }
 
@@ -2554,6 +2584,15 @@ struct LCAppSettingsView: View {
                             .frame(maxWidth: 70)
                     }
                 }
+
+                Button {
+                    randomizeCarrierProfile()
+                } label: {
+                    Label("Randomize Carrier", systemImage: "dice")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
             .padding(.leading, 28)
         }
@@ -2830,6 +2869,16 @@ struct LCAppSettingsView: View {
                 .disableAutocorrection(true)
                 .padding(.leading, 28)
         }
+
+        Button {
+            randomizeNetworkProfile()
+        } label: {
+            Label("Randomize Network", systemImage: "dice")
+                .font(.caption)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .padding(.leading, 28)
     }
 
     // MARK: Hardware
@@ -2885,8 +2934,22 @@ struct LCAppSettingsView: View {
                 Text("Spoof Kernel Version")
             }
         }
+        .onChange(of: model.uiDeviceSpoofKernelVersionEnabled) { enabled in
+            if enabled {
+                applyProfileDefaultsIfNeeded(force: false)
+            }
+        }
         if model.uiDeviceSpoofKernelVersionEnabled {
             VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    applyProfileDefaultsIfNeeded(force: true)
+                } label: {
+                    Label("Use Matching Profile Defaults", systemImage: "wand.and.stars")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
                 TextField("Darwin Kernel Version ...", text: $model.uiDeviceSpoofKernelVersion)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .font(.system(.caption, design: .monospaced))
@@ -2898,6 +2961,9 @@ struct LCAppSettingsView: View {
                     .font(.system(.caption, design: .monospaced))
                     .autocapitalization(.none)
                     .disableAutocorrection(true)
+            }
+            .onAppear {
+                applyProfileDefaultsIfNeeded(force: false)
             }
             .padding(.leading, 28)
         }
@@ -3098,15 +3164,27 @@ struct LCAppSettingsView: View {
             }
         }
         if model.uiDeviceSpoofBrightness {
-            HStack {
-                Image(systemName: "sun.min")
-                    .foregroundColor(.secondary)
-                Slider(value: $model.uiDeviceSpoofBrightnessValue, in: 0.0...1.0, step: 0.05)
-                Image(systemName: "sun.max")
-                    .foregroundColor(.secondary)
-                Text("\(Int(model.uiDeviceSpoofBrightnessValue * 100))%")
-                    .font(.system(.caption, design: .monospaced))
-                    .frame(width: 40, alignment: .trailing)
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle(isOn: $model.uiDeviceSpoofBrightnessRandomize) {
+                    Text("Randomize brightness on launch")
+                        .font(.caption)
+                }
+                if model.uiDeviceSpoofBrightnessRandomize {
+                    Text("Generates a realistic brightness value each launch.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                } else {
+                    HStack {
+                        Image(systemName: "sun.min")
+                            .foregroundColor(.secondary)
+                        Slider(value: $model.uiDeviceSpoofBrightnessValue, in: 0.0...1.0, step: 0.05)
+                        Image(systemName: "sun.max")
+                            .foregroundColor(.secondary)
+                        Text("\(Int(model.uiDeviceSpoofBrightnessValue * 100))%")
+                            .font(.system(.caption, design: .monospaced))
+                            .frame(width: 40, alignment: .trailing)
+                    }
+                }
             }
             .padding(.leading, 28)
         }
@@ -3158,61 +3236,28 @@ struct LCAppSettingsView: View {
     // MARK: Security
     @ViewBuilder
     private func deviceSpoofSecuritySection() -> some View {
-        Toggle(isOn: $model.uiDeviceSpoofCloudToken) {
+        Toggle(isOn: $model.uiDeviceSpoofSecurityEnabled) {
             HStack {
-                Image(systemName: "icloud.slash")
-                    .foregroundColor(.blue)
-                    .frame(width: 20)
-                Text("☁️ Mask iCloud Identity Token")
-            }
-        }
-        Toggle(isOn: $model.uiDeviceSpoofDeviceChecker) {
-            HStack {
-                Image(systemName: "checkmark.shield")
+                Image(systemName: "shield.lefthalf.filled")
                     .foregroundColor(.orange)
                     .frame(width: 20)
-                Text("🛡️ Spoof DeviceCheck (DCDevice)")
-            }
-        }
-        Toggle(isOn: $model.uiDeviceSpoofAppAttest) {
-            HStack {
-                Image(systemName: "lock.shield")
-                    .foregroundColor(.orange)
-                    .frame(width: 20)
-                Text("🔐 Spoof App Attest")
-            }
-        }
-    }
-
-    // MARK: Screenshot Prevention Group
-    @ViewBuilder
-    private func deviceSpoofScreenCaptureSection() -> some View {
-        Toggle(isOn: $model.uiDeviceSpoofScreenCapture) {
-            HStack {
-                Image(systemName: "record.circle")
-                    .foregroundColor(.red)
-                    .frame(width: 20)
-                Text("Block Screen Capture Detection")
+                Text("Enable Security Protections")
             }
         }
 
         VStack(alignment: .leading, spacing: 8) {
-            Toggle("💬 Force `canSendText` (Message)", isOn: $model.uiDeviceSpoofMessage)
-                .font(.caption)
-            Toggle("✉️ Force `canSendMail` (Mail)", isOn: $model.uiDeviceSpoofMail)
-                .font(.caption)
-            Toggle("🐞 Patch Bugsnag jailbreak payloads", isOn: $model.uiDeviceSpoofBugsnag)
-                .font(.caption)
-            Toggle("🧱 Hide Crane markers in strings", isOn: $model.uiDeviceSpoofCrane)
-                .font(.caption)
-            Toggle("📋 Disable pasteboard string reads", isOn: $model.uiDeviceSpoofPasteboard)
-                .font(.caption)
-            Toggle("🤖 Hide Appium/WebDriver markers", isOn: $model.uiDeviceSpoofAppium)
-                .font(.caption)
-            Toggle("🖼️ Filter photo albums by blacklist", isOn: $model.uiDeviceSpoofAlbum)
-                .font(.caption)
+            Text("Includes:")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            Text("☁️ iCloud token masking, 🛡️ DeviceCheck, 🔐 App Attest")
+                .font(.caption2)
+            Text("💬 text, ✉️ mail, 🐞 Bugsnag, 🧱 Crane, 📋 pasteboard, 🤖 Appium markers")
+                .font(.caption2)
+            Text("🖼️ album filtering and screenshot-detection blocking")
+                .font(.caption2)
+                .foregroundColor(.secondary)
 
-            if model.uiDeviceSpoofAlbum {
+            if model.uiDeviceSpoofSecurityEnabled {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Album Blacklist (`localIdentifier-title`, one per line)")
                         .font(.caption2)
@@ -3226,10 +3271,6 @@ struct LCAppSettingsView: View {
                         )
                 }
             }
-
-            Text("Any toggle in this group enables the shared screenshot-prevention hook set.")
-                .font(.caption2)
-                .foregroundColor(.secondary)
         }
         .padding(.leading, 28)
     }
@@ -3248,6 +3289,130 @@ struct LCAppSettingsView: View {
                 model.uiDeviceSpoofAlbumBlacklist = entries.filter { seen.insert($0).inserted }
             }
         )
+    }
+
+    private func randomizeCarrierProfile() {
+        let presets: [(name: String, mcc: String, mnc: String, country: String)] = [
+            ("Verizon", "311", "480", "us"),
+            ("AT&T", "310", "410", "us"),
+            ("T-Mobile", "310", "260", "us"),
+            ("Vodafone", "234", "15", "gb"),
+            ("O2", "234", "10", "gb"),
+            ("Orange", "208", "01", "fr"),
+            ("Telekom", "262", "01", "de"),
+        ]
+        guard let preset = presets.randomElement() else { return }
+        model.uiDeviceSpoofCarrier = true
+        model.uiDeviceSpoofCarrierName = preset.name
+        model.uiDeviceSpoofMCC = preset.mcc
+        model.uiDeviceSpoofMNC = preset.mnc
+        model.uiDeviceSpoofCarrierCountry = preset.country
+    }
+
+    private func randomizeNetworkProfile() {
+        let ssids = [
+            "Public Network",
+            "Cafe WiFi",
+            "Airport Free WiFi",
+            "HomeRouter",
+            "Office Guest",
+        ]
+        model.uiDeviceSpoofNetworkInfo = true
+        model.uiDeviceSpoofWiFiAddressEnabled = true
+        model.uiDeviceSpoofCellularAddressEnabled = true
+        model.uiDeviceSpoofWiFiSSID = ssids.randomElement() ?? "Public Network"
+        model.uiDeviceSpoofWiFiBSSID = randomBSSID()
+        model.uiDeviceSpoofWiFiAddress = randomPrivateIPv4()
+        model.uiDeviceSpoofCellularAddress = randomCellularIPv4()
+    }
+
+    private func randomPrivateIPv4() -> String {
+        let host = Int.random(in: 2...254)
+        switch Int.random(in: 0...2) {
+        case 0:
+            return "192.168.\(Int.random(in: 0...255)).\(host)"
+        case 1:
+            return "172.\(Int.random(in: 16...31)).\(Int.random(in: 0...255)).\(host)"
+        default:
+            return "10.\(Int.random(in: 0...255)).\(Int.random(in: 0...255)).\(host)"
+        }
+    }
+
+    private func randomCellularIPv4() -> String {
+        return "10.\(Int.random(in: 0...255)).\(Int.random(in: 0...255)).\(Int.random(in: 2...254))"
+    }
+
+    private func randomBSSID() -> String {
+        let bytes = (0..<6).map { _ in String(format: "%02X", Int.random(in: 0...255)) }
+        return bytes.joined(separator: ":")
+    }
+
+    private func applyProfileDefaultsIfNeeded(force: Bool) {
+        guard let defaults = kernelDefaultsForProfile(model.uiDeviceSpoofProfile) else { return }
+
+        let build = model.uiDeviceSpoofBuildVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+        if force || build.isEmpty {
+            model.uiDeviceSpoofBuildVersion = defaults.build
+        }
+
+        let kernelVersion = model.uiDeviceSpoofKernelVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+        if force || kernelVersion.isEmpty {
+            model.uiDeviceSpoofKernelVersion = defaults.kernelVersion
+        }
+
+        let kernelRelease = model.uiDeviceSpoofKernelRelease.trimmingCharacters(in: .whitespacesAndNewlines)
+        if force || kernelRelease.isEmpty {
+            model.uiDeviceSpoofKernelRelease = defaults.kernelRelease
+        }
+    }
+
+    private func kernelDefaultsForProfile(_ profile: String) -> (build: String, kernelVersion: String, kernelRelease: String)? {
+        switch profile {
+        case "iPhone 17 Pro Max", "iPhone 17 Pro":
+            return (
+                "24A5260a",
+                "Darwin Kernel Version 25.0.0: Wed Jun 11 19:43:22 PDT 2025; root:xnu-12100.1.1~3/RELEASE_ARM64_T8140",
+                "25.0.0"
+            )
+        case "iPhone 17", "iPhone 17 Air":
+            return (
+                "24A5260a",
+                "Darwin Kernel Version 25.0.0: Wed Jun 11 19:43:22 PDT 2025; root:xnu-12100.1.1~3/RELEASE_ARM64_T8130",
+                "25.0.0"
+            )
+        case "iPhone 16 Pro Max", "iPhone 16 Pro":
+            return (
+                "22B83",
+                "Darwin Kernel Version 24.1.0: Thu Oct 10 21:02:45 PDT 2024; root:xnu-11215.41.3~2/RELEASE_ARM64_T8140",
+                "24.1.0"
+            )
+        case "iPhone 16", "iPhone 16e":
+            return (
+                "22B83",
+                "Darwin Kernel Version 24.1.0: Thu Oct 10 21:02:45 PDT 2024; root:xnu-11215.41.3~2/RELEASE_ARM64_T8130",
+                "24.1.0"
+            )
+        case "iPhone 15 Pro Max", "iPhone 15 Pro":
+            return (
+                "21G93",
+                "Darwin Kernel Version 23.6.0: Mon Jul 22 20:46:27 PDT 2024; root:xnu-10063.141.2~1/RELEASE_ARM64_T8130",
+                "23.6.0"
+            )
+        case "iPhone 14 Pro Max", "iPhone 14 Pro":
+            return (
+                "21G93",
+                "Darwin Kernel Version 23.6.0: Mon Jul 22 20:46:27 PDT 2024; root:xnu-10063.141.2~1/RELEASE_ARM64_T8120",
+                "23.6.0"
+            )
+        case "iPhone 13 Pro Max", "iPhone 13 Pro":
+            return (
+                "21G93",
+                "Darwin Kernel Version 23.6.0: Mon Jul 22 20:46:27 PDT 2024; root:xnu-10063.141.2~1/RELEASE_ARM64_T8110",
+                "23.6.0"
+            )
+        default:
+            return nil
+        }
     }
 
     func createFolder() async {
@@ -3292,8 +3457,7 @@ struct LCAppSettingsView: View {
             model.uiSelectedContainer = newContainer;
         }
         if model.uiDefaultDataFolder == nil {
-            model.uiDefaultDataFolder = newName
-            appInfo.dataUUID = newName
+            model.switchAddonSettingsContainer(to: newName)
         }
         appInfo.containers = model.uiContainers;
         newContainer.makeLCContainerInfoPlist(appIdentifier: appInfo.bundleIdentifier()!, keychainGroupId: freeKeyChainGroup)
@@ -3364,8 +3528,7 @@ struct LCAppSettingsView: View {
                 model.uiSelectedContainer = container;
             }
             if model.uiDefaultDataFolder == nil {
-                model.uiDefaultDataFolder = url.lastPathComponent
-                appInfo.dataUUID = url.lastPathComponent
+                model.switchAddonSettingsContainer(to: url.lastPathComponent)
             }
 
         } catch {
@@ -3529,23 +3692,24 @@ extension LCAppSettingsView : LCContainerViewDelegate {
         if model.uiContainers.isEmpty {
             model.uiSelectedContainer = nil
             model.uiDefaultDataFolder = nil
+            model.uiAddonSettingsContainerFolderName = ""
             appInfo.dataUUID = nil
+        } else {
+            model.refreshAddonSettingsContainerSelection()
         }
         appInfo.containers = model.uiContainers
     }
     
     func setDefaultContainer(container newDefaultContainer: LCContainer ) {
-        if model.uiSelectedContainer?.folderName == model.uiDefaultDataFolder {
-            model.uiSelectedContainer = newDefaultContainer
-        }
-        
-        appInfo.dataUUID = newDefaultContainer.folderName
-        model.uiDefaultDataFolder = newDefaultContainer.folderName
+        model.switchAddonSettingsContainer(to: newDefaultContainer.folderName)
     }
     
     func saveContainer(container: LCContainer) {
         container.makeLCContainerInfoPlist(appIdentifier: appInfo.bundleIdentifier()!, keychainGroupId: container.keychainGroupId)
         appInfo.containers = model.uiContainers
+        if container.folderName == model.uiAddonSettingsContainerFolderName {
+            model.switchAddonSettingsContainer(to: container.folderName)
+        }
         model.objectWillChange.send()
     }
     
@@ -3605,8 +3769,7 @@ extension LCAppSettingsView : LCSelectContainerViewDelegate {
                 model.uiSelectedContainer = newContainer;
             }
             if model.uiDefaultDataFolder == nil {
-                model.uiDefaultDataFolder = folderName
-                appInfo.dataUUID = folderName
+                model.switchAddonSettingsContainer(to: folderName)
             }
 
 

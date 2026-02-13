@@ -30,6 +30,7 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var uiDefaultDataFolder : String?
     @Published var uiContainers : [LCContainer]
     @Published var uiSelectedContainer : LCContainer?
+    @Published var uiAddonSettingsContainerFolderName : String
 #if is32BitSupported
     @Published var uiIs32bit : Bool
 #endif
@@ -254,11 +255,17 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var uiDeviceSpoofIdentifiers: Bool {
         didSet {
             appInfo.deviceSpoofIdentifiers = uiDeviceSpoofIdentifiers
+            if !isApplyingAddonContainerSettings {
+                syncCurrentContainerIDFVWithDeviceSpoofing()
+            }
         }
     }
     @Published var uiDeviceSpoofVendorID: String {
         didSet {
             appInfo.deviceSpoofVendorID = uiDeviceSpoofVendorID
+            if !isApplyingAddonContainerSettings {
+                syncCurrentContainerIDFVWithDeviceSpoofing()
+            }
         }
     }
     @Published var uiDeviceSpoofAdvertisingID: String {
@@ -269,6 +276,25 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var uiDeviceSpoofPersistentDeviceID: String {
         didSet {
             appInfo.deviceSpoofPersistentDeviceID = uiDeviceSpoofPersistentDeviceID
+        }
+    }
+    @Published var uiDeviceSpoofSecurityEnabled: Bool {
+        didSet {
+            appInfo.deviceSpoofSecurityEnabled = uiDeviceSpoofSecurityEnabled
+            if isApplyingAddonContainerSettings {
+                return
+            }
+            uiDeviceSpoofCloudToken = uiDeviceSpoofSecurityEnabled
+            uiDeviceSpoofDeviceChecker = uiDeviceSpoofSecurityEnabled
+            uiDeviceSpoofAppAttest = uiDeviceSpoofSecurityEnabled
+            uiDeviceSpoofScreenCapture = uiDeviceSpoofSecurityEnabled
+            uiDeviceSpoofMessage = uiDeviceSpoofSecurityEnabled
+            uiDeviceSpoofMail = uiDeviceSpoofSecurityEnabled
+            uiDeviceSpoofBugsnag = uiDeviceSpoofSecurityEnabled
+            uiDeviceSpoofCrane = uiDeviceSpoofSecurityEnabled
+            uiDeviceSpoofPasteboard = uiDeviceSpoofSecurityEnabled
+            uiDeviceSpoofAlbum = uiDeviceSpoofSecurityEnabled
+            uiDeviceSpoofAppium = uiDeviceSpoofSecurityEnabled
         }
     }
     @Published var uiDeviceSpoofCloudToken: Bool {
@@ -533,6 +559,11 @@ class LCAppModel: ObservableObject, Hashable {
             appInfo.deviceSpoofBrightness = uiDeviceSpoofBrightness
         }
     }
+    @Published var uiDeviceSpoofBrightnessRandomize: Bool {
+        didSet {
+            appInfo.deviceSpoofBrightnessRandomize = uiDeviceSpoofBrightnessRandomize
+        }
+    }
     @Published var uiDeviceSpoofBrightnessValue: Float {
         didSet {
             appInfo.deviceSpoofBrightnessValue = uiDeviceSpoofBrightnessValue
@@ -560,6 +591,7 @@ class LCAppModel: ObservableObject, Hashable {
     }
 
     var delegate : LCAppModelDelegate?
+    private var isApplyingAddonContainerSettings = false
     
     init(appInfo : LCAppInfo, delegate: LCAppModelDelegate? = nil) {
         self.appInfo = appInfo
@@ -576,6 +608,7 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiSelectedLanguage = appInfo.selectedLanguage ?? ""
         self.uiDefaultDataFolder = appInfo.dataUUID
         self.uiContainers = appInfo.containers
+        self.uiAddonSettingsContainerFolderName = appInfo.dataUUID ?? appInfo.containers.first?.folderName ?? ""
         self.uiTweakFolder = appInfo.tweakFolder
         self.uiDoSymlinkInbox = appInfo.doSymlinkInbox
         self.uiOrientationLock = appInfo.orientationLock
@@ -648,6 +681,7 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDeviceSpoofVendorID = appInfo.deviceSpoofVendorID ?? ""
         self.uiDeviceSpoofAdvertisingID = appInfo.deviceSpoofAdvertisingID ?? ""
         self.uiDeviceSpoofPersistentDeviceID = appInfo.deviceSpoofPersistentDeviceID ?? ""
+        self.uiDeviceSpoofSecurityEnabled = appInfo.deviceSpoofSecurityEnabled
         self.uiDeviceSpoofCloudToken = appInfo.deviceSpoofCloudToken
         self.uiDeviceSpoofDeviceChecker = appInfo.deviceSpoofDeviceChecker
         self.uiDeviceSpoofAppAttest = appInfo.deviceSpoofAppAttest
@@ -702,6 +736,7 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDeviceSpoofStorageCapacity = appInfo.deviceSpoofStorageCapacity ?? "256"
         self.uiDeviceSpoofStorageRandomFree = appInfo.deviceSpoofStorageRandomFree
         self.uiDeviceSpoofBrightness = appInfo.deviceSpoofBrightness
+        self.uiDeviceSpoofBrightnessRandomize = appInfo.deviceSpoofBrightnessRandomize
         self.uiDeviceSpoofBrightnessValue = appInfo.deviceSpoofBrightnessValue
         self.uiDeviceSpoofThermal = appInfo.deviceSpoofThermal
         self.uiDeviceSpoofThermalState = Int(appInfo.deviceSpoofThermalState)
@@ -713,6 +748,214 @@ class LCAppModel: ObservableObject, Hashable {
                 self.uiSelectedContainer = container;
                 break
             }
+        }
+        self.refreshAddonSettingsContainerSelection()
+    }
+
+    private func resolvedAddonSettingsContainerFolderName() -> String? {
+        if let currentDataFolder = appInfo.dataUUID, !currentDataFolder.isEmpty {
+            return currentDataFolder
+        }
+        if let uiDefaultDataFolder, !uiDefaultDataFolder.isEmpty {
+            return uiDefaultDataFolder
+        }
+        if !uiAddonSettingsContainerFolderName.isEmpty {
+            return uiAddonSettingsContainerFolderName
+        }
+        return nil
+    }
+
+    private func addonContainer(withFolderName folderName: String) -> LCContainer? {
+        return uiContainers.first { $0.folderName == folderName }
+    }
+
+    private func applyAddonSettingsFromAppInfo() {
+        isApplyingAddonContainerSettings = true
+
+        // GPS
+        self.uiSpoofGPS = appInfo.spoofGPS
+        self.uiSpoofLatitude = appInfo.spoofLatitude
+        self.uiSpoofLongitude = appInfo.spoofLongitude
+        self.uiSpoofAltitude = appInfo.spoofAltitude
+        self.uiSpoofLocationName = appInfo.spoofLocationName ?? ""
+
+        // Camera
+        self.uiSpoofCamera = appInfo.spoofCamera
+        self.uiSpoofCameraType = appInfo.spoofCameraType ?? "video"
+        self.uiSpoofCameraImagePath = appInfo.spoofCameraImagePath ?? ""
+        self.uiSpoofCameraVideoPath = appInfo.spoofCameraVideoPath ?? ""
+        self.uiSpoofCameraLoop = appInfo.spoofCameraLoop
+        self.uiSpoofCameraMode = appInfo.spoofCameraMode ?? "standard"
+        self.uiSpoofCameraTransformOrientation = appInfo.spoofCameraTransformOrientation
+        self.uiSpoofCameraTransformScale = appInfo.spoofCameraTransformScale
+        self.uiSpoofCameraTransformFlip = appInfo.spoofCameraTransformFlip
+
+        // Device spoofing
+        self.uiDeviceSpoofingEnabled = appInfo.deviceSpoofingEnabled
+        self.uiDeviceSpoofProfile = appInfo.deviceSpoofProfile ?? "iPhone 16"
+        self.uiDeviceSpoofCustomVersion = appInfo.deviceSpoofCustomVersion ?? ""
+        self.uiDeviceSpoofDeviceName = appInfo.deviceSpoofDeviceName
+        self.uiDeviceSpoofDeviceNameValue = appInfo.deviceSpoofDeviceNameValue ?? "iPhone"
+        self.uiDeviceSpoofCarrier = appInfo.deviceSpoofCarrier
+        self.uiDeviceSpoofCarrierName = appInfo.deviceSpoofCarrierName ?? "Verizon"
+        self.uiDeviceSpoofMCC = appInfo.deviceSpoofMCC ?? "311"
+        self.uiDeviceSpoofMNC = appInfo.deviceSpoofMNC ?? "480"
+        self.uiDeviceSpoofCarrierCountry = appInfo.deviceSpoofCarrierCountry ?? "us"
+        self.uiDeviceSpoofIdentifiers = appInfo.deviceSpoofIdentifiers
+        self.uiDeviceSpoofVendorID = appInfo.deviceSpoofVendorID ?? ""
+        self.uiDeviceSpoofAdvertisingID = appInfo.deviceSpoofAdvertisingID ?? ""
+        self.uiDeviceSpoofPersistentDeviceID = appInfo.deviceSpoofPersistentDeviceID ?? ""
+        self.uiDeviceSpoofSecurityEnabled = appInfo.deviceSpoofSecurityEnabled
+        self.uiDeviceSpoofCloudToken = appInfo.deviceSpoofCloudToken
+        self.uiDeviceSpoofDeviceChecker = appInfo.deviceSpoofDeviceChecker
+        self.uiDeviceSpoofAppAttest = appInfo.deviceSpoofAppAttest
+        self.uiDeviceSpoofTimezone = appInfo.deviceSpoofTimezone
+        self.uiDeviceSpoofTimezoneValue = appInfo.deviceSpoofTimezoneValue ?? "America/New_York"
+        self.uiDeviceSpoofLocale = appInfo.deviceSpoofLocale
+        self.uiDeviceSpoofLocaleValue = appInfo.deviceSpoofLocaleValue ?? "en_US"
+        self.uiDeviceSpoofLocaleCurrencyCode = appInfo.deviceSpoofLocaleCurrencyCode ?? ""
+        self.uiDeviceSpoofLocaleCurrencySymbol = appInfo.deviceSpoofLocaleCurrencySymbol ?? ""
+        self.uiDeviceSpoofPreferredCountry = appInfo.deviceSpoofPreferredCountry ?? ""
+        self.uiDeviceSpoofCellularTypeEnabled = appInfo.deviceSpoofCellularTypeEnabled
+        self.uiDeviceSpoofCellularType = Int(appInfo.deviceSpoofCellularType)
+        self.uiDeviceSpoofNetworkInfo = appInfo.deviceSpoofNetworkInfo
+        self.uiDeviceSpoofWiFiAddressEnabled = appInfo.deviceSpoofWiFiAddressEnabled
+        self.uiDeviceSpoofCellularAddressEnabled = appInfo.deviceSpoofCellularAddressEnabled
+        self.uiDeviceSpoofWiFiAddress = appInfo.deviceSpoofWiFiAddress ?? ""
+        self.uiDeviceSpoofCellularAddress = appInfo.deviceSpoofCellularAddress ?? ""
+        self.uiDeviceSpoofWiFiSSID = appInfo.deviceSpoofWiFiSSID ?? "Public Network"
+        self.uiDeviceSpoofWiFiBSSID = appInfo.deviceSpoofWiFiBSSID ?? "22:66:99:00"
+        self.uiDeviceSpoofScreenCapture = appInfo.deviceSpoofScreenCapture
+        self.uiDeviceSpoofMessage = appInfo.enableSpoofMessage
+        self.uiDeviceSpoofMail = appInfo.enableSpoofMail
+        self.uiDeviceSpoofBugsnag = appInfo.enableSpoofBugsnag
+        self.uiDeviceSpoofCrane = appInfo.enableSpoofCrane
+        self.uiDeviceSpoofPasteboard = appInfo.enableSpoofPasteboard
+        self.uiDeviceSpoofAlbum = appInfo.enableSpoofAlbum
+        self.uiDeviceSpoofAppium = appInfo.enableSpoofAppium
+        self.uiDeviceSpoofProximity = appInfo.deviceSpoofProximity
+        self.uiDeviceSpoofOrientation = appInfo.deviceSpoofOrientation
+        self.uiDeviceSpoofGyroscope = appInfo.deviceSpoofGyroscope
+        self.uiDeviceSpoofProcessorEnabled = appInfo.deviceSpoofProcessorEnabled
+        self.uiDeviceSpoofProcessorCount = Int(appInfo.deviceSpoofProcessorCount)
+        self.uiDeviceSpoofMemoryEnabled = appInfo.deviceSpoofMemoryEnabled
+        self.uiDeviceSpoofMemoryCount = appInfo.deviceSpoofMemoryCount ?? "8"
+        self.uiDeviceSpoofKernelVersionEnabled = appInfo.deviceSpoofKernelVersionEnabled
+        self.uiDeviceSpoofKernelVersion = appInfo.deviceSpoofKernelVersion ?? ""
+        self.uiDeviceSpoofKernelRelease = appInfo.deviceSpoofKernelRelease ?? ""
+        self.uiDeviceSpoofBuildVersion = appInfo.deviceSpoofBuildVersion ?? ""
+        self.uiDeviceSpoofAlbumBlacklist = (appInfo.deviceSpoofAlbumBlacklist as? [String]) ?? []
+        self.uiDeviceSpoofBootTime = appInfo.deviceSpoofBootTime
+        self.uiDeviceSpoofBootTimeRange = appInfo.deviceSpoofBootTimeRange ?? "medium"
+        self.uiDeviceSpoofBootTimeRandomize = appInfo.deviceSpoofBootTimeRandomize
+        self.uiDeviceSpoofUserAgent = appInfo.deviceSpoofUserAgent
+        self.uiDeviceSpoofUserAgentValue = appInfo.deviceSpoofUserAgentValue ?? ""
+        self.uiDeviceSpoofBattery = appInfo.deviceSpoofBattery
+        self.uiDeviceSpoofBatteryRandomize = appInfo.deviceSpoofBatteryRandomize
+        self.uiDeviceSpoofBatteryLevel = appInfo.deviceSpoofBatteryLevel
+        self.uiDeviceSpoofBatteryState = Int(appInfo.deviceSpoofBatteryState)
+        self.uiDeviceSpoofStorage = appInfo.deviceSpoofStorage
+        self.uiDeviceSpoofStorageCapacity = appInfo.deviceSpoofStorageCapacity ?? "256"
+        self.uiDeviceSpoofStorageRandomFree = appInfo.deviceSpoofStorageRandomFree
+        self.uiDeviceSpoofBrightness = appInfo.deviceSpoofBrightness
+        self.uiDeviceSpoofBrightnessRandomize = appInfo.deviceSpoofBrightnessRandomize
+        self.uiDeviceSpoofBrightnessValue = appInfo.deviceSpoofBrightnessValue
+        self.uiDeviceSpoofThermal = appInfo.deviceSpoofThermal
+        self.uiDeviceSpoofThermalState = Int(appInfo.deviceSpoofThermalState)
+        self.uiDeviceSpoofLowPowerMode = appInfo.deviceSpoofLowPowerMode
+        self.uiDeviceSpoofLowPowerModeValue = appInfo.deviceSpoofLowPowerModeValue
+
+        isApplyingAddonContainerSettings = false
+    }
+
+    func switchAddonSettingsContainer(to folderName: String) {
+        let targetFolder = folderName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !targetFolder.isEmpty else { return }
+        guard uiContainers.contains(where: { $0.folderName == targetFolder }) else { return }
+
+        let currentFolder = appInfo.dataUUID ?? uiDefaultDataFolder
+        if let currentFolder, !currentFolder.isEmpty {
+            appInfo.saveAddonSettings(forContainer: currentFolder)
+        }
+
+        let targetContainer = addonContainer(withFolderName: targetFolder)
+        let fallbackSpoofIDFV = targetContainer?.spoofIdentifierForVendor ?? false
+        let fallbackVendorID = targetContainer?.spoofedIdentifier ?? ""
+        appInfo.loadAddonSettings(
+            forContainer: targetFolder,
+            fallbackSpoofIdentifierForVendor: fallbackSpoofIDFV,
+            fallbackVendorID: fallbackVendorID
+        )
+
+        uiSelectedContainer = targetContainer ?? uiSelectedContainer
+        uiDefaultDataFolder = targetFolder
+        appInfo.dataUUID = targetFolder
+        uiAddonSettingsContainerFolderName = targetFolder
+
+        applyAddonSettingsFromAppInfo()
+        syncCurrentContainerIDFVWithDeviceSpoofing()
+    }
+
+    func refreshAddonSettingsContainerSelection() {
+        if uiContainers.isEmpty {
+            uiAddonSettingsContainerFolderName = ""
+            return
+        }
+
+        if let currentFolder = resolvedAddonSettingsContainerFolderName(),
+           uiContainers.contains(where: { $0.folderName == currentFolder }) {
+            uiAddonSettingsContainerFolderName = currentFolder
+            if uiSelectedContainer == nil {
+                uiSelectedContainer = addonContainer(withFolderName: currentFolder)
+            }
+            return
+        }
+
+        if let uiDefaultDataFolder,
+           uiContainers.contains(where: { $0.folderName == uiDefaultDataFolder }) {
+            switchAddonSettingsContainer(to: uiDefaultDataFolder)
+            return
+        }
+
+        switchAddonSettingsContainer(to: uiContainers[0].folderName)
+    }
+
+    func syncCurrentContainerIDFVWithDeviceSpoofing() {
+        guard let folderName = resolvedAddonSettingsContainerFolderName(),
+              let container = addonContainer(withFolderName: folderName) else {
+            return
+        }
+
+        let normalizedVendorID = uiDeviceSpoofVendorID.trimmingCharacters(in: .whitespacesAndNewlines)
+        container.spoofIdentifierForVendor = uiDeviceSpoofIdentifiers
+        if uiDeviceSpoofIdentifiers {
+            if normalizedVendorID.isEmpty {
+                if container.spoofedIdentifier == nil || container.spoofedIdentifier?.isEmpty == true {
+                    container.spoofedIdentifier = UUID().uuidString
+                }
+            } else {
+                container.spoofedIdentifier = normalizedVendorID
+            }
+        } else if !normalizedVendorID.isEmpty {
+            container.spoofedIdentifier = normalizedVendorID
+        }
+
+        let keychainGroupId = max(container.keychainGroupId, 0)
+        container.makeLCContainerInfoPlist(
+            appIdentifier: appInfo.bundleIdentifier() ?? "",
+            keychainGroupId: keychainGroupId
+        )
+        appInfo.containers = uiContainers
+
+        if uiDeviceSpoofIdentifiers,
+           (uiDeviceSpoofVendorID.isEmpty || uiDeviceSpoofVendorID != container.spoofedIdentifier) {
+            isApplyingAddonContainerSettings = true
+            uiDeviceSpoofVendorID = container.spoofedIdentifier ?? ""
+            isApplyingAddonContainerSettings = false
+            appInfo.deviceSpoofVendorID = uiDeviceSpoofVendorID
+        }
+        if uiDeviceSpoofIdentifiers {
+            appInfo.deviceSpoofingEnabled = true
         }
     }
     
@@ -738,8 +981,7 @@ class LCAppModel: ObservableObject, Hashable {
             }
             appInfo.containers = uiContainers;
             newContainer.makeLCContainerInfoPlist(appIdentifier: appInfo.bundleIdentifier()!, keychainGroupId: Int.random(in: 0..<SharedModel.keychainAccessGroupCount))
-            appInfo.dataUUID = newName
-            uiDefaultDataFolder = newName
+            switchAddonSettingsContainer(to: newName)
         }
         if let containerFolderName {
             uiSelectedContainer = uiContainers.first { $0.folderName == containerFolderName } ?? uiSelectedContainer
