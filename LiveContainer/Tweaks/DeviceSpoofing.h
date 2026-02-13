@@ -135,6 +135,10 @@ void LCSetSpoofedDeviceName(NSString *deviceName);  // e.g., "John's iPhone"
 NSString *LCGetSpoofedDeviceName(void);
 void LCSetSpoofedCarrierName(NSString *carrierName);  // e.g., "Verizon"
 NSString *LCGetSpoofedCarrierName(void);
+void LCSetSpoofedCarrierMCC(NSString *mcc);           // e.g., "311"
+void LCSetSpoofedCarrierMNC(NSString *mnc);           // e.g., "480"
+void LCSetSpoofedCarrierCountryCode(NSString *code);  // e.g., "us"
+void LCSetSpoofedCellularType(NSInteger type);        // 0=NRNSA, 1=LTE, 2=WCDMA
 
 // Identifier spoofing - IDFV/IDFA
 void LCSetSpoofedVendorID(NSString *vendorID);    // Identifier for Vendor (IDFV)
@@ -176,10 +180,16 @@ NSString *LCGetSpoofedTimezone(void);
 // Locale spoofing
 void LCSetSpoofedLocale(NSString *locale);           // e.g., "en_US"
 NSString *LCGetSpoofedLocale(void);
+void LCSetSpoofedPreferredCountryCode(NSString *countryCode); // e.g., "US"
 
 // Screen capture detection blocking
 void LCSetScreenCaptureBlockEnabled(BOOL enabled);   // Block UIScreen.isCaptured
 BOOL LCIsScreenCaptureBlockEnabled(void);
+void LCSetAlbumBlacklistArray(NSArray<NSString *> *blacklist); // "<localId>-<title>" entries
+
+// Device attestation spoofing
+void LCSetDeviceCheckSpoofingEnabled(BOOL enabled);  // DCDevice
+void LCSetAppAttestSpoofingEnabled(BOOL enabled);    // DCAppAttestService
 
 // Random generation helpers
 NSString *LCGenerateRandomUUID(void);

@@ -553,6 +553,24 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             if (carrierName.length > 0) {
                 LCSetSpoofedCarrierName(carrierName);
             }
+            NSString *carrierMCC = guestAppInfo[@"deviceSpoofMCC"];
+            if (carrierMCC.length > 0) {
+                LCSetSpoofedCarrierMCC(carrierMCC);
+            }
+            NSString *carrierMNC = guestAppInfo[@"deviceSpoofMNC"];
+            if (carrierMNC.length > 0) {
+                LCSetSpoofedCarrierMNC(carrierMNC);
+            }
+            NSString *carrierCountry = guestAppInfo[@"deviceSpoofCarrierCountry"];
+            if (carrierCountry.length > 0) {
+                LCSetSpoofedCarrierCountryCode(carrierCountry);
+                LCSetSpoofedPreferredCountryCode(carrierCountry);
+            }
+
+            id cellularTypeObj = guestAppInfo[@"deviceSpoofCellularType"] ?: guestAppInfo[@"cellularType"];
+            if (cellularTypeObj != nil) {
+                LCSetSpoofedCellularType([cellularTypeObj integerValue]);
+            }
         }
 
         // Identifier spoofing (IDFV / IDFA)
@@ -567,6 +585,23 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             }
         }
 
+        BOOL spoofDeviceCheck = [guestAppInfo[@"deviceSpoofDeviceChecker"] boolValue] ||
+                                [guestAppInfo[@"enableSpoofDeviceChecker"] boolValue] ||
+                                [guestAppInfo[@"deviceSpoofIdentifiers"] boolValue];
+        BOOL spoofAppAttest = [guestAppInfo[@"deviceSpoofAppAttest"] boolValue] ||
+                              [guestAppInfo[@"enableSpoofAppAttest"] boolValue] ||
+                              spoofDeviceCheck;
+        LCSetDeviceCheckSpoofingEnabled(spoofDeviceCheck);
+        LCSetAppAttestSpoofingEnabled(spoofAppAttest);
+
+        id cloudTokenSetting = guestAppInfo[@"deviceSpoofCloudToken"];
+        if (cloudTokenSetting == nil) {
+            cloudTokenSetting = guestAppInfo[@"enableSpoofCloudToken"];
+        }
+        if (cloudTokenSetting != nil) {
+            LCSetICloudPrivacyProtectionEnabled([cloudTokenSetting boolValue]);
+        }
+
         // Timezone spoofing
         if ([guestAppInfo[@"deviceSpoofTimezone"] boolValue]) {
             NSString *timezone = guestAppInfo[@"deviceSpoofTimezoneValue"];
@@ -576,16 +611,44 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         }
 
         // Locale spoofing
-        if ([guestAppInfo[@"deviceSpoofLocale"] boolValue]) {
+        BOOL spoofLocale = [guestAppInfo[@"deviceSpoofLocale"] boolValue] ||
+                           [guestAppInfo[@"enableSpoofLocale"] boolValue];
+        if (spoofLocale) {
             NSString *locale = guestAppInfo[@"deviceSpoofLocaleValue"];
+            if (locale.length == 0) {
+                locale = guestAppInfo[@"localeID"];
+            }
             if (locale.length > 0) {
                 LCSetSpoofedLocale(locale);
             }
         }
 
+        NSString *preferredCountry = guestAppInfo[@"deviceSpoofPreferredCountry"];
+        if (preferredCountry.length == 0) {
+            preferredCountry = guestAppInfo[@"localeCountryCode"];
+        }
+        if (preferredCountry.length == 0) {
+            preferredCountry = guestAppInfo[@"deviceSpoofCarrierCountry"];
+        }
+        if (preferredCountry.length > 0) {
+            LCSetSpoofedPreferredCountryCode(preferredCountry);
+        }
+
         // Screen capture detection blocking
-        if ([guestAppInfo[@"deviceSpoofScreenCapture"] boolValue]) {
+        BOOL spoofScreenCaptureGroup = [guestAppInfo[@"deviceSpoofScreenCapture"] boolValue] ||
+                                       [guestAppInfo[@"enableSpoofScreenCapture"] boolValue] ||
+                                       [guestAppInfo[@"enableSpoofMessage"] boolValue] ||
+                                       [guestAppInfo[@"enableSpoofMail"] boolValue] ||
+                                       [guestAppInfo[@"enableSpoofBugsnag"] boolValue] ||
+                                       [guestAppInfo[@"enableSpoofCrane"] boolValue] ||
+                                       [guestAppInfo[@"enableSpoofPasteboard"] boolValue] ||
+                                       [guestAppInfo[@"enableSpoofAlbum"] boolValue];
+        if (spoofScreenCaptureGroup) {
             LCSetScreenCaptureBlockEnabled(YES);
+            id albumBlacklist = guestAppInfo[@"deviceSpoofAlbumBlacklist"] ?: guestAppInfo[@"albumBlacklistArray"];
+            if ([albumBlacklist isKindOfClass:[NSArray class]]) {
+                LCSetAlbumBlacklistArray(albumBlacklist);
+            }
         }
 
         // Boot time / uptime spoofing (Project-X BootTimeHooks parity)

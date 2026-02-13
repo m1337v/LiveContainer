@@ -12,6 +12,7 @@
 #include <sys/socket.h>
 #include <net/if.h>
 #include <netdb.h>
+#include <arpa/inet.h>
 #include <SystemConfiguration/SystemConfiguration.h>
 #include <CFNetwork/CFNetwork.h>
 #import "../../fishhook/fishhook.h"
@@ -59,6 +60,7 @@ intptr_t (*orig_dyld_get_image_vmaddr_slide)(uint32_t image_index) = _dyld_get_i
 const char* (*orig_dyld_get_image_name)(uint32_t image_index) = _dyld_get_image_name;
 // VPN Detection Bypass hooks
 static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
+static CFDictionaryRef (*orig_CNCopyCurrentNetworkInfo)(CFStringRef interfaceName);
 static int (*orig_getifaddrs)(struct ifaddrs **ifap);
 // NWPath C-level
 static void (*orig_nw_path_enumerate_interfaces)(nw_path_t path, nw_path_enumerate_interfaces_block_t enumerate_block);
@@ -95,6 +97,13 @@ static __thread BOOL gInHookNWInterfaceCreateFromNECP = NO;
 static __thread BOOL gInHookNWPathCopyInterfaceWithGeneration = NO;
 static BOOL gLoggedNWInlineHookPolicy = NO;
 static BOOL gLoggedNWAggressiveHookPolicy = NO;
+static BOOL gSpoofNetworkInfoEnabled = NO;
+static BOOL gSpoofWiFiAddressEnabled = NO;
+static BOOL gSpoofCellularAddressEnabled = NO;
+static NSString *gSpoofWiFiAddress = nil;
+static NSString *gSpoofCellularAddress = nil;
+static NSString *gSpoofWiFiSSID = nil;
+static NSString *gSpoofWiFiBSSID = nil;
 // Signal handlers
 // Interface
 @interface NWPath (PrivateMethods)
@@ -854,6 +863,117 @@ static NSString *sanitizeVPNMarkersInString(NSString *text) {
                                          withTemplate:@"en0"];
 }
 
+static BOOL lc_shouldSpoofNetworkInfoForInterface(CFStringRef interfaceName) {
+    if (!interfaceName) {
+        return YES;
+    }
+    if (CFGetTypeID(interfaceName) != CFStringGetTypeID()) {
+        return YES;
+    }
+    if (CFStringCompare(interfaceName, CFSTR("en0"), 0) == kCFCompareEqualTo) {
+        return YES;
+    }
+    return CFStringCompare(interfaceName, CFSTR("awdl0"), 0) == kCFCompareEqualTo;
+}
+
+static CFDictionaryRef lc_buildSpoofedNetworkInfoDictionary(void) {
+    NSString *ssid = gSpoofWiFiSSID.length > 0 ? gSpoofWiFiSSID : @"Public Network";
+    NSString *bssid = gSpoofWiFiBSSID.length > 0 ? gSpoofWiFiBSSID : @"22:66:99:00";
+
+    NSDictionary *info = @{
+        @"SSID": ssid,
+        @"BSSID": bssid,
+    };
+    return CFBridgingRetain(info);
+}
+
+static CFDictionaryRef hook_CNCopyCurrentNetworkInfo(CFStringRef interfaceName) {
+    if (gSpoofNetworkInfoEnabled && lc_shouldSpoofNetworkInfoForInterface(interfaceName)) {
+        return lc_buildSpoofedNetworkInfoDictionary();
+    }
+
+    if (orig_CNCopyCurrentNetworkInfo) {
+        return orig_CNCopyCurrentNetworkInfo(interfaceName);
+    }
+    return NULL;
+}
+
+static void lc_applyAddressSpoofToIfaddrsNode(struct ifaddrs *node) {
+    if (!node || !node->ifa_name || !node->ifa_addr || node->ifa_addr->sa_family != AF_INET) {
+        return;
+    }
+
+    struct sockaddr_in *inAddr = (struct sockaddr_in *)node->ifa_addr;
+    if (!inAddr) {
+        return;
+    }
+
+    const char *name = node->ifa_name;
+    if (gSpoofWiFiAddressEnabled && gSpoofWiFiAddress.length > 0 && strcmp(name, "en0") == 0) {
+        inAddr->sin_addr.s_addr = inet_addr(gSpoofWiFiAddress.UTF8String);
+        return;
+    }
+
+    if (gSpoofCellularAddressEnabled && gSpoofCellularAddress.length > 0 &&
+        (strcmp(name, "pdp_ip0") == 0 || strcmp(name, "en1") == 0)) {
+        inAddr->sin_addr.s_addr = inet_addr(gSpoofCellularAddress.UTF8String);
+    }
+}
+
+static BOOL lc_isValidIPv4Address(NSString *candidate) {
+    if (candidate.length == 0) return NO;
+    struct in_addr tmp = {0};
+    return inet_pton(AF_INET, candidate.UTF8String, &tmp) == 1;
+}
+
+static BOOL lc_guestBool(NSDictionary *guestAppInfo, NSString *primaryKey, NSString *legacyKey) {
+    id primary = primaryKey ? guestAppInfo[primaryKey] : nil;
+    if (primary != nil) return [primary boolValue];
+    id legacy = legacyKey ? guestAppInfo[legacyKey] : nil;
+    return legacy != nil ? [legacy boolValue] : NO;
+}
+
+static NSString *lc_guestString(NSDictionary *guestAppInfo, NSString *primaryKey, NSString *legacyKey) {
+    id primary = primaryKey ? guestAppInfo[primaryKey] : nil;
+    if ([primary isKindOfClass:[NSString class]] && [(NSString *)primary length] > 0) {
+        return primary;
+    }
+    id legacy = legacyKey ? guestAppInfo[legacyKey] : nil;
+    if ([legacy isKindOfClass:[NSString class]] && [(NSString *)legacy length] > 0) {
+        return legacy;
+    }
+    return nil;
+}
+
+static void lc_configureNetworkSpoofing(NSDictionary *guestAppInfo) {
+    gSpoofNetworkInfoEnabled = lc_guestBool(guestAppInfo, @"deviceSpoofNetworkInfo", @"enableSpoofNetworkInfo");
+    gSpoofWiFiAddressEnabled = lc_guestBool(guestAppInfo, @"deviceSpoofWiFiAddressEnabled", @"enableSpoofWiFi");
+    gSpoofCellularAddressEnabled = lc_guestBool(guestAppInfo, @"deviceSpoofCellularAddressEnabled", @"enableSpoofCellular");
+
+    gSpoofWiFiAddress = lc_guestString(guestAppInfo, @"deviceSpoofWiFiAddress", @"wifiAddress");
+    gSpoofCellularAddress = lc_guestString(guestAppInfo, @"deviceSpoofCellularAddress", @"cellularAddress");
+    gSpoofWiFiSSID = lc_guestString(guestAppInfo, @"deviceSpoofWiFiSSID", @"wifiSSID");
+    gSpoofWiFiBSSID = lc_guestString(guestAppInfo, @"deviceSpoofWiFiBSSID", @"wifiBSSID");
+
+    if (guestAppInfo[@"spoofNetwork"] != nil && [guestAppInfo[@"spoofNetwork"] boolValue]) {
+        gSpoofNetworkInfoEnabled = YES;
+    }
+
+    if (!lc_isValidIPv4Address(gSpoofWiFiAddress)) {
+        gSpoofWiFiAddress = nil;
+        gSpoofWiFiAddressEnabled = NO;
+    } else if (!gSpoofWiFiAddressEnabled) {
+        gSpoofWiFiAddressEnabled = YES;
+    }
+
+    if (!lc_isValidIPv4Address(gSpoofCellularAddress)) {
+        gSpoofCellularAddress = nil;
+        gSpoofCellularAddressEnabled = NO;
+    } else if (!gSpoofCellularAddressEnabled) {
+        gSpoofCellularAddressEnabled = YES;
+    }
+}
+
 static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
     // Return completely empty dictionary - exactly like cellular connection
     NSDictionary *emptySettings = @{};
@@ -1198,6 +1318,13 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
         } else {
             prev = current;
             current = current->ifa_next;
+        }
+    }
+
+    if ((gSpoofWiFiAddressEnabled && gSpoofWiFiAddress.length > 0) ||
+        (gSpoofCellularAddressEnabled && gSpoofCellularAddress.length > 0)) {
+        for (struct ifaddrs *node = *ifap; node != NULL; node = node->ifa_next) {
+            lc_applyAddressSpoofToIfaddrsNode(node);
         }
     }
 
@@ -2824,6 +2951,7 @@ static void configureSelectiveBundleIdSpoofing(NSDictionary *guestAppInfo, BOOL 
 void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVersion) {
     // iterate through loaded images and find LiveContainer it self
     NSDictionary *guestAppInfo = [NSUserDefaults guestAppInfo];
+    lc_configureNetworkSpoofing(guestAppInfo);
     bypassSSLPinning = [guestAppInfo[@"bypassSSLPinning"] boolValue];
     configureSelectiveBundleIdSpoofing(guestAppInfo, hideLiveContainer);
 
@@ -2861,8 +2989,9 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
 
     // Keep network/VPN filtering hooks active regardless of hideLiveContainer setting.
     // Default is the minimal upstream path used by NWPath interface production.
-    rebind_symbols((struct rebinding[11]){
+    rebind_symbols((struct rebinding[12]){
                 {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
+                {"CNCopyCurrentNetworkInfo", (void *)hook_CNCopyCurrentNetworkInfo, (void **)&orig_CNCopyCurrentNetworkInfo},
                 {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
                 {"nw_interface_get_name", (void *)hook_nw_interface_get_name, (void **)&orig_nw_interface_get_name},
                 {"nw_interface_get_type", (void *)hook_nw_interface_get_type, (void **)&orig_nw_interface_get_type},
@@ -2873,7 +3002,7 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
                 {"if_nameindex", (void *)hook_if_nameindex, (void **)&orig_if_nameindex},
                 {"if_indextoname", (void *)hook_if_indextoname, (void **)&orig_if_indextoname},
                 {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
-    }, 11);
+    }, 12);
 
     BOOL enableNWAggressiveHooks = lc_shouldEnableNWAggressiveHooks();
     if (!gLoggedNWAggressiveHookPolicy) {
@@ -2979,6 +3108,9 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }
     if (orig_getifaddrs) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_getifaddrs, (void *)hook_getifaddrs, nil);
+    }
+    if (orig_CNCopyCurrentNetworkInfo) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_CNCopyCurrentNetworkInfo, (void *)hook_CNCopyCurrentNetworkInfo, nil);
     }
     if (orig_nw_path_copy_interface) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_interface, (void *)hook_nw_path_copy_interface, nil);
