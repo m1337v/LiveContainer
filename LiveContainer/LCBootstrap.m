@@ -126,6 +126,21 @@ static NSDictionary *LCGuestAppInfoWithMergedAddonSettings(NSDictionary *appInfo
         return appInfo;
     }
 
+    NSMutableDictionary *legacyScopedFallback = [NSMutableDictionary dictionary];
+    for (id keyObj in appInfo) {
+        if (![keyObj isKindOfClass:NSString.class]) {
+            continue;
+        }
+        NSString *key = (NSString *)keyObj;
+        if (!LCIsContainerScopedAddonKey(key)) {
+            continue;
+        }
+        id value = appInfo[key];
+        if (value != nil && ![value isKindOfClass:NSNull.class]) {
+            legacyScopedFallback[key] = value;
+        }
+    }
+
     NSDictionary *containerSettings = nil;
     id settingsByContainerObj = appInfo[@"LCAddonSettingsByContainer"];
     if ([settingsByContainerObj isKindOfClass:NSDictionary.class] && containerId.length > 0) {
@@ -159,6 +174,19 @@ static NSDictionary *LCGuestAppInfoWithMergedAddonSettings(NSDictionary *appInfo
         }
     }
 
+    for (id keyObj in legacyScopedFallback) {
+        if (![keyObj isKindOfClass:NSString.class]) {
+            continue;
+        }
+        NSString *key = (NSString *)keyObj;
+        if (merged[key] == nil) {
+            id value = legacyScopedFallback[key];
+            if (value != nil && ![value isKindOfClass:NSNull.class]) {
+                merged[key] = value;
+            }
+        }
+    }
+
     BOOL spoofIDFV = [containerInfo[@"spoofIdentifierForVendor"] boolValue];
     id scopedSpoofIDFV = containerSettings[@"deviceSpoofIdentifiers"];
     if ([scopedSpoofIDFV respondsToSelector:@selector(boolValue)]) {
@@ -185,6 +213,13 @@ static NSDictionary *LCGuestAppInfoWithMergedAddonSettings(NSDictionary *appInfo
     } else {
         [merged removeObjectForKey:@"deviceSpoofVendorID"];
     }
+
+    NSLog(@"[LC] addon merge container=%@ hasContainerSettings=%@ spoofGPS=%@ lat=%@ lon=%@",
+          containerId ?: @"(nil)",
+          containerSettings ? @"YES" : @"NO",
+          merged[@"spoofGPS"],
+          merged[@"spoofLatitude"],
+          merged[@"spoofLongitude"]);
 
     return [merged copy];
 }

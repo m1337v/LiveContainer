@@ -14,6 +14,42 @@ static double LCDoubleValueOrFallback(id value, double fallback) {
     return fallback;
 }
 
+static NSString *LCActiveContainerFolderName(void) {
+    const char *homePath = getenv("HOME");
+    if (!homePath) {
+        return nil;
+    }
+    NSString *home = [NSString stringWithUTF8String:homePath];
+    if (home.length == 0) {
+        return nil;
+    }
+    return home.lastPathComponent;
+}
+
+static NSDictionary *LCContainerScopedLocationSettingsFromAppInfoFile(void) {
+    NSString *bundlePath = NSBundle.mainBundle.bundlePath;
+    if (bundlePath.length == 0) {
+        return nil;
+    }
+    NSString *appInfoPath = [bundlePath stringByAppendingPathComponent:@"LCAppInfo.plist"];
+    NSDictionary *appInfo = [NSDictionary dictionaryWithContentsOfFile:appInfoPath];
+    if (![appInfo isKindOfClass:NSDictionary.class]) {
+        return nil;
+    }
+
+    NSString *containerFolder = LCActiveContainerFolderName();
+    if (containerFolder.length == 0) {
+        return nil;
+    }
+
+    NSDictionary *settingsByContainer = appInfo[@"LCAddonSettingsByContainer"];
+    if (![settingsByContainer isKindOfClass:NSDictionary.class]) {
+        return nil;
+    }
+    NSDictionary *containerSettings = settingsByContainer[containerFolder];
+    return [containerSettings isKindOfClass:NSDictionary.class] ? containerSettings : nil;
+}
+
 @interface CLLocationManager (GuestHooks)
 - (void)lc_startUpdatingLocation;
 - (void)lc_requestLocation;
@@ -80,19 +116,32 @@ static double LCDoubleValueOrFallback(id value, double fallback) {
 void CoreLocationGuestHooksInit(void) {
     @try {
         NSDictionary *guestAppInfo = NSUserDefaults.guestAppInfo;
+        NSDictionary *containerScopedSettings = LCContainerScopedLocationSettingsFromAppInfoFile();
         
         NSLog(@"[LC] CoreLocationGuestHooksInit: guestAppInfo = %@", guestAppInfo);
+        if (containerScopedSettings) {
+            NSLog(@"[LC] CoreLocationGuestHooksInit: containerScopedSettings = %@", containerScopedSettings);
+        }
         
         if (guestAppInfo) {
-            spoofGPSEnabled = [guestAppInfo[@"spoofGPS"] boolValue];
+            id scopedSpoofGPS = containerScopedSettings[@"spoofGPS"];
+            if ([scopedSpoofGPS respondsToSelector:@selector(boolValue)]) {
+                spoofGPSEnabled = [scopedSpoofGPS boolValue];
+            } else {
+                spoofGPSEnabled = [guestAppInfo[@"spoofGPS"] boolValue];
+            }
+
             NSLog(@"[LC] spoofGPS from guestAppInfo: %@", guestAppInfo[@"spoofGPS"]);
+            if (containerScopedSettings) {
+                NSLog(@"[LC] spoofGPS from containerScopedSettings: %@", containerScopedSettings[@"spoofGPS"]);
+            }
             NSLog(@"[LC] spoofGPSEnabled: %d", spoofGPSEnabled);
             
             if (spoofGPSEnabled) {
                 // Ensure we're getting the right values with explicit type conversion
-                id latValue = guestAppInfo[@"spoofLatitude"];
-                id lonValue = guestAppInfo[@"spoofLongitude"];
-                id altValue = guestAppInfo[@"spoofAltitude"];
+                id latValue = containerScopedSettings[@"spoofLatitude"] ?: guestAppInfo[@"spoofLatitude"];
+                id lonValue = containerScopedSettings[@"spoofLongitude"] ?: guestAppInfo[@"spoofLongitude"];
+                id altValue = containerScopedSettings[@"spoofAltitude"] ?: guestAppInfo[@"spoofAltitude"];
 
                 spoofedCoordinate.latitude = LCDoubleValueOrFallback(latValue, 37.7749);
                 spoofedCoordinate.longitude = LCDoubleValueOrFallback(lonValue, -122.4194);
