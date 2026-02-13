@@ -438,7 +438,6 @@ static BOOL LCIsContainerScopedAddonKey(NSString *key) {
             vendorID = [NSUUID UUID].UUIDString;
         }
         _info[@"deviceSpoofVendorID"] = vendorID;
-        _info[@"deviceSpoofingEnabled"] = @YES;
     } else {
         [_info removeObjectForKey:@"deviceSpoofVendorID"];
     }

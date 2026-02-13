@@ -2356,19 +2356,13 @@ struct LCAppSettingsView: View {
                 deviceSpoofPreferredCountrySection()
 
                 deviceSpoofSectionHeader("Network")
-                deviceSpoofCarrierSection()
-                deviceSpoofCellularTypeSection()
-                deviceSpoofNetworkSection()
+                deviceSpoofNetworkGroupSection()
 
                 deviceSpoofSectionHeader("Runtime")
-                deviceSpoofHardwareSection()
-                deviceSpoofKernelSection()
-                deviceSpoofBootTimeSection()
-                deviceSpoofStorageSection()
+                deviceSpoofRuntimeGroupSection()
 
                 deviceSpoofSectionHeader("Screen")
-                deviceSpoofSensorsSection()
-                deviceSpoofBrightnessSection()
+                deviceSpoofScreenGroupSection()
 
                 deviceSpoofSectionHeader("Battery")
                 deviceSpoofBatterySection()
@@ -2397,6 +2391,136 @@ struct LCAppSettingsView: View {
             .fontWeight(.semibold)
             .foregroundColor(.secondary)
             .padding(.top, 4)
+    }
+
+    private var isNetworkSpoofingEnabled: Bool {
+        model.uiDeviceSpoofCarrier ||
+        model.uiDeviceSpoofCellularTypeEnabled ||
+        model.uiDeviceSpoofNetworkInfo ||
+        model.uiDeviceSpoofWiFiAddressEnabled ||
+        model.uiDeviceSpoofCellularAddressEnabled
+    }
+
+    private var networkSpoofingGroupBinding: Binding<Bool> {
+        Binding(
+            get: { isNetworkSpoofingEnabled },
+            set: { enabled in
+                if enabled {
+                    if !isNetworkSpoofingEnabled {
+                        model.uiDeviceSpoofNetworkInfo = true
+                    }
+                } else {
+                    model.uiDeviceSpoofCarrier = false
+                    model.uiDeviceSpoofCellularTypeEnabled = false
+                    model.uiDeviceSpoofNetworkInfo = false
+                    model.uiDeviceSpoofWiFiAddressEnabled = false
+                    model.uiDeviceSpoofCellularAddressEnabled = false
+                }
+            }
+        )
+    }
+
+    private var isRuntimeSpoofingEnabled: Bool {
+        model.uiDeviceSpoofProcessorEnabled ||
+        model.uiDeviceSpoofMemoryEnabled ||
+        model.uiDeviceSpoofKernelVersionEnabled ||
+        model.uiDeviceSpoofBootTime ||
+        model.uiDeviceSpoofStorage
+    }
+
+    private var runtimeSpoofingGroupBinding: Binding<Bool> {
+        Binding(
+            get: { isRuntimeSpoofingEnabled },
+            set: { enabled in
+                if enabled {
+                    if !isRuntimeSpoofingEnabled {
+                        model.uiDeviceSpoofProcessorEnabled = true
+                    }
+                } else {
+                    model.uiDeviceSpoofProcessorEnabled = false
+                    model.uiDeviceSpoofMemoryEnabled = false
+                    model.uiDeviceSpoofKernelVersionEnabled = false
+                    model.uiDeviceSpoofBootTime = false
+                    model.uiDeviceSpoofStorage = false
+                }
+            }
+        )
+    }
+
+    private var isScreenSpoofingEnabled: Bool {
+        model.uiDeviceSpoofProximity ||
+        model.uiDeviceSpoofOrientation ||
+        model.uiDeviceSpoofGyroscope ||
+        model.uiDeviceSpoofBrightness
+    }
+
+    private var screenSpoofingGroupBinding: Binding<Bool> {
+        Binding(
+            get: { isScreenSpoofingEnabled },
+            set: { enabled in
+                if enabled {
+                    if !isScreenSpoofingEnabled {
+                        model.uiDeviceSpoofBrightness = true
+                    }
+                } else {
+                    model.uiDeviceSpoofProximity = false
+                    model.uiDeviceSpoofOrientation = false
+                    model.uiDeviceSpoofGyroscope = false
+                    model.uiDeviceSpoofBrightness = false
+                }
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func deviceSpoofNetworkGroupSection() -> some View {
+        Toggle(isOn: networkSpoofingGroupBinding) {
+            HStack {
+                Image(systemName: "network")
+                    .foregroundColor(.blue)
+                    .frame(width: 20)
+                Text("Enable Network Spoofing")
+            }
+        }
+        if isNetworkSpoofingEnabled {
+            deviceSpoofCarrierSection()
+            deviceSpoofCellularTypeSection()
+            deviceSpoofNetworkSection()
+        }
+    }
+
+    @ViewBuilder
+    private func deviceSpoofRuntimeGroupSection() -> some View {
+        Toggle(isOn: runtimeSpoofingGroupBinding) {
+            HStack {
+                Image(systemName: "cpu")
+                    .foregroundColor(.orange)
+                    .frame(width: 20)
+                Text("Enable Runtime Spoofing")
+            }
+        }
+        if isRuntimeSpoofingEnabled {
+            deviceSpoofHardwareSection()
+            deviceSpoofKernelSection()
+            deviceSpoofBootTimeSection()
+            deviceSpoofStorageSection()
+        }
+    }
+
+    @ViewBuilder
+    private func deviceSpoofScreenGroupSection() -> some View {
+        Toggle(isOn: screenSpoofingGroupBinding) {
+            HStack {
+                Image(systemName: "display")
+                    .foregroundColor(.yellow)
+                    .frame(width: 20)
+                Text("Enable Screen Spoofing")
+            }
+        }
+        if isScreenSpoofingEnabled {
+            deviceSpoofSensorsSection()
+            deviceSpoofBrightnessSection()
+        }
     }
 
     // MARK: Device Profile Picker
@@ -2989,7 +3113,6 @@ struct LCAppSettingsView: View {
                 .font(.caption2)
                 .foregroundColor(.secondary)
         }
-        .padding(.leading, 28)
     }
 
     // MARK: Boot Time & Uptime (inspired by Project-X BootTimeHooks)
@@ -3245,19 +3368,68 @@ struct LCAppSettingsView: View {
             }
         }
 
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Includes:")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-            Text("☁️ iCloud token masking, 🛡️ DeviceCheck, 🔐 App Attest")
-                .font(.caption2)
-            Text("💬 text, ✉️ mail, 🐞 Bugsnag, 🧱 Crane, 📋 pasteboard, 🤖 Appium markers")
-                .font(.caption2)
-            Text("🖼️ album filtering and screenshot-detection blocking")
-                .font(.caption2)
-                .foregroundColor(.secondary)
+        if model.uiDeviceSpoofSecurityEnabled {
+            Toggle(isOn: $model.uiDeviceSpoofCloudToken) {
+                Label("☁️ Mask iCloud Identity Token", systemImage: "icloud")
+                    .font(.caption)
+            }
+            .padding(.leading, 28)
 
-            if model.uiDeviceSpoofSecurityEnabled {
+            Toggle(isOn: $model.uiDeviceSpoofDeviceChecker) {
+                Label("🛡️ Spoof DeviceCheck", systemImage: "checkmark.shield")
+                    .font(.caption)
+            }
+            .padding(.leading, 28)
+
+            Toggle(isOn: $model.uiDeviceSpoofAppAttest) {
+                Label("🔐 Spoof App Attest", systemImage: "lock.shield")
+                    .font(.caption)
+            }
+            .padding(.leading, 28)
+
+            Toggle(isOn: $model.uiDeviceSpoofScreenCapture) {
+                Label("📵 Block Screenshot Detection", systemImage: "camera.viewfinder")
+                    .font(.caption)
+            }
+            .padding(.leading, 28)
+
+            Toggle(isOn: $model.uiDeviceSpoofMessage) {
+                Label("💬 Block Text Capability Checks", systemImage: "message")
+                    .font(.caption)
+            }
+            .padding(.leading, 28)
+
+            Toggle(isOn: $model.uiDeviceSpoofMail) {
+                Label("✉️ Block Mail Capability Checks", systemImage: "envelope")
+                    .font(.caption)
+            }
+            .padding(.leading, 28)
+
+            Toggle(isOn: $model.uiDeviceSpoofBugsnag) {
+                Label("🐞 Spoof Bugsnag SDK Checks", systemImage: "ladybug")
+                    .font(.caption)
+            }
+            .padding(.leading, 28)
+
+            Toggle(isOn: $model.uiDeviceSpoofCrane) {
+                Label("🧱 Hide Crane Paths", systemImage: "shippingbox")
+                    .font(.caption)
+            }
+            .padding(.leading, 28)
+
+            Toggle(isOn: $model.uiDeviceSpoofPasteboard) {
+                Label("📋 Spoof Pasteboard Access", systemImage: "doc.on.clipboard")
+                    .font(.caption)
+            }
+            .padding(.leading, 28)
+
+            Toggle(isOn: $model.uiDeviceSpoofAlbum) {
+                Label("🖼️ Filter Photo Library Access", systemImage: "photo.on.rectangle")
+                    .font(.caption)
+            }
+            .padding(.leading, 28)
+
+            if model.uiDeviceSpoofAlbum {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Album Blacklist (`localIdentifier-title`, one per line)")
                         .font(.caption2)
@@ -3270,9 +3442,15 @@ struct LCAppSettingsView: View {
                                 .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
                         )
                 }
+                .padding(.leading, 28)
             }
+
+            Toggle(isOn: $model.uiDeviceSpoofAppium) {
+                Label("🤖 Hide Appium Markers", systemImage: "eye.slash")
+                    .font(.caption)
+            }
+            .padding(.leading, 28)
         }
-        .padding(.leading, 28)
     }
 
     private var deviceSpoofAlbumBlacklistBinding: Binding<String> {
@@ -3350,9 +3528,10 @@ struct LCAppSettingsView: View {
     private func applyProfileDefaultsIfNeeded(force: Bool) {
         guard let defaults = kernelDefaultsForProfile(model.uiDeviceSpoofProfile) else { return }
 
+        let customVersion = model.uiDeviceSpoofCustomVersion.trimmingCharacters(in: .whitespacesAndNewlines)
         let build = model.uiDeviceSpoofBuildVersion.trimmingCharacters(in: .whitespacesAndNewlines)
         if force || build.isEmpty {
-            model.uiDeviceSpoofBuildVersion = defaults.build
+            model.uiDeviceSpoofBuildVersion = buildDefaultForVersion(customVersion) ?? defaults.build
         }
 
         let kernelVersion = model.uiDeviceSpoofKernelVersion.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -3363,6 +3542,25 @@ struct LCAppSettingsView: View {
         let kernelRelease = model.uiDeviceSpoofKernelRelease.trimmingCharacters(in: .whitespacesAndNewlines)
         if force || kernelRelease.isEmpty {
             model.uiDeviceSpoofKernelRelease = defaults.kernelRelease
+        }
+    }
+
+    private func buildDefaultForVersion(_ version: String) -> String? {
+        switch version {
+        case "26.3":
+            return "23D127"
+        case "26.2.1":
+            return "23C71"
+        case "26.2":
+            return "23C55"
+        case "18.6.2":
+            return "22G100"
+        case "18.6.1":
+            return "22G90"
+        case "18.6":
+            return "22G86"
+        default:
+            return nil
         }
     }
 

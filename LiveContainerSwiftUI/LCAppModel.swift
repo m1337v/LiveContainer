@@ -651,7 +651,7 @@ class LCAppModel: ObservableObject, Hashable {
 
         // MARK: Device Addon Section (Ghost-style)
         self.uiDeviceSpoofingEnabled = appInfo.deviceSpoofingEnabled
-        let storedDeviceProfile = appInfo.deviceSpoofProfile ?? "iPhone 15 Pro Max"
+        let storedDeviceProfile = appInfo.deviceSpoofProfile ?? "iPhone 17"
         let supportedDeviceProfiles: Set<String> = [
             "iPhone 17 Pro Max",
             "iPhone 17 Pro",
@@ -668,8 +668,8 @@ class LCAppModel: ObservableObject, Hashable {
             "iPhone 13 Pro Max",
             "iPhone 13 Pro"
         ]
-        self.uiDeviceSpoofProfile = supportedDeviceProfiles.contains(storedDeviceProfile) ? storedDeviceProfile : "iPhone 16"
-        self.uiDeviceSpoofCustomVersion = appInfo.deviceSpoofCustomVersion ?? ""
+        self.uiDeviceSpoofProfile = supportedDeviceProfiles.contains(storedDeviceProfile) ? storedDeviceProfile : "iPhone 17"
+        self.uiDeviceSpoofCustomVersion = appInfo.deviceSpoofCustomVersion ?? "26.3"
         self.uiDeviceSpoofDeviceName = appInfo.deviceSpoofDeviceName
         self.uiDeviceSpoofDeviceNameValue = appInfo.deviceSpoofDeviceNameValue ?? "iPhone"
         self.uiDeviceSpoofCarrier = appInfo.deviceSpoofCarrier
@@ -792,8 +792,8 @@ class LCAppModel: ObservableObject, Hashable {
 
         // Device spoofing
         self.uiDeviceSpoofingEnabled = appInfo.deviceSpoofingEnabled
-        self.uiDeviceSpoofProfile = appInfo.deviceSpoofProfile ?? "iPhone 16"
-        self.uiDeviceSpoofCustomVersion = appInfo.deviceSpoofCustomVersion ?? ""
+        self.uiDeviceSpoofProfile = appInfo.deviceSpoofProfile ?? "iPhone 17"
+        self.uiDeviceSpoofCustomVersion = appInfo.deviceSpoofCustomVersion ?? "26.3"
         self.uiDeviceSpoofDeviceName = appInfo.deviceSpoofDeviceName
         self.uiDeviceSpoofDeviceNameValue = appInfo.deviceSpoofDeviceNameValue ?? "iPhone"
         self.uiDeviceSpoofCarrier = appInfo.deviceSpoofCarrier
