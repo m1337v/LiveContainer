@@ -15,6 +15,7 @@
 #import <ctype.h>
 #import <dlfcn.h>
 #import <errno.h>
+#import <float.h>
 #import <mach/host_info.h>
 #import <mach/mach.h>
 #import <mach/mach_time.h>
@@ -394,6 +395,7 @@ static uint64_t (*orig_mach_absolute_time)(void) = NULL;
 static uint64_t (*orig_mach_approximate_time)(void) = NULL;
 static uint64_t (*orig_mach_continuous_time)(void) = NULL;
 static uint64_t (*orig_mach_continuous_approximate_time)(void) = NULL;
+static kern_return_t (*orig_host_statistics)(host_t host, host_flavor_t flavor, host_info_t info, mach_msg_type_number_t *count) = NULL;
 static kern_return_t (*orig_host_statistics64)(host_t host, host_flavor_t flavor, host_info64_t info, mach_msg_type_number_t *count) = NULL;
 
 static NSString *(*orig_UIDevice_systemVersion)(id self, SEL _cmd) = NULL;
@@ -751,6 +753,12 @@ static void LCApplySpoofedUptimeTarget(NSTimeInterval targetUptime) {
 static BOOL LCIsMonotonicUptimeClock(clockid_t clockId) {
     switch (clockId) {
         case CLOCK_MONOTONIC:
+#ifdef CLOCK_BOOTTIME
+        case CLOCK_BOOTTIME:
+#endif
+#ifdef CLOCK_UPTIME
+        case CLOCK_UPTIME:
+#endif
 #ifdef CLOCK_MONOTONIC_RAW
         case CLOCK_MONOTONIC_RAW:
 #endif
@@ -766,6 +774,44 @@ static BOOL LCIsMonotonicUptimeClock(clockid_t clockId) {
             return YES;
         default:
             return NO;
+    }
+}
+
+static NSTimeInterval LCRealSystemUptime(void) {
+    NSTimeInterval realUptime = 0;
+    if (orig_NSProcessInfo_systemUptime) {
+        realUptime = orig_NSProcessInfo_systemUptime(NSProcessInfo.processInfo, @selector(systemUptime));
+    } else {
+        realUptime = NSProcessInfo.processInfo.systemUptime;
+        if (g_bootTimeSpoofingEnabled && LCDeviceSpoofingIsActive()) {
+            realUptime -= g_bootTimeOffset;
+        }
+    }
+    return MAX(realUptime, 0);
+}
+
+static double LCUptimeScaleFactor(void) {
+    if (!g_bootTimeSpoofingEnabled || !LCDeviceSpoofingIsActive()) return 1.0;
+
+    NSTimeInterval realUptime = LCRealSystemUptime();
+    if (realUptime <= DBL_EPSILON) return 1.0;
+
+    NSTimeInterval spoofedUptime = realUptime + g_bootTimeOffset;
+    if (spoofedUptime < 0) spoofedUptime = 0;
+    return spoofedUptime / realUptime;
+}
+
+static void LCScaleHostCPUTicks(host_cpu_load_info_data_t *cpuLoadInfo) {
+    if (!cpuLoadInfo) return;
+
+    double scale = LCUptimeScaleFactor();
+    if (!isfinite(scale) || fabs(scale - 1.0) < 0.000001) return;
+
+    for (int i = 0; i < CPU_STATE_MAX; i++) {
+        long double scaled = (long double)cpuLoadInfo->cpu_ticks[i] * scale;
+        if (scaled < 0) scaled = 0;
+        if (scaled > UINT32_MAX) scaled = UINT32_MAX;
+        cpuLoadInfo->cpu_ticks[i] = (natural_t)llround((double)scaled);
     }
 }
 
@@ -1364,6 +1410,50 @@ static uint64_t hook_mach_continuous_approximate_time(void) {
     return value;
 }
 
+static kern_return_t hook_host_statistics(host_t host, host_flavor_t flavor, host_info_t info, mach_msg_type_number_t *count) {
+    if (!orig_host_statistics) {
+        orig_host_statistics = (kern_return_t (*)(host_t, host_flavor_t, host_info_t, mach_msg_type_number_t *))
+            dlsym(RTLD_DEFAULT, "host_statistics");
+        if (!orig_host_statistics) return KERN_FAILURE;
+    }
+
+    kern_return_t result = orig_host_statistics(host, flavor, info, count);
+    if (result != KERN_SUCCESS || !LCDeviceSpoofingIsActive() || !info || !count) {
+        return result;
+    }
+
+    if (g_bootTimeSpoofingEnabled && flavor == HOST_CPU_LOAD_INFO && *count >= HOST_CPU_LOAD_INFO_COUNT) {
+        host_cpu_load_info_data_t *cpuLoadInfo = (host_cpu_load_info_data_t *)info;
+        LCScaleHostCPUTicks(cpuLoadInfo);
+        return result;
+    }
+
+    uint64_t totalMemory = LCSpoofedPhysicalMemory();
+    if (totalMemory == 0) {
+        return result;
+    }
+
+    if (flavor == HOST_VM_INFO && *count >= HOST_VM_INFO_COUNT) {
+        vm_statistics_data_t *vmStats = (vm_statistics_data_t *)info;
+        uint64_t freeBytes = 0, wiredBytes = 0, activeBytes = 0, inactiveBytes = 0;
+        LCBuildSpoofedMemoryBuckets(totalMemory, &freeBytes, &wiredBytes, &activeBytes, &inactiveBytes);
+
+        vm_size_t pageSize = vm_kernel_page_size;
+        host_page_size(host, &pageSize);
+        if (pageSize == 0) pageSize = 4096;
+
+        vmStats->free_count = (natural_t)MIN(freeBytes / pageSize, UINT32_MAX);
+        vmStats->wire_count = (natural_t)MIN(wiredBytes / pageSize, UINT32_MAX);
+        vmStats->active_count = (natural_t)MIN(activeBytes / pageSize, UINT32_MAX);
+        vmStats->inactive_count = (natural_t)MIN(inactiveBytes / pageSize, UINT32_MAX);
+    } else if (flavor == HOST_BASIC_INFO && *count >= HOST_BASIC_INFO_COUNT) {
+        host_basic_info_t basicInfo = (host_basic_info_t)info;
+        basicInfo->max_mem = totalMemory;
+    }
+
+    return result;
+}
+
 static kern_return_t hook_host_statistics64(host_t host, host_flavor_t flavor, host_info64_t info, mach_msg_type_number_t *count) {
     if (!orig_host_statistics64) {
         orig_host_statistics64 = (kern_return_t (*)(host_t, host_flavor_t, host_info64_t, mach_msg_type_number_t *))
@@ -1373,6 +1463,12 @@ static kern_return_t hook_host_statistics64(host_t host, host_flavor_t flavor, h
 
     kern_return_t result = orig_host_statistics64(host, flavor, info, count);
     if (result != KERN_SUCCESS || !LCDeviceSpoofingIsActive() || !info || !count) {
+        return result;
+    }
+
+    if (g_bootTimeSpoofingEnabled && flavor == HOST_CPU_LOAD_INFO && *count >= HOST_CPU_LOAD_INFO_COUNT) {
+        host_cpu_load_info_data_t *cpuLoadInfo = (host_cpu_load_info_data_t *)info;
+        LCScaleHostCPUTicks(cpuLoadInfo);
         return result;
     }
 
@@ -2640,6 +2736,7 @@ void DeviceSpoofingGuestHooksInit(void) {
             {"mach_approximate_time", (void *)hook_mach_approximate_time, (void **)&orig_mach_approximate_time},
             {"mach_continuous_time", (void *)hook_mach_continuous_time, (void **)&orig_mach_continuous_time},
             {"mach_continuous_approximate_time", (void *)hook_mach_continuous_approximate_time, (void **)&orig_mach_continuous_approximate_time},
+            {"host_statistics", (void *)hook_host_statistics, (void **)&orig_host_statistics},
             {"host_statistics64", (void *)hook_host_statistics64, (void **)&orig_host_statistics64},
             {"MTLCreateSystemDefaultDevice", (void *)hook_MTLCreateSystemDefaultDevice, (void **)&orig_MTLCreateSystemDefaultDevice},
             {"MTLCopyAllDevices", (void *)hook_MTLCopyAllDevices, (void **)&orig_MTLCopyAllDevices},
