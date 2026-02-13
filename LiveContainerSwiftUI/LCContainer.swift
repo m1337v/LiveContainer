@@ -84,7 +84,7 @@ class LCContainer : ObservableObject, Hashable {
                   name: infoDict["name"] as? String ?? "ERROR",
                   isShared: isShared,
                   isolateAppGroup: infoDict["isolateAppGroup"] as? Bool ?? true,
-                  spoofIdentifierForVendor: infoDict["spoofIdentifierForVendor"] as? Bool ?? true,
+                  spoofIdentifierForVendor: infoDict["spoofIdentifierForVendor"] as? Bool ?? false,
                   bookmarkData: bookmarkData,
                   resolvedContainerURL: nil
         )
@@ -115,7 +115,7 @@ class LCContainer : ObservableObject, Hashable {
             
             let plistInfo = try PropertyListSerialization.propertyList(from: Data(contentsOf: infoDictUrl), format: nil)
             if let plistInfo = plistInfo as? [String : Any] {
-                isolateAppGroup = plistInfo["isolateAppGroup"] as? Bool ?? false
+                isolateAppGroup = plistInfo["isolateAppGroup"] as? Bool ?? true
                 spoofIdentifierForVendor = plistInfo["spoofIdentifierForVendor"] as? Bool ?? false
                 spoofedIdentifier = plistInfo["spoofedIdentifierForVendor"] as? String
             }
@@ -173,7 +173,7 @@ class LCContainer : ObservableObject, Hashable {
         }
         name = infoDict["name"] as? String ?? "ERROR"
         isolateAppGroup = infoDict["isolateAppGroup"] as? Bool ?? true
-        spoofIdentifierForVendor = infoDict["spoofIdentifierForVendor"] as? Bool ?? true
+        spoofIdentifierForVendor = infoDict["spoofIdentifierForVendor"] as? Bool ?? false
         spoofedIdentifier = infoDict["spoofedIdentifierForVendor"] as? String
     }
     
@@ -196,7 +196,7 @@ extension LCAppInfo {
                     "folderName": oldDataUUID,
                     "name": oldDataUUID,
                     "isolateAppGroup": true,
-                    "spoofIdentifierForVendor": true,
+                    "spoofIdentifierForVendor": false,
                 ]]
                 upgrade = true
             }

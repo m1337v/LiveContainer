@@ -618,6 +618,7 @@ static uint64_t LCSpoofedPhysicalMemory(void) {
 
 static uint32_t LCSpoofedCPUCount(void) {
     if (g_customCPUCoreCount > 0) return g_customCPUCoreCount;
+    // Default to the selected spoof profile's core count.
     if (g_currentProfile) return g_currentProfile->cpuCoreCount;
     return 0;
 }
@@ -1134,7 +1135,15 @@ static NSSet<NSString *> *LCCraneDetectionMarkers(void) {
             @"crane_container",
             @"crane_containers",
             @"___crane_containers",
-            @"com.opa334.craneprefs.plist"
+            @"com.opa334.craneprefs.plist",
+            // LiveContainer-specific jailed markers (Crane-equivalent surface)
+            @"lccontainerinfo.plist",
+            @"livecontainer/data/application",
+            @"documents/data/application",
+            @"livecontainer/data/appgroup",
+            @"lcappgroup",
+            @"com.kdt.livecontainer",
+            @"livecontainer.app"
         ]];
     });
     return markers;
@@ -1147,51 +1156,92 @@ static NSSet<NSString *> *LCAppiumDetectionMarkers(void) {
         markers = [NSSet setWithArray:@[
             @"appium",
             @"webdriveragent",
-            @"webdriver"
+            @"webdriver",
+            @"xcuitest",
+            @"xctrunner"
         ]];
     });
     return markers;
 }
 
-static BOOL LCStringContainsSensitiveMarker(NSString *value) {
+static BOOL LCStringContainsCaseInsensitiveMarker(NSString *value, NSString *marker) {
     if (![value isKindOfClass:[NSString class]] || value.length == 0) return NO;
-    if (!LCScreenFeatureEnabled(g_spoofCraneEnabled || g_spoofAppiumEnabled)) return NO;
-
-    NSString *lower = [value lowercaseString];
-    if (g_spoofCraneEnabled) {
-        for (NSString *marker in LCCraneDetectionMarkers()) {
-            if ([lower containsString:marker]) return YES;
-        }
-    }
-    if (g_spoofAppiumEnabled) {
-        for (NSString *marker in LCAppiumDetectionMarkers()) {
-            if ([lower containsString:marker]) return YES;
-        }
-    }
-    return NO;
+    if (![marker isKindOfClass:[NSString class]] || marker.length == 0) return NO;
+    return [value rangeOfString:marker options:NSCaseInsensitiveSearch].location != NSNotFound;
 }
 
-static BOOL LCObjectContainsSensitiveMarker(id object) {
+static BOOL LCStringContainsSensitiveMarker(NSString *value) {
+    static __thread BOOL gInSensitiveMarkerCheck = NO;
+    if (![value isKindOfClass:[NSString class]] || value.length == 0) return NO;
+    if (!LCScreenFeatureEnabled(g_spoofCraneEnabled || g_spoofAppiumEnabled)) return NO;
+    if (gInSensitiveMarkerCheck) return NO;
+
+    gInSensitiveMarkerCheck = YES;
+    BOOL found = NO;
+
+    if (g_spoofCraneEnabled) {
+        for (NSString *marker in LCCraneDetectionMarkers()) {
+            if (LCStringContainsCaseInsensitiveMarker(value, marker)) {
+                found = YES;
+                break;
+            }
+        }
+    }
+    if (!found && g_spoofAppiumEnabled) {
+        for (NSString *marker in LCAppiumDetectionMarkers()) {
+            if (LCStringContainsCaseInsensitiveMarker(value, marker)) {
+                found = YES;
+                break;
+            }
+        }
+    }
+
+    gInSensitiveMarkerCheck = NO;
+    return found;
+}
+
+static BOOL LCObjectContainsSensitiveMarkerInternal(id object, NSMutableSet<NSValue *> *visited, NSUInteger depth) {
     if (!object) return NO;
+    if (depth > 16) return NO;
+
     if ([object isKindOfClass:[NSString class]]) {
         return LCStringContainsSensitiveMarker((NSString *)object);
     }
+
+    NSValue *identity = [NSValue valueWithPointer:(__bridge const void *)(object)];
+    if ([visited containsObject:identity]) {
+        return NO;
+    }
+    [visited addObject:identity];
+
     if ([object isKindOfClass:[NSArray class]]) {
         for (id item in (NSArray *)object) {
-            if (LCObjectContainsSensitiveMarker(item)) return YES;
+            if (LCObjectContainsSensitiveMarkerInternal(item, visited, depth + 1)) return YES;
+        }
+        return NO;
+    }
+    if ([object isKindOfClass:[NSSet class]]) {
+        for (id item in (NSSet *)object) {
+            if (LCObjectContainsSensitiveMarkerInternal(item, visited, depth + 1)) return YES;
         }
         return NO;
     }
     if ([object isKindOfClass:[NSDictionary class]]) {
         NSDictionary *dict = (NSDictionary *)object;
         for (id key in dict) {
-            if (LCObjectContainsSensitiveMarker(key) || LCObjectContainsSensitiveMarker(dict[key])) {
+            if (LCObjectContainsSensitiveMarkerInternal(key, visited, depth + 1) ||
+                LCObjectContainsSensitiveMarkerInternal(dict[key], visited, depth + 1)) {
                 return YES;
             }
         }
         return NO;
     }
     return NO;
+}
+
+static BOOL LCObjectContainsSensitiveMarker(id object) {
+    NSMutableSet<NSValue *> *visited = [NSMutableSet set];
+    return LCObjectContainsSensitiveMarkerInternal(object, visited, 0);
 }
 
 static NSError *LCMakeSpoofingError(NSString *reason) {
@@ -3193,7 +3243,12 @@ static NSString *LCBuildFingerprintInjectionScript(void) {
     NSInteger screenH = (NSInteger)g_currentProfile->screenHeight;
     double dpr = (double)g_currentProfile->screenScale;
     uint32_t cpuCores = LCSpoofedCPUCount();
-    if (cpuCores == 0) cpuCores = g_currentProfile->cpuCoreCount;
+    if (cpuCores == 0) {
+        cpuCores = (uint32_t)[NSProcessInfo processInfo].activeProcessorCount;
+    }
+    if (cpuCores == 0) {
+        cpuCores = g_currentProfile->cpuCoreCount;
+    }
     uint64_t spoofedMemory = LCSpoofedPhysicalMemory();
     if (spoofedMemory == 0) spoofedMemory = g_currentProfile->physicalMemory;
     double memoryGB = (double)spoofedMemory / (1024.0 * 1024.0 * 1024.0);
@@ -4144,14 +4199,16 @@ void DeviceSpoofingGuestHooksInit(void) {
             Class pasteboardClass = objc_getClass("UIPasteboard");
             LCInstallInstanceHook(pasteboardClass, @selector(string), (IMP)hook_UIPasteboard_string, (IMP *)&orig_UIPasteboard_string);
 
-            Class nsStringClass = objc_getClass("NSString");
-            LCInstallInstanceHook(nsStringClass, @selector(containsString:), (IMP)hook_NSString_containsString, (IMP *)&orig_NSString_containsString);
-            LCInstallInstanceHook(nsStringClass, @selector(hasPrefix:), (IMP)hook_NSString_hasPrefix, (IMP *)&orig_NSString_hasPrefix);
-            LCInstallInstanceHook(nsStringClass, @selector(hasSuffix:), (IMP)hook_NSString_hasSuffix, (IMP *)&orig_NSString_hasSuffix);
-            LCInstallInstanceHook(nsStringClass, @selector(rangeOfString:), (IMP)hook_NSString_rangeOfString, (IMP *)&orig_NSString_rangeOfString);
+            if (g_spoofCraneEnabled || g_spoofAppiumEnabled) {
+                Class nsStringClass = objc_getClass("NSString");
+                LCInstallInstanceHook(nsStringClass, @selector(containsString:), (IMP)hook_NSString_containsString, (IMP *)&orig_NSString_containsString);
+                LCInstallInstanceHook(nsStringClass, @selector(hasPrefix:), (IMP)hook_NSString_hasPrefix, (IMP *)&orig_NSString_hasPrefix);
+                LCInstallInstanceHook(nsStringClass, @selector(hasSuffix:), (IMP)hook_NSString_hasSuffix, (IMP *)&orig_NSString_hasSuffix);
+                LCInstallInstanceHook(nsStringClass, @selector(rangeOfString:), (IMP)hook_NSString_rangeOfString, (IMP *)&orig_NSString_rangeOfString);
 
-            Class predicateClass = objc_getClass("NSPredicate");
-            LCInstallInstanceHook(predicateClass, @selector(evaluateWithObject:), (IMP)hook_NSPredicate_evaluateWithObject, (IMP *)&orig_NSPredicate_evaluateWithObject);
+                Class predicateClass = objc_getClass("NSPredicate");
+                LCInstallInstanceHook(predicateClass, @selector(evaluateWithObject:), (IMP)hook_NSPredicate_evaluateWithObject, (IMP *)&orig_NSPredicate_evaluateWithObject);
+            }
 
             Class assetCollectionClass = objc_getClass("PHAssetCollection");
             Class assetCollectionMeta = object_getClass(assetCollectionClass);

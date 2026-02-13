@@ -422,15 +422,18 @@ static BOOL LCIsContainerScopedAddonKey(NSString *key) {
     }
 
     BOOL spoofIDFV = fallbackSpoofIdentifierForVendor;
+    id scopedSpoofIDFV = containerSettings[@"deviceSpoofIdentifiers"];
+    if ([scopedSpoofIDFV respondsToSelector:@selector(boolValue)]) {
+        spoofIDFV = [scopedSpoofIDFV boolValue];
+    }
     _info[@"deviceSpoofIdentifiers"] = @(spoofIDFV);
 
     NSString *vendorID = @"";
-    if ([fallbackVendorID isKindOfClass:[NSString class]]) {
-        vendorID = fallbackVendorID;
-    }
     id scopedVendor = containerSettings[@"deviceSpoofVendorID"];
-    if (vendorID.length == 0 && [scopedVendor isKindOfClass:[NSString class]]) {
+    if ([scopedVendor isKindOfClass:[NSString class]]) {
         vendorID = scopedVendor;
+    } else if ([fallbackVendorID isKindOfClass:[NSString class]]) {
+        vendorID = fallbackVendorID;
     }
 
     if (spoofIDFV) {

@@ -523,9 +523,6 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     // Initialize Ghost-style device spoofing (profile-based with per-feature overrides)
     BOOL useProfileSpoofing = [guestAppInfo[@"deviceSpoofingEnabled"] boolValue];
     BOOL legacyContainerIDFVEnabled = [guestContainerInfo[@"spoofIdentifierForVendor"] boolValue];
-    if (!useProfileSpoofing && legacyContainerIDFVEnabled) {
-        useProfileSpoofing = YES;
-    }
 
     if(useProfileSpoofing) {
         NSString *deviceProfile = guestAppInfo[@"deviceSpoofProfile"];
@@ -771,18 +768,8 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             }
         }
 
-        BOOL spoofProcessor = [guestAppInfo[@"deviceSpoofProcessorEnabled"] boolValue] ||
-                              [guestAppInfo[@"enableSpoofProcessor"] boolValue];
-        id processorCountObj = guestAppInfo[@"deviceSpoofProcessorCount"] ?: guestAppInfo[@"processorCount"];
-        if (!spoofProcessor && guestAppInfo[@"enableSpoofProcessor"] == nil && processorCountObj != nil) {
-            spoofProcessor = YES;
-        }
-        if (spoofProcessor && processorCountObj != nil) {
-            NSInteger cpuCount = [processorCountObj integerValue];
-            if (cpuCount > 0) {
-                LCSetSpoofedCPUCount((uint32_t)cpuCount);
-            }
-        }
+        // Processor-count spoofing is profile-driven in DeviceSpoofing.m.
+        // We intentionally do not apply legacy per-app custom processor overrides here.
 
         BOOL spoofMemory = [guestAppInfo[@"deviceSpoofMemoryEnabled"] boolValue] ||
                            [guestAppInfo[@"enableSpoofMemory"] boolValue];

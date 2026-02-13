@@ -2358,6 +2358,10 @@ struct LCAppSettingsView: View {
                 deviceSpoofSectionHeader("Network")
                 deviceSpoofNetworkGroupSection()
 
+                deviceSpoofSectionHeader("Critical Vectors")
+                deviceSpoofBootTimeSection()
+                deviceSpoofStorageSection()
+
                 deviceSpoofSectionHeader("Runtime")
                 deviceSpoofRuntimeGroupSection()
 
@@ -2421,11 +2425,8 @@ struct LCAppSettingsView: View {
     }
 
     private var isRuntimeSpoofingEnabled: Bool {
-        model.uiDeviceSpoofProcessorEnabled ||
         model.uiDeviceSpoofMemoryEnabled ||
-        model.uiDeviceSpoofKernelVersionEnabled ||
-        model.uiDeviceSpoofBootTime ||
-        model.uiDeviceSpoofStorage
+        model.uiDeviceSpoofKernelVersionEnabled
     }
 
     private var runtimeSpoofingGroupBinding: Binding<Bool> {
@@ -2434,14 +2435,11 @@ struct LCAppSettingsView: View {
             set: { enabled in
                 if enabled {
                     if !isRuntimeSpoofingEnabled {
-                        model.uiDeviceSpoofProcessorEnabled = true
+                        model.uiDeviceSpoofMemoryEnabled = true
                     }
                 } else {
-                    model.uiDeviceSpoofProcessorEnabled = false
                     model.uiDeviceSpoofMemoryEnabled = false
                     model.uiDeviceSpoofKernelVersionEnabled = false
-                    model.uiDeviceSpoofBootTime = false
-                    model.uiDeviceSpoofStorage = false
                 }
             }
         )
@@ -2502,8 +2500,6 @@ struct LCAppSettingsView: View {
         if isRuntimeSpoofingEnabled {
             deviceSpoofHardwareSection()
             deviceSpoofKernelSection()
-            deviceSpoofBootTimeSection()
-            deviceSpoofStorageSection()
         }
     }
 
@@ -3005,25 +3001,9 @@ struct LCAppSettingsView: View {
         .padding(.leading, 28)
     }
 
-    // MARK: Hardware
+    // MARK: Runtime Hardware
     @ViewBuilder
     private func deviceSpoofHardwareSection() -> some View {
-        Toggle(isOn: $model.uiDeviceSpoofProcessorEnabled) {
-            HStack {
-                Image(systemName: "cpu")
-                    .foregroundColor(.orange)
-                    .frame(width: 20)
-                Text("Spoof Processor Count")
-            }
-        }
-        if model.uiDeviceSpoofProcessorEnabled {
-            Stepper(value: $model.uiDeviceSpoofProcessorCount, in: 1...24) {
-                Text("CPU Cores: \(model.uiDeviceSpoofProcessorCount)")
-                    .font(.system(.caption, design: .monospaced))
-            }
-            .padding(.leading, 28)
-        }
-
         Toggle(isOn: $model.uiDeviceSpoofMemoryEnabled) {
             HStack {
                 Image(systemName: "memorychip")

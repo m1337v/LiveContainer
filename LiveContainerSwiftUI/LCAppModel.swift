@@ -790,6 +790,27 @@ class LCAppModel: ObservableObject, Hashable {
         return uiContainers.first { $0.folderName == folderName }
     }
 
+    private func normalizedDeviceSpoofProfile(_ profile: String?) -> String {
+        let storedDeviceProfile = profile ?? "iPhone 17"
+        let supportedDeviceProfiles: Set<String> = [
+            "iPhone 17 Pro Max",
+            "iPhone 17 Pro",
+            "iPhone 17",
+            "iPhone 17 Air",
+            "iPhone 16 Pro Max",
+            "iPhone 16 Pro",
+            "iPhone 16",
+            "iPhone 16e",
+            "iPhone 15 Pro Max",
+            "iPhone 15 Pro",
+            "iPhone 14 Pro Max",
+            "iPhone 14 Pro",
+            "iPhone 13 Pro Max",
+            "iPhone 13 Pro"
+        ]
+        return supportedDeviceProfiles.contains(storedDeviceProfile) ? storedDeviceProfile : "iPhone 17"
+    }
+
     private func applyAddonSettingsFromAppInfo() {
         isApplyingAddonContainerSettings = true
 
@@ -813,7 +834,7 @@ class LCAppModel: ObservableObject, Hashable {
 
         // Device spoofing
         self.uiDeviceSpoofingEnabled = appInfo.deviceSpoofingEnabled
-        self.uiDeviceSpoofProfile = appInfo.deviceSpoofProfile ?? "iPhone 17"
+        self.uiDeviceSpoofProfile = normalizedDeviceSpoofProfile(appInfo.deviceSpoofProfile)
         self.uiDeviceSpoofCustomVersion = appInfo.deviceSpoofCustomVersion ?? "26.3"
         self.uiDeviceSpoofDeviceName = appInfo.deviceSpoofDeviceName
         self.uiDeviceSpoofDeviceNameValue = appInfo.deviceSpoofDeviceNameValue ?? "iPhone"
@@ -944,6 +965,30 @@ class LCAppModel: ObservableObject, Hashable {
         switchAddonSettingsContainer(to: uiContainers[0].folderName)
     }
 
+    private func resolvedKeychainGroupId(for container: LCContainer) -> Int {
+        let existing = container.keychainGroupId
+        if existing >= 0 {
+            return existing
+        }
+
+        var usedGroupIds = Set<Int>()
+        for other in uiContainers where other.folderName != container.folderName {
+            let groupId = other.keychainGroupId
+            if groupId >= 0 {
+                usedGroupIds.insert(groupId)
+            }
+        }
+
+        if SharedModel.keychainAccessGroupCount > 1 {
+            for candidate in 1..<SharedModel.keychainAccessGroupCount {
+                if !usedGroupIds.contains(candidate) {
+                    return candidate
+                }
+            }
+        }
+        return 0
+    }
+
     func syncCurrentContainerIDFVWithDeviceSpoofing() {
         guard let folderName = resolvedAddonSettingsContainerFolderName(),
               let container = addonContainer(withFolderName: folderName) else {
@@ -964,7 +1009,7 @@ class LCAppModel: ObservableObject, Hashable {
             container.spoofedIdentifier = normalizedVendorID
         }
 
-        let keychainGroupId = max(container.keychainGroupId, 0)
+        let keychainGroupId = resolvedKeychainGroupId(for: container)
         container.makeLCContainerInfoPlist(
             appIdentifier: appInfo.bundleIdentifier() ?? "",
             keychainGroupId: keychainGroupId
@@ -977,9 +1022,6 @@ class LCAppModel: ObservableObject, Hashable {
             uiDeviceSpoofVendorID = container.spoofedIdentifier ?? ""
             isApplyingAddonContainerSettings = false
             appInfo.deviceSpoofVendorID = uiDeviceSpoofVendorID
-        }
-        if uiDeviceSpoofIdentifiers {
-            appInfo.deviceSpoofingEnabled = true
         }
     }
     
