@@ -37,6 +37,22 @@ static NSString *originalGuestBundleId = nil;
 static NSString *liveContainerBundleId = nil;
 static BOOL useSelectiveBundleIdSpoofing = NO;
 
+static NSString *LCSpoofBuildForSystemVersion(NSString *version) {
+    static NSDictionary<NSString *, NSString *> *versionToBuild = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        versionToBuild = @{
+            @"26.2": @"23C55",
+            @"26.2.1": @"23C71",
+            @"26.3": @"23D127",
+            @"18.6": @"22G86",
+            @"18.6.1": @"22G90",
+            @"18.6.2": @"22G100",
+        };
+    });
+    return versionToBuild[version];
+}
+
 @implementation NSUserDefaults(LiveContainer)
 + (instancetype)lcUserDefaults {
     return lcUserDefaults;
@@ -490,6 +506,10 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         NSString *customVersion = guestAppInfo[@"deviceSpoofCustomVersion"];
         if (customVersion.length > 0) {
             LCSetSpoofedSystemVersion(customVersion);
+            NSString *mappedBuild = LCSpoofBuildForSystemVersion(customVersion);
+            if (mappedBuild.length > 0) {
+                LCSetSpoofedBuildVersion(mappedBuild);
+            }
         }
 
         // Device name spoofing

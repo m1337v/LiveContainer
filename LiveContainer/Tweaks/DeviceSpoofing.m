@@ -79,6 +79,25 @@ const LCDeviceProfile kDeviceProfileiPhone16 = {
     .gpuName = "Apple A18 GPU"
 };
 
+const LCDeviceProfile kDeviceProfileiPhone16e = {
+    .modelIdentifier = "iPhone17,4",
+    .hardwareModel = "D48AP",
+    .marketingName = "iPhone 16e",
+    .systemVersion = "18.1",
+    .buildVersion = "22B83",
+    .kernelVersion = "Darwin Kernel Version 24.1.0: Thu Oct 10 21:02:45 PDT 2024; root:xnu-11215.41.3~2/RELEASE_ARM64_T8130",
+    .kernelRelease = "24.1.0",
+    .physicalMemory = 8589934592ULL,
+    .cpuCoreCount = 6,
+    .performanceCores = 2,
+    .efficiencyCores = 4,
+    .screenScale = 3.0,
+    .screenWidth = 393,
+    .screenHeight = 852,
+    .chipName = "Apple A18",
+    .gpuName = "Apple A18 GPU"
+};
+
 // Compatibility aliases for existing UI options. Kept deterministic; no speculative OS build data.
 const LCDeviceProfile kDeviceProfileiPhone17ProMax = {
     .modelIdentifier = "iPhone18,2",
@@ -268,63 +287,6 @@ const LCDeviceProfile kDeviceProfileiPhone13Pro = {
     .screenHeight = 844,
     .chipName = "Apple A15 Bionic",
     .gpuName = "Apple A15 GPU"
-};
-
-const LCDeviceProfile kDeviceProfileiPadPro13_M4 = {
-    .modelIdentifier = "iPad16,5",
-    .hardwareModel = "J720AP",
-    .marketingName = "iPad Pro 13-inch (M4)",
-    .systemVersion = "18.1",
-    .buildVersion = "22B83",
-    .kernelVersion = "Darwin Kernel Version 24.1.0: Thu Oct 10 21:02:45 PDT 2024; root:xnu-11215.41.3~2/RELEASE_ARM64_T8132",
-    .kernelRelease = "24.1.0",
-    .physicalMemory = 17179869184ULL,
-    .cpuCoreCount = 10,
-    .performanceCores = 4,
-    .efficiencyCores = 6,
-    .screenScale = 2.0,
-    .screenWidth = 1032,
-    .screenHeight = 1376,
-    .chipName = "Apple M4",
-    .gpuName = "Apple M4 GPU"
-};
-
-const LCDeviceProfile kDeviceProfileiPadPro11_M4 = {
-    .modelIdentifier = "iPad16,3",
-    .hardwareModel = "J717AP",
-    .marketingName = "iPad Pro 11-inch (M4)",
-    .systemVersion = "18.1",
-    .buildVersion = "22B83",
-    .kernelVersion = "Darwin Kernel Version 24.1.0: Thu Oct 10 21:02:45 PDT 2024; root:xnu-11215.41.3~2/RELEASE_ARM64_T8132",
-    .kernelRelease = "24.1.0",
-    .physicalMemory = 8589934592ULL,
-    .cpuCoreCount = 10,
-    .performanceCores = 4,
-    .efficiencyCores = 6,
-    .screenScale = 2.0,
-    .screenWidth = 834,
-    .screenHeight = 1210,
-    .chipName = "Apple M4",
-    .gpuName = "Apple M4 GPU"
-};
-
-const LCDeviceProfile kDeviceProfileiPadPro12_9_6th = {
-    .modelIdentifier = "iPad14,5",
-    .hardwareModel = "J620AP",
-    .marketingName = "iPad Pro 12.9-inch (6th generation)",
-    .systemVersion = "17.6.1",
-    .buildVersion = "21G93",
-    .kernelVersion = "Darwin Kernel Version 23.6.0: Mon Jul 22 20:46:27 PDT 2024; root:xnu-10063.141.2~1/RELEASE_ARM64_T8112",
-    .kernelRelease = "23.6.0",
-    .physicalMemory = 17179869184ULL,
-    .cpuCoreCount = 8,
-    .performanceCores = 4,
-    .efficiencyCores = 4,
-    .screenScale = 2.0,
-    .screenWidth = 1024,
-    .screenHeight = 1366,
-    .chipName = "Apple M2",
-    .gpuName = "Apple M2 GPU"
 };
 
 #pragma mark - Global State
@@ -1391,19 +1353,21 @@ void LCSetDeviceProfile(NSString *profileName) {
             @"iPhone 16 Pro Max": [NSValue valueWithPointer:&kDeviceProfileiPhone16ProMax],
             @"iPhone 16 Pro": [NSValue valueWithPointer:&kDeviceProfileiPhone16Pro],
             @"iPhone 16": [NSValue valueWithPointer:&kDeviceProfileiPhone16],
+            @"iPhone 16e": [NSValue valueWithPointer:&kDeviceProfileiPhone16e],
             @"iPhone 15 Pro Max": [NSValue valueWithPointer:&kDeviceProfileiPhone15ProMax],
             @"iPhone 15 Pro": [NSValue valueWithPointer:&kDeviceProfileiPhone15Pro],
             @"iPhone 14 Pro Max": [NSValue valueWithPointer:&kDeviceProfileiPhone14ProMax],
             @"iPhone 14 Pro": [NSValue valueWithPointer:&kDeviceProfileiPhone14Pro],
             @"iPhone 13 Pro Max": [NSValue valueWithPointer:&kDeviceProfileiPhone13ProMax],
             @"iPhone 13 Pro": [NSValue valueWithPointer:&kDeviceProfileiPhone13Pro],
-            @"iPad Pro 13-inch (M4)": [NSValue valueWithPointer:&kDeviceProfileiPadPro13_M4],
-            @"iPad Pro 11-inch (M4)": [NSValue valueWithPointer:&kDeviceProfileiPadPro11_M4],
-            @"iPad Pro 12.9 (6th gen)": [NSValue valueWithPointer:&kDeviceProfileiPadPro12_9_6th],
         };
     });
 
     NSValue *value = profileMap[profileName];
+    if (!value) {
+        g_currentProfileName = @"iPhone 16";
+        value = profileMap[g_currentProfileName];
+    }
     g_currentProfile = value ? (const LCDeviceProfile *)value.pointerValue : NULL;
 }
 
@@ -1420,15 +1384,13 @@ NSDictionary<NSString *, NSDictionary *> *LCGetAvailableDeviceProfiles(void) {
         @"iPhone 16 Pro Max": @{@"model": @"iPhone17,2", @"version": @"18.1", @"memory": @"8 GB", @"chip": @"A18 Pro"},
         @"iPhone 16 Pro": @{@"model": @"iPhone17,1", @"version": @"18.1", @"memory": @"8 GB", @"chip": @"A18 Pro"},
         @"iPhone 16": @{@"model": @"iPhone17,3", @"version": @"18.1", @"memory": @"8 GB", @"chip": @"A18"},
+        @"iPhone 16e": @{@"model": @"iPhone17,4", @"version": @"18.1", @"memory": @"8 GB", @"chip": @"A18"},
         @"iPhone 15 Pro Max": @{@"model": @"iPhone16,2", @"version": @"17.6.1", @"memory": @"8 GB", @"chip": @"A17 Pro"},
         @"iPhone 15 Pro": @{@"model": @"iPhone16,1", @"version": @"17.6.1", @"memory": @"8 GB", @"chip": @"A17 Pro"},
         @"iPhone 14 Pro Max": @{@"model": @"iPhone15,3", @"version": @"17.6.1", @"memory": @"6 GB", @"chip": @"A16"},
         @"iPhone 14 Pro": @{@"model": @"iPhone15,2", @"version": @"17.6.1", @"memory": @"6 GB", @"chip": @"A16"},
         @"iPhone 13 Pro Max": @{@"model": @"iPhone14,3", @"version": @"17.6.1", @"memory": @"6 GB", @"chip": @"A15"},
         @"iPhone 13 Pro": @{@"model": @"iPhone14,2", @"version": @"17.6.1", @"memory": @"6 GB", @"chip": @"A15"},
-        @"iPad Pro 13-inch (M4)": @{@"model": @"iPad16,5", @"version": @"18.1", @"memory": @"16 GB", @"chip": @"M4"},
-        @"iPad Pro 11-inch (M4)": @{@"model": @"iPad16,3", @"version": @"18.1", @"memory": @"8 GB", @"chip": @"M4"},
-        @"iPad Pro 12.9 (6th gen)": @{@"model": @"iPad14,5", @"version": @"17.6.1", @"memory": @"16 GB", @"chip": @"M2"},
     };
 }
 

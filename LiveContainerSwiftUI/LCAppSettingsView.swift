@@ -2394,6 +2394,7 @@ struct LCAppSettingsView: View {
                     Text("iPhone 16 Pro Max").tag("iPhone 16 Pro Max")
                     Text("iPhone 16 Pro").tag("iPhone 16 Pro")
                     Text("iPhone 16").tag("iPhone 16")
+                    Text("iPhone 16e").tag("iPhone 16e")
                 }
                 Section(header: Text("iOS 17.x")) {
                     Text("iPhone 15 Pro Max").tag("iPhone 15 Pro Max")
@@ -2402,11 +2403,6 @@ struct LCAppSettingsView: View {
                     Text("iPhone 14 Pro").tag("iPhone 14 Pro")
                     Text("iPhone 13 Pro Max").tag("iPhone 13 Pro Max")
                     Text("iPhone 13 Pro").tag("iPhone 13 Pro")
-                }
-                Section(header: Text("iPad")) {
-                    Text("iPad Pro 13-inch (M4)").tag("iPad Pro 13-inch (M4)")
-                    Text("iPad Pro 11-inch (M4)").tag("iPad Pro 11-inch (M4)")
-                    Text("iPad Pro 12.9 (6th gen)").tag("iPad Pro 12.9 (6th gen)")
                 }
             }
             .pickerStyle(MenuPickerStyle())
@@ -2423,12 +2419,17 @@ struct LCAppSettingsView: View {
             Picker("iOS Version", selection: $model.uiDeviceSpoofCustomVersion) {
                 Text("Use Profile Default").tag("")
                 Section(header: Text("iOS 26.x")) {
+                    Text("26.3 (23D127)").tag("26.3")
+                    Text("26.2.1 (23C71)").tag("26.2.1")
+                    Text("26.2 (23C55)").tag("26.2")
                     Text("26.0").tag("26.0")
                     Text("26.0.1").tag("26.0.1")
                     Text("26.1").tag("26.1")
                 }
                 Section(header: Text("iOS 18.x")) {
-                    Text("18.5.1").tag("18.5.1")
+                    Text("18.6.2 (22G100)").tag("18.6.2")
+                    Text("18.6.1 (22G90)").tag("18.6.1")
+                    Text("18.6 (22G86)").tag("18.6")
                     Text("18.5").tag("18.5")
                     Text("18.4.1").tag("18.4.1")
                     Text("18.3.2").tag("18.3.2")

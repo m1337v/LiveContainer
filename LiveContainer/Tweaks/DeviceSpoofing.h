@@ -43,6 +43,7 @@ extern const LCDeviceProfile kDeviceProfileiPhone17Air;
 extern const LCDeviceProfile kDeviceProfileiPhone16ProMax;
 extern const LCDeviceProfile kDeviceProfileiPhone16Pro;
 extern const LCDeviceProfile kDeviceProfileiPhone16;
+extern const LCDeviceProfile kDeviceProfileiPhone16e;
 // iOS 17.x - iPhone 15/14/13 Series
 extern const LCDeviceProfile kDeviceProfileiPhone15ProMax;
 extern const LCDeviceProfile kDeviceProfileiPhone15Pro;
@@ -50,10 +51,6 @@ extern const LCDeviceProfile kDeviceProfileiPhone14ProMax;
 extern const LCDeviceProfile kDeviceProfileiPhone14Pro;
 extern const LCDeviceProfile kDeviceProfileiPhone13ProMax;
 extern const LCDeviceProfile kDeviceProfileiPhone13Pro;
-// iPad Pro
-extern const LCDeviceProfile kDeviceProfileiPadPro13_M4;
-extern const LCDeviceProfile kDeviceProfileiPadPro11_M4;
-extern const LCDeviceProfile kDeviceProfileiPadPro12_9_6th;
 
 // Initialize device spoofing hooks
 void DeviceSpoofingGuestHooksInit(void);

@@ -428,7 +428,24 @@ class LCAppModel: ObservableObject, Hashable {
 
         // MARK: Device Addon Section (Ghost-style)
         self.uiDeviceSpoofingEnabled = appInfo.deviceSpoofingEnabled
-        self.uiDeviceSpoofProfile = appInfo.deviceSpoofProfile ?? "iPhone 15 Pro Max"
+        let storedDeviceProfile = appInfo.deviceSpoofProfile ?? "iPhone 15 Pro Max"
+        let supportedDeviceProfiles: Set<String> = [
+            "iPhone 17 Pro Max",
+            "iPhone 17 Pro",
+            "iPhone 17",
+            "iPhone 17 Air",
+            "iPhone 16 Pro Max",
+            "iPhone 16 Pro",
+            "iPhone 16",
+            "iPhone 16e",
+            "iPhone 15 Pro Max",
+            "iPhone 15 Pro",
+            "iPhone 14 Pro Max",
+            "iPhone 14 Pro",
+            "iPhone 13 Pro Max",
+            "iPhone 13 Pro"
+        ]
+        self.uiDeviceSpoofProfile = supportedDeviceProfiles.contains(storedDeviceProfile) ? storedDeviceProfile : "iPhone 16"
         self.uiDeviceSpoofCustomVersion = appInfo.deviceSpoofCustomVersion ?? ""
         self.uiDeviceSpoofDeviceName = appInfo.deviceSpoofDeviceName
         self.uiDeviceSpoofDeviceNameValue = appInfo.deviceSpoofDeviceNameValue ?? "iPhone"
