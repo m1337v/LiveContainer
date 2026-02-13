@@ -411,6 +411,10 @@ static BOOL g_spoofCraneEnabled = NO;
 static BOOL g_spoofPasteboardEnabled = NO;
 static BOOL g_spoofAlbumEnabled = NO;
 static BOOL g_spoofAppiumEnabled = NO;
+static BOOL g_keyboardSpoofingEnabled = NO;
+static BOOL g_userDefaultsSpoofingEnabled = NO;
+static BOOL g_fileTimestampSpoofingEnabled = NO;
+static NSTimeInterval g_fileTimestampSeedSeconds = 0;
 static NSArray<NSString *> *g_albumBlacklist = nil;
 static NSString *g_spoofedLocaleCurrencyCode = nil;
 static NSString *g_spoofedLocaleCurrencySymbol = nil;
@@ -474,6 +478,7 @@ static NSTimeInterval (*orig_NSProcessInfo_systemUptime)(id self, SEL _cmd) = NU
 
 static id (*orig_NSFileManager_ubiquityIdentityToken)(id self, SEL _cmd) = NULL;
 static NSDictionary *(*orig_NSFileManager_attributesOfFileSystemForPath)(id self, SEL _cmd, NSString *path, NSError **error) = NULL;
+static NSDictionary *(*orig_NSFileManager_attributesOfItemAtPath_error)(id self, SEL _cmd, NSString *path, NSError **error) = NULL;
 static unsigned long long (*orig_NSFileManager_volumeAvailableCapacityForImportantUsageForURL)(id self, SEL _cmd, NSURL *url, NSError **error) = NULL;
 static unsigned long long (*orig_NSFileManager_volumeAvailableCapacityForOpportunisticUsageForURL)(id self, SEL _cmd, NSURL *url, NSError **error) = NULL;
 static unsigned long long (*orig_NSFileManager_volumeTotalCapacityForURL)(id self, SEL _cmd, NSURL *url, NSError **error) = NULL;
@@ -529,6 +534,11 @@ static CGRect (*orig_UIStatusBarManager_statusBarFrame)(id self, SEL _cmd) = NUL
 
 static BOOL (*orig_MFMessageComposeViewController_canSendText)(id self, SEL _cmd) = NULL;
 static BOOL (*orig_MFMailComposeViewController_canSendMail)(id self, SEL _cmd) = NULL;
+static NSArray *(*orig_UITextInputMode_activeInputModes)(id self, SEL _cmd) = NULL;
+static id (*orig_UITextInputMode_currentInputMode)(id self, SEL _cmd) = NULL;
+static NSString *(*orig_UITextInputMode_primaryLanguage)(id self, SEL _cmd) = NULL;
+static id (*orig_NSUserDefaults_objectForKey)(id self, SEL _cmd, NSString *defaultName) = NULL;
+static NSDictionary<NSString *, id> *(*orig_NSUserDefaults_dictionaryRepresentation)(id self, SEL _cmd) = NULL;
 static NSString *(*orig_UIPasteboard_string)(id self, SEL _cmd) = NULL;
 static BOOL (*orig_NSString_containsString)(id self, SEL _cmd, NSString *query) = NULL;
 static BOOL (*orig_NSString_hasPrefix)(id self, SEL _cmd, NSString *prefix) = NULL;
@@ -1189,6 +1199,120 @@ static NSError *LCMakeSpoofingError(NSString *reason) {
     return [NSError errorWithDomain:@"com.livecontainer.devicespoofing"
                                code:1
                            userInfo:@{NSLocalizedDescriptionKey: description}];
+}
+
+static NSString *LCSpoofedLocaleIdentifier(void) {
+    if (g_spoofedLocale.length > 0) {
+        return g_spoofedLocale;
+    }
+    NSString *locale = NSLocale.currentLocale.localeIdentifier;
+    return locale.length > 0 ? locale : @"en_US";
+}
+
+static NSString *LCSpoofedLanguageTag(void) {
+    NSString *locale = [LCSpoofedLocaleIdentifier() stringByReplacingOccurrencesOfString:@"_" withString:@"-"];
+    if (locale.length == 0) return @"en-US";
+
+    NSArray<NSString *> *components = [locale componentsSeparatedByString:@"-"];
+    if (components.count == 0) return @"en-US";
+    NSString *language = [components.firstObject lowercaseString];
+    if (components.count >= 2) {
+        NSString *region = [components[1] uppercaseString];
+        if (language.length > 0 && region.length > 0) {
+            return [NSString stringWithFormat:@"%@-%@", language, region];
+        }
+    }
+    return language.length > 0 ? language : @"en-US";
+}
+
+static BOOL LCShouldSanitizeUserDefaultsKey(NSString *key) {
+    if (!LCDeviceSpoofingIsActive() || !g_userDefaultsSpoofingEnabled) return NO;
+    if (![key isKindOfClass:[NSString class]] || key.length == 0) return NO;
+
+    NSString *lower = key.lowercaseString;
+    if ([lower isEqualToString:@"applelanguages"] ||
+        [lower isEqualToString:@"nslanguages"] ||
+        [lower isEqualToString:@"applelocale"] ||
+        [lower isEqualToString:@"applekeyboards"] ||
+        [lower isEqualToString:@"applekeyboardsexpanded"] ||
+        [lower isEqualToString:@"appleselectedinputmodes"] ||
+        [lower isEqualToString:@"applepasscodekeyboards"] ||
+        [lower isEqualToString:@"appleinputsourcehistory"]) {
+        return YES;
+    }
+    if ([lower containsString:@"keyboard"] || [lower containsString:@"inputmode"]) {
+        if ([lower hasPrefix:@"apple"] || [lower hasPrefix:@"com.apple."]) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+static id LCSanitizedUserDefaultsValueForKey(NSString *key) {
+    if (![key isKindOfClass:[NSString class]]) return nil;
+    NSString *lower = key.lowercaseString;
+
+    if ([lower isEqualToString:@"applelanguages"] || [lower isEqualToString:@"nslanguages"]) {
+        return @[LCSpoofedLanguageTag()];
+    }
+    if ([lower isEqualToString:@"applelocale"]) {
+        return LCSpoofedLocaleIdentifier();
+    }
+    if ([lower containsString:@"keyboard"] || [lower containsString:@"inputmode"]) {
+        return @[LCSpoofedLanguageTag()];
+    }
+    return nil;
+}
+
+static uint64_t LCFNV1aHash64(NSString *value) {
+    const char *bytes = [value UTF8String];
+    if (!bytes) {
+        bytes = "";
+    }
+
+    uint64_t hash = 1469598103934665603ULL;
+    for (const unsigned char *p = (const unsigned char *)bytes; *p != '\0'; p++) {
+        hash ^= (uint64_t)(*p);
+        hash *= 1099511628211ULL;
+    }
+    return hash;
+}
+
+static NSDate *LCSpoofedTimestampForPath(NSString *path, BOOL forModificationDate) {
+    if (!LCDeviceSpoofingIsActive() || !g_fileTimestampSpoofingEnabled) {
+        return nil;
+    }
+
+    NSString *basis = [path isKindOfClass:[NSString class]] ? path : @"";
+    uint64_t hash = LCFNV1aHash64(basis);
+    NSTimeInterval now = NSDate.date.timeIntervalSince1970;
+    NSTimeInterval seed = g_fileTimestampSeedSeconds > 0 ? g_fileTimestampSeedSeconds : (now - (180.0 * 24.0 * 3600.0));
+    NSTimeInterval dayOffset = (NSTimeInterval)(hash % 180ULL) * 24.0 * 3600.0;
+    NSTimeInterval hourOffset = (NSTimeInterval)((hash >> 11) % 10ULL) * 3600.0;
+    NSTimeInterval timestamp = seed + dayOffset + hourOffset;
+    if (forModificationDate) {
+        timestamp += (NSTimeInterval)((hash >> 19) % (14ULL * 24ULL * 3600ULL));
+    }
+    if (timestamp > now - 5.0) {
+        timestamp = now - 5.0;
+    }
+    if (timestamp < 1.0) {
+        timestamp = 1.0;
+    }
+    return [NSDate dateWithTimeIntervalSince1970:timestamp];
+}
+
+static void LCApplySpoofedFileDatesToDictionary(NSMutableDictionary *mutableAttrs, NSString *path) {
+    if (!mutableAttrs || !LCDeviceSpoofingIsActive() || !g_fileTimestampSpoofingEnabled) return;
+
+    NSDate *creationDate = LCSpoofedTimestampForPath(path, NO);
+    NSDate *modificationDate = LCSpoofedTimestampForPath(path, YES);
+    if (creationDate) {
+        mutableAttrs[NSFileCreationDate] = creationDate;
+    }
+    if (modificationDate) {
+        mutableAttrs[NSFileModificationDate] = modificationDate;
+    }
 }
 
 static NSData *LCModifyBugsnagPayload(NSData *payload) {
@@ -2210,6 +2334,75 @@ static BOOL hook_CMMotionManager_isDeviceMotionAvailable(id self, SEL _cmd) {
     return YES;
 }
 
+static NSArray *hook_UITextInputMode_activeInputModes(id self, SEL _cmd) {
+    NSArray *modes = orig_UITextInputMode_activeInputModes ? orig_UITextInputMode_activeInputModes(self, _cmd) : @[];
+    if (!LCDeviceSpoofingIsActive() || !g_keyboardSpoofingEnabled || ![modes isKindOfClass:[NSArray class]]) {
+        return modes;
+    }
+    if (modes.count == 0) {
+        return @[];
+    }
+    id first = modes.firstObject;
+    return first ? @[first] : @[];
+}
+
+static id hook_UITextInputMode_currentInputMode(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_keyboardSpoofingEnabled) {
+        NSArray *modes = orig_UITextInputMode_activeInputModes ? orig_UITextInputMode_activeInputModes(self, @selector(activeInputModes)) : @[];
+        if ([modes isKindOfClass:[NSArray class]] && modes.count > 0) {
+            return modes.firstObject;
+        }
+    }
+    if (orig_UITextInputMode_currentInputMode) {
+        return orig_UITextInputMode_currentInputMode(self, _cmd);
+    }
+    return nil;
+}
+
+static NSString *hook_UITextInputMode_primaryLanguage(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_keyboardSpoofingEnabled) {
+        return LCSpoofedLanguageTag();
+    }
+    if (orig_UITextInputMode_primaryLanguage) {
+        return orig_UITextInputMode_primaryLanguage(self, _cmd);
+    }
+    return nil;
+}
+
+static id hook_NSUserDefaults_objectForKey(id self, SEL _cmd, NSString *defaultName) {
+    if (LCShouldSanitizeUserDefaultsKey(defaultName)) {
+        return LCSanitizedUserDefaultsValueForKey(defaultName);
+    }
+    if (orig_NSUserDefaults_objectForKey) {
+        return orig_NSUserDefaults_objectForKey(self, _cmd, defaultName);
+    }
+    return nil;
+}
+
+static NSDictionary<NSString *, id> *hook_NSUserDefaults_dictionaryRepresentation(id self, SEL _cmd) {
+    NSDictionary<NSString *, id> *dictionary = orig_NSUserDefaults_dictionaryRepresentation
+        ? orig_NSUserDefaults_dictionaryRepresentation(self, _cmd)
+        : @{};
+    if (!LCDeviceSpoofingIsActive() || !g_userDefaultsSpoofingEnabled || ![dictionary isKindOfClass:[NSDictionary class]] || dictionary.count == 0) {
+        return dictionary;
+    }
+
+    NSMutableDictionary<NSString *, id> *mutable = [dictionary mutableCopy];
+    for (id keyObj in dictionary.allKeys) {
+        if (![keyObj isKindOfClass:[NSString class]]) continue;
+        NSString *key = (NSString *)keyObj;
+        if (!LCShouldSanitizeUserDefaultsKey(key)) continue;
+
+        id sanitized = LCSanitizedUserDefaultsValueForKey(key);
+        if (sanitized) {
+            mutable[key] = sanitized;
+        } else {
+            [mutable removeObjectForKey:key];
+        }
+    }
+    return [mutable copy];
+}
+
 static BOOL hook_MFMessageComposeViewController_canSendText(id self, SEL _cmd) {
     if (LCScreenFeatureEnabled(g_spoofMessageEnabled)) {
         return YES;
@@ -3021,6 +3214,16 @@ static NSString *LCBuildFingerprintInjectionScript(void) {
     }
     NSString *gpuRenderer = g_currentProfile && g_currentProfile->gpuName ? @(g_currentProfile->gpuName) : @"Apple GPU";
     NSString *gpuRendererEscaped = [gpuRenderer stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
+    NSString *spoofedLanguage = [LCSpoofedLanguageTag() stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
+    NSString *spoofedTimezone = (g_spoofedTimezone.length > 0 ? g_spoofedTimezone : (NSTimeZone.localTimeZone.name ?: @"UTC"));
+    spoofedTimezone = [spoofedTimezone stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
+    NSString *localeJS = [NSString stringWithFormat:
+        @"try{Object.defineProperty(navigator,'language',{get:function(){return '%@'}});}catch(e){}\n"
+        @"try{Object.defineProperty(navigator,'languages',{get:function(){return ['%@']}});}catch(e){}\n"
+        @"try{var __origResolved=Intl.DateTimeFormat.prototype.resolvedOptions;"
+        @"Intl.DateTimeFormat.prototype.resolvedOptions=function(){"
+        @"var o=__origResolved.call(this);o.timeZone='%@';return o;};}catch(e){}\n",
+        spoofedLanguage, spoofedLanguage, spoofedTimezone];
 
     return [NSString stringWithFormat:
         @"(function(){\n"
@@ -3039,6 +3242,8 @@ static NSString *LCBuildFingerprintInjectionScript(void) {
         // Hardware concurrency + memory
         @"try{Object.defineProperty(navigator,'hardwareConcurrency',{get:function(){return %u}});}catch(e){}\n"
         @"try{Object.defineProperty(navigator,'deviceMemory',{get:function(){return %d}});}catch(e){}\n"
+        // Locale and timezone
+        @"%@"
         // User-Agent
         @"%@"
         // Canvas fingerprint noise
@@ -3113,6 +3318,7 @@ static NSString *LCBuildFingerprintInjectionScript(void) {
         (long)screenW, (long)(screenH - 44), // innerHeight minus status bar
         (long)screenW, (long)screenH,
         cpuCores, deviceMem,
+        localeJS,
         uaJS,
         arc4random(),
         gpuRendererEscaped,
@@ -3181,6 +3387,19 @@ static NSDictionary *hook_NSFileManager_attributesOfFileSystemForPath(id self, S
     return attrs;
 }
 
+static NSDictionary *hook_NSFileManager_attributesOfItemAtPath_error(id self, SEL _cmd, NSString *path, NSError **error) {
+    NSDictionary *attrs = orig_NSFileManager_attributesOfItemAtPath_error
+        ? orig_NSFileManager_attributesOfItemAtPath_error(self, _cmd, path, error)
+        : nil;
+    if (!attrs || !(LCDeviceSpoofingIsActive() && g_fileTimestampSpoofingEnabled)) {
+        return attrs;
+    }
+
+    NSMutableDictionary *mutable = [attrs mutableCopy];
+    LCApplySpoofedFileDatesToDictionary(mutable, path);
+    return [mutable copy];
+}
+
 static unsigned long long hook_NSFileManager_volumeAvailableCapacityForImportantUsageForURL(id self, SEL _cmd, NSURL *url, NSError **error) {
     unsigned long long original = orig_NSFileManager_volumeAvailableCapacityForImportantUsageForURL
         ? orig_NSFileManager_volumeAvailableCapacityForImportantUsageForURL(self, _cmd, url, error)
@@ -3211,16 +3430,30 @@ static unsigned long long hook_NSFileManager_volumeTotalCapacityForURL(id self, 
     return original;
 }
 
-static void LCApplySpoofedNSURLResourceValue(id *value, NSString *key) {
-    if (!value || !key || !LCStorageSpoofingActive()) return;
+static void LCApplySpoofedNSURLResourceValue(id *value, NSString *key, NSURL *url) {
+    if (!value || !key) return;
 
-    if ([key isEqualToString:@"NSURLVolumeTotalCapacityKey"]) {
-        *value = @(g_spoofedStorageTotal);
-    } else if ([key isEqualToString:@"NSURLVolumeAvailableCapacityKey"] ||
-               [key isEqualToString:@"NSURLVolumeAvailableCapacityForImportantUsageKey"]) {
-        *value = @(g_spoofedStorageFree);
-    } else if ([key isEqualToString:@"NSURLVolumeAvailableCapacityForOpportunisticUsageKey"]) {
-        *value = @(LCSpoofedStorageOpportunisticFreeBytes());
+    if (LCStorageSpoofingActive()) {
+        if ([key isEqualToString:@"NSURLVolumeTotalCapacityKey"]) {
+            *value = @(g_spoofedStorageTotal);
+        } else if ([key isEqualToString:@"NSURLVolumeAvailableCapacityKey"] ||
+                   [key isEqualToString:@"NSURLVolumeAvailableCapacityForImportantUsageKey"]) {
+            *value = @(g_spoofedStorageFree);
+        } else if ([key isEqualToString:@"NSURLVolumeAvailableCapacityForOpportunisticUsageKey"]) {
+            *value = @(LCSpoofedStorageOpportunisticFreeBytes());
+        }
+    }
+
+    if (LCDeviceSpoofingIsActive() && g_fileTimestampSpoofingEnabled) {
+        NSString *path = [url isKindOfClass:[NSURL class]] ? url.path : nil;
+        if ([key isEqualToString:NSURLCreationDateKey] || [key isEqualToString:@"NSURLCreationDateKey"]) {
+            NSDate *created = LCSpoofedTimestampForPath(path, NO);
+            if (created) *value = created;
+        } else if ([key isEqualToString:NSURLContentModificationDateKey] ||
+                   [key isEqualToString:@"NSURLContentModificationDateKey"]) {
+            NSDate *modified = LCSpoofedTimestampForPath(path, YES);
+            if (modified) *value = modified;
+        }
     }
 }
 
@@ -3228,11 +3461,11 @@ static BOOL hook_NSURL_getResourceValue_forKey_error(id self, SEL _cmd, id *valu
     BOOL result = orig_NSURL_getResourceValue_forKey_error
         ? orig_NSURL_getResourceValue_forKey_error(self, _cmd, value, key, error)
         : NO;
-    if (!result || !value || !key || !LCStorageSpoofingActive()) {
+    if (!result || !value || !key) {
         return result;
     }
 
-    LCApplySpoofedNSURLResourceValue(value, (NSString *)key);
+    LCApplySpoofedNSURLResourceValue(value, (NSString *)key, [self isKindOfClass:[NSURL class]] ? (NSURL *)self : nil);
     return result;
 }
 
@@ -3240,14 +3473,14 @@ static NSDictionary<NSURLResourceKey, id> *hook_NSURL_resourceValuesForKeys_erro
     NSDictionary<NSURLResourceKey, id> *values = orig_NSURL_resourceValuesForKeys_error
         ? orig_NSURL_resourceValuesForKeys_error(self, _cmd, keys, error)
         : nil;
-    if (!values || !keys || !LCStorageSpoofingActive()) {
+    if (!values || !keys) {
         return values;
     }
 
     NSMutableDictionary<NSURLResourceKey, id> *mutable = [values mutableCopy];
     for (NSURLResourceKey key in keys) {
         id spoofed = mutable[key];
-        LCApplySpoofedNSURLResourceValue(&spoofed, (NSString *)key);
+        LCApplySpoofedNSURLResourceValue(&spoofed, (NSString *)key, [self isKindOfClass:[NSURL class]] ? (NSURL *)self : nil);
         if (spoofed) {
             mutable[key] = spoofed;
         }
@@ -3291,7 +3524,7 @@ void LCSetDeviceProfile(NSString *profileName) {
 
     NSValue *value = profileMap[profileName];
     if (!value) {
-        g_currentProfileName = @"iPhone 16";
+        g_currentProfileName = @"iPhone 17";
         value = profileMap[g_currentProfileName];
     }
     g_currentProfile = value ? (const LCDeviceProfile *)value.pointerValue : NULL;
@@ -3432,6 +3665,16 @@ void LCSetSpoofCraneEnabled(BOOL enabled) { g_spoofCraneEnabled = enabled; }
 void LCSetSpoofPasteboardEnabled(BOOL enabled) { g_spoofPasteboardEnabled = enabled; }
 void LCSetSpoofAlbumEnabled(BOOL enabled) { g_spoofAlbumEnabled = enabled; }
 void LCSetSpoofAppiumEnabled(BOOL enabled) { g_spoofAppiumEnabled = enabled; }
+void LCSetKeyboardSpoofingEnabled(BOOL enabled) { g_keyboardSpoofingEnabled = enabled; }
+void LCSetUserDefaultsSpoofingEnabled(BOOL enabled) { g_userDefaultsSpoofingEnabled = enabled; }
+void LCSetFileTimestampSpoofingEnabled(BOOL enabled) {
+    g_fileTimestampSpoofingEnabled = enabled;
+    if (enabled && g_fileTimestampSeedSeconds <= 0) {
+        NSTimeInterval now = NSDate.date.timeIntervalSince1970;
+        uint32_t daysAgo = 30 + arc4random_uniform(331); // 30-360 days ago
+        g_fileTimestampSeedSeconds = now - ((NSTimeInterval)daysAgo * 24.0 * 3600.0);
+    }
+}
 BOOL LCIsScreenCaptureBlockEnabled(void) { return g_screenCaptureBlockEnabled; }
 void LCSetAlbumBlacklistArray(NSArray<NSString *> *blacklist) { g_albumBlacklist = [blacklist copy]; }
 
@@ -3864,6 +4107,28 @@ void DeviceSpoofingGuestHooksInit(void) {
             }
         }
 
+        if (g_keyboardSpoofingEnabled) {
+            Class textInputModeClass = objc_getClass("UITextInputMode");
+            if (textInputModeClass) {
+                Class textInputModeMeta = object_getClass(textInputModeClass);
+                SEL activeModesSelector = @selector(activeInputModes);
+                if ([textInputModeMeta respondsToSelector:activeModesSelector]) {
+                    LCInstallInstanceHook(textInputModeMeta, activeModesSelector, (IMP)hook_UITextInputMode_activeInputModes, (IMP *)&orig_UITextInputMode_activeInputModes);
+                }
+                SEL currentInputModeSelector = NSSelectorFromString(@"currentInputMode");
+                if ([textInputModeMeta respondsToSelector:currentInputModeSelector]) {
+                    LCInstallInstanceHook(textInputModeMeta, currentInputModeSelector, (IMP)hook_UITextInputMode_currentInputMode, (IMP *)&orig_UITextInputMode_currentInputMode);
+                }
+                LCInstallInstanceHook(textInputModeClass, @selector(primaryLanguage), (IMP)hook_UITextInputMode_primaryLanguage, (IMP *)&orig_UITextInputMode_primaryLanguage);
+            }
+        }
+
+        if (g_userDefaultsSpoofingEnabled) {
+            Class userDefaultsClass = objc_getClass("NSUserDefaults");
+            LCInstallInstanceHook(userDefaultsClass, @selector(objectForKey:), (IMP)hook_NSUserDefaults_objectForKey, (IMP *)&orig_NSUserDefaults_objectForKey);
+            LCInstallInstanceHook(userDefaultsClass, @selector(dictionaryRepresentation), (IMP)hook_NSUserDefaults_dictionaryRepresentation, (IMP *)&orig_NSUserDefaults_dictionaryRepresentation);
+        }
+
         // Screen capture detection blocking
         if (g_screenCaptureBlockEnabled) {
             LCInstallInstanceHook(uiScreenClass, @selector(isCaptured), (IMP)hook_UIScreen_isCaptured, (IMP *)&orig_UIScreen_isCaptured);
@@ -3942,6 +4207,11 @@ void DeviceSpoofingGuestHooksInit(void) {
         if (fsAttrs) {
             orig_NSFileManager_attributesOfFileSystemForPath = (NSDictionary *(*)(id, SEL, NSString *, NSError **))
                 method_setImplementation(fsAttrs, (IMP)hook_NSFileManager_attributesOfFileSystemForPath);
+        }
+        Method itemAttrs = class_getInstanceMethod(fileManagerClass2, @selector(attributesOfItemAtPath:error:));
+        if (itemAttrs) {
+            orig_NSFileManager_attributesOfItemAtPath_error = (NSDictionary *(*)(id, SEL, NSString *, NSError **))
+                method_setImplementation(itemAttrs, (IMP)hook_NSFileManager_attributesOfItemAtPath_error);
         }
         LCInstallInstanceHook(fileManagerClass2, NSSelectorFromString(@"volumeAvailableCapacityForImportantUsageForURL:error:"),
                               (IMP)hook_NSFileManager_volumeAvailableCapacityForImportantUsageForURL,

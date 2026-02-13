@@ -207,6 +207,9 @@ void LCSetSpoofCraneEnabled(BOOL enabled);           // Crane marker filtering
 void LCSetSpoofPasteboardEnabled(BOOL enabled);      // UIPasteboard.string
 void LCSetSpoofAlbumEnabled(BOOL enabled);           // Photos album filtering
 void LCSetSpoofAppiumEnabled(BOOL enabled);          // Appium/WebDriver marker filtering
+void LCSetKeyboardSpoofingEnabled(BOOL enabled);     // UITextInputMode keyboard surfaces
+void LCSetUserDefaultsSpoofingEnabled(BOOL enabled); // NSUserDefaults fingerprint keys
+void LCSetFileTimestampSpoofingEnabled(BOOL enabled);// File creation/modification metadata
 BOOL LCIsScreenCaptureBlockEnabled(void);
 void LCSetAlbumBlacklistArray(NSArray<NSString *> *blacklist); // "<localId>-<title>" entries
 

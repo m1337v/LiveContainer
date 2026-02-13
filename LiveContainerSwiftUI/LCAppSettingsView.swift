@@ -2379,7 +2379,7 @@ struct LCAppSettingsView: View {
             Text("Device Fingerprinting Protection")
         } footer: {
             if model.uiDeviceSpoofingEnabled {
-                Text("Hooks sysctl, uname, UIDevice, NSProcessInfo, ASIdentifierManager, telephony, motion sensors, boot time, uptime, user-agent and locale surfaces.")
+                Text("Hooks sysctl, uname, UIDevice, NSProcessInfo, ASIdentifierManager, telephony, motion sensors, boot time, uptime, user-agent, locale, keyboard, UserDefaults and file-metadata surfaces.")
             }
         }
     }
@@ -3447,6 +3447,24 @@ struct LCAppSettingsView: View {
 
             Toggle(isOn: $model.uiDeviceSpoofAppium) {
                 Label("🤖 Hide Appium Markers", systemImage: "eye.slash")
+                    .font(.caption)
+            }
+            .padding(.leading, 28)
+
+            Toggle(isOn: $model.uiDeviceSpoofKeyboard) {
+                Label("⌨️ Normalize Keyboard Mode Checks", systemImage: "keyboard")
+                    .font(.caption)
+            }
+            .padding(.leading, 28)
+
+            Toggle(isOn: $model.uiDeviceSpoofUserDefaults) {
+                Label("🗃️ Sanitize UserDefaults Fingerprint Keys", systemImage: "tray.full")
+                    .font(.caption)
+            }
+            .padding(.leading, 28)
+
+            Toggle(isOn: $model.uiDeviceSpoofFileTimestamps) {
+                Label("🧾 Spoof File Timestamp Metadata", systemImage: "calendar.badge.clock")
                     .font(.caption)
             }
             .padding(.leading, 28)

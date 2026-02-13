@@ -1736,6 +1736,45 @@ static BOOL LCIsContainerScopedAddonKey(NSString *key) {
     [self save];
 }
 
+- (bool)enableSpoofKeyboard {
+    if (_info[@"enableSpoofKeyboard"] != nil) {
+        return [_info[@"enableSpoofKeyboard"] boolValue];
+    }
+    return self.deviceSpoofSecurityEnabled;
+}
+
+- (void)setEnableSpoofKeyboard:(bool)enabled {
+    _info[@"enableSpoofKeyboard"] = @(enabled);
+    [self save];
+}
+
+- (bool)enableSpoofUserDefaults {
+    if (_info[@"enableSpoofUserDefaults"] != nil) {
+        return [_info[@"enableSpoofUserDefaults"] boolValue];
+    }
+    return self.deviceSpoofSecurityEnabled;
+}
+
+- (void)setEnableSpoofUserDefaults:(bool)enabled {
+    _info[@"enableSpoofUserDefaults"] = @(enabled);
+    [self save];
+}
+
+- (bool)deviceSpoofFileTimestamps {
+    if (_info[@"deviceSpoofFileTimestamps"] != nil) {
+        return [_info[@"deviceSpoofFileTimestamps"] boolValue];
+    }
+    if (_info[@"enableSpoofFileTimestamps"] != nil) {
+        return [_info[@"enableSpoofFileTimestamps"] boolValue];
+    }
+    return self.deviceSpoofSecurityEnabled;
+}
+
+- (void)setDeviceSpoofFileTimestamps:(bool)enabled {
+    _info[@"deviceSpoofFileTimestamps"] = @(enabled);
+    [self save];
+}
+
 - (bool)deviceSpoofProximity {
     if (_info[@"deviceSpoofProximity"] != nil) {
         return [_info[@"deviceSpoofProximity"] boolValue];

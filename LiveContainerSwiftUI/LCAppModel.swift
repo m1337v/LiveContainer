@@ -295,6 +295,9 @@ class LCAppModel: ObservableObject, Hashable {
             uiDeviceSpoofPasteboard = uiDeviceSpoofSecurityEnabled
             uiDeviceSpoofAlbum = uiDeviceSpoofSecurityEnabled
             uiDeviceSpoofAppium = uiDeviceSpoofSecurityEnabled
+            uiDeviceSpoofKeyboard = uiDeviceSpoofSecurityEnabled
+            uiDeviceSpoofUserDefaults = uiDeviceSpoofSecurityEnabled
+            uiDeviceSpoofFileTimestamps = uiDeviceSpoofSecurityEnabled
         }
     }
     @Published var uiDeviceSpoofCloudToken: Bool {
@@ -430,6 +433,21 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var uiDeviceSpoofAppium: Bool {
         didSet {
             appInfo.enableSpoofAppium = uiDeviceSpoofAppium
+        }
+    }
+    @Published var uiDeviceSpoofKeyboard: Bool {
+        didSet {
+            appInfo.enableSpoofKeyboard = uiDeviceSpoofKeyboard
+        }
+    }
+    @Published var uiDeviceSpoofUserDefaults: Bool {
+        didSet {
+            appInfo.enableSpoofUserDefaults = uiDeviceSpoofUserDefaults
+        }
+    }
+    @Published var uiDeviceSpoofFileTimestamps: Bool {
+        didSet {
+            appInfo.deviceSpoofFileTimestamps = uiDeviceSpoofFileTimestamps
         }
     }
     @Published var uiDeviceSpoofProximity: Bool {
@@ -709,6 +727,9 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDeviceSpoofPasteboard = appInfo.enableSpoofPasteboard
         self.uiDeviceSpoofAlbum = appInfo.enableSpoofAlbum
         self.uiDeviceSpoofAppium = appInfo.enableSpoofAppium
+        self.uiDeviceSpoofKeyboard = appInfo.enableSpoofKeyboard
+        self.uiDeviceSpoofUserDefaults = appInfo.enableSpoofUserDefaults
+        self.uiDeviceSpoofFileTimestamps = appInfo.deviceSpoofFileTimestamps
         self.uiDeviceSpoofProximity = appInfo.deviceSpoofProximity
         self.uiDeviceSpoofOrientation = appInfo.deviceSpoofOrientation
         self.uiDeviceSpoofGyroscope = appInfo.deviceSpoofGyroscope
@@ -833,6 +854,9 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDeviceSpoofPasteboard = appInfo.enableSpoofPasteboard
         self.uiDeviceSpoofAlbum = appInfo.enableSpoofAlbum
         self.uiDeviceSpoofAppium = appInfo.enableSpoofAppium
+        self.uiDeviceSpoofKeyboard = appInfo.enableSpoofKeyboard
+        self.uiDeviceSpoofUserDefaults = appInfo.enableSpoofUserDefaults
+        self.uiDeviceSpoofFileTimestamps = appInfo.deviceSpoofFileTimestamps
         self.uiDeviceSpoofProximity = appInfo.deviceSpoofProximity
         self.uiDeviceSpoofOrientation = appInfo.deviceSpoofOrientation
         self.uiDeviceSpoofGyroscope = appInfo.deviceSpoofGyroscope

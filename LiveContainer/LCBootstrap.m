@@ -833,6 +833,21 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             spoofAppiumObj = guestAppInfo[@"deviceSpoofAppium"];
         }
         BOOL spoofAppium = spoofAppiumObj ? [spoofAppiumObj boolValue] : securityMasterEnabled;
+        id spoofKeyboardObj = guestAppInfo[@"enableSpoofKeyboard"];
+        if (spoofKeyboardObj == nil) {
+            spoofKeyboardObj = guestAppInfo[@"deviceSpoofKeyboard"];
+        }
+        BOOL spoofKeyboard = spoofKeyboardObj ? [spoofKeyboardObj boolValue] : securityMasterEnabled;
+        id spoofUserDefaultsObj = guestAppInfo[@"enableSpoofUserDefaults"];
+        if (spoofUserDefaultsObj == nil) {
+            spoofUserDefaultsObj = guestAppInfo[@"deviceSpoofUserDefaults"];
+        }
+        BOOL spoofUserDefaults = spoofUserDefaultsObj ? [spoofUserDefaultsObj boolValue] : securityMasterEnabled;
+        id spoofFileTimestampsObj = guestAppInfo[@"deviceSpoofFileTimestamps"];
+        if (spoofFileTimestampsObj == nil) {
+            spoofFileTimestampsObj = guestAppInfo[@"enableSpoofFileTimestamps"];
+        }
+        BOOL spoofFileTimestamps = spoofFileTimestampsObj ? [spoofFileTimestampsObj boolValue] : securityMasterEnabled;
         LCSetSpoofMessageEnabled(spoofMessage);
         LCSetSpoofMailEnabled(spoofMail);
         LCSetSpoofBugsnagEnabled(spoofBugsnag);
@@ -840,6 +855,9 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         LCSetSpoofPasteboardEnabled(spoofPasteboard);
         LCSetSpoofAlbumEnabled(spoofAlbum);
         LCSetSpoofAppiumEnabled(spoofAppium);
+        LCSetKeyboardSpoofingEnabled(spoofKeyboard);
+        LCSetUserDefaultsSpoofingEnabled(spoofUserDefaults);
+        LCSetFileTimestampSpoofingEnabled(spoofFileTimestamps);
 
         id spoofScreenCaptureObj = guestAppInfo[@"deviceSpoofScreenCapture"];
         if (spoofScreenCaptureObj == nil) {

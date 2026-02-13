@@ -110,6 +110,9 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property bool enableSpoofPasteboard;
 @property bool enableSpoofAlbum;
 @property bool enableSpoofAppium;
+@property bool enableSpoofKeyboard;
+@property bool enableSpoofUserDefaults;
+@property bool deviceSpoofFileTimestamps;
 @property (nonatomic) NSArray<NSString *>* deviceSpoofAlbumBlacklist;
 @property bool deviceSpoofProximity;
 @property bool deviceSpoofOrientation;
