@@ -94,6 +94,7 @@ static __thread BOOL gInHookNWInterfaceCreateWithIndexAndName = NO;
 static __thread BOOL gInHookNWInterfaceCreateFromNECP = NO;
 static __thread BOOL gInHookNWPathCopyInterfaceWithGeneration = NO;
 static BOOL gLoggedNWInlineHookPolicy = NO;
+static BOOL gLoggedNWAggressiveHookPolicy = NO;
 // Signal handlers
 // Interface
 @interface NWPath (PrivateMethods)
@@ -1314,6 +1315,11 @@ static BOOL lc_shouldEnableNWInlineHooks(void) {
     return flag && flag[0] == '1';
 }
 
+static BOOL lc_shouldEnableNWAggressiveHooks(void) {
+    const char *flag = getenv("LC_ENABLE_NW_AGGRESSIVE_HOOKS");
+    return flag && flag[0] == '1';
+}
+
 static BOOL lc_shouldEnableNWPathGenerationInlineHook(void) {
     const char *flag = getenv("LC_DISABLE_NW_PATH_GEN_INLINE_HOOK");
     return !(flag && flag[0] == '1');
@@ -1670,13 +1676,20 @@ static nw_interface_t hook_nw_path_copy_interface_with_generation(void *context,
     }
 
     unsigned int sanitizedIndex = lc_sanitizeInterfaceIndex("nw_path_copy_interface_with_generation", interface_index);
-    nw_interface_t interface = lc_createInterfaceFromSanitizedIndex("nw_path_copy_interface_with_generation", sanitizedIndex);
+    nw_interface_t interface = NULL;
 
-    if (!interface &&
-        !gDidInlineHookNWPathCopyInterfaceWithGeneration &&
+    if (!gDidInlineHookNWPathCopyInterfaceWithGeneration &&
         orig_nw_path_copy_interface_with_generation) {
-        interface = orig_nw_path_copy_interface_with_generation(context, sanitizedIndex, generation);
+        interface = orig_nw_path_copy_interface_with_generation(context, interface_index, generation);
         interface = lc_sanitizePrivatePathInterface("nw_path_copy_interface_with_generation", interface);
+        if (!interface && sanitizedIndex != interface_index) {
+            interface = orig_nw_path_copy_interface_with_generation(context, sanitizedIndex, generation);
+            interface = lc_sanitizePrivatePathInterface("nw_path_copy_interface_with_generation", interface);
+        }
+    }
+
+    if (!interface) {
+        interface = lc_createInterfaceFromSanitizedIndex("nw_path_copy_interface_with_generation", sanitizedIndex);
     }
 
     gInHookNWPathCopyInterfaceWithGeneration = NO;
@@ -2847,48 +2860,63 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }
 
     // Keep network/VPN filtering hooks active regardless of hideLiveContainer setting.
-    rebind_symbols((struct rebinding[25]){
+    // Default is the minimal upstream path used by NWPath interface production.
+    rebind_symbols((struct rebinding[11]){
                 {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                 {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
                 {"nw_interface_get_name", (void *)hook_nw_interface_get_name, (void **)&orig_nw_interface_get_name},
                 {"nw_interface_get_type", (void *)hook_nw_interface_get_type, (void **)&orig_nw_interface_get_type},
-                {"nw_interface_get_index", (void *)hook_nw_interface_get_index, (void **)&orig_nw_interface_get_index},
-                {"nw_interface_create_with_index", (void *)hook_nw_interface_create_with_index, (void **)&orig_nw_interface_create_with_index},
-                {"nw_interface_create_with_index_and_name", (void *)hook_nw_interface_create_with_index_and_name, (void **)&orig_nw_interface_create_with_index_and_name},
                 {"nw_interface_create_from_necp", (void *)hook_nw_interface_create_from_necp, (void **)&orig_nw_interface_create_from_necp},
                 {"nw_path_enumerate_interfaces", (void *)hook_nw_path_enumerate_interfaces, (void **)&orig_nw_path_enumerate_interfaces},
+                {"nw_path_copy_interface_with_generation", (void *)hook_nw_path_copy_interface_with_generation, (void **)&orig_nw_path_copy_interface_with_generation},
+                {"nw_path_copy_interface", (void *)hook_nw_path_copy_interface, (void **)&orig_nw_path_copy_interface},
                 {"if_nameindex", (void *)hook_if_nameindex, (void **)&orig_if_nameindex},
                 {"if_indextoname", (void *)hook_if_indextoname, (void **)&orig_if_indextoname},
                 {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
-                {"nw_path_get_interface_index", (void *)hook_nw_path_get_interface_index, (void **)&orig_nw_path_get_interface_index},
-                {"nw_path_get_connected_interface_index", (void *)hook_nw_path_get_connected_interface_index, (void **)&orig_nw_path_get_connected_interface_index},
-                {"nw_path_get_scoped_interface_index", (void *)hook_nw_path_get_scoped_interface_index, (void **)&orig_nw_path_get_scoped_interface_index},
-                {"nw_path_get_fallback_interface_index", (void *)hook_nw_path_get_fallback_interface_index, (void **)&orig_nw_path_get_fallback_interface_index},
-                {"nw_path_uses_interface_type", (void *)hook_nw_path_uses_interface_type, (void **)&orig_nw_path_uses_interface_type},
-                {"nw_path_uses_interface_subtype", (void *)hook_nw_path_uses_interface_subtype, (void **)&orig_nw_path_uses_interface_subtype},
-                {"nw_path_may_span_multiple_interfaces", (void *)hook_nw_path_may_span_multiple_interfaces, (void **)&orig_nw_path_may_span_multiple_interfaces},
-                {"nw_path_copy_interface", (void *)hook_nw_path_copy_interface, (void **)&orig_nw_path_copy_interface},
-                {"nw_path_copy_interface_from_cache", (void *)hook_nw_path_copy_interface_from_cache, (void **)&orig_nw_path_copy_interface_from_cache},
-                {"nw_path_copy_connected_interface", (void *)hook_nw_path_copy_connected_interface, (void **)&orig_nw_path_copy_connected_interface},
-                {"nw_path_copy_direct_interface", (void *)hook_nw_path_copy_direct_interface, (void **)&orig_nw_path_copy_direct_interface},
-                {"nw_path_copy_scoped_interface", (void *)hook_nw_path_copy_scoped_interface, (void **)&orig_nw_path_copy_scoped_interface},
-                {"nw_path_copy_delegate_interface", (void *)hook_nw_path_copy_delegate_interface, (void **)&orig_nw_path_copy_delegate_interface},
-    }, 25);
+    }, 11);
+
+    BOOL enableNWAggressiveHooks = lc_shouldEnableNWAggressiveHooks();
+    if (!gLoggedNWAggressiveHookPolicy) {
+        gLoggedNWAggressiveHookPolicy = YES;
+        NSLog(@"[LC] 🌐 network aggressive hooks %@", enableNWAggressiveHooks ? @"ENABLED (LC_ENABLE_NW_AGGRESSIVE_HOOKS=1)" : @"disabled (set LC_ENABLE_NW_AGGRESSIVE_HOOKS=1 to enable)");
+    }
+
+    if (enableNWAggressiveHooks) {
+        rebind_symbols((struct rebinding[15]){
+                    {"nw_interface_get_index", (void *)hook_nw_interface_get_index, (void **)&orig_nw_interface_get_index},
+                    {"nw_interface_create_with_index", (void *)hook_nw_interface_create_with_index, (void **)&orig_nw_interface_create_with_index},
+                    {"nw_interface_create_with_index_and_name", (void *)hook_nw_interface_create_with_index_and_name, (void **)&orig_nw_interface_create_with_index_and_name},
+                    {"nw_path_get_interface_index", (void *)hook_nw_path_get_interface_index, (void **)&orig_nw_path_get_interface_index},
+                    {"nw_path_get_connected_interface_index", (void *)hook_nw_path_get_connected_interface_index, (void **)&orig_nw_path_get_connected_interface_index},
+                    {"nw_path_get_scoped_interface_index", (void *)hook_nw_path_get_scoped_interface_index, (void **)&orig_nw_path_get_scoped_interface_index},
+                    {"nw_path_get_fallback_interface_index", (void *)hook_nw_path_get_fallback_interface_index, (void **)&orig_nw_path_get_fallback_interface_index},
+                    {"nw_path_uses_interface_type", (void *)hook_nw_path_uses_interface_type, (void **)&orig_nw_path_uses_interface_type},
+                    {"nw_path_uses_interface_subtype", (void *)hook_nw_path_uses_interface_subtype, (void **)&orig_nw_path_uses_interface_subtype},
+                    {"nw_path_may_span_multiple_interfaces", (void *)hook_nw_path_may_span_multiple_interfaces, (void **)&orig_nw_path_may_span_multiple_interfaces},
+                    {"nw_path_copy_interface_from_cache", (void *)hook_nw_path_copy_interface_from_cache, (void **)&orig_nw_path_copy_interface_from_cache},
+                    {"nw_path_copy_connected_interface", (void *)hook_nw_path_copy_connected_interface, (void **)&orig_nw_path_copy_connected_interface},
+                    {"nw_path_copy_direct_interface", (void *)hook_nw_path_copy_direct_interface, (void **)&orig_nw_path_copy_direct_interface},
+                    {"nw_path_copy_scoped_interface", (void *)hook_nw_path_copy_scoped_interface, (void **)&orig_nw_path_copy_scoped_interface},
+                    {"nw_path_copy_delegate_interface", (void *)hook_nw_path_copy_delegate_interface, (void **)&orig_nw_path_copy_delegate_interface},
+        }, 15);
+    }
     lc_resolveNetworkSymbolPointers();
 
     // Network.framework direct-call inline hooks are unstable on some iOS builds.
     // Keep disabled by default; allow opt-in via LC_ENABLE_NW_INLINE_HOOKS=1.
     BOOL enableNWInlineHooks = lc_shouldEnableNWInlineHooks();
+    BOOL enableNWPathGenInlineHook = enableNWInlineHooks && lc_shouldEnableNWPathGenerationInlineHook();
     if (!gLoggedNWInlineHookPolicy) {
         gLoggedNWInlineHookPolicy = YES;
         NSLog(@"[LC] 🌐 network inline hooks %@", enableNWInlineHooks ? @"ENABLED (LC_ENABLE_NW_INLINE_HOOKS=1)" : @"disabled (set LC_ENABLE_NW_INLINE_HOOKS=1 to enable)");
     }
 
     if (enableNWInlineHooks) {
-        // Network.framework internally uses direct branches for some hot paths
-        // (e.g. NWPathMonitor.currentPath -> _nw_interface_create_with_index),
-        // so GOT rebinding alone is not sufficient when this mode is enabled.
-        if (orig_nw_interface_create_with_index && !gDidInlineHookNWInterfaceCreateWithIndex) {
+        // Network.framework internally uses direct branches for some hot paths.
+        // Keep the create_with_index inline hook only in aggressive mode.
+        if (enableNWAggressiveHooks &&
+            orig_nw_interface_create_with_index &&
+            !gDidInlineHookNWInterfaceCreateWithIndex) {
             kern_return_t kr = litehook_hook_function((void *)orig_nw_interface_create_with_index,
                                                       (void *)hook_nw_interface_create_with_index);
             if (kr == KERN_SUCCESS) {
@@ -2908,23 +2936,23 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
                 NSLog(@"[LC] ⚠️ Failed to inline hook nw_interface_create_from_necp (kr=%d)", kr);
             }
         }
-    }
 
-    // Always try hooking the concrete producer path used by NWPath.availableInterfaces on iOS 18+
-    // (_nw_path_enumerate_interfaces -> _nw_path_copy_interface_with_generation).
-    BOOL enableNWPathGenInlineHook = lc_shouldEnableNWPathGenerationInlineHook();
-    if (enableNWPathGenInlineHook && orig_nw_path_copy_interface_with_generation &&
-        !gDidInlineHookNWPathCopyInterfaceWithGeneration) {
-        kern_return_t kr = litehook_hook_function((void *)orig_nw_path_copy_interface_with_generation,
-                                                  (void *)hook_nw_path_copy_interface_with_generation);
-        if (kr == KERN_SUCCESS) {
-            gDidInlineHookNWPathCopyInterfaceWithGeneration = YES;
-            NSLog(@"[LC] ✅ Inline hooked nw_path_copy_interface_with_generation");
-        } else {
-            NSLog(@"[LC] ⚠️ Failed to inline hook nw_path_copy_interface_with_generation (kr=%d)", kr);
+        // Concrete producer path used by NWPath.availableInterfaces on iOS 18+:
+        // _nw_path_enumerate_interfaces -> _nw_path_copy_interface_with_generation.
+        if (enableNWPathGenInlineHook &&
+            orig_nw_path_copy_interface_with_generation &&
+            !gDidInlineHookNWPathCopyInterfaceWithGeneration) {
+            kern_return_t kr = litehook_hook_function((void *)orig_nw_path_copy_interface_with_generation,
+                                                      (void *)hook_nw_path_copy_interface_with_generation);
+            if (kr == KERN_SUCCESS) {
+                gDidInlineHookNWPathCopyInterfaceWithGeneration = YES;
+                NSLog(@"[LC] ✅ Inline hooked nw_path_copy_interface_with_generation");
+            } else {
+                NSLog(@"[LC] ⚠️ Failed to inline hook nw_path_copy_interface_with_generation (kr=%d)", kr);
+            }
+        } else if (!enableNWPathGenInlineHook) {
+            NSLog(@"[LC] 🌐 nw_path_copy_interface_with_generation inline hook disabled (LC_DISABLE_NW_PATH_GEN_INLINE_HOOK=1)");
         }
-    } else if (!enableNWPathGenInlineHook) {
-        NSLog(@"[LC] 🌐 nw_path_copy_interface_with_generation inline hook disabled (LC_DISABLE_NW_PATH_GEN_INLINE_HOOK=1)");
     }
 
     // Also rebind by raw function address across loaded/new images, including auth-got paths.
@@ -2933,15 +2961,6 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }
     if (orig_nw_interface_get_type) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_interface_get_type, (void *)hook_nw_interface_get_type, nil);
-    }
-    if (orig_nw_interface_get_index) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_interface_get_index, (void *)hook_nw_interface_get_index, nil);
-    }
-    if (orig_nw_interface_create_with_index) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_interface_create_with_index, (void *)hook_nw_interface_create_with_index, nil);
-    }
-    if (orig_nw_interface_create_with_index_and_name) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_interface_create_with_index_and_name, (void *)hook_nw_interface_create_with_index_and_name, nil);
     }
     if (orig_nw_interface_create_from_necp) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_interface_create_from_necp, (void *)hook_nw_interface_create_from_necp, nil);
@@ -2958,27 +2977,6 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     if (orig_if_nametoindex) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_if_nametoindex, (void *)hook_if_nametoindex, nil);
     }
-    if (orig_nw_path_get_interface_index) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_get_interface_index, (void *)hook_nw_path_get_interface_index, nil);
-    }
-    if (orig_nw_path_get_connected_interface_index) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_get_connected_interface_index, (void *)hook_nw_path_get_connected_interface_index, nil);
-    }
-    if (orig_nw_path_get_scoped_interface_index) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_get_scoped_interface_index, (void *)hook_nw_path_get_scoped_interface_index, nil);
-    }
-    if (orig_nw_path_get_fallback_interface_index) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_get_fallback_interface_index, (void *)hook_nw_path_get_fallback_interface_index, nil);
-    }
-    if (orig_nw_path_uses_interface_type) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_uses_interface_type, (void *)hook_nw_path_uses_interface_type, nil);
-    }
-    if (orig_nw_path_uses_interface_subtype) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_uses_interface_subtype, (void *)hook_nw_path_uses_interface_subtype, nil);
-    }
-    if (orig_nw_path_may_span_multiple_interfaces) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_may_span_multiple_interfaces, (void *)hook_nw_path_may_span_multiple_interfaces, nil);
-    }
     if (orig_getifaddrs) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_getifaddrs, (void *)hook_getifaddrs, nil);
     }
@@ -2988,20 +2986,52 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     if (orig_nw_path_copy_interface_with_generation) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_interface_with_generation, (void *)hook_nw_path_copy_interface_with_generation, nil);
     }
-    if (orig_nw_path_copy_interface_from_cache) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_interface_from_cache, (void *)hook_nw_path_copy_interface_from_cache, nil);
-    }
-    if (orig_nw_path_copy_connected_interface) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_connected_interface, (void *)hook_nw_path_copy_connected_interface, nil);
-    }
-    if (orig_nw_path_copy_direct_interface) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_direct_interface, (void *)hook_nw_path_copy_direct_interface, nil);
-    }
-    if (orig_nw_path_copy_scoped_interface) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_scoped_interface, (void *)hook_nw_path_copy_scoped_interface, nil);
-    }
-    if (orig_nw_path_copy_delegate_interface) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_delegate_interface, (void *)hook_nw_path_copy_delegate_interface, nil);
+    if (enableNWAggressiveHooks) {
+        if (orig_nw_interface_get_index) {
+            litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_interface_get_index, (void *)hook_nw_interface_get_index, nil);
+        }
+        if (orig_nw_interface_create_with_index) {
+            litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_interface_create_with_index, (void *)hook_nw_interface_create_with_index, nil);
+        }
+        if (orig_nw_interface_create_with_index_and_name) {
+            litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_interface_create_with_index_and_name, (void *)hook_nw_interface_create_with_index_and_name, nil);
+        }
+        if (orig_nw_path_get_interface_index) {
+            litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_get_interface_index, (void *)hook_nw_path_get_interface_index, nil);
+        }
+        if (orig_nw_path_get_connected_interface_index) {
+            litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_get_connected_interface_index, (void *)hook_nw_path_get_connected_interface_index, nil);
+        }
+        if (orig_nw_path_get_scoped_interface_index) {
+            litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_get_scoped_interface_index, (void *)hook_nw_path_get_scoped_interface_index, nil);
+        }
+        if (orig_nw_path_get_fallback_interface_index) {
+            litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_get_fallback_interface_index, (void *)hook_nw_path_get_fallback_interface_index, nil);
+        }
+        if (orig_nw_path_uses_interface_type) {
+            litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_uses_interface_type, (void *)hook_nw_path_uses_interface_type, nil);
+        }
+        if (orig_nw_path_uses_interface_subtype) {
+            litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_uses_interface_subtype, (void *)hook_nw_path_uses_interface_subtype, nil);
+        }
+        if (orig_nw_path_may_span_multiple_interfaces) {
+            litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_may_span_multiple_interfaces, (void *)hook_nw_path_may_span_multiple_interfaces, nil);
+        }
+        if (orig_nw_path_copy_interface_from_cache) {
+            litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_interface_from_cache, (void *)hook_nw_path_copy_interface_from_cache, nil);
+        }
+        if (orig_nw_path_copy_connected_interface) {
+            litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_connected_interface, (void *)hook_nw_path_copy_connected_interface, nil);
+        }
+        if (orig_nw_path_copy_direct_interface) {
+            litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_direct_interface, (void *)hook_nw_path_copy_direct_interface, nil);
+        }
+        if (orig_nw_path_copy_scoped_interface) {
+            litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_scoped_interface, (void *)hook_nw_path_copy_scoped_interface, nil);
+        }
+        if (orig_nw_path_copy_delegate_interface) {
+            litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, (void *)orig_nw_path_copy_delegate_interface, (void *)hook_nw_path_copy_delegate_interface, nil);
+        }
     }
 
     // Use only a narrowly-scoped, safe swizzle for NWPath.availableInterfaces.
