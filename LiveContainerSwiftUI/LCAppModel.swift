@@ -297,6 +297,7 @@ class LCAppModel: ObservableObject, Hashable {
             uiDeviceSpoofAppium = uiDeviceSpoofSecurityEnabled
             uiDeviceSpoofKeyboard = uiDeviceSpoofSecurityEnabled
             uiDeviceSpoofUserDefaults = uiDeviceSpoofSecurityEnabled
+            uiDeviceSpoofEntitlements = uiDeviceSpoofSecurityEnabled
             uiDeviceSpoofFileTimestamps = uiDeviceSpoofSecurityEnabled
         }
     }
@@ -443,6 +444,11 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var uiDeviceSpoofUserDefaults: Bool {
         didSet {
             appInfo.enableSpoofUserDefaults = uiDeviceSpoofUserDefaults
+        }
+    }
+    @Published var uiDeviceSpoofEntitlements: Bool {
+        didSet {
+            appInfo.enableSpoofEntitlements = uiDeviceSpoofEntitlements
         }
     }
     @Published var uiDeviceSpoofFileTimestamps: Bool {
@@ -729,6 +735,7 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDeviceSpoofAppium = appInfo.enableSpoofAppium
         self.uiDeviceSpoofKeyboard = appInfo.enableSpoofKeyboard
         self.uiDeviceSpoofUserDefaults = appInfo.enableSpoofUserDefaults
+        self.uiDeviceSpoofEntitlements = appInfo.enableSpoofEntitlements
         self.uiDeviceSpoofFileTimestamps = appInfo.deviceSpoofFileTimestamps
         self.uiDeviceSpoofProximity = appInfo.deviceSpoofProximity
         self.uiDeviceSpoofOrientation = appInfo.deviceSpoofOrientation
@@ -877,6 +884,7 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDeviceSpoofAppium = appInfo.enableSpoofAppium
         self.uiDeviceSpoofKeyboard = appInfo.enableSpoofKeyboard
         self.uiDeviceSpoofUserDefaults = appInfo.enableSpoofUserDefaults
+        self.uiDeviceSpoofEntitlements = appInfo.enableSpoofEntitlements
         self.uiDeviceSpoofFileTimestamps = appInfo.deviceSpoofFileTimestamps
         self.uiDeviceSpoofProximity = appInfo.deviceSpoofProximity
         self.uiDeviceSpoofOrientation = appInfo.deviceSpoofOrientation

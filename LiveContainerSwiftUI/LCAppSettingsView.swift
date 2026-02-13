@@ -3443,6 +3443,12 @@ struct LCAppSettingsView: View {
             }
             .padding(.leading, 28)
 
+            Toggle(isOn: $model.uiDeviceSpoofEntitlements) {
+                Label("📜 Sanitize Entitlement Key Checks", systemImage: "checklist")
+                    .font(.caption)
+            }
+            .padding(.leading, 28)
+
             Toggle(isOn: $model.uiDeviceSpoofFileTimestamps) {
                 Label("🧾 Spoof File Timestamp Metadata", systemImage: "calendar.badge.clock")
                     .font(.caption)

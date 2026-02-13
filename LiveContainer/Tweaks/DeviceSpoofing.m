@@ -413,6 +413,7 @@ static BOOL g_spoofAlbumEnabled = NO;
 static BOOL g_spoofAppiumEnabled = NO;
 static BOOL g_keyboardSpoofingEnabled = NO;
 static BOOL g_userDefaultsSpoofingEnabled = NO;
+static BOOL g_spoofEntitlementsEnabled = NO;
 static BOOL g_fileTimestampSpoofingEnabled = NO;
 static NSTimeInterval g_fileTimestampSeedSeconds = 0;
 static NSArray<NSString *> *g_albumBlacklist = nil;
@@ -539,6 +540,7 @@ static id (*orig_UITextInputMode_currentInputMode)(id self, SEL _cmd) = NULL;
 static NSString *(*orig_UITextInputMode_primaryLanguage)(id self, SEL _cmd) = NULL;
 static id (*orig_NSUserDefaults_objectForKey)(id self, SEL _cmd, NSString *defaultName) = NULL;
 static NSDictionary<NSString *, id> *(*orig_NSUserDefaults_dictionaryRepresentation)(id self, SEL _cmd) = NULL;
+static id (*orig_NSPropertyListSerialization_propertyListWithData_options_format_error)(id self, SEL _cmd, NSData *data, NSPropertyListReadOptions options, NSPropertyListFormat *format, NSError **error) = NULL;
 static NSString *(*orig_UIPasteboard_string)(id self, SEL _cmd) = NULL;
 static BOOL (*orig_NSString_containsString)(id self, SEL _cmd, NSString *query) = NULL;
 static BOOL (*orig_NSString_hasPrefix)(id self, SEL _cmd, NSString *prefix) = NULL;
@@ -1124,6 +1126,84 @@ static BOOL LCScreenCaptureGroupActive(void) {
 
 static BOOL LCScreenFeatureEnabled(BOOL enabled) {
     return LCScreenCaptureGroupActive() && enabled;
+}
+
+static BOOL LCEntitlementSpoofingActive(void) {
+    return LCDeviceSpoofingIsActive() && g_spoofEntitlementsEnabled;
+}
+
+static BOOL LCProcessLooksLikeReveil(void) {
+    static BOOL cached = NO;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSString *bundleID = [NSBundle mainBundle].bundleIdentifier.lowercaseString ?: @"";
+        NSString *processName = NSProcessInfo.processInfo.processName.lowercaseString ?: @"";
+        NSString *executablePath = NSBundle.mainBundle.executablePath.lowercaseString ?: @"";
+
+        cached = [bundleID isEqualToString:@"com.reveil.app"] ||
+                 [bundleID isEqualToString:@"com.82flex.reveil"] ||
+                 [bundleID containsString:@"reveil"] ||
+                 [processName containsString:@"reveil"] ||
+                 [executablePath containsString:@"reveil"];
+    });
+    return cached;
+}
+
+static NSSet<NSString *> *LCReveilSecureEntitlementKeys(void) {
+    static NSSet<NSString *> *keys = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        keys = [NSSet setWithArray:@[
+            @"get-task-allow",
+            @"application-identifier",
+            @"keychain-access-groups",
+            @"com.apple.developer.team-identifier",
+            @"com.apple.security.app-sandbox",
+            @"com.apple.security.network.client",
+            @"com.apple.private.security.container-required",
+            @"beta-reports-active",
+            @"aps-environment",
+        ]];
+    });
+    return keys;
+}
+
+static BOOL LCLooksLikeEntitlementsDictionary(NSDictionary *dictionary) {
+    if (![dictionary isKindOfClass:[NSDictionary class]] || dictionary.count == 0) {
+        return NO;
+    }
+    if (dictionary[@"application-identifier"] == nil ||
+        dictionary[@"keychain-access-groups"] == nil ||
+        dictionary[@"com.apple.developer.team-identifier"] == nil) {
+        return NO;
+    }
+
+    for (id key in dictionary) {
+        if (![key isKindOfClass:[NSString class]]) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
+static NSDictionary *LCSanitizedReveilEntitlementsDictionary(NSDictionary *dictionary) {
+    if (!LCLooksLikeEntitlementsDictionary(dictionary)) {
+        return dictionary;
+    }
+
+    NSSet<NSString *> *allowedKeys = LCReveilSecureEntitlementKeys();
+    NSMutableDictionary *sanitized = [NSMutableDictionary dictionaryWithCapacity:dictionary.count];
+    BOOL removedUnknownKey = NO;
+
+    for (NSString *key in dictionary) {
+        if ([allowedKeys containsObject:key]) {
+            sanitized[key] = dictionary[key];
+        } else {
+            removedUnknownKey = YES;
+        }
+    }
+
+    return removedUnknownKey ? [sanitized copy] : dictionary;
 }
 
 static NSSet<NSString *> *LCCraneDetectionMarkers(void) {
@@ -2453,6 +2533,22 @@ static NSDictionary<NSString *, id> *hook_NSUserDefaults_dictionaryRepresentatio
     return [mutable copy];
 }
 
+static id hook_NSPropertyListSerialization_propertyListWithData_options_format_error(id self, SEL _cmd, NSData *data, NSPropertyListReadOptions options, NSPropertyListFormat *format, NSError **error) {
+    id propertyList = nil;
+    if (orig_NSPropertyListSerialization_propertyListWithData_options_format_error) {
+        propertyList = orig_NSPropertyListSerialization_propertyListWithData_options_format_error(self, _cmd, data, options, format, error);
+    }
+
+    if (!LCEntitlementSpoofingActive() || !LCProcessLooksLikeReveil()) {
+        return propertyList;
+    }
+    if (![propertyList isKindOfClass:[NSDictionary class]]) {
+        return propertyList;
+    }
+
+    return LCSanitizedReveilEntitlementsDictionary((NSDictionary *)propertyList);
+}
+
 static BOOL hook_MFMessageComposeViewController_canSendText(id self, SEL _cmd) {
     if (LCScreenFeatureEnabled(g_spoofMessageEnabled)) {
         return YES;
@@ -3722,6 +3818,7 @@ void LCSetSpoofAlbumEnabled(BOOL enabled) { g_spoofAlbumEnabled = enabled; }
 void LCSetSpoofAppiumEnabled(BOOL enabled) { g_spoofAppiumEnabled = enabled; }
 void LCSetKeyboardSpoofingEnabled(BOOL enabled) { g_keyboardSpoofingEnabled = enabled; }
 void LCSetUserDefaultsSpoofingEnabled(BOOL enabled) { g_userDefaultsSpoofingEnabled = enabled; }
+void LCSetEntitlementsSpoofingEnabled(BOOL enabled) { g_spoofEntitlementsEnabled = enabled; }
 void LCSetFileTimestampSpoofingEnabled(BOOL enabled) {
     g_fileTimestampSpoofingEnabled = enabled;
     if (enabled && g_fileTimestampSeedSeconds <= 0) {
@@ -4182,6 +4279,12 @@ void DeviceSpoofingGuestHooksInit(void) {
             Class userDefaultsClass = objc_getClass("NSUserDefaults");
             LCInstallInstanceHook(userDefaultsClass, @selector(objectForKey:), (IMP)hook_NSUserDefaults_objectForKey, (IMP *)&orig_NSUserDefaults_objectForKey);
             LCInstallInstanceHook(userDefaultsClass, @selector(dictionaryRepresentation), (IMP)hook_NSUserDefaults_dictionaryRepresentation, (IMP *)&orig_NSUserDefaults_dictionaryRepresentation);
+        }
+
+        if (g_spoofEntitlementsEnabled) {
+            Class plistClass = objc_getClass("NSPropertyListSerialization");
+            Class plistMeta = object_getClass(plistClass);
+            LCInstallInstanceHook(plistMeta, @selector(propertyListWithData:options:format:error:), (IMP)hook_NSPropertyListSerialization_propertyListWithData_options_format_error, (IMP *)&orig_NSPropertyListSerialization_propertyListWithData_options_format_error);
         }
 
         // Screen capture detection blocking

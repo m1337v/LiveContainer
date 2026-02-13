@@ -1763,6 +1763,21 @@ static BOOL LCIsContainerScopedAddonKey(NSString *key) {
     [self save];
 }
 
+- (bool)enableSpoofEntitlements {
+    if (_info[@"enableSpoofEntitlements"] != nil) {
+        return [_info[@"enableSpoofEntitlements"] boolValue];
+    }
+    if (_info[@"deviceSpoofEntitlements"] != nil) {
+        return [_info[@"deviceSpoofEntitlements"] boolValue];
+    }
+    return self.deviceSpoofSecurityEnabled;
+}
+
+- (void)setEnableSpoofEntitlements:(bool)enabled {
+    _info[@"enableSpoofEntitlements"] = @(enabled);
+    [self save];
+}
+
 - (bool)deviceSpoofFileTimestamps {
     if (_info[@"deviceSpoofFileTimestamps"] != nil) {
         return [_info[@"deviceSpoofFileTimestamps"] boolValue];

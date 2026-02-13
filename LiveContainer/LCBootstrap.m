@@ -830,6 +830,11 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             spoofUserDefaultsObj = guestAppInfo[@"deviceSpoofUserDefaults"];
         }
         BOOL spoofUserDefaults = spoofUserDefaultsObj ? [spoofUserDefaultsObj boolValue] : securityMasterEnabled;
+        id spoofEntitlementsObj = guestAppInfo[@"enableSpoofEntitlements"];
+        if (spoofEntitlementsObj == nil) {
+            spoofEntitlementsObj = guestAppInfo[@"deviceSpoofEntitlements"];
+        }
+        BOOL spoofEntitlements = spoofEntitlementsObj ? [spoofEntitlementsObj boolValue] : securityMasterEnabled;
         id spoofFileTimestampsObj = guestAppInfo[@"deviceSpoofFileTimestamps"];
         if (spoofFileTimestampsObj == nil) {
             spoofFileTimestampsObj = guestAppInfo[@"enableSpoofFileTimestamps"];
@@ -844,6 +849,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         LCSetSpoofAppiumEnabled(spoofAppium);
         LCSetKeyboardSpoofingEnabled(spoofKeyboard);
         LCSetUserDefaultsSpoofingEnabled(spoofUserDefaults);
+        LCSetEntitlementsSpoofingEnabled(spoofEntitlements);
         LCSetFileTimestampSpoofingEnabled(spoofFileTimestamps);
 
         id spoofScreenCaptureObj = guestAppInfo[@"deviceSpoofScreenCapture"];
