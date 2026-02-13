@@ -7,6 +7,13 @@ static BOOL spoofGPSEnabled = NO;
 static CLLocationCoordinate2D spoofedCoordinate = {37.7749, -122.4194};
 static CLLocationDistance spoofedAltitude = 0.0;
 
+static double LCDoubleValueOrFallback(id value, double fallback) {
+    if (value && [value respondsToSelector:@selector(doubleValue)]) {
+        return [value doubleValue];
+    }
+    return fallback;
+}
+
 @interface CLLocationManager (GuestHooks)
 - (void)lc_startUpdatingLocation;
 - (void)lc_requestLocation;
@@ -83,35 +90,18 @@ void CoreLocationGuestHooksInit(void) {
             
             if (spoofGPSEnabled) {
                 // Ensure we're getting the right values with explicit type conversion
-                NSNumber *latNum = guestAppInfo[@"spoofLatitude"];
-                NSNumber *lonNum = guestAppInfo[@"spoofLongitude"];
-                NSNumber *altNum = guestAppInfo[@"spoofAltitude"];
-                
-                if (latNum && [latNum isKindOfClass:[NSNumber class]]) {
-                    spoofedCoordinate.latitude = [latNum doubleValue];
-                } else {
-                    spoofedCoordinate.latitude = 37.7749; // Default
-                    NSLog(@"[LC] Warning: spoofLatitude not found or invalid, using default");
-                }
-                
-                if (lonNum && [lonNum isKindOfClass:[NSNumber class]]) {
-                    spoofedCoordinate.longitude = [lonNum doubleValue];
-                } else {
-                    spoofedCoordinate.longitude = -122.4194; // Default
-                    NSLog(@"[LC] Warning: spoofLongitude not found or invalid, using default");
-                }
-                
-                if (altNum && [altNum isKindOfClass:[NSNumber class]]) {
-                    spoofedAltitude = [altNum doubleValue];
-                } else {
-                    spoofedAltitude = 0.0; // Default
-                    NSLog(@"[LC] Warning: spoofAltitude not found or invalid, using default");
-                }
+                id latValue = guestAppInfo[@"spoofLatitude"];
+                id lonValue = guestAppInfo[@"spoofLongitude"];
+                id altValue = guestAppInfo[@"spoofAltitude"];
+
+                spoofedCoordinate.latitude = LCDoubleValueOrFallback(latValue, 37.7749);
+                spoofedCoordinate.longitude = LCDoubleValueOrFallback(lonValue, -122.4194);
+                spoofedAltitude = LCDoubleValueOrFallback(altValue, 0.0);
                 
                 NSLog(@"[LC] GPS coordinates from guestAppInfo:");
-                NSLog(@"[LC] - spoofLatitude: %@ -> %f", latNum, spoofedCoordinate.latitude);
-                NSLog(@"[LC] - spoofLongitude: %@ -> %f", lonNum, spoofedCoordinate.longitude);
-                NSLog(@"[LC] - spoofAltitude: %@ -> %f", altNum, spoofedAltitude);
+                NSLog(@"[LC] - spoofLatitude: %@ (%@) -> %f", latValue, [latValue class], spoofedCoordinate.latitude);
+                NSLog(@"[LC] - spoofLongitude: %@ (%@) -> %f", lonValue, [lonValue class], spoofedCoordinate.longitude);
+                NSLog(@"[LC] - spoofAltitude: %@ (%@) -> %f", altValue, [altValue class], spoofedAltitude);
                 
                 NSLog(@"[LC] Final GPS spoofing coordinates: %f, %f, %f", 
                       spoofedCoordinate.latitude, 

@@ -80,6 +80,115 @@ static NSTimeInterval LCUptimeSecondsFromPreset(NSString *preset) {
     return 12 * 3600;
 }
 
+static NSSet<NSString *> *LCAddonScopedLegacyKeys(void) {
+    static NSSet<NSString *> *keys = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        keys = [NSSet setWithArray:@[
+            @"spoofGPS",
+            @"spoofLatitude",
+            @"spoofLongitude",
+            @"spoofAltitude",
+            @"spoofLocationName",
+            @"spoofCamera",
+            @"spoofCameraType",
+            @"spoofCameraImagePath",
+            @"spoofCameraVideoPath",
+            @"spoofCameraLoop",
+            @"spoofCameraMode",
+            @"spoofCameraTransformOrientation",
+            @"spoofCameraTransformScale",
+            @"spoofCameraTransformFlip",
+        ]];
+    });
+    return keys;
+}
+
+static BOOL LCIsContainerScopedAddonKey(NSString *key) {
+    if (![key isKindOfClass:NSString.class] || key.length == 0) {
+        return NO;
+    }
+    if ([key hasPrefix:@"deviceSpoof"] || [key hasPrefix:@"enableSpoof"]) {
+        return YES;
+    }
+    return [LCAddonScopedLegacyKeys() containsObject:key];
+}
+
+static NSDictionary *LCGuestAppInfoWithMergedAddonSettings(NSDictionary *appInfo,
+                                                            NSString *containerId,
+                                                            NSDictionary *containerInfo) {
+    if (![appInfo isKindOfClass:NSDictionary.class]) {
+        return appInfo;
+    }
+
+    NSMutableDictionary *merged = [appInfo mutableCopy];
+    if (!merged) {
+        return appInfo;
+    }
+
+    NSDictionary *containerSettings = nil;
+    id settingsByContainerObj = appInfo[@"LCAddonSettingsByContainer"];
+    if ([settingsByContainerObj isKindOfClass:NSDictionary.class] && containerId.length > 0) {
+        id settingsObj = ((NSDictionary *)settingsByContainerObj)[containerId];
+        if ([settingsObj isKindOfClass:NSDictionary.class]) {
+            containerSettings = settingsObj;
+        }
+    }
+
+    NSArray<NSString *> *existingKeys = [merged.allKeys copy];
+    for (id keyObj in existingKeys) {
+        if (![keyObj isKindOfClass:NSString.class]) {
+            continue;
+        }
+        NSString *key = (NSString *)keyObj;
+        if (LCIsContainerScopedAddonKey(key)) {
+            [merged removeObjectForKey:key];
+        }
+    }
+
+    if (containerSettings) {
+        for (id keyObj in containerSettings) {
+            if (![keyObj isKindOfClass:NSString.class]) {
+                continue;
+            }
+            NSString *key = (NSString *)keyObj;
+            id value = containerSettings[key];
+            if (LCIsContainerScopedAddonKey(key) && value != nil && ![value isKindOfClass:NSNull.class]) {
+                merged[key] = value;
+            }
+        }
+    }
+
+    BOOL spoofIDFV = [containerInfo[@"spoofIdentifierForVendor"] boolValue];
+    id scopedSpoofIDFV = containerSettings[@"deviceSpoofIdentifiers"];
+    if ([scopedSpoofIDFV respondsToSelector:@selector(boolValue)]) {
+        spoofIDFV = [scopedSpoofIDFV boolValue];
+    }
+    merged[@"deviceSpoofIdentifiers"] = @(spoofIDFV);
+
+    NSString *vendorID = @"";
+    id scopedVendorID = containerSettings[@"deviceSpoofVendorID"];
+    if ([scopedVendorID isKindOfClass:NSString.class]) {
+        vendorID = (NSString *)scopedVendorID;
+    } else {
+        id fallbackVendorID = containerInfo[@"spoofedIdentifierForVendor"];
+        if ([fallbackVendorID isKindOfClass:NSString.class]) {
+            vendorID = (NSString *)fallbackVendorID;
+        }
+    }
+
+    if (spoofIDFV) {
+        if (vendorID.length == 0) {
+            vendorID = NSUUID.UUID.UUIDString;
+        }
+        merged[@"deviceSpoofVendorID"] = vendorID;
+    } else {
+        [merged removeObjectForKey:@"deviceSpoofVendorID"];
+    }
+
+    return [merged copy];
+}
+
 @implementation NSUserDefaults(LiveContainer)
 + (instancetype)lcUserDefaults {
     return lcUserDefaults;
@@ -486,6 +595,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     
     NSString* containerInfoPath = [newHomePath stringByAppendingPathComponent:@"LCContainerInfo.plist"];
     guestContainerInfo = [NSDictionary dictionaryWithContentsOfFile:containerInfoPath];
+    guestAppInfo = LCGuestAppInfoWithMergedAddonSettings(guestAppInfo, dataUUID, guestContainerInfo);
     
     [LCSharedUtils setContainerUsingByLC:lcAppUrlScheme folderName:dataUUID auditToken:0];
 
