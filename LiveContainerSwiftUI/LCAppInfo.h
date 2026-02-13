@@ -81,6 +81,7 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property bool deviceSpoofIdentifiers;
 @property (nonatomic) NSString* deviceSpoofVendorID;
 @property (nonatomic) NSString* deviceSpoofAdvertisingID;
+@property (nonatomic) NSString* deviceSpoofPersistentDeviceID;
 @property bool deviceSpoofCloudToken;
 @property bool deviceSpoofDeviceChecker;
 @property bool deviceSpoofAppAttest;
@@ -88,6 +89,8 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property (nonatomic) NSString* deviceSpoofTimezoneValue;
 @property bool deviceSpoofLocale;
 @property (nonatomic) NSString* deviceSpoofLocaleValue;
+@property (nonatomic) NSString* deviceSpoofLocaleCurrencyCode;
+@property (nonatomic) NSString* deviceSpoofLocaleCurrencySymbol;
 @property (nonatomic) NSString* deviceSpoofPreferredCountry;
 @property bool deviceSpoofCellularTypeEnabled;
 @property int deviceSpoofCellularType; // 0=NRNSA,1=LTE,2=WCDMA
@@ -107,6 +110,17 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property bool enableSpoofAlbum;
 @property bool enableSpoofAppium;
 @property (nonatomic) NSArray<NSString *>* deviceSpoofAlbumBlacklist;
+@property bool deviceSpoofProximity;
+@property bool deviceSpoofOrientation;
+@property bool deviceSpoofGyroscope;
+@property bool deviceSpoofProcessorEnabled;
+@property int deviceSpoofProcessorCount;
+@property bool deviceSpoofMemoryEnabled;
+@property (nonatomic) NSString* deviceSpoofMemoryCount;
+@property bool deviceSpoofKernelVersionEnabled;
+@property (nonatomic) NSString* deviceSpoofKernelVersion;
+@property (nonatomic) NSString* deviceSpoofKernelRelease;
+@property (nonatomic) NSString* deviceSpoofBuildVersion;
 
 // Extended spoofing (Ghost + Project-X parity)
 @property bool deviceSpoofBootTime;

@@ -266,6 +266,11 @@ class LCAppModel: ObservableObject, Hashable {
             appInfo.deviceSpoofAdvertisingID = uiDeviceSpoofAdvertisingID
         }
     }
+    @Published var uiDeviceSpoofPersistentDeviceID: String {
+        didSet {
+            appInfo.deviceSpoofPersistentDeviceID = uiDeviceSpoofPersistentDeviceID
+        }
+    }
     @Published var uiDeviceSpoofCloudToken: Bool {
         didSet {
             appInfo.deviceSpoofCloudToken = uiDeviceSpoofCloudToken
@@ -299,6 +304,16 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var uiDeviceSpoofLocaleValue: String {
         didSet {
             appInfo.deviceSpoofLocaleValue = uiDeviceSpoofLocaleValue
+        }
+    }
+    @Published var uiDeviceSpoofLocaleCurrencyCode: String {
+        didSet {
+            appInfo.deviceSpoofLocaleCurrencyCode = uiDeviceSpoofLocaleCurrencyCode
+        }
+    }
+    @Published var uiDeviceSpoofLocaleCurrencySymbol: String {
+        didSet {
+            appInfo.deviceSpoofLocaleCurrencySymbol = uiDeviceSpoofLocaleCurrencySymbol
         }
     }
     @Published var uiDeviceSpoofPreferredCountry: String {
@@ -389,6 +404,61 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var uiDeviceSpoofAppium: Bool {
         didSet {
             appInfo.enableSpoofAppium = uiDeviceSpoofAppium
+        }
+    }
+    @Published var uiDeviceSpoofProximity: Bool {
+        didSet {
+            appInfo.deviceSpoofProximity = uiDeviceSpoofProximity
+        }
+    }
+    @Published var uiDeviceSpoofOrientation: Bool {
+        didSet {
+            appInfo.deviceSpoofOrientation = uiDeviceSpoofOrientation
+        }
+    }
+    @Published var uiDeviceSpoofGyroscope: Bool {
+        didSet {
+            appInfo.deviceSpoofGyroscope = uiDeviceSpoofGyroscope
+        }
+    }
+    @Published var uiDeviceSpoofProcessorEnabled: Bool {
+        didSet {
+            appInfo.deviceSpoofProcessorEnabled = uiDeviceSpoofProcessorEnabled
+        }
+    }
+    @Published var uiDeviceSpoofProcessorCount: Int {
+        didSet {
+            appInfo.deviceSpoofProcessorCount = Int32(uiDeviceSpoofProcessorCount)
+        }
+    }
+    @Published var uiDeviceSpoofMemoryEnabled: Bool {
+        didSet {
+            appInfo.deviceSpoofMemoryEnabled = uiDeviceSpoofMemoryEnabled
+        }
+    }
+    @Published var uiDeviceSpoofMemoryCount: String {
+        didSet {
+            appInfo.deviceSpoofMemoryCount = uiDeviceSpoofMemoryCount
+        }
+    }
+    @Published var uiDeviceSpoofKernelVersionEnabled: Bool {
+        didSet {
+            appInfo.deviceSpoofKernelVersionEnabled = uiDeviceSpoofKernelVersionEnabled
+        }
+    }
+    @Published var uiDeviceSpoofKernelVersion: String {
+        didSet {
+            appInfo.deviceSpoofKernelVersion = uiDeviceSpoofKernelVersion
+        }
+    }
+    @Published var uiDeviceSpoofKernelRelease: String {
+        didSet {
+            appInfo.deviceSpoofKernelRelease = uiDeviceSpoofKernelRelease
+        }
+    }
+    @Published var uiDeviceSpoofBuildVersion: String {
+        didSet {
+            appInfo.deviceSpoofBuildVersion = uiDeviceSpoofBuildVersion
         }
     }
     @Published var uiDeviceSpoofAlbumBlacklist: [String] {
@@ -577,6 +647,7 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDeviceSpoofIdentifiers = appInfo.deviceSpoofIdentifiers
         self.uiDeviceSpoofVendorID = appInfo.deviceSpoofVendorID ?? ""
         self.uiDeviceSpoofAdvertisingID = appInfo.deviceSpoofAdvertisingID ?? ""
+        self.uiDeviceSpoofPersistentDeviceID = appInfo.deviceSpoofPersistentDeviceID ?? ""
         self.uiDeviceSpoofCloudToken = appInfo.deviceSpoofCloudToken
         self.uiDeviceSpoofDeviceChecker = appInfo.deviceSpoofDeviceChecker
         self.uiDeviceSpoofAppAttest = appInfo.deviceSpoofAppAttest
@@ -584,6 +655,8 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDeviceSpoofTimezoneValue = appInfo.deviceSpoofTimezoneValue ?? "America/New_York"
         self.uiDeviceSpoofLocale = appInfo.deviceSpoofLocale
         self.uiDeviceSpoofLocaleValue = appInfo.deviceSpoofLocaleValue ?? "en_US"
+        self.uiDeviceSpoofLocaleCurrencyCode = appInfo.deviceSpoofLocaleCurrencyCode ?? ""
+        self.uiDeviceSpoofLocaleCurrencySymbol = appInfo.deviceSpoofLocaleCurrencySymbol ?? ""
         self.uiDeviceSpoofPreferredCountry = appInfo.deviceSpoofPreferredCountry ?? ""
         self.uiDeviceSpoofCellularTypeEnabled = appInfo.deviceSpoofCellularTypeEnabled
         self.uiDeviceSpoofCellularType = Int(appInfo.deviceSpoofCellularType)
@@ -602,6 +675,17 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDeviceSpoofPasteboard = appInfo.enableSpoofPasteboard
         self.uiDeviceSpoofAlbum = appInfo.enableSpoofAlbum
         self.uiDeviceSpoofAppium = appInfo.enableSpoofAppium
+        self.uiDeviceSpoofProximity = appInfo.deviceSpoofProximity
+        self.uiDeviceSpoofOrientation = appInfo.deviceSpoofOrientation
+        self.uiDeviceSpoofGyroscope = appInfo.deviceSpoofGyroscope
+        self.uiDeviceSpoofProcessorEnabled = appInfo.deviceSpoofProcessorEnabled
+        self.uiDeviceSpoofProcessorCount = Int(appInfo.deviceSpoofProcessorCount)
+        self.uiDeviceSpoofMemoryEnabled = appInfo.deviceSpoofMemoryEnabled
+        self.uiDeviceSpoofMemoryCount = appInfo.deviceSpoofMemoryCount ?? "8"
+        self.uiDeviceSpoofKernelVersionEnabled = appInfo.deviceSpoofKernelVersionEnabled
+        self.uiDeviceSpoofKernelVersion = appInfo.deviceSpoofKernelVersion ?? ""
+        self.uiDeviceSpoofKernelRelease = appInfo.deviceSpoofKernelRelease ?? ""
+        self.uiDeviceSpoofBuildVersion = appInfo.deviceSpoofBuildVersion ?? ""
         self.uiDeviceSpoofAlbumBlacklist = (appInfo.deviceSpoofAlbumBlacklist as? [String]) ?? []
 
         // Extended spoofing

@@ -1158,6 +1158,28 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     [self save];
 }
 
+- (NSString *)deviceSpoofPersistentDeviceID {
+    NSString *value = _info[@"deviceSpoofPersistentDeviceID"];
+    if (value.length > 0) {
+        return value;
+    }
+    value = _info[@"persistentDeviceID"];
+    if (value.length > 0) {
+        return value;
+    }
+    value = _info[@"deviceID"];
+    return value.length > 0 ? value : @"";
+}
+
+- (void)setDeviceSpoofPersistentDeviceID:(NSString *)persistentDeviceID {
+    if (persistentDeviceID.length > 0) {
+        _info[@"deviceSpoofPersistentDeviceID"] = persistentDeviceID;
+    } else {
+        [_info removeObjectForKey:@"deviceSpoofPersistentDeviceID"];
+    }
+    [self save];
+}
+
 - (bool)deviceSpoofCloudToken {
     if (_info[@"deviceSpoofCloudToken"] != nil) {
         return [_info[@"deviceSpoofCloudToken"] boolValue];
@@ -1243,6 +1265,42 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
         _info[@"deviceSpoofLocaleValue"] = locale;
     } else {
         [_info removeObjectForKey:@"deviceSpoofLocaleValue"];
+    }
+    [self save];
+}
+
+- (NSString *)deviceSpoofLocaleCurrencyCode {
+    NSString *value = _info[@"deviceSpoofLocaleCurrencyCode"];
+    if (value.length > 0) {
+        return value;
+    }
+    value = _info[@"localeCurrencyCode"];
+    return value.length > 0 ? value : @"";
+}
+
+- (void)setDeviceSpoofLocaleCurrencyCode:(NSString *)currencyCode {
+    if (currencyCode.length > 0) {
+        _info[@"deviceSpoofLocaleCurrencyCode"] = currencyCode;
+    } else {
+        [_info removeObjectForKey:@"deviceSpoofLocaleCurrencyCode"];
+    }
+    [self save];
+}
+
+- (NSString *)deviceSpoofLocaleCurrencySymbol {
+    NSString *value = _info[@"deviceSpoofLocaleCurrencySymbol"];
+    if (value.length > 0) {
+        return value;
+    }
+    value = _info[@"localeCurrencySymbol"];
+    return value.length > 0 ? value : @"";
+}
+
+- (void)setDeviceSpoofLocaleCurrencySymbol:(NSString *)currencySymbol {
+    if (currencySymbol.length > 0) {
+        _info[@"deviceSpoofLocaleCurrencySymbol"] = currencySymbol;
+    } else {
+        [_info removeObjectForKey:@"deviceSpoofLocaleCurrencySymbol"];
     }
     [self save];
 }
@@ -1490,6 +1548,206 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 
 - (void)setEnableSpoofAppium:(bool)enabled {
     _info[@"enableSpoofAppium"] = @(enabled);
+    [self save];
+}
+
+- (bool)deviceSpoofProximity {
+    if (_info[@"deviceSpoofProximity"] != nil) {
+        return [_info[@"deviceSpoofProximity"] boolValue];
+    }
+    if (_info[@"enableSpoofProximity"] != nil) {
+        return [_info[@"enableSpoofProximity"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setDeviceSpoofProximity:(bool)enabled {
+    _info[@"deviceSpoofProximity"] = @(enabled);
+    [self save];
+}
+
+- (bool)deviceSpoofOrientation {
+    if (_info[@"deviceSpoofOrientation"] != nil) {
+        return [_info[@"deviceSpoofOrientation"] boolValue];
+    }
+    if (_info[@"enableSpoofOrientation"] != nil) {
+        return [_info[@"enableSpoofOrientation"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setDeviceSpoofOrientation:(bool)enabled {
+    _info[@"deviceSpoofOrientation"] = @(enabled);
+    [self save];
+}
+
+- (bool)deviceSpoofGyroscope {
+    if (_info[@"deviceSpoofGyroscope"] != nil) {
+        return [_info[@"deviceSpoofGyroscope"] boolValue];
+    }
+    if (_info[@"enableSpoofGyroscope"] != nil) {
+        return [_info[@"enableSpoofGyroscope"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setDeviceSpoofGyroscope:(bool)enabled {
+    _info[@"deviceSpoofGyroscope"] = @(enabled);
+    [self save];
+}
+
+- (bool)deviceSpoofProcessorEnabled {
+    if (_info[@"deviceSpoofProcessorEnabled"] != nil) {
+        return [_info[@"deviceSpoofProcessorEnabled"] boolValue];
+    }
+    if (_info[@"enableSpoofProcessor"] != nil) {
+        return [_info[@"enableSpoofProcessor"] boolValue];
+    }
+    if (_info[@"deviceSpoofProcessorCount"] != nil || _info[@"processorCount"] != nil) {
+        return YES;
+    }
+    return NO;
+}
+
+- (void)setDeviceSpoofProcessorEnabled:(bool)enabled {
+    _info[@"deviceSpoofProcessorEnabled"] = @(enabled);
+    [self save];
+}
+
+- (int)deviceSpoofProcessorCount {
+    id value = _info[@"deviceSpoofProcessorCount"];
+    if (value == nil) {
+        value = _info[@"processorCount"];
+    }
+    if ([value respondsToSelector:@selector(intValue)]) {
+        return [value intValue];
+    }
+    return 6;
+}
+
+- (void)setDeviceSpoofProcessorCount:(int)count {
+    _info[@"deviceSpoofProcessorCount"] = @(count);
+    [self save];
+}
+
+- (bool)deviceSpoofMemoryEnabled {
+    if (_info[@"deviceSpoofMemoryEnabled"] != nil) {
+        return [_info[@"deviceSpoofMemoryEnabled"] boolValue];
+    }
+    if (_info[@"enableSpoofMemory"] != nil) {
+        return [_info[@"enableSpoofMemory"] boolValue];
+    }
+    if (_info[@"deviceSpoofMemoryCount"] != nil || _info[@"memoryCount"] != nil) {
+        return YES;
+    }
+    return NO;
+}
+
+- (void)setDeviceSpoofMemoryEnabled:(bool)enabled {
+    _info[@"deviceSpoofMemoryEnabled"] = @(enabled);
+    [self save];
+}
+
+- (NSString *)deviceSpoofMemoryCount {
+    id value = _info[@"deviceSpoofMemoryCount"];
+    if (value == nil) {
+        value = _info[@"memoryCount"];
+    }
+    if ([value isKindOfClass:[NSString class]]) {
+        return value;
+    }
+    if ([value respondsToSelector:@selector(stringValue)]) {
+        return [value stringValue];
+    }
+    return @"8";
+}
+
+- (void)setDeviceSpoofMemoryCount:(NSString *)count {
+    if (count.length > 0) {
+        _info[@"deviceSpoofMemoryCount"] = count;
+    } else {
+        [_info removeObjectForKey:@"deviceSpoofMemoryCount"];
+    }
+    [self save];
+}
+
+- (bool)deviceSpoofKernelVersionEnabled {
+    if (_info[@"deviceSpoofKernelVersionEnabled"] != nil) {
+        return [_info[@"deviceSpoofKernelVersionEnabled"] boolValue];
+    }
+    if (_info[@"enableSpoofKernelVersion"] != nil) {
+        return [_info[@"enableSpoofKernelVersion"] boolValue];
+    }
+    if (_info[@"deviceSpoofKernelVersion"] != nil ||
+        _info[@"kernelVersion"] != nil ||
+        _info[@"selectedKernelVersion"] != nil ||
+        _info[@"deviceSpoofKernelRelease"] != nil ||
+        _info[@"kernelVersionDarwin"] != nil) {
+        return YES;
+    }
+    return NO;
+}
+
+- (void)setDeviceSpoofKernelVersionEnabled:(bool)enabled {
+    _info[@"deviceSpoofKernelVersionEnabled"] = @(enabled);
+    [self save];
+}
+
+- (NSString *)deviceSpoofKernelVersion {
+    NSString *value = _info[@"deviceSpoofKernelVersion"];
+    if (value.length > 0) {
+        return value;
+    }
+    value = _info[@"kernelVersion"];
+    if (value.length > 0) {
+        return value;
+    }
+    value = _info[@"selectedKernelVersion"];
+    return value.length > 0 ? value : @"";
+}
+
+- (void)setDeviceSpoofKernelVersion:(NSString *)kernelVersion {
+    if (kernelVersion.length > 0) {
+        _info[@"deviceSpoofKernelVersion"] = kernelVersion;
+    } else {
+        [_info removeObjectForKey:@"deviceSpoofKernelVersion"];
+    }
+    [self save];
+}
+
+- (NSString *)deviceSpoofKernelRelease {
+    NSString *value = _info[@"deviceSpoofKernelRelease"];
+    if (value.length > 0) {
+        return value;
+    }
+    value = _info[@"kernelVersionDarwin"];
+    return value.length > 0 ? value : @"";
+}
+
+- (void)setDeviceSpoofKernelRelease:(NSString *)kernelRelease {
+    if (kernelRelease.length > 0) {
+        _info[@"deviceSpoofKernelRelease"] = kernelRelease;
+    } else {
+        [_info removeObjectForKey:@"deviceSpoofKernelRelease"];
+    }
+    [self save];
+}
+
+- (NSString *)deviceSpoofBuildVersion {
+    NSString *value = _info[@"deviceSpoofBuildVersion"];
+    if (value.length > 0) {
+        return value;
+    }
+    value = _info[@"iosVersionBuild"];
+    return value.length > 0 ? value : @"";
+}
+
+- (void)setDeviceSpoofBuildVersion:(NSString *)buildVersion {
+    if (buildVersion.length > 0) {
+        _info[@"deviceSpoofBuildVersion"] = buildVersion;
+    } else {
+        [_info removeObjectForKey:@"deviceSpoofBuildVersion"];
+    }
     [self save];
 }
 

@@ -10,16 +10,20 @@
 #import "DeviceSpoofing.h"
 
 #import <AdSupport/AdSupport.h>
+#import <CoreMotion/CoreMotion.h>
 #import <CoreTelephony/CTCarrier.h>
 #import <CoreTelephony/CTTelephonyNetworkInfo.h>
 #import <DeviceCheck/DeviceCheck.h>
 #import <MessageUI/MessageUI.h>
 #import <Photos/Photos.h>
+#import <SystemConfiguration/CaptiveNetwork.h>
 #import <WebKit/WebKit.h>
+#import <arpa/inet.h>
 #import <ctype.h>
 #import <dlfcn.h>
 #import <errno.h>
 #import <float.h>
+#import <ifaddrs.h>
 #import <mach/host_info.h>
 #import <mach/mach.h>
 #import <mach/mach_time.h>
@@ -338,6 +342,9 @@ static const LCDeviceProfile *g_currentProfile = NULL;
 static NSString *g_customDeviceModel = nil;
 static NSString *g_customSystemVersion = nil;
 static NSString *g_customBuildVersion = nil;
+static NSString *g_customKernelVersion = nil;
+static NSString *g_customKernelRelease = nil;
+static uint32_t g_customCPUCoreCount = 0;
 static uint64_t g_customPhysicalMemory = 0;
 static NSString *g_customDeviceName = nil;
 static NSString *g_customCarrierName = nil;
@@ -346,11 +353,19 @@ static NSString *g_customCarrierMNC = nil;
 static NSString *g_customCarrierCountryCode = nil;
 static BOOL g_cellularTypeConfigured = NO;
 static NSInteger g_spoofedCellularType = -1;
+static BOOL g_networkInfoSpoofingEnabled = NO;
+static BOOL g_spoofWiFiAddressEnabled = NO;
+static BOOL g_spoofCellularAddressEnabled = NO;
+static NSString *g_spoofedWiFiAddress = nil;
+static NSString *g_spoofedCellularAddress = nil;
+static NSString *g_spoofedWiFiSSID = nil;
+static NSString *g_spoofedWiFiBSSID = nil;
 static NSString *g_spoofedPreferredCountryCode = nil;
 
 static NSString *g_spoofedVendorID = nil;
 static NSString *g_spoofedAdvertisingID = nil;
 static NSString *g_spoofedInstallationID = nil;
+static NSString *g_spoofedPersistentDeviceID = nil;
 static NSString *g_spoofedMACAddress = nil;
 static BOOL g_adTrackingConfigured = NO;
 static BOOL g_spoofedAdTrackingEnabled = NO;
@@ -389,7 +404,19 @@ static NSTimeInterval g_uptimeTarget = 0;   // target uptime in seconds
 static NSString *g_spoofedTimezone = nil;
 static NSString *g_spoofedLocale = nil;
 static BOOL g_screenCaptureBlockEnabled = NO;
+static BOOL g_spoofMessageEnabled = NO;
+static BOOL g_spoofMailEnabled = NO;
+static BOOL g_spoofBugsnagEnabled = NO;
+static BOOL g_spoofCraneEnabled = NO;
+static BOOL g_spoofPasteboardEnabled = NO;
+static BOOL g_spoofAlbumEnabled = NO;
+static BOOL g_spoofAppiumEnabled = NO;
 static NSArray<NSString *> *g_albumBlacklist = nil;
+static NSString *g_spoofedLocaleCurrencyCode = nil;
+static NSString *g_spoofedLocaleCurrencySymbol = nil;
+static BOOL g_spoofProximityEnabled = NO;
+static BOOL g_spoofOrientationEnabled = NO;
+static BOOL g_spoofGyroscopeEnabled = NO;
 static BOOL g_deviceCheckSpoofingEnabled = NO;
 static BOOL g_appAttestSpoofingEnabled = NO;
 
@@ -403,6 +430,7 @@ static int (*orig_statfs64)(const char *path, void *buf) = NULL;
 static int (*orig_fstatfs)(int fd, struct statfs *buf) = NULL;
 static int (*orig_getfsstat)(struct statfs *buf, int bufsize, int flags) = NULL;
 static int (*orig_getfsstat64)(void *buf, int bufsize, int flags) = NULL;
+static int (*orig_getifaddrs)(struct ifaddrs **ifap) = NULL;
 static int (*orig_clock_gettime)(clockid_t clk_id, struct timespec *tp) = NULL;
 static uint64_t (*orig_clock_gettime_nsec_np)(clockid_t clk_id) = NULL;
 static uint64_t (*orig_mach_absolute_time)(void) = NULL;
@@ -421,6 +449,9 @@ static NSUUID *(*orig_UIDevice_identifierForVendor)(id self, SEL _cmd) = NULL;
 static float (*orig_UIDevice_batteryLevel)(id self, SEL _cmd) = NULL;
 static NSInteger (*orig_UIDevice_batteryState)(id self, SEL _cmd) = NULL;
 static BOOL (*orig_UIDevice_isBatteryMonitoringEnabled)(id self, SEL _cmd) = NULL;
+static BOOL (*orig_UIDevice_proximityState)(id self, SEL _cmd) = NULL;
+static BOOL (*orig_UIDevice_isProximityMonitoringEnabled)(id self, SEL _cmd) = NULL;
+static UIDeviceOrientation (*orig_UIDevice_orientation)(id self, SEL _cmd) = NULL;
 static NSString *(*orig_UIDevice_machineName)(id self, SEL _cmd) = NULL;
 static id (*orig_UIDevice_deviceInfoForKey)(id self, SEL _cmd, NSString *key) = NULL;
 
@@ -490,6 +521,8 @@ static NSTimeZone *(*orig_NSTimeZone_systemTimeZone)(id self, SEL _cmd) = NULL;
 static NSLocale *(*orig_NSLocale_currentLocale)(id self, SEL _cmd) = NULL;
 static NSLocale *(*orig_NSLocale_autoupdatingCurrentLocale)(id self, SEL _cmd) = NULL;
 static NSString *(*orig_NSLocale_countryCode)(id self, SEL _cmd) = NULL;
+static NSString *(*orig_NSLocale_currencyCode)(id self, SEL _cmd) = NULL;
+static NSString *(*orig_NSLocale_currencySymbol)(id self, SEL _cmd) = NULL;
 static BOOL (*orig_UIScreen_isCaptured)(id self, SEL _cmd) = NULL;
 static CGRect (*orig_UIApplication_statusBarFrame)(id self, SEL _cmd) = NULL;
 static CGRect (*orig_UIStatusBarManager_statusBarFrame)(id self, SEL _cmd) = NULL;
@@ -514,10 +547,13 @@ static BOOL (*orig_DCAppAttestService_isSupported)(id self, SEL _cmd) = NULL;
 static void (*orig_DCAppAttestService_generateKeyWithCompletionHandler)(id self, SEL _cmd, id completion) = NULL;
 static void (*orig_DCAppAttestService_attestKey_clientDataHash_completionHandler)(id self, SEL _cmd, NSString *keyId, NSData *clientDataHash, id completion) = NULL;
 static void (*orig_DCAppAttestService_generateAssertion_clientDataHash_completionHandler)(id self, SEL _cmd, NSString *keyId, NSData *clientDataHash, id completion) = NULL;
+static BOOL (*orig_CMMotionManager_isGyroAvailable)(id self, SEL _cmd) = NULL;
+static BOOL (*orig_CMMotionManager_isDeviceMotionAvailable)(id self, SEL _cmd) = NULL;
 
 static CFTypeRef (*orig_MGCopyAnswer)(CFStringRef key) = NULL;
 static CFTypeRef (*orig_IORegistryEntryCreateCFProperty)(io_registry_entry_t entry, CFStringRef key, CFAllocatorRef allocator, IOOptionBits options) = NULL;
 static CFDictionaryRef (*orig_CFCopySystemVersionDictionary)(void) = NULL;
+static CFDictionaryRef (*orig_CNCopyCurrentNetworkInfo)(CFStringRef interfaceName) = NULL;
 static id (*orig_MTLCreateSystemDefaultDevice)(void) = NULL;
 static NSArray *(*orig_MTLCopyAllDevices)(void) = NULL;
 static NSString *(*orig_MTLDevice_name)(id self, SEL _cmd) = NULL;
@@ -553,11 +589,13 @@ static const char *LCSpoofedBuildVersion(void) {
 }
 
 static const char *LCSpoofedKernelVersion(void) {
+    if (g_customKernelVersion.length > 0) return g_customKernelVersion.UTF8String;
     if (g_currentProfile) return g_currentProfile->kernelVersion;
     return NULL;
 }
 
 static const char *LCSpoofedKernelRelease(void) {
+    if (g_customKernelRelease.length > 0) return g_customKernelRelease.UTF8String;
     if (g_currentProfile) return g_currentProfile->kernelRelease;
     return NULL;
 }
@@ -569,6 +607,7 @@ static uint64_t LCSpoofedPhysicalMemory(void) {
 }
 
 static uint32_t LCSpoofedCPUCount(void) {
+    if (g_customCPUCoreCount > 0) return g_customCPUCoreCount;
     if (g_currentProfile) return g_currentProfile->cpuCoreCount;
     return 0;
 }
@@ -1068,7 +1107,15 @@ static NSString *LCRadioAccessTechnologyForSpoofType(NSInteger type) {
     }
 }
 
-static NSSet<NSString *> *LCSensitiveDetectionMarkers(void) {
+static BOOL LCScreenCaptureGroupActive(void) {
+    return LCDeviceSpoofingIsActive() && g_screenCaptureBlockEnabled;
+}
+
+static BOOL LCScreenFeatureEnabled(BOOL enabled) {
+    return LCScreenCaptureGroupActive() && enabled;
+}
+
+static NSSet<NSString *> *LCCraneDetectionMarkers(void) {
     static NSSet<NSString *> *markers = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
@@ -1077,7 +1124,17 @@ static NSSet<NSString *> *LCSensitiveDetectionMarkers(void) {
             @"crane_container",
             @"crane_containers",
             @"___crane_containers",
-            @"com.opa334.craneprefs.plist",
+            @"com.opa334.craneprefs.plist"
+        ]];
+    });
+    return markers;
+}
+
+static NSSet<NSString *> *LCAppiumDetectionMarkers(void) {
+    static NSSet<NSString *> *markers = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        markers = [NSSet setWithArray:@[
             @"appium",
             @"webdriveragent",
             @"webdriver"
@@ -1088,10 +1145,17 @@ static NSSet<NSString *> *LCSensitiveDetectionMarkers(void) {
 
 static BOOL LCStringContainsSensitiveMarker(NSString *value) {
     if (![value isKindOfClass:[NSString class]] || value.length == 0) return NO;
+    if (!LCScreenFeatureEnabled(g_spoofCraneEnabled || g_spoofAppiumEnabled)) return NO;
+
     NSString *lower = [value lowercaseString];
-    for (NSString *marker in LCSensitiveDetectionMarkers()) {
-        if ([lower containsString:marker]) {
-            return YES;
+    if (g_spoofCraneEnabled) {
+        for (NSString *marker in LCCraneDetectionMarkers()) {
+            if ([lower containsString:marker]) return YES;
+        }
+    }
+    if (g_spoofAppiumEnabled) {
+        for (NSString *marker in LCAppiumDetectionMarkers()) {
+            if ([lower containsString:marker]) return YES;
         }
     }
     return NO;
@@ -1489,6 +1553,52 @@ static int hook_getfsstat64(void *buf, int bufsize, int flags) {
     return rc;
 }
 
+static BOOL LCParseIPv4Address(NSString *addressString, struct in_addr *outAddress) {
+    if (!outAddress || ![addressString isKindOfClass:[NSString class]] || addressString.length == 0) {
+        return NO;
+    }
+    memset(outAddress, 0, sizeof(struct in_addr));
+    return inet_pton(AF_INET, addressString.UTF8String, outAddress) == 1;
+}
+
+static int hook_getifaddrs(struct ifaddrs **ifap) {
+    if (!orig_getifaddrs) {
+        orig_getifaddrs = (int (*)(struct ifaddrs **))dlsym(RTLD_DEFAULT, "getifaddrs");
+        if (!orig_getifaddrs) return -1;
+    }
+
+    int rc = orig_getifaddrs(ifap);
+    if (rc != 0 || !LCDeviceSpoofingIsActive() || !ifap || !*ifap) {
+        return rc;
+    }
+
+    struct in_addr wifiAddress = {0};
+    struct in_addr cellularAddress = {0};
+    BOOL hasWiFiAddress = g_spoofWiFiAddressEnabled && LCParseIPv4Address(g_spoofedWiFiAddress, &wifiAddress);
+    BOOL hasCellularAddress = g_spoofCellularAddressEnabled && LCParseIPv4Address(g_spoofedCellularAddress, &cellularAddress);
+    if (!hasWiFiAddress && !hasCellularAddress) {
+        return rc;
+    }
+
+    for (struct ifaddrs *entry = *ifap; entry != NULL; entry = entry->ifa_next) {
+        if (!entry->ifa_name || !entry->ifa_addr || entry->ifa_addr->sa_family != AF_INET) {
+            continue;
+        }
+
+        struct sockaddr_in *sockaddr = (struct sockaddr_in *)entry->ifa_addr;
+        if (hasWiFiAddress && strcmp(entry->ifa_name, "en0") == 0) {
+            sockaddr->sin_addr = wifiAddress;
+            continue;
+        }
+        if (hasCellularAddress &&
+            (strcmp(entry->ifa_name, "pdp_ip0") == 0 || strcmp(entry->ifa_name, "en1") == 0)) {
+            sockaddr->sin_addr = cellularAddress;
+        }
+    }
+
+    return rc;
+}
+
 static int hook_clock_gettime(clockid_t clk_id, struct timespec *tp) {
     if (!orig_clock_gettime) {
         orig_clock_gettime = (int (*)(clockid_t, struct timespec *))dlsym(RTLD_DEFAULT, "clock_gettime");
@@ -1802,6 +1912,30 @@ static BOOL hook_UIDevice_isBatteryMonitoringEnabled(id self, SEL _cmd) {
     return YES;
 }
 
+static BOOL hook_UIDevice_proximityState(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_spoofProximityEnabled) {
+        return NO;
+    }
+    if (orig_UIDevice_proximityState) return orig_UIDevice_proximityState(self, _cmd);
+    return NO;
+}
+
+static BOOL hook_UIDevice_isProximityMonitoringEnabled(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_spoofProximityEnabled) {
+        return YES;
+    }
+    if (orig_UIDevice_isProximityMonitoringEnabled) return orig_UIDevice_isProximityMonitoringEnabled(self, _cmd);
+    return NO;
+}
+
+static UIDeviceOrientation hook_UIDevice_orientation(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_spoofOrientationEnabled) {
+        return UIDeviceOrientationPortrait;
+    }
+    if (orig_UIDevice_orientation) return orig_UIDevice_orientation(self, _cmd);
+    return UIDeviceOrientationPortrait;
+}
+
 static unsigned long long hook_NSProcessInfo_physicalMemory(id self, SEL _cmd) {
     if (LCDeviceSpoofingIsActive()) {
         uint64_t value = LCSpoofedPhysicalMemory();
@@ -1865,7 +1999,9 @@ static BOOL hook_NSProcessInfo_isLowPowerModeEnabled(id self, SEL _cmd) {
 
 static NSDictionary *hook_NSProcessInfo_environment(id self, SEL _cmd) {
     NSDictionary *env = orig_NSProcessInfo_environment ? orig_NSProcessInfo_environment(self, _cmd) : @{};
-    if (!(LCDeviceSpoofingIsActive() && g_screenCaptureBlockEnabled) || ![env isKindOfClass:[NSDictionary class]] || env.count == 0) {
+    if (!LCScreenFeatureEnabled(g_spoofCraneEnabled || g_spoofAppiumEnabled) ||
+        ![env isKindOfClass:[NSDictionary class]] ||
+        env.count == 0) {
         return env;
     }
 
@@ -1883,7 +2019,9 @@ static NSDictionary *hook_NSProcessInfo_environment(id self, SEL _cmd) {
 
 static NSArray<NSString *> *hook_NSProcessInfo_arguments(id self, SEL _cmd) {
     NSArray<NSString *> *args = orig_NSProcessInfo_arguments ? orig_NSProcessInfo_arguments(self, _cmd) : @[];
-    if (!(LCDeviceSpoofingIsActive() && g_screenCaptureBlockEnabled) || ![args isKindOfClass:[NSArray class]] || args.count == 0) {
+    if (!LCScreenFeatureEnabled(g_spoofCraneEnabled || g_spoofAppiumEnabled) ||
+        ![args isKindOfClass:[NSArray class]] ||
+        args.count == 0) {
         return args;
     }
 
@@ -2040,8 +2178,40 @@ static NSString *hook_NSLocale_countryCode(id self, SEL _cmd) {
     return nil;
 }
 
+static NSString *hook_NSLocale_currencyCode(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_spoofedLocaleCurrencyCode.length > 0) {
+        return [g_spoofedLocaleCurrencyCode uppercaseString];
+    }
+    if (orig_NSLocale_currencyCode) return orig_NSLocale_currencyCode(self, _cmd);
+    return nil;
+}
+
+static NSString *hook_NSLocale_currencySymbol(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_spoofedLocaleCurrencySymbol.length > 0) {
+        return g_spoofedLocaleCurrencySymbol;
+    }
+    if (orig_NSLocale_currencySymbol) return orig_NSLocale_currencySymbol(self, _cmd);
+    return nil;
+}
+
+static BOOL hook_CMMotionManager_isGyroAvailable(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_spoofGyroscopeEnabled) {
+        return YES;
+    }
+    if (orig_CMMotionManager_isGyroAvailable) return orig_CMMotionManager_isGyroAvailable(self, _cmd);
+    return YES;
+}
+
+static BOOL hook_CMMotionManager_isDeviceMotionAvailable(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_spoofGyroscopeEnabled) {
+        return YES;
+    }
+    if (orig_CMMotionManager_isDeviceMotionAvailable) return orig_CMMotionManager_isDeviceMotionAvailable(self, _cmd);
+    return YES;
+}
+
 static BOOL hook_MFMessageComposeViewController_canSendText(id self, SEL _cmd) {
-    if (LCDeviceSpoofingIsActive() && g_screenCaptureBlockEnabled) {
+    if (LCScreenFeatureEnabled(g_spoofMessageEnabled)) {
         return YES;
     }
     if (orig_MFMessageComposeViewController_canSendText) return orig_MFMessageComposeViewController_canSendText(self, _cmd);
@@ -2049,7 +2219,7 @@ static BOOL hook_MFMessageComposeViewController_canSendText(id self, SEL _cmd) {
 }
 
 static BOOL hook_MFMailComposeViewController_canSendMail(id self, SEL _cmd) {
-    if (LCDeviceSpoofingIsActive() && g_screenCaptureBlockEnabled) {
+    if (LCScreenFeatureEnabled(g_spoofMailEnabled)) {
         return YES;
     }
     if (orig_MFMailComposeViewController_canSendMail) return orig_MFMailComposeViewController_canSendMail(self, _cmd);
@@ -2057,7 +2227,7 @@ static BOOL hook_MFMailComposeViewController_canSendMail(id self, SEL _cmd) {
 }
 
 static NSString *hook_UIPasteboard_string(id self, SEL _cmd) {
-    if (LCDeviceSpoofingIsActive() && g_screenCaptureBlockEnabled) {
+    if (LCScreenFeatureEnabled(g_spoofPasteboardEnabled)) {
         return nil;
     }
     if (orig_UIPasteboard_string) return orig_UIPasteboard_string(self, _cmd);
@@ -2065,7 +2235,7 @@ static NSString *hook_UIPasteboard_string(id self, SEL _cmd) {
 }
 
 static BOOL hook_NSString_containsString(id self, SEL _cmd, NSString *query) {
-    if (LCDeviceSpoofingIsActive() && g_screenCaptureBlockEnabled &&
+    if (LCScreenFeatureEnabled(g_spoofCraneEnabled || g_spoofAppiumEnabled) &&
         (LCStringContainsSensitiveMarker((NSString *)self) || LCStringContainsSensitiveMarker(query))) {
         return NO;
     }
@@ -2074,7 +2244,7 @@ static BOOL hook_NSString_containsString(id self, SEL _cmd, NSString *query) {
 }
 
 static BOOL hook_NSString_hasPrefix(id self, SEL _cmd, NSString *prefix) {
-    if (LCDeviceSpoofingIsActive() && g_screenCaptureBlockEnabled &&
+    if (LCScreenFeatureEnabled(g_spoofCraneEnabled || g_spoofAppiumEnabled) &&
         (LCStringContainsSensitiveMarker((NSString *)self) || LCStringContainsSensitiveMarker(prefix))) {
         return NO;
     }
@@ -2083,7 +2253,7 @@ static BOOL hook_NSString_hasPrefix(id self, SEL _cmd, NSString *prefix) {
 }
 
 static BOOL hook_NSString_hasSuffix(id self, SEL _cmd, NSString *suffix) {
-    if (LCDeviceSpoofingIsActive() && g_screenCaptureBlockEnabled &&
+    if (LCScreenFeatureEnabled(g_spoofCraneEnabled || g_spoofAppiumEnabled) &&
         (LCStringContainsSensitiveMarker((NSString *)self) || LCStringContainsSensitiveMarker(suffix))) {
         return NO;
     }
@@ -2092,7 +2262,7 @@ static BOOL hook_NSString_hasSuffix(id self, SEL _cmd, NSString *suffix) {
 }
 
 static NSRange hook_NSString_rangeOfString(id self, SEL _cmd, NSString *searchString) {
-    if (LCDeviceSpoofingIsActive() && g_screenCaptureBlockEnabled &&
+    if (LCScreenFeatureEnabled(g_spoofCraneEnabled || g_spoofAppiumEnabled) &&
         (LCStringContainsSensitiveMarker((NSString *)self) || LCStringContainsSensitiveMarker(searchString))) {
         return NSMakeRange(NSNotFound, 0);
     }
@@ -2101,7 +2271,7 @@ static NSRange hook_NSString_rangeOfString(id self, SEL _cmd, NSString *searchSt
 }
 
 static BOOL hook_NSPredicate_evaluateWithObject(id self, SEL _cmd, id object) {
-    if (LCDeviceSpoofingIsActive() && g_screenCaptureBlockEnabled && LCObjectContainsSensitiveMarker(object)) {
+    if (LCScreenFeatureEnabled(g_spoofCraneEnabled || g_spoofAppiumEnabled) && LCObjectContainsSensitiveMarker(object)) {
         return NO;
     }
     if (orig_NSPredicate_evaluateWithObject) return orig_NSPredicate_evaluateWithObject(self, _cmd, object);
@@ -2114,7 +2284,7 @@ static id hook_PHAssetCollection_fetchAssetCollectionsWithType_subtype_options(i
     }
 
     id original = orig_PHAssetCollection_fetchAssetCollectionsWithType_subtype_options(self, _cmd, type, subtype, options);
-    if (!(LCDeviceSpoofingIsActive() && g_screenCaptureBlockEnabled) || g_albumBlacklist.count == 0 || !original) {
+    if (!LCScreenFeatureEnabled(g_spoofAlbumEnabled) || g_albumBlacklist.count == 0 || !original) {
         return original;
     }
 
@@ -2143,7 +2313,7 @@ static id hook_PHAssetCollection_fetchAssetCollectionsWithType_subtype_options(i
 }
 
 static BOOL hook_BugsnagDevice_jailbroken(id self, SEL _cmd) {
-    if (LCDeviceSpoofingIsActive() && g_screenCaptureBlockEnabled) {
+    if (LCScreenFeatureEnabled(g_spoofBugsnagEnabled)) {
         return NO;
     }
     if (orig_BugsnagDevice_jailbroken) return orig_BugsnagDevice_jailbroken(self, _cmd);
@@ -2152,13 +2322,13 @@ static BOOL hook_BugsnagDevice_jailbroken(id self, SEL _cmd) {
 
 static void hook_BugsnagDevice_setJailbroken(id self, SEL _cmd, BOOL value) {
     if (orig_BugsnagDevice_setJailbroken) {
-        orig_BugsnagDevice_setJailbroken(self, _cmd, (LCDeviceSpoofingIsActive() && g_screenCaptureBlockEnabled) ? NO : value);
+        orig_BugsnagDevice_setJailbroken(self, _cmd, LCScreenFeatureEnabled(g_spoofBugsnagEnabled) ? NO : value);
     }
 }
 
 static id hook_NSURLSession_uploadTaskWithRequest_fromData_completionHandler(id self, SEL _cmd, NSURLRequest *request, NSData *bodyData, id completionHandler) {
     NSData *payload = bodyData;
-    if (LCDeviceSpoofingIsActive() && g_screenCaptureBlockEnabled &&
+    if (LCScreenFeatureEnabled(g_spoofBugsnagEnabled) &&
         [request isKindOfClass:[NSURLRequest class]]) {
         NSString *urlString = request.URL.absoluteString.lowercaseString ?: @"";
         if ([urlString containsString:@"sessions.bugsnag.com"]) {
@@ -2736,6 +2906,28 @@ static CFTypeRef hook_IORegistryEntryCreateCFProperty(io_registry_entry_t entry,
     return CFStringCreateWithCString(allocator ?: kCFAllocatorDefault, replacement, kCFStringEncodingUTF8);
 }
 
+static CFDictionaryRef hook_CNCopyCurrentNetworkInfo(CFStringRef interfaceName) {
+    CFDictionaryRef original = orig_CNCopyCurrentNetworkInfo ? orig_CNCopyCurrentNetworkInfo(interfaceName) : NULL;
+    if (!(LCDeviceSpoofingIsActive() && g_networkInfoSpoofingEnabled)) {
+        return original;
+    }
+
+    NSString *ssid = g_spoofedWiFiSSID.length > 0 ? g_spoofedWiFiSSID : @"Public Network";
+    NSString *bssid = g_spoofedWiFiBSSID.length > 0 ? g_spoofedWiFiBSSID : @"22:66:99:00";
+    NSData *ssidData = [ssid dataUsingEncoding:NSUTF8StringEncoding] ?: [NSData data];
+
+    NSDictionary *spoofed = @{
+        @"SSID": ssid,
+        @"BSSID": bssid,
+        @"SSIDDATA": ssidData,
+    };
+
+    if (original) {
+        CFRelease(original);
+    }
+    return (CFDictionaryRef)CFBridgingRetain(spoofed);
+}
+
 // MARK: - NSProcessInfo isOperatingSystemAtLeastVersion
 static BOOL hook_NSProcessInfo_isOperatingSystemAtLeastVersion(id self, SEL _cmd, NSOperatingSystemVersion version) {
     if (LCDeviceSpoofingIsActive()) {
@@ -2758,16 +2950,32 @@ static BOOL hook_NSProcessInfo_isOperatingSystemAtLeastVersion(id self, SEL _cmd
 
 // MARK: - NSMutableURLRequest User-Agent hook
 static void hook_NSMutableURLRequest_setValue_forHTTPHeaderField(id self, SEL _cmd, NSString *value, NSString *field) {
-    if (LCDeviceSpoofingIsActive() && [field caseInsensitiveCompare:@"User-Agent"] == NSOrderedSame && value.length > 0) {
-        NSString *modified = LCModifyUserAgentVersion(value);
-        if (modified && ![modified isEqualToString:value]) {
-            if (orig_NSMutableURLRequest_setValue_forHTTPHeaderField)
-                orig_NSMutableURLRequest_setValue_forHTTPHeaderField(self, _cmd, modified, field);
-            return;
+    NSString *outValue = value;
+
+    if (LCDeviceSpoofingIsActive() && [field isKindOfClass:[NSString class]]) {
+        if ([field caseInsensitiveCompare:@"User-Agent"] == NSOrderedSame && value.length > 0) {
+            NSString *modified = LCModifyUserAgentVersion(value);
+            if (modified.length > 0) {
+                outValue = modified;
+            }
+        } else {
+            NSString *persistentID = g_spoofedPersistentDeviceID.length > 0 ? g_spoofedPersistentDeviceID : g_spoofedInstallationID;
+            if (persistentID.length > 0) {
+                if ([field caseInsensitiveCompare:@"persistent-device-id"] == NSOrderedSame ||
+                    [field caseInsensitiveCompare:@"x-persistent-device-id"] == NSOrderedSame ||
+                    [field caseInsensitiveCompare:@"device-id"] == NSOrderedSame ||
+                    [field caseInsensitiveCompare:@"x-device-id"] == NSOrderedSame ||
+                    [field caseInsensitiveCompare:@"installation-id"] == NSOrderedSame ||
+                    [field caseInsensitiveCompare:@"x-installation-id"] == NSOrderedSame) {
+                    outValue = persistentID;
+                }
+            }
         }
     }
-    if (orig_NSMutableURLRequest_setValue_forHTTPHeaderField)
-        orig_NSMutableURLRequest_setValue_forHTTPHeaderField(self, _cmd, value, field);
+
+    if (orig_NSMutableURLRequest_setValue_forHTTPHeaderField) {
+        orig_NSMutableURLRequest_setValue_forHTTPHeaderField(self, _cmd, outValue, field);
+    }
 }
 
 // MARK: - WKWebViewConfiguration applicationNameForUserAgent hook
@@ -2791,8 +2999,11 @@ static NSString *LCBuildFingerprintInjectionScript(void) {
     NSInteger screenW = (NSInteger)g_currentProfile->screenWidth;
     NSInteger screenH = (NSInteger)g_currentProfile->screenHeight;
     double dpr = (double)g_currentProfile->screenScale;
-    uint32_t cpuCores = g_currentProfile->cpuCoreCount;
-    double memoryGB = (double)g_currentProfile->physicalMemory / (1024.0 * 1024.0 * 1024.0);
+    uint32_t cpuCores = LCSpoofedCPUCount();
+    if (cpuCores == 0) cpuCores = g_currentProfile->cpuCoreCount;
+    uint64_t spoofedMemory = LCSpoofedPhysicalMemory();
+    if (spoofedMemory == 0) spoofedMemory = g_currentProfile->physicalMemory;
+    double memoryGB = (double)spoofedMemory / (1024.0 * 1024.0 * 1024.0);
     // navigator.deviceMemory is rounded to power-of-2 in GB (4, 8, etc.)
     int deviceMem = (int)memoryGB;
     if (deviceMem > 8) deviceMem = 8;
@@ -3133,6 +3344,9 @@ NSDictionary *LCGetCurrentProfileData(void) {
 void LCSetSpoofedDeviceModel(NSString *model) { g_customDeviceModel = [model copy]; }
 void LCSetSpoofedSystemVersion(NSString *version) { g_customSystemVersion = [version copy]; }
 void LCSetSpoofedBuildVersion(NSString *build) { g_customBuildVersion = [build copy]; }
+void LCSetSpoofedKernelVersion(NSString *kernelVersion) { g_customKernelVersion = [kernelVersion copy]; }
+void LCSetSpoofedKernelRelease(NSString *kernelRelease) { g_customKernelRelease = [kernelRelease copy]; }
+void LCSetSpoofedCPUCount(uint32_t cpuCount) { g_customCPUCoreCount = cpuCount; }
 void LCSetSpoofedPhysicalMemory(uint64_t memory) { g_customPhysicalMemory = memory; }
 
 void LCSetSpoofedDeviceName(NSString *deviceName) { g_customDeviceName = [deviceName copy]; }
@@ -3147,6 +3361,13 @@ void LCSetSpoofedCellularType(NSInteger type) {
     g_cellularTypeConfigured = (type >= 0);
     g_spoofedCellularType = type;
 }
+void LCSetNetworkInfoSpoofingEnabled(BOOL enabled) { g_networkInfoSpoofingEnabled = enabled; }
+void LCSetWiFiAddressSpoofingEnabled(BOOL enabled) { g_spoofWiFiAddressEnabled = enabled; }
+void LCSetCellularAddressSpoofingEnabled(BOOL enabled) { g_spoofCellularAddressEnabled = enabled; }
+void LCSetSpoofedWiFiAddress(NSString *wifiAddress) { g_spoofedWiFiAddress = [wifiAddress copy]; }
+void LCSetSpoofedCellularAddress(NSString *cellularAddress) { g_spoofedCellularAddress = [cellularAddress copy]; }
+void LCSetSpoofedWiFiSSID(NSString *ssid) { g_spoofedWiFiSSID = [ssid copy]; }
+void LCSetSpoofedWiFiBSSID(NSString *bssid) { g_spoofedWiFiBSSID = [bssid copy]; }
 
 void LCSetSpoofedVendorID(NSString *vendorID) {
     g_spoofedVendorID = [vendorID copy];
@@ -3183,6 +3404,7 @@ BOOL LCGetSpoofedAdTrackingEnabled(void) {
 
 void LCSetSpoofedInstallationID(NSString *installationID) { g_spoofedInstallationID = [installationID copy]; }
 NSString *LCGetSpoofedInstallationID(void) { return g_spoofedInstallationID; }
+void LCSetSpoofedPersistentDeviceID(NSString *persistentDeviceID) { g_spoofedPersistentDeviceID = [persistentDeviceID copy]; }
 
 void LCSetSpoofedMACAddress(NSString *macAddress) { g_spoofedMACAddress = [macAddress copy]; }
 NSString *LCGetSpoofedMACAddress(void) { return g_spoofedMACAddress; }
@@ -3195,9 +3417,21 @@ NSString *LCGetSpoofedTimezone(void) { return g_spoofedTimezone; }
 void LCSetSpoofedLocale(NSString *locale) { g_spoofedLocale = [locale copy]; }
 NSString *LCGetSpoofedLocale(void) { return g_spoofedLocale; }
 void LCSetSpoofedPreferredCountryCode(NSString *countryCode) { g_spoofedPreferredCountryCode = [countryCode copy]; }
+void LCSetSpoofedLocaleCurrencyCode(NSString *currencyCode) { g_spoofedLocaleCurrencyCode = [currencyCode copy]; }
+void LCSetSpoofedLocaleCurrencySymbol(NSString *currencySymbol) { g_spoofedLocaleCurrencySymbol = [currencySymbol copy]; }
+void LCSetProximitySpoofingEnabled(BOOL enabled) { g_spoofProximityEnabled = enabled; }
+void LCSetOrientationSpoofingEnabled(BOOL enabled) { g_spoofOrientationEnabled = enabled; }
+void LCSetGyroscopeSpoofingEnabled(BOOL enabled) { g_spoofGyroscopeEnabled = enabled; }
 
 // Screen capture detection blocking
 void LCSetScreenCaptureBlockEnabled(BOOL enabled) { g_screenCaptureBlockEnabled = enabled; }
+void LCSetSpoofMessageEnabled(BOOL enabled) { g_spoofMessageEnabled = enabled; }
+void LCSetSpoofMailEnabled(BOOL enabled) { g_spoofMailEnabled = enabled; }
+void LCSetSpoofBugsnagEnabled(BOOL enabled) { g_spoofBugsnagEnabled = enabled; }
+void LCSetSpoofCraneEnabled(BOOL enabled) { g_spoofCraneEnabled = enabled; }
+void LCSetSpoofPasteboardEnabled(BOOL enabled) { g_spoofPasteboardEnabled = enabled; }
+void LCSetSpoofAlbumEnabled(BOOL enabled) { g_spoofAlbumEnabled = enabled; }
+void LCSetSpoofAppiumEnabled(BOOL enabled) { g_spoofAppiumEnabled = enabled; }
 BOOL LCIsScreenCaptureBlockEnabled(void) { return g_screenCaptureBlockEnabled; }
 void LCSetAlbumBlacklistArray(NSArray<NSString *> *blacklist) { g_albumBlacklist = [blacklist copy]; }
 
@@ -3466,6 +3700,7 @@ void DeviceSpoofingGuestHooksInit(void) {
             {"fstatfs", (void *)hook_fstatfs, (void **)&orig_fstatfs},
             {"getfsstat", (void *)hook_getfsstat, (void **)&orig_getfsstat},
             {"getfsstat64", (void *)hook_getfsstat64, (void **)&orig_getfsstat64},
+            {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
             {"clock_gettime", (void *)hook_clock_gettime, (void **)&orig_clock_gettime},
             {"clock_gettime_nsec_np", (void *)hook_clock_gettime_nsec_np, (void **)&orig_clock_gettime_nsec_np},
             {"mach_absolute_time", (void *)hook_mach_absolute_time, (void **)&orig_mach_absolute_time},
@@ -3482,6 +3717,7 @@ void DeviceSpoofingGuestHooksInit(void) {
             {"MGCopyAnswer", (void *)hook_MGCopyAnswer, (void **)&orig_MGCopyAnswer},
             {"IORegistryEntryCreateCFProperty", (void *)hook_IORegistryEntryCreateCFProperty, (void **)&orig_IORegistryEntryCreateCFProperty},
             {"CFCopySystemVersionDictionary", (void *)hook_CFCopySystemVersionDictionary, (void **)&orig_CFCopySystemVersionDictionary},
+            {"CNCopyCurrentNetworkInfo", (void *)hook_CNCopyCurrentNetworkInfo, (void **)&orig_CNCopyCurrentNetworkInfo},
         };
         rebind_symbols(rebindings, sizeof(rebindings) / sizeof(rebindings[0]));
 
@@ -3500,6 +3736,13 @@ void DeviceSpoofingGuestHooksInit(void) {
         LCInstallInstanceHook(uiDeviceClass, @selector(batteryLevel), (IMP)hook_UIDevice_batteryLevel, (IMP *)&orig_UIDevice_batteryLevel);
         LCInstallInstanceHook(uiDeviceClass, @selector(batteryState), (IMP)hook_UIDevice_batteryState, (IMP *)&orig_UIDevice_batteryState);
         LCInstallInstanceHook(uiDeviceClass, @selector(isBatteryMonitoringEnabled), (IMP)hook_UIDevice_isBatteryMonitoringEnabled, (IMP *)&orig_UIDevice_isBatteryMonitoringEnabled);
+        if (g_spoofProximityEnabled) {
+            LCInstallInstanceHook(uiDeviceClass, @selector(proximityState), (IMP)hook_UIDevice_proximityState, (IMP *)&orig_UIDevice_proximityState);
+            LCInstallInstanceHook(uiDeviceClass, @selector(isProximityMonitoringEnabled), (IMP)hook_UIDevice_isProximityMonitoringEnabled, (IMP *)&orig_UIDevice_isProximityMonitoringEnabled);
+        }
+        if (g_spoofOrientationEnabled) {
+            LCInstallInstanceHook(uiDeviceClass, @selector(orientation), (IMP)hook_UIDevice_orientation, (IMP *)&orig_UIDevice_orientation);
+        }
 
         Class processInfoClass = objc_getClass("NSProcessInfo");
         LCInstallInstanceHook(processInfoClass, @selector(physicalMemory), (IMP)hook_NSProcessInfo_physicalMemory, (IMP *)&orig_NSProcessInfo_physicalMemory);
@@ -3600,6 +3843,20 @@ void DeviceSpoofingGuestHooksInit(void) {
             if (g_spoofedPreferredCountryCode.length > 0) {
                 LCInstallInstanceHook(localeClass, @selector(countryCode), (IMP)hook_NSLocale_countryCode, (IMP *)&orig_NSLocale_countryCode);
             }
+            if (g_spoofedLocaleCurrencyCode.length > 0) {
+                LCInstallInstanceHook(localeClass, @selector(currencyCode), (IMP)hook_NSLocale_currencyCode, (IMP *)&orig_NSLocale_currencyCode);
+            }
+            if (g_spoofedLocaleCurrencySymbol.length > 0) {
+                LCInstallInstanceHook(localeClass, @selector(currencySymbol), (IMP)hook_NSLocale_currencySymbol, (IMP *)&orig_NSLocale_currencySymbol);
+            }
+        } else if (g_spoofedLocaleCurrencyCode.length > 0 || g_spoofedLocaleCurrencySymbol.length > 0) {
+            Class localeClass = objc_getClass("NSLocale");
+            if (g_spoofedLocaleCurrencyCode.length > 0) {
+                LCInstallInstanceHook(localeClass, @selector(currencyCode), (IMP)hook_NSLocale_currencyCode, (IMP *)&orig_NSLocale_currencyCode);
+            }
+            if (g_spoofedLocaleCurrencySymbol.length > 0) {
+                LCInstallInstanceHook(localeClass, @selector(currencySymbol), (IMP)hook_NSLocale_currencySymbol, (IMP *)&orig_NSLocale_currencySymbol);
+            }
         }
 
         // Screen capture detection blocking
@@ -3651,6 +3908,14 @@ void DeviceSpoofingGuestHooksInit(void) {
             LCInstallInstanceHook(appAttestClass, @selector(generateKeyWithCompletionHandler:), (IMP)hook_DCAppAttestService_generateKeyWithCompletionHandler, (IMP *)&orig_DCAppAttestService_generateKeyWithCompletionHandler);
             LCInstallInstanceHook(appAttestClass, @selector(attestKey:clientDataHash:completionHandler:), (IMP)hook_DCAppAttestService_attestKey_clientDataHash_completionHandler, (IMP *)&orig_DCAppAttestService_attestKey_clientDataHash_completionHandler);
             LCInstallInstanceHook(appAttestClass, @selector(generateAssertion:clientDataHash:completionHandler:), (IMP)hook_DCAppAttestService_generateAssertion_clientDataHash_completionHandler, (IMP *)&orig_DCAppAttestService_generateAssertion_clientDataHash_completionHandler);
+        }
+
+        if (g_spoofGyroscopeEnabled) {
+            Class motionClass = objc_getClass("CMMotionManager");
+            if (motionClass) {
+                LCInstallInstanceHook(motionClass, @selector(isGyroAvailable), (IMP)hook_CMMotionManager_isGyroAvailable, (IMP *)&orig_CMMotionManager_isGyroAvailable);
+                LCInstallInstanceHook(motionClass, @selector(isDeviceMotionAvailable), (IMP)hook_CMMotionManager_isDeviceMotionAvailable, (IMP *)&orig_CMMotionManager_isDeviceMotionAvailable);
+            }
         }
 
         // WKWebView hooks — always install for UA spoofing + JS injection

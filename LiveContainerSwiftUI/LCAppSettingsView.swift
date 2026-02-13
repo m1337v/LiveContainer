@@ -2321,10 +2321,9 @@ struct LCAppSettingsView: View {
             if model.uiDeviceSpoofingEnabled {
                 deviceSpoofProfilePicker()
                 deviceSpoofVersionPicker()
+                deviceSpoofBuildVersionSection()
                 deviceSpoofSectionHeader("Identity")
                 deviceSpoofDeviceNameSection()
-                deviceSpoofCarrierSection()
-                deviceSpoofCellularTypeSection()
                 deviceSpoofIdentifiersSection()
 
                 deviceSpoofSectionHeader("Region")
@@ -2333,9 +2332,14 @@ struct LCAppSettingsView: View {
                 deviceSpoofPreferredCountrySection()
 
                 deviceSpoofSectionHeader("Network")
+                deviceSpoofCarrierSection()
+                deviceSpoofCellularTypeSection()
                 deviceSpoofNetworkSection()
 
                 deviceSpoofSectionHeader("Runtime")
+                deviceSpoofHardwareSection()
+                deviceSpoofKernelSection()
+                deviceSpoofSensorsSection()
                 deviceSpoofBootTimeSection()
                 deviceSpoofBatterySection()
                 deviceSpoofStorageSection()
@@ -2354,7 +2358,7 @@ struct LCAppSettingsView: View {
             Text("Device Fingerprinting Protection")
         } footer: {
             if model.uiDeviceSpoofingEnabled {
-                Text("Hooks sysctl, uname, UIDevice, NSProcessInfo, ASIdentifierManager, boot time, uptime, user-agent & more. Independent iOS version override lets you report a different OS version than the profile's hardware default.")
+                Text("Hooks sysctl, uname, UIDevice, NSProcessInfo, ASIdentifierManager, telephony, motion sensors, boot time, uptime, user-agent and locale surfaces.")
             }
         }
     }
@@ -2454,6 +2458,28 @@ struct LCAppSettingsView: View {
                     .foregroundColor(.orange)
             }
         }
+    }
+
+    // MARK: iOS Build Version Override
+    @ViewBuilder
+    private func deviceSpoofBuildVersionSection() -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: "number.square")
+                    .foregroundColor(.secondary)
+                    .frame(width: 20)
+                Text("iOS Build Override")
+            }
+            TextField("e.g. 22B83 or 24A5260a", text: $model.uiDeviceSpoofBuildVersion)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .font(.system(.caption, design: .monospaced))
+                .autocapitalization(.none)
+                .disableAutocorrection(true)
+            Text("Optional explicit `ProductBuildVersion` / `iosVersionBuild` override.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .padding(.leading, 28)
     }
 
     // MARK: Device Name
@@ -2611,6 +2637,25 @@ struct LCAppSettingsView: View {
                         .controlSize(.small)
                     }
                 }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Persistent Device ID")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    HStack {
+                        TextField("persistent-device-id", text: $model.uiDeviceSpoofPersistentDeviceID)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .font(.system(.caption, design: .monospaced))
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                        Button {
+                            model.uiDeviceSpoofPersistentDeviceID = UUID().uuidString.replacingOccurrences(of: "-", with: "")
+                        } label: {
+                            Image(systemName: "dice")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
             }
             .padding(.leading, 28)
         }
@@ -2658,19 +2703,43 @@ struct LCAppSettingsView: View {
             }
         }
         if model.uiDeviceSpoofLocale {
-            Picker("Locale", selection: $model.uiDeviceSpoofLocaleValue) {
-                Text("English (US) — en_US").tag("en_US")
-                Text("English (GB) — en_GB").tag("en_GB")
-                Text("English (AU) — en_AU").tag("en_AU")
-                Text("French — fr_FR").tag("fr_FR")
-                Text("German — de_DE").tag("de_DE")
-                Text("Spanish — es_ES").tag("es_ES")
-                Text("Japanese — ja_JP").tag("ja_JP")
-                Text("Chinese — zh_CN").tag("zh_CN")
-                Text("Korean — ko_KR").tag("ko_KR")
-                Text("Portuguese — pt_BR").tag("pt_BR")
+            VStack(alignment: .leading, spacing: 8) {
+                Picker("Locale", selection: $model.uiDeviceSpoofLocaleValue) {
+                    Text("English (US) — en_US").tag("en_US")
+                    Text("English (GB) — en_GB").tag("en_GB")
+                    Text("English (AU) — en_AU").tag("en_AU")
+                    Text("French — fr_FR").tag("fr_FR")
+                    Text("German — de_DE").tag("de_DE")
+                    Text("Spanish — es_ES").tag("es_ES")
+                    Text("Japanese — ja_JP").tag("ja_JP")
+                    Text("Chinese — zh_CN").tag("zh_CN")
+                    Text("Korean — ko_KR").tag("ko_KR")
+                    Text("Portuguese — pt_BR").tag("pt_BR")
+                }
+                .pickerStyle(MenuPickerStyle())
+
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Currency Code")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        TextField("USD", text: $model.uiDeviceSpoofLocaleCurrencyCode)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .font(.system(.caption, design: .monospaced))
+                            .autocapitalization(.allCharacters)
+                            .disableAutocorrection(true)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Currency Symbol")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        TextField("$", text: $model.uiDeviceSpoofLocaleCurrencySymbol)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .font(.system(.caption, design: .monospaced))
+                            .disableAutocorrection(true)
+                    }
+                }
             }
-            .pickerStyle(MenuPickerStyle())
             .padding(.leading, 28)
         }
     }
@@ -2761,6 +2830,100 @@ struct LCAppSettingsView: View {
                 .disableAutocorrection(true)
                 .padding(.leading, 28)
         }
+    }
+
+    // MARK: Hardware
+    @ViewBuilder
+    private func deviceSpoofHardwareSection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofProcessorEnabled) {
+            HStack {
+                Image(systemName: "cpu")
+                    .foregroundColor(.orange)
+                    .frame(width: 20)
+                Text("Spoof Processor Count")
+            }
+        }
+        if model.uiDeviceSpoofProcessorEnabled {
+            Stepper(value: $model.uiDeviceSpoofProcessorCount, in: 1...24) {
+                Text("CPU Cores: \(model.uiDeviceSpoofProcessorCount)")
+                    .font(.system(.caption, design: .monospaced))
+            }
+            .padding(.leading, 28)
+        }
+
+        Toggle(isOn: $model.uiDeviceSpoofMemoryEnabled) {
+            HStack {
+                Image(systemName: "memorychip")
+                    .foregroundColor(.purple)
+                    .frame(width: 20)
+                Text("Spoof Physical Memory")
+            }
+        }
+        if model.uiDeviceSpoofMemoryEnabled {
+            VStack(alignment: .leading, spacing: 4) {
+                TextField("8 (GB) or bytes", text: $model.uiDeviceSpoofMemoryCount)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .font(.system(.caption, design: .monospaced))
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+                Text("Values <= 64 are treated as GB. Larger values are treated as raw bytes.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.leading, 28)
+        }
+    }
+
+    // MARK: Kernel
+    @ViewBuilder
+    private func deviceSpoofKernelSection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofKernelVersionEnabled) {
+            HStack {
+                Image(systemName: "terminal")
+                    .foregroundColor(.gray)
+                    .frame(width: 20)
+                Text("Spoof Kernel Version")
+            }
+        }
+        if model.uiDeviceSpoofKernelVersionEnabled {
+            VStack(alignment: .leading, spacing: 8) {
+                TextField("Darwin Kernel Version ...", text: $model.uiDeviceSpoofKernelVersion)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .font(.system(.caption, design: .monospaced))
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+
+                TextField("Darwin release (e.g. 24.1.0)", text: $model.uiDeviceSpoofKernelRelease)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .font(.system(.caption, design: .monospaced))
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+            }
+            .padding(.leading, 28)
+        }
+    }
+
+    // MARK: Sensors
+    @ViewBuilder
+    private func deviceSpoofSensorsSection() -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(isOn: $model.uiDeviceSpoofProximity) {
+                Label("Spoof Proximity Sensor", systemImage: "sensor.tag.radiowaves.forward")
+                    .font(.caption)
+            }
+            Toggle(isOn: $model.uiDeviceSpoofOrientation) {
+                Label("Spoof Device Orientation", systemImage: "iphone.rear.camera")
+                    .font(.caption)
+            }
+            Toggle(isOn: $model.uiDeviceSpoofGyroscope) {
+                Label("Spoof Gyroscope Availability", systemImage: "gyroscope")
+                    .font(.caption)
+            }
+            Text("Applies deterministic proximity/orientation/gyro surfaces for anti-fingerprinting checks.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .padding(.leading, 28)
     }
 
     // MARK: Boot Time & Uptime (inspired by Project-X BootTimeHooks)
@@ -3000,7 +3163,7 @@ struct LCAppSettingsView: View {
                 Image(systemName: "icloud.slash")
                     .foregroundColor(.blue)
                     .frame(width: 20)
-                Text("Mask iCloud Identity Token")
+                Text("☁️ Mask iCloud Identity Token")
             }
         }
         Toggle(isOn: $model.uiDeviceSpoofDeviceChecker) {
@@ -3008,7 +3171,7 @@ struct LCAppSettingsView: View {
                 Image(systemName: "checkmark.shield")
                     .foregroundColor(.orange)
                     .frame(width: 20)
-                Text("Spoof DeviceCheck (DCDevice)")
+                Text("🛡️ Spoof DeviceCheck (DCDevice)")
             }
         }
         Toggle(isOn: $model.uiDeviceSpoofAppAttest) {
@@ -3016,7 +3179,7 @@ struct LCAppSettingsView: View {
                 Image(systemName: "lock.shield")
                     .foregroundColor(.orange)
                     .frame(width: 20)
-                Text("Spoof App Attest")
+                Text("🔐 Spoof App Attest")
             }
         }
     }
@@ -3034,19 +3197,19 @@ struct LCAppSettingsView: View {
         }
 
         VStack(alignment: .leading, spacing: 8) {
-            Toggle("Force `canSendText` (Message)", isOn: $model.uiDeviceSpoofMessage)
+            Toggle("💬 Force `canSendText` (Message)", isOn: $model.uiDeviceSpoofMessage)
                 .font(.caption)
-            Toggle("Force `canSendMail` (Mail)", isOn: $model.uiDeviceSpoofMail)
+            Toggle("✉️ Force `canSendMail` (Mail)", isOn: $model.uiDeviceSpoofMail)
                 .font(.caption)
-            Toggle("Patch Bugsnag jailbreak payloads", isOn: $model.uiDeviceSpoofBugsnag)
+            Toggle("🐞 Patch Bugsnag jailbreak payloads", isOn: $model.uiDeviceSpoofBugsnag)
                 .font(.caption)
-            Toggle("Hide Crane markers in strings", isOn: $model.uiDeviceSpoofCrane)
+            Toggle("🧱 Hide Crane markers in strings", isOn: $model.uiDeviceSpoofCrane)
                 .font(.caption)
-            Toggle("Disable pasteboard string reads", isOn: $model.uiDeviceSpoofPasteboard)
+            Toggle("📋 Disable pasteboard string reads", isOn: $model.uiDeviceSpoofPasteboard)
                 .font(.caption)
-            Toggle("Hide Appium/WebDriver markers", isOn: $model.uiDeviceSpoofAppium)
+            Toggle("🤖 Hide Appium/WebDriver markers", isOn: $model.uiDeviceSpoofAppium)
                 .font(.caption)
-            Toggle("Filter photo albums by blacklist", isOn: $model.uiDeviceSpoofAlbum)
+            Toggle("🖼️ Filter photo albums by blacklist", isOn: $model.uiDeviceSpoofAlbum)
                 .font(.caption)
 
             if model.uiDeviceSpoofAlbum {

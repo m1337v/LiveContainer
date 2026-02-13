@@ -70,9 +70,18 @@ NSDictionary<NSString *, NSDictionary *> *LCGetAvailableDeviceProfiles(void);
 void LCSetSpoofedDeviceModel(NSString *model);
 void LCSetSpoofedSystemVersion(NSString *version);
 void LCSetSpoofedBuildVersion(NSString *build);
+void LCSetSpoofedKernelVersion(NSString *kernelVersion);
+void LCSetSpoofedKernelRelease(NSString *kernelRelease);
+void LCSetSpoofedCPUCount(uint32_t cpuCount);
 void LCSetSpoofedPhysicalMemory(uint64_t memory);
 void LCSetSpoofedVendorID(NSString *vendorID);
 void LCSetSpoofedAdvertisingID(NSString *advertisingID);
+void LCSetSpoofedPersistentDeviceID(NSString *persistentDeviceID);
+void LCSetSpoofedLocaleCurrencyCode(NSString *currencyCode);      // e.g., "USD"
+void LCSetSpoofedLocaleCurrencySymbol(NSString *currencySymbol);  // e.g., "$"
+void LCSetProximitySpoofingEnabled(BOOL enabled);
+void LCSetOrientationSpoofingEnabled(BOOL enabled);
+void LCSetGyroscopeSpoofingEnabled(BOOL enabled);
 
 // Fingerprint spoofing - Battery
 void LCSetSpoofedBatteryLevel(float level);        // 0.0-1.0
@@ -139,6 +148,13 @@ void LCSetSpoofedCarrierMCC(NSString *mcc);           // e.g., "311"
 void LCSetSpoofedCarrierMNC(NSString *mnc);           // e.g., "480"
 void LCSetSpoofedCarrierCountryCode(NSString *code);  // e.g., "us"
 void LCSetSpoofedCellularType(NSInteger type);        // 0=NRNSA, 1=LTE, 2=WCDMA
+void LCSetNetworkInfoSpoofingEnabled(BOOL enabled);
+void LCSetWiFiAddressSpoofingEnabled(BOOL enabled);
+void LCSetCellularAddressSpoofingEnabled(BOOL enabled);
+void LCSetSpoofedWiFiAddress(NSString *wifiAddress);      // e.g., "192.168.1.15"
+void LCSetSpoofedCellularAddress(NSString *cellularAddress); // e.g., "10.123.45.67"
+void LCSetSpoofedWiFiSSID(NSString *ssid);                // e.g., "Public Network"
+void LCSetSpoofedWiFiBSSID(NSString *bssid);              // e.g., "22:66:99:00"
 
 // Identifier spoofing - IDFV/IDFA
 void LCSetSpoofedVendorID(NSString *vendorID);    // Identifier for Vendor (IDFV)
@@ -184,6 +200,13 @@ void LCSetSpoofedPreferredCountryCode(NSString *countryCode); // e.g., "US"
 
 // Screen capture detection blocking
 void LCSetScreenCaptureBlockEnabled(BOOL enabled);   // Block UIScreen.isCaptured
+void LCSetSpoofMessageEnabled(BOOL enabled);         // MFMessageComposeViewController.canSendText
+void LCSetSpoofMailEnabled(BOOL enabled);            // MFMailComposeViewController.canSendMail
+void LCSetSpoofBugsnagEnabled(BOOL enabled);         // Bugsnag jailbreak payload patch
+void LCSetSpoofCraneEnabled(BOOL enabled);           // Crane marker filtering
+void LCSetSpoofPasteboardEnabled(BOOL enabled);      // UIPasteboard.string
+void LCSetSpoofAlbumEnabled(BOOL enabled);           // Photos album filtering
+void LCSetSpoofAppiumEnabled(BOOL enabled);          // Appium/WebDriver marker filtering
 BOOL LCIsScreenCaptureBlockEnabled(void);
 void LCSetAlbumBlacklistArray(NSArray<NSString *> *blacklist); // "<localId>-<title>" entries
 
