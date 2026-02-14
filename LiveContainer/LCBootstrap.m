@@ -1081,8 +1081,6 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             LCSetSpoofedLowPowerMode(YES, [guestAppInfo[@"deviceSpoofLowPowerModeValue"] boolValue]);
         }
 
-        LCSetDeviceSpoofingEnabled(YES);
-        DeviceSpoofingGuestHooksInit();
     }
     
     // ignore setting handler from guest app
@@ -1090,6 +1088,12 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     
     BOOL hookDlopen = !isSideStore && !isSharedBundle && LCSharedUtils.certificatePassword && isLiveProcess;
     DyldHooksInit([guestAppInfo[@"hideLiveContainer"] boolValue], hookDlopen, [guestAppInfo[@"spoofSDKVersion"] unsignedIntValue]);
+    
+    // Install DeviceSpoofing hooks after Dyld so Dyld stays the authoritative owner for shared hook surfaces.
+    if (useProfileSpoofing) {
+        LCSetDeviceSpoofingEnabled(YES);
+        DeviceSpoofingGuestHooksInit();
+    }
 #if is32BitSupported
     bool is32bit = [guestAppInfo[@"is32bit"] boolValue];
     if(is32bit) {

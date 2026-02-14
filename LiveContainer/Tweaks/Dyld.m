@@ -6,6 +6,8 @@
 //
 #include <dlfcn.h>
 #include <stdlib.h>
+#include <stdatomic.h>
+#include <os/lock.h>
 #include <sys/mman.h>
 #include <ctype.h>
 #include <ifaddrs.h>
@@ -180,64 +182,68 @@ static void overwriteAppExecutableFileType(void) {
 
 // MARK: ImageaName Filtering
 // Cache for loaded tweak names
-static NSMutableSet<NSString *> *loadedTweakNames = nil;
+static NSSet<NSString *> *loadedTweakNames = nil;
 
 static void detectConfiguredTweaksEarly(void) {
-    if (loadedTweakNames) return; // Already detected
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSMutableSet<NSString *> *mutable = [[NSMutableSet alloc] init];
 
-    loadedTweakNames = [[NSMutableSet alloc] init];
+        @try {
+            // Method 1: Check environment variable before TweakLoader unsets it
+            const char *tweakFolderC = getenv("LC_GLOBAL_TWEAKS_FOLDER");
+            if (tweakFolderC) {
+                NSString *globalTweakFolder = @(tweakFolderC);
+                NSArray *globalTweaks = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:globalTweakFolder error:nil];
 
-    @try {
-        // Method 1: Check environment variable before TweakLoader unsets it
-        const char *tweakFolderC = getenv("LC_GLOBAL_TWEAKS_FOLDER");
-        if (tweakFolderC) {
-            NSString *globalTweakFolder = @(tweakFolderC);
-            NSArray *globalTweaks = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:globalTweakFolder error:nil];
-
-            for (NSString *tweakName in globalTweaks) {
-                if ([tweakName hasSuffix:@".dylib"]) {
-                    [loadedTweakNames addObject:tweakName];
-                    NSLog(@"[LC] 🕵️ Early detection - will hide global tweak: %@", tweakName);
+                for (NSString *tweakName in globalTweaks) {
+                    if ([tweakName hasSuffix:@".dylib"]) {
+                        [mutable addObject:tweakName];
+                        NSLog(@"[LC] 🕵️ Early detection - will hide global tweak: %@", tweakName);
+                    }
                 }
             }
-        }
 
-        // Method 2: Use hardcoded path as fallback
-        NSString *lcBundlePath = [[NSBundle mainBundle] bundlePath];
-        NSString *globalTweakFolder = [lcBundlePath stringByAppendingPathComponent:@"Frameworks/TweakLoader.framework/GlobalTweaks"];
+            // Method 2: Use hardcoded path as fallback
+            NSString *lcBundlePath = [[NSBundle mainBundle] bundlePath];
+            NSString *globalTweakFolder = [lcBundlePath stringByAppendingPathComponent:@"Frameworks/TweakLoader.framework/GlobalTweaks"];
 
-        if ([[NSFileManager defaultManager] fileExistsAtPath:globalTweakFolder]) {
-            NSArray *globalTweaks = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:globalTweakFolder error:nil];
+            if ([[NSFileManager defaultManager] fileExistsAtPath:globalTweakFolder]) {
+                NSArray *globalTweaks = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:globalTweakFolder error:nil];
 
-            for (NSString *tweakName in globalTweaks) {
-                if ([tweakName hasSuffix:@".dylib"]) {
-                    [loadedTweakNames addObject:tweakName];
-                    NSLog(@"[LC] 🕵️ Early detection - will hide global tweak: %@", tweakName);
+                for (NSString *tweakName in globalTweaks) {
+                    if ([tweakName hasSuffix:@".dylib"]) {
+                        [mutable addObject:tweakName];
+                        NSLog(@"[LC] 🕵️ Early detection - will hide global tweak: %@", tweakName);
+                    }
                 }
             }
-        }
 
-        // Method 3: App-specific tweaks
-        NSString *tweakFolderName = NSUserDefaults.guestAppInfo[@"LCTweakFolder"];
-        if (tweakFolderName.length > 0) {
-            NSString *documentsPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
-            NSString *tweakFolderPath = [documentsPath stringByAppendingPathComponent:tweakFolderName];
+            // Method 3: App-specific tweaks
+            NSString *tweakFolderName = NSUserDefaults.guestAppInfo[@"LCTweakFolder"];
+            if (tweakFolderName.length > 0) {
+                NSString *documentsPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+                NSString *tweakFolderPath = [documentsPath stringByAppendingPathComponent:tweakFolderName];
 
-            NSArray *appTweaks = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:tweakFolderPath error:nil];
+                NSArray *appTweaks = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:tweakFolderPath error:nil];
 
-            for (NSString *tweakName in appTweaks) {
-                if ([tweakName hasSuffix:@".dylib"]) {
-                    [loadedTweakNames addObject:tweakName];
-                    NSLog(@"[LC] 🕵️ Early detection - will hide app-specific tweak: %@", tweakName);
+                for (NSString *tweakName in appTweaks) {
+                    if ([tweakName hasSuffix:@".dylib"]) {
+                        [mutable addObject:tweakName];
+                        NSLog(@"[LC] 🕵️ Early detection - will hide app-specific tweak: %@", tweakName);
+                    }
                 }
             }
+
+            NSLog(@"[LC] 🕵️ Early detection complete - total tweaks to hide: %lu", (unsigned long)mutable.count);
+
+        } @catch (NSException *exception) {
+            NSLog(@"[LC] ❌ Error in early tweak detection: %@", exception.reason);
         }
 
-        NSLog(@"[LC] 🕵️ Early detection complete - total tweaks to hide: %lu", (unsigned long)loadedTweakNames.count);
-
-    } @catch (NSException *exception) {
-        NSLog(@"[LC] ❌ Error in early tweak detection: %@", exception.reason);
-    }
+        // Freeze as immutable set for safe reads from hook paths.
+        loadedTweakNames = [mutable copy] ?: [NSSet set];
+    });
 }
 
 // static bool shouldHideLibrary(const char* imageName) {
@@ -885,11 +891,13 @@ static BOOL lc_shouldSpoofNetworkInfoForInterface(CFStringRef interfaceName) {
 
 static CFDictionaryRef lc_buildSpoofedNetworkInfoDictionary(void) {
     NSString *ssid = gSpoofWiFiSSID.length > 0 ? gSpoofWiFiSSID : @"Public Network";
-    NSString *bssid = gSpoofWiFiBSSID.length > 0 ? gSpoofWiFiBSSID : @"22:66:99:00";
+    NSString *bssid = gSpoofWiFiBSSID.length > 0 ? gSpoofWiFiBSSID : @"22:66:99:00:11:22";
+    NSData *ssidData = [ssid dataUsingEncoding:NSUTF8StringEncoding] ?: [NSData data];
 
     NSDictionary *info = @{
         @"SSID": ssid,
         @"BSSID": bssid,
+        @"SSIDDATA": ssidData,
     };
     return CFBridgingRetain(info);
 }
@@ -953,32 +961,37 @@ static NSString *lc_guestString(NSDictionary *guestAppInfo, NSString *primaryKey
 }
 
 static void lc_configureNetworkSpoofing(NSDictionary *guestAppInfo) {
-    gSpoofNetworkInfoEnabled = lc_guestBool(guestAppInfo, @"deviceSpoofNetworkInfo", @"enableSpoofNetworkInfo");
-    gSpoofWiFiAddressEnabled = lc_guestBool(guestAppInfo, @"deviceSpoofWiFiAddressEnabled", @"enableSpoofWiFi");
-    gSpoofCellularAddressEnabled = lc_guestBool(guestAppInfo, @"deviceSpoofCellularAddressEnabled", @"enableSpoofCellular");
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSDictionary *info = [guestAppInfo isKindOfClass:[NSDictionary class]] ? guestAppInfo : @{};
 
-    gSpoofWiFiAddress = lc_guestString(guestAppInfo, @"deviceSpoofWiFiAddress", @"wifiAddress");
-    gSpoofCellularAddress = lc_guestString(guestAppInfo, @"deviceSpoofCellularAddress", @"cellularAddress");
-    gSpoofWiFiSSID = lc_guestString(guestAppInfo, @"deviceSpoofWiFiSSID", @"wifiSSID");
-    gSpoofWiFiBSSID = lc_guestString(guestAppInfo, @"deviceSpoofWiFiBSSID", @"wifiBSSID");
+        gSpoofNetworkInfoEnabled = lc_guestBool(info, @"deviceSpoofNetworkInfo", @"enableSpoofNetworkInfo");
+        gSpoofWiFiAddressEnabled = lc_guestBool(info, @"deviceSpoofWiFiAddressEnabled", @"enableSpoofWiFi");
+        gSpoofCellularAddressEnabled = lc_guestBool(info, @"deviceSpoofCellularAddressEnabled", @"enableSpoofCellular");
 
-    if (guestAppInfo[@"spoofNetwork"] != nil && [guestAppInfo[@"spoofNetwork"] boolValue]) {
-        gSpoofNetworkInfoEnabled = YES;
-    }
+        gSpoofWiFiAddress = [lc_guestString(info, @"deviceSpoofWiFiAddress", @"wifiAddress") copy];
+        gSpoofCellularAddress = [lc_guestString(info, @"deviceSpoofCellularAddress", @"cellularAddress") copy];
+        gSpoofWiFiSSID = [lc_guestString(info, @"deviceSpoofWiFiSSID", @"wifiSSID") copy];
+        gSpoofWiFiBSSID = [lc_guestString(info, @"deviceSpoofWiFiBSSID", @"wifiBSSID") copy];
 
-    if (!lc_isValidIPv4Address(gSpoofWiFiAddress)) {
-        gSpoofWiFiAddress = nil;
-        gSpoofWiFiAddressEnabled = NO;
-    } else if (!gSpoofWiFiAddressEnabled) {
-        gSpoofWiFiAddressEnabled = YES;
-    }
+        if (info[@"spoofNetwork"] != nil && [info[@"spoofNetwork"] boolValue]) {
+            gSpoofNetworkInfoEnabled = YES;
+        }
 
-    if (!lc_isValidIPv4Address(gSpoofCellularAddress)) {
-        gSpoofCellularAddress = nil;
-        gSpoofCellularAddressEnabled = NO;
-    } else if (!gSpoofCellularAddressEnabled) {
-        gSpoofCellularAddressEnabled = YES;
-    }
+        if (!lc_isValidIPv4Address(gSpoofWiFiAddress)) {
+            gSpoofWiFiAddress = nil;
+            gSpoofWiFiAddressEnabled = NO;
+        } else if (!gSpoofWiFiAddressEnabled) {
+            gSpoofWiFiAddressEnabled = YES;
+        }
+
+        if (!lc_isValidIPv4Address(gSpoofCellularAddress)) {
+            gSpoofCellularAddress = nil;
+            gSpoofCellularAddressEnabled = NO;
+        } else if (!gSpoofCellularAddressEnabled) {
+            gSpoofCellularAddressEnabled = YES;
+        }
+    });
 }
 
 static CFDictionaryRef hook_CFNetworkCopySystemProxySettings(void) {
@@ -1300,8 +1313,11 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
         return result;
     }
 
+    // Filter VPN interfaces. If we unlink nodes from the system-owned list we must free them here,
+    // otherwise the caller's freeifaddrs() cannot reach them and they leak.
     struct ifaddrs *current = *ifap;
     struct ifaddrs *prev = NULL;
+    struct ifaddrs *removed = NULL;
 
     while (current != NULL) {
         BOOL shouldFilter = shouldFilterVPNInterfaceNameCStr(current->ifa_name);
@@ -1310,7 +1326,7 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
         }
 
         if (shouldFilter) {
-            // Remove this interface from the linked list
+            // Remove this interface from the linked list.
             if (prev) {
                 prev->ifa_next = current->ifa_next;
             } else {
@@ -1320,12 +1336,16 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
             struct ifaddrs *toFree = current;
             current = current->ifa_next;
 
-            // DON'T manually free - let the system handle it with freeifaddrs()
-            toFree->ifa_next = NULL;
+            // Push onto removed list; freed below.
+            toFree->ifa_next = removed;
+            removed = toFree;
         } else {
             prev = current;
             current = current->ifa_next;
         }
+    }
+    if (removed != NULL) {
+        freeifaddrs(removed);
     }
 
     if ((gSpoofWiFiAddressEnabled && gSpoofWiFiAddress.length > 0) ||
@@ -3181,22 +3201,18 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
         }, 1);
     }
 
-    // Keep network/VPN filtering hooks active regardless of hideLiveContainer setting.
-    // Default is the minimal upstream path used by NWPath interface production.
-    rebind_symbols((struct rebinding[12]){
+    // Minimal network spoofing hooks.
+    // NOTE: The more aggressive NWPath/NWInterface hooks are intentionally disabled for now.
+    rebind_symbols((struct rebinding[3]){
                 {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                 {"CNCopyCurrentNetworkInfo", (void *)hook_CNCopyCurrentNetworkInfo, (void **)&orig_CNCopyCurrentNetworkInfo},
                 {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
-                {"nw_interface_get_name", (void *)hook_nw_interface_get_name, (void **)&orig_nw_interface_get_name},
-                {"nw_interface_get_type", (void *)hook_nw_interface_get_type, (void **)&orig_nw_interface_get_type},
-                {"nw_interface_create_from_necp", (void *)hook_nw_interface_create_from_necp, (void **)&orig_nw_interface_create_from_necp},
-                {"nw_path_enumerate_interfaces", (void *)hook_nw_path_enumerate_interfaces, (void **)&orig_nw_path_enumerate_interfaces},
-                {"nw_path_copy_interface_with_generation", (void *)hook_nw_path_copy_interface_with_generation, (void **)&orig_nw_path_copy_interface_with_generation},
-                {"nw_path_copy_interface", (void *)hook_nw_path_copy_interface, (void **)&orig_nw_path_copy_interface},
-                {"if_nameindex", (void *)hook_if_nameindex, (void **)&orig_if_nameindex},
-                {"if_indextoname", (void *)hook_if_indextoname, (void **)&orig_if_indextoname},
-                {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
-    }, 12);
+    }, 3);
+
+#if 0
+    // Scrapped for now: convoluted Network.framework / NWPath interface enumeration hooks.
+    // These hooks have historically been a source of fragility (double-hook ordering, address-based rebinding,
+    // and inline hooks differing across iOS builds). Keep the code for future work, but do not enable by default.
 
     BOOL enableNWAggressiveHooks = lc_shouldEnableNWAggressiveHooks();
     if (!gLoggedNWAggressiveHookPolicy) {
@@ -3363,6 +3379,7 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     // Use only a narrowly-scoped, safe swizzle for NWPath.availableInterfaces.
     // Avoids inherited-method swizzle crashes while covering Swift Network interface enumeration.
     setupNetworkFrameworkSwizzling();
+#endif
 
     if (bypassSSLPinning) {
         setupSSLPinningBypass();
@@ -3409,20 +3426,60 @@ void* getGuestAppHeader(void) {
 #else
 #define HOOK_LOCK_1ST_ARG
 #endif
-static void *lockPtrToIgnore;
-void hook_libdyld_os_unfair_recursive_lock_lock_with_options(HOOK_LOCK_1ST_ARG void* lock, uint32_t options) {
-    if(!lockPtrToIgnore) lockPtrToIgnore = lock;
-    if(lock != lockPtrToIgnore) {
-        os_unfair_recursive_lock_lock_with_options(lock, options);
+// Guard the temporary libdyld lock-hook patching. This patch is process-global, so keep it serialized.
+static os_unfair_lock gDlopenNoLockPatchLock = OS_UNFAIR_LOCK_INIT;
+
+// Only skip locking for the calling thread while dlopen_nolock is executing.
+static __thread BOOL gIgnoreDyldRecursiveLockOnThisThread = NO;
+static __thread int gDlopenNoLockDepth = 0;
+
+// The lock pointer we ignore (initialized once, thread-safely).
+static _Atomic(void *) lockPtrToIgnore = NULL;
+
+static inline void *lc_getLockPtrToIgnoreOrInit(void *observedLock) {
+    void *current = atomic_load_explicit(&lockPtrToIgnore, memory_order_acquire);
+    if (current == NULL && observedLock != NULL) {
+        void *expected = NULL;
+        atomic_compare_exchange_strong_explicit(&lockPtrToIgnore,
+                                               &expected,
+                                               observedLock,
+                                               memory_order_release,
+                                               memory_order_relaxed);
+        current = atomic_load_explicit(&lockPtrToIgnore, memory_order_acquire);
     }
+    return current;
+}
+
+void hook_libdyld_os_unfair_recursive_lock_lock_with_options(HOOK_LOCK_1ST_ARG void* lock, uint32_t options) {
+    void *ignorePtr = lc_getLockPtrToIgnoreOrInit(lock);
+    if (gIgnoreDyldRecursiveLockOnThisThread && ignorePtr != NULL && lock == ignorePtr) {
+        return;
+    }
+    os_unfair_recursive_lock_lock_with_options(lock, options);
 }
 void hook_libdyld_os_unfair_recursive_lock_unlock(HOOK_LOCK_1ST_ARG void* lock) {
-    if(lock != lockPtrToIgnore) {
-        os_unfair_recursive_lock_unlock(lock);
+    void *ignorePtr = atomic_load_explicit(&lockPtrToIgnore, memory_order_acquire);
+    if (gIgnoreDyldRecursiveLockOnThisThread && ignorePtr != NULL && lock == ignorePtr) {
+        return;
     }
+    os_unfair_recursive_lock_unlock(lock);
 }
 
 void *dlopen_nolock(const char *path, int mode) {
+    if (gDlopenNoLockDepth > 0) {
+        // Avoid deadlocking on the patch lock if dlopen_nolock is re-entered on the same thread.
+        if (hookedDlopen) {
+            return jitless_hook_dlopen(path, mode);
+        }
+        return dlopen(path, mode);
+    }
+    gDlopenNoLockDepth++;
+
+    os_unfair_lock_lock(&gDlopenNoLockPatchLock);
+
+    void *result = NULL;
+    BOOL previousIgnore = gIgnoreDyldRecursiveLockOnThisThread;
+
     const char *libdyldPath = "/usr/lib/system/libdyld.dylib";
     mach_header_u *libdyldHeader = LCGetLoadedImageHeader(0, libdyldPath);
     assert(libdyldHeader != NULL);
@@ -3453,12 +3510,13 @@ void *dlopen_nolock(const char *path, int mode) {
     void *origLockPtr = lockUnlockPtr[0], *origUnlockPtr = lockUnlockPtr[1];
     lockUnlockPtr[0] = hook_libdyld_os_unfair_recursive_lock_lock_with_options;
     lockUnlockPtr[1] = hook_libdyld_os_unfair_recursive_lock_unlock;
-    void *result;
+    gIgnoreDyldRecursiveLockOnThisThread = YES;
     if(hookedDlopen) {
         result = jitless_hook_dlopen(path, mode);
     } else {
         result = dlopen(path, mode);
     }
+    gIgnoreDyldRecursiveLockOnThisThread = previousIgnore;
 
     ret = builtin_vm_protect(mach_task_self(), (mach_vm_address_t)lockUnlockPtr, sizeof(uintptr_t[2]), false, PROT_READ | PROT_WRITE);
     assert(ret == KERN_SUCCESS);
@@ -3470,10 +3528,19 @@ void *dlopen_nolock(const char *path, int mode) {
 #else
     litehook_rebind_symbol(libdyldHeader, os_unfair_recursive_lock_lock_with_options, hook_libdyld_os_unfair_recursive_lock_lock_with_options, nil);
     litehook_rebind_symbol(libdyldHeader, os_unfair_recursive_lock_unlock, hook_libdyld_os_unfair_recursive_lock_unlock, nil);
-    void *result = dlopen(path, mode);
+    gIgnoreDyldRecursiveLockOnThisThread = YES;
+    if (hookedDlopen) {
+        result = jitless_hook_dlopen(path, mode);
+    } else {
+        result = dlopen(path, mode);
+    }
+    gIgnoreDyldRecursiveLockOnThisThread = previousIgnore;
     litehook_rebind_symbol(libdyldHeader, hook_libdyld_os_unfair_recursive_lock_lock_with_options, os_unfair_recursive_lock_lock_with_options, nil);
     litehook_rebind_symbol(libdyldHeader, hook_libdyld_os_unfair_recursive_lock_unlock, os_unfair_recursive_lock_unlock, nil);
 #endif
+
+    os_unfair_lock_unlock(&gDlopenNoLockPatchLock);
+    gDlopenNoLockDepth--;
     return result;
 }
 

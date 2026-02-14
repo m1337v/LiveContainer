@@ -154,7 +154,7 @@ void LCSetCellularAddressSpoofingEnabled(BOOL enabled);
 void LCSetSpoofedWiFiAddress(NSString *wifiAddress);      // e.g., "192.168.1.15"
 void LCSetSpoofedCellularAddress(NSString *cellularAddress); // e.g., "10.123.45.67"
 void LCSetSpoofedWiFiSSID(NSString *ssid);                // e.g., "Public Network"
-void LCSetSpoofedWiFiBSSID(NSString *bssid);              // e.g., "22:66:99:00"
+void LCSetSpoofedWiFiBSSID(NSString *bssid);              // e.g., "22:66:99:00:11:22"
 
 // Identifier spoofing - IDFV/IDFA
 void LCSetSpoofedVendorID(NSString *vendorID);    // Identifier for Vendor (IDFV)
