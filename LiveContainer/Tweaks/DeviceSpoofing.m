@@ -22,6 +22,7 @@
 #import <ctype.h>
 #import <dlfcn.h>
 #import <errno.h>
+#import <fcntl.h>
 #import <float.h>
 #import <ifaddrs.h>
 #import <mach/host_info.h>
@@ -30,12 +31,17 @@
 #import <mach/machine.h>
 #import <mach/vm_statistics.h>
 #import <math.h>
+#import <net/if_dl.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
+#import <stdio.h>
+#import <stdarg.h>
 #import <sys/mount.h>
+#import <sys/stat.h>
 #import <sys/sysctl.h>
 #import <sys/utsname.h>
 #import <time.h>
+#import <unistd.h>
 
 #if __has_include(<IOKit/IOKitLib.h>)
 #import <IOKit/IOKitLib.h>
@@ -447,8 +453,20 @@ static size_t (*orig_CGDisplayPixelsWide)(uint32_t display) = NULL;
 static size_t (*orig_CGDisplayPixelsHigh)(uint32_t display) = NULL;
 static kern_return_t (*orig_host_statistics)(host_t host, host_flavor_t flavor, host_info_t info, mach_msg_type_number_t *count) = NULL;
 static kern_return_t (*orig_host_statistics64)(host_t host, host_flavor_t flavor, host_info64_t info, mach_msg_type_number_t *count) = NULL;
+static BOOL (*orig_UIAccessibilityIsVoiceOverRunning)(void) = NULL;
+static BOOL (*orig_UIAccessibilityIsGuidedAccessEnabled)(void) = NULL;
+static BOOL (*orig_UIAccessibilityIsMonoAudioEnabled)(void) = NULL;
+static BOOL (*orig_UIAccessibilityIsInvertColorsEnabled)(void) = NULL;
+static BOOL (*orig_UIAccessibilityIsBoldTextEnabled)(void) = NULL;
+static BOOL (*orig_UIAccessibilityDarkerSystemColorsEnabled)(void) = NULL;
+static BOOL (*orig_UIAccessibilityIsReduceMotionEnabled)(void) = NULL;
+static BOOL (*orig_UIAccessibilityIsReduceTransparencyEnabled)(void) = NULL;
+static BOOL (*orig_UIAccessibilityIsClosedCaptioningEnabled)(void) = NULL;
+static BOOL (*orig_UIAccessibilityIsAssistiveTouchRunning)(void) = NULL;
+static BOOL (*orig_UIAccessibilityIsVideoAutoplayEnabled)(void) = NULL;
 
 static NSString *(*orig_UIDevice_systemVersion)(id self, SEL _cmd) = NULL;
+static NSString *(*orig_UIDevice_systemName)(id self, SEL _cmd) = NULL;
 static NSString *(*orig_UIDevice_name)(id self, SEL _cmd) = NULL;
 static NSUUID *(*orig_UIDevice_identifierForVendor)(id self, SEL _cmd) = NULL;
 static float (*orig_UIDevice_batteryLevel)(id self, SEL _cmd) = NULL;
@@ -526,14 +544,23 @@ static NSTimeZone *(*orig_NSTimeZone_localTimeZone)(id self, SEL _cmd) = NULL;
 static NSTimeZone *(*orig_NSTimeZone_systemTimeZone)(id self, SEL _cmd) = NULL;
 static NSLocale *(*orig_NSLocale_currentLocale)(id self, SEL _cmd) = NULL;
 static NSLocale *(*orig_NSLocale_autoupdatingCurrentLocale)(id self, SEL _cmd) = NULL;
+static NSArray<NSString *> *(*orig_NSLocale_preferredLanguages)(id self, SEL _cmd) = NULL;
+static id (*orig_NSLocale_objectForKey)(id self, SEL _cmd, id key) = NULL;
 static NSString *(*orig_NSLocale_countryCode)(id self, SEL _cmd) = NULL;
 static NSString *(*orig_NSLocale_currencyCode)(id self, SEL _cmd) = NULL;
 static NSString *(*orig_NSLocale_currencySymbol)(id self, SEL _cmd) = NULL;
+static BOOL (*orig_NSLocale_usesMetricSystem)(id self, SEL _cmd) = NULL;
 static BOOL (*orig_UIScreen_isCaptured)(id self, SEL _cmd) = NULL;
 static CGRect (*orig_UIApplication_statusBarFrame)(id self, SEL _cmd) = NULL;
 static CGRect (*orig_UIStatusBarManager_statusBarFrame)(id self, SEL _cmd) = NULL;
+static BOOL (*orig_UIApplication_canOpenURL)(id self, SEL _cmd, NSURL *url) = NULL;
+static NSString *(*orig_UIApplication_preferredContentSizeCategory)(id self, SEL _cmd) = NULL;
+static NSString *(*orig_UITraitCollection_preferredContentSizeCategory)(id self, SEL _cmd) = NULL;
+static NSString *(*orig_NSCalendar_identifier)(id self, SEL _cmd) = NULL;
 
 static BOOL (*orig_MFMessageComposeViewController_canSendText)(id self, SEL _cmd) = NULL;
+static BOOL (*orig_MFMessageComposeViewController_canSendAttachments)(id self, SEL _cmd) = NULL;
+static BOOL (*orig_MFMessageComposeViewController_canSendSubject)(id self, SEL _cmd) = NULL;
 static BOOL (*orig_MFMailComposeViewController_canSendMail)(id self, SEL _cmd) = NULL;
 static NSArray *(*orig_UITextInputMode_activeInputModes)(id self, SEL _cmd) = NULL;
 static id (*orig_UITextInputMode_currentInputMode)(id self, SEL _cmd) = NULL;
@@ -542,6 +569,9 @@ static id (*orig_NSUserDefaults_objectForKey)(id self, SEL _cmd, NSString *defau
 static NSDictionary<NSString *, id> *(*orig_NSUserDefaults_dictionaryRepresentation)(id self, SEL _cmd) = NULL;
 static id (*orig_NSPropertyListSerialization_propertyListWithData_options_format_error)(id self, SEL _cmd, NSData *data, NSPropertyListReadOptions options, NSPropertyListFormat *format, NSError **error) = NULL;
 static NSString *(*orig_UIPasteboard_string)(id self, SEL _cmd) = NULL;
+static NSArray<NSString *> *(*orig_UIPasteboard_strings)(id self, SEL _cmd) = NULL;
+static BOOL (*orig_UIPasteboard_hasStrings)(id self, SEL _cmd) = NULL;
+static NSData *(*orig_UIPasteboard_dataForPasteboardType)(id self, SEL _cmd, NSString *pasteboardType) = NULL;
 static BOOL (*orig_NSString_containsString)(id self, SEL _cmd, NSString *query) = NULL;
 static BOOL (*orig_NSString_hasPrefix)(id self, SEL _cmd, NSString *prefix) = NULL;
 static BOOL (*orig_NSString_hasSuffix)(id self, SEL _cmd, NSString *suffix) = NULL;
@@ -561,6 +591,21 @@ static void (*orig_DCAppAttestService_attestKey_clientDataHash_completionHandler
 static void (*orig_DCAppAttestService_generateAssertion_clientDataHash_completionHandler)(id self, SEL _cmd, NSString *keyId, NSData *clientDataHash, id completion) = NULL;
 static BOOL (*orig_CMMotionManager_isGyroAvailable)(id self, SEL _cmd) = NULL;
 static BOOL (*orig_CMMotionManager_isDeviceMotionAvailable)(id self, SEL _cmd) = NULL;
+static BOOL (*orig_CTCarrier_allowsVOIP)(id self, SEL _cmd) = NULL;
+static NSArray *(*orig_EAAccessoryManager_connectedAccessories)(id self, SEL _cmd) = NULL;
+static float (*orig_AVAudioSession_outputVolume)(id self, SEL _cmd) = NULL;
+static BOOL (*orig_AVAudioSession_secondaryAudioShouldBeSilencedHint)(id self, SEL _cmd) = NULL;
+static BOOL (*orig_SKPaymentQueue_canMakePayments)(id self, SEL _cmd) = NULL;
+static BOOL (*orig_PKPaymentAuthorizationViewController_canMakePayments)(id self, SEL _cmd) = NULL;
+static BOOL (*orig_PKPaymentAuthorizationViewController_canMakePaymentsUsingNetworks)(id self, SEL _cmd, NSArray *networks) = NULL;
+static BOOL (*orig_PKPaymentAuthorizationController_canMakePayments)(id self, SEL _cmd) = NULL;
+static BOOL (*orig_PKPaymentAuthorizationController_canMakePaymentsUsingNetworks)(id self, SEL _cmd, NSArray *networks) = NULL;
+static BOOL (*orig_SLComposeViewController_isAvailableForServiceType)(id self, SEL _cmd, NSString *serviceType) = NULL;
+static BOOL (*orig_CLLocationManager_locationServicesEnabled)(id self, SEL _cmd) = NULL;
+static BOOL (*orig_LAContext_canEvaluatePolicy_error)(id self, SEL _cmd, NSInteger policy, NSError **error) = NULL;
+static NSInteger (*orig_LAContext_biometryType)(id self, SEL _cmd) = NULL;
+static NSInteger (*orig_INPreferences_siriAuthorizationStatus)(id self, SEL _cmd) = NULL;
+static void (*orig_INPreferences_requestSiriAuthorization)(id self, SEL _cmd, id handler) = NULL;
 
 static CFTypeRef (*orig_MGCopyAnswer)(CFStringRef key) = NULL;
 static CFTypeRef (*orig_IORegistryEntryCreateCFProperty)(io_registry_entry_t entry, CFStringRef key, CFAllocatorRef allocator, IOOptionBits options) = NULL;
@@ -610,6 +655,134 @@ static const char *LCSpoofedKernelRelease(void) {
     if (g_customKernelRelease.length > 0) return g_customKernelRelease.UTF8String;
     if (g_currentProfile) return g_currentProfile->kernelRelease;
     return NULL;
+}
+
+static const char *LCSpoofedSystemName(void) {
+    const char *machine = LCSpoofedMachineModel();
+    if (machine && strncmp(machine, "iPad", 4) == 0) {
+        return "iPadOS";
+    }
+    return "iOS";
+}
+
+static const char *LCSpoofedKernelName(void) {
+    return "Darwin";
+}
+
+static NSSet<NSString *> *LCBundleDeclaredURLSchemes(void) {
+    static NSSet<NSString *> *schemes = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSMutableSet<NSString *> *mutable = [NSMutableSet set];
+        NSDictionary *info = NSBundle.mainBundle.infoDictionary;
+        id urlTypesObj = info[@"CFBundleURLTypes"];
+        if ([urlTypesObj isKindOfClass:[NSArray class]]) {
+            for (id entry in (NSArray *)urlTypesObj) {
+                if (![entry isKindOfClass:[NSDictionary class]]) continue;
+                id schemesObj = ((NSDictionary *)entry)[@"CFBundleURLSchemes"];
+                if (![schemesObj isKindOfClass:[NSArray class]]) continue;
+                for (id schemeObj in (NSArray *)schemesObj) {
+                    if (![schemeObj isKindOfClass:[NSString class]]) continue;
+                    NSString *scheme = [(NSString *)schemeObj lowercaseString];
+                    if (scheme.length > 0) {
+                        [mutable addObject:scheme];
+                    }
+                }
+            }
+        }
+        schemes = [mutable copy] ?: [NSSet set];
+    });
+    return schemes ?: [NSSet set];
+}
+
+static BOOL LCIsAllowedCanOpenURLScheme(NSString *scheme) {
+    if (![scheme isKindOfClass:[NSString class]] || scheme.length == 0) return YES;
+    NSString *lower = scheme.lowercaseString;
+
+    if ([LCBundleDeclaredURLSchemes() containsObject:lower]) {
+        return YES;
+    }
+
+    static NSSet<NSString *> *allowed = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        allowed = [NSSet setWithArray:@[
+            @"http",
+            @"https",
+            @"mailto",
+            @"tel",
+            @"telprompt",
+            @"sms",
+            @"facetime",
+            @"facetime-audio",
+            @"maps",
+            @"itms-apps",
+            @"itms-services",
+            @"app-settings",
+            @"file",
+            @"data",
+            @"about",
+        ]];
+    });
+    if ([allowed containsObject:lower]) return YES;
+    if ([lower hasPrefix:@"x-apple-"] || [lower hasPrefix:@"com.apple."]) return YES;
+    return NO;
+}
+
+static BOOL LCShouldBlockURLScheme(NSURL *url) {
+    if (!LCDeviceSpoofingIsActive()) return NO;
+    if (![url isKindOfClass:[NSURL class]]) return NO;
+    NSString *scheme = url.scheme;
+    if (scheme.length == 0) return NO;
+    return !LCIsAllowedCanOpenURLScheme(scheme);
+}
+
+static BOOL LCParseMACAddress(NSString *addressString, uint8_t outBytes[6]) {
+    if (!outBytes) return NO;
+    if (![addressString isKindOfClass:[NSString class]] || addressString.length == 0) return NO;
+    unsigned int bytes[6] = {0};
+    if (sscanf(addressString.UTF8String, "%x:%x:%x:%x:%x:%x",
+               &bytes[0], &bytes[1], &bytes[2], &bytes[3], &bytes[4], &bytes[5]) != 6) {
+        return NO;
+    }
+    for (int i = 0; i < 6; i++) {
+        if (bytes[i] > 0xFFU) return NO;
+        outBytes[i] = (uint8_t)bytes[i];
+    }
+    return YES;
+}
+
+static float LCSpoofedAudioOutputVolume(void) {
+    static float volume = 0.6f;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        volume = 0.35f + ((float)arc4random_uniform(41) / 100.0f); // 0.35 - 0.75
+    });
+    return volume;
+}
+
+static NSString *LCSpoofedLocaleRegionCode(void) {
+    if (g_spoofedPreferredCountryCode.length > 0) {
+        return g_spoofedPreferredCountryCode.uppercaseString;
+    }
+    if (g_spoofedLocale.length == 0) {
+        return nil;
+    }
+    NSString *normalized = [g_spoofedLocale stringByReplacingOccurrencesOfString:@"-" withString:@"_"];
+    NSArray<NSString *> *parts = [normalized componentsSeparatedByString:@"_"];
+    if (parts.count >= 2) {
+        return parts[1].uppercaseString;
+    }
+    return nil;
+}
+
+static BOOL LCSpoofedUsesMetricSystem(void) {
+    NSString *region = LCSpoofedLocaleRegionCode();
+    if (region.length == 0) return YES;
+    if ([region isEqualToString:@"US"] || [region isEqualToString:@"LR"] || [region isEqualToString:@"MM"]) {
+        return NO;
+    }
+    return YES;
 }
 
 static uint64_t LCSpoofedPhysicalMemory(void) {
@@ -1491,6 +1664,9 @@ static int hook_uname(struct utsname *name) {
     const char *machine = LCSpoofedMachineModel();
     if (machine) strlcpy(name->machine, machine, sizeof(name->machine));
 
+    const char *sysname = LCSpoofedKernelName();
+    if (sysname) strlcpy(name->sysname, sysname, sizeof(name->sysname));
+
     const char *kernelRelease = LCSpoofedKernelRelease();
     if (kernelRelease) strlcpy(name->release, kernelRelease, sizeof(name->release));
 
@@ -1599,6 +1775,9 @@ static int hook_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void
         } else if (strcmp(name, "kern.version") == 0) {
             const char *value = LCSpoofedKernelVersion();
             if (value) return LCWriteCStringValue(oldp, oldlenp, value);
+        } else if (strcmp(name, "kern.ostype") == 0 || strcmp(name, "kern.osname") == 0) {
+            const char *value = LCSpoofedKernelName();
+            if (value) return LCWriteCStringValue(oldp, oldlenp, value);
         } else if (strcmp(name, "kern.hostname") == 0) {
             if (g_customDeviceName.length > 0) {
                 return LCWriteCStringValue(oldp, oldlenp, g_customDeviceName.UTF8String);
@@ -1677,6 +1856,13 @@ static int hook_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, vo
                     if (value) return LCWriteCStringValue(oldp, oldlenp, value);
                     break;
                 }
+#ifdef KERN_OSTYPE
+                case KERN_OSTYPE: {
+                    const char *value = LCSpoofedKernelName();
+                    if (value) return LCWriteCStringValue(oldp, oldlenp, value);
+                    break;
+                }
+#endif
                 case KERN_BOOTTIME: {
                     if (g_bootTimeSpoofingEnabled) {
                         int ret = orig_sysctl(name, namelen, oldp, oldlenp, newp, newlen);
@@ -1815,6 +2001,63 @@ static BOOL LCParseIPv4Address(NSString *addressString, struct in_addr *outAddre
     return inet_pton(AF_INET, addressString.UTF8String, outAddress) == 1;
 }
 
+// MARK: - UIAccessibility heuristics (C functions)
+
+static BOOL hook_UIAccessibilityIsVoiceOverRunning(void) {
+    if (LCDeviceSpoofingIsActive()) return NO;
+    return orig_UIAccessibilityIsVoiceOverRunning ? orig_UIAccessibilityIsVoiceOverRunning() : NO;
+}
+
+static BOOL hook_UIAccessibilityIsGuidedAccessEnabled(void) {
+    if (LCDeviceSpoofingIsActive()) return NO;
+    return orig_UIAccessibilityIsGuidedAccessEnabled ? orig_UIAccessibilityIsGuidedAccessEnabled() : NO;
+}
+
+static BOOL hook_UIAccessibilityIsMonoAudioEnabled(void) {
+    if (LCDeviceSpoofingIsActive()) return NO;
+    return orig_UIAccessibilityIsMonoAudioEnabled ? orig_UIAccessibilityIsMonoAudioEnabled() : NO;
+}
+
+static BOOL hook_UIAccessibilityIsInvertColorsEnabled(void) {
+    if (LCDeviceSpoofingIsActive()) return NO;
+    return orig_UIAccessibilityIsInvertColorsEnabled ? orig_UIAccessibilityIsInvertColorsEnabled() : NO;
+}
+
+static BOOL hook_UIAccessibilityIsBoldTextEnabled(void) {
+    if (LCDeviceSpoofingIsActive()) return NO;
+    return orig_UIAccessibilityIsBoldTextEnabled ? orig_UIAccessibilityIsBoldTextEnabled() : NO;
+}
+
+static BOOL hook_UIAccessibilityDarkerSystemColorsEnabled(void) {
+    if (LCDeviceSpoofingIsActive()) return NO;
+    return orig_UIAccessibilityDarkerSystemColorsEnabled ? orig_UIAccessibilityDarkerSystemColorsEnabled() : NO;
+}
+
+static BOOL hook_UIAccessibilityIsReduceMotionEnabled(void) {
+    if (LCDeviceSpoofingIsActive()) return NO;
+    return orig_UIAccessibilityIsReduceMotionEnabled ? orig_UIAccessibilityIsReduceMotionEnabled() : NO;
+}
+
+static BOOL hook_UIAccessibilityIsReduceTransparencyEnabled(void) {
+    if (LCDeviceSpoofingIsActive()) return NO;
+    return orig_UIAccessibilityIsReduceTransparencyEnabled ? orig_UIAccessibilityIsReduceTransparencyEnabled() : NO;
+}
+
+static BOOL hook_UIAccessibilityIsClosedCaptioningEnabled(void) {
+    if (LCDeviceSpoofingIsActive()) return NO;
+    return orig_UIAccessibilityIsClosedCaptioningEnabled ? orig_UIAccessibilityIsClosedCaptioningEnabled() : NO;
+}
+
+static BOOL hook_UIAccessibilityIsAssistiveTouchRunning(void) {
+    if (LCDeviceSpoofingIsActive()) return NO;
+    return orig_UIAccessibilityIsAssistiveTouchRunning ? orig_UIAccessibilityIsAssistiveTouchRunning() : NO;
+}
+
+static BOOL hook_UIAccessibilityIsVideoAutoplayEnabled(void) {
+    if (LCDeviceSpoofingIsActive()) return YES;
+    return orig_UIAccessibilityIsVideoAutoplayEnabled ? orig_UIAccessibilityIsVideoAutoplayEnabled() : YES;
+}
+
 static int hook_getifaddrs(struct ifaddrs **ifap) {
     if (!orig_getifaddrs) {
         orig_getifaddrs = (int (*)(struct ifaddrs **))dlsym(RTLD_DEFAULT, "getifaddrs");
@@ -1830,23 +2073,34 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
     struct in_addr cellularAddress = {0};
     BOOL hasWiFiAddress = g_spoofWiFiAddressEnabled && LCParseIPv4Address(g_spoofedWiFiAddress, &wifiAddress);
     BOOL hasCellularAddress = g_spoofCellularAddressEnabled && LCParseIPv4Address(g_spoofedCellularAddress, &cellularAddress);
-    if (!hasWiFiAddress && !hasCellularAddress) {
+    uint8_t spoofedMac[6] = {0};
+    BOOL hasWiFiMacAddress = LCParseMACAddress(g_spoofedMACAddress, spoofedMac);
+
+    if (!hasWiFiAddress && !hasCellularAddress && !hasWiFiMacAddress) {
         return rc;
     }
 
     for (struct ifaddrs *entry = *ifap; entry != NULL; entry = entry->ifa_next) {
-        if (!entry->ifa_name || !entry->ifa_addr || entry->ifa_addr->sa_family != AF_INET) {
+        if (!entry->ifa_name || !entry->ifa_addr) {
             continue;
         }
 
-        struct sockaddr_in *sockaddr = (struct sockaddr_in *)entry->ifa_addr;
-        if (hasWiFiAddress && strcmp(entry->ifa_name, "en0") == 0) {
-            sockaddr->sin_addr = wifiAddress;
-            continue;
-        }
-        if (hasCellularAddress &&
-            (strcmp(entry->ifa_name, "pdp_ip0") == 0 || strcmp(entry->ifa_name, "en1") == 0)) {
-            sockaddr->sin_addr = cellularAddress;
+        sa_family_t family = entry->ifa_addr->sa_family;
+        if (family == AF_INET) {
+            struct sockaddr_in *sockaddr = (struct sockaddr_in *)entry->ifa_addr;
+            if (hasWiFiAddress && strcmp(entry->ifa_name, "en0") == 0) {
+                sockaddr->sin_addr = wifiAddress;
+                continue;
+            }
+            if (hasCellularAddress &&
+                (strcmp(entry->ifa_name, "pdp_ip0") == 0 || strcmp(entry->ifa_name, "en1") == 0)) {
+                sockaddr->sin_addr = cellularAddress;
+            }
+        } else if (family == AF_LINK && hasWiFiMacAddress && strcmp(entry->ifa_name, "en0") == 0) {
+            struct sockaddr_dl *sdl = (struct sockaddr_dl *)entry->ifa_addr;
+            if (sdl->sdl_alen >= 6) {
+                memcpy(LLADDR(sdl), spoofedMac, 6);
+            }
         }
     }
 
@@ -2122,6 +2376,15 @@ static NSString *hook_UIDevice_systemVersion(id self, SEL _cmd) {
     return @"17.0";
 }
 
+static NSString *hook_UIDevice_systemName(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        const char *value = LCSpoofedSystemName();
+        if (value) return @(value);
+    }
+    if (orig_UIDevice_systemName) return orig_UIDevice_systemName(self, _cmd);
+    return @"iOS";
+}
+
 static NSString *hook_UIDevice_name(id self, SEL _cmd) {
     if (LCDeviceSpoofingIsActive() && g_customDeviceName.length > 0) {
         return g_customDeviceName;
@@ -2360,6 +2623,15 @@ static NSString *hook_CTCarrier_mobileNetworkCode(id self, SEL _cmd) {
     return nil;
 }
 
+static BOOL hook_CTCarrier_allowsVOIP(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        // Keep deterministic and avoid leaking carrier-specific capability bits.
+        return YES;
+    }
+    if (orig_CTCarrier_allowsVOIP) return orig_CTCarrier_allowsVOIP(self, _cmd);
+    return YES;
+}
+
 static NSString *hook_CTTelephonyNetworkInfo_currentRadioAccessTechnology(id self, SEL _cmd) {
     if (LCDeviceSpoofingIsActive() && g_cellularTypeConfigured) {
         return LCRadioAccessTechnologyForSpoofType(g_spoofedCellularType);
@@ -2446,6 +2718,47 @@ static NSString *hook_NSLocale_currencySymbol(id self, SEL _cmd) {
     }
     if (orig_NSLocale_currencySymbol) return orig_NSLocale_currencySymbol(self, _cmd);
     return nil;
+}
+
+static BOOL hook_NSLocale_usesMetricSystem(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() &&
+        (g_spoofedLocale.length > 0 || g_spoofedPreferredCountryCode.length > 0)) {
+        return LCSpoofedUsesMetricSystem();
+    }
+    if (orig_NSLocale_usesMetricSystem) return orig_NSLocale_usesMetricSystem(self, _cmd);
+    return YES;
+}
+
+static NSArray<NSString *> *hook_NSLocale_preferredLanguages(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_userDefaultsSpoofingEnabled) {
+        return @[LCSpoofedLanguageTag()];
+    }
+    if (orig_NSLocale_preferredLanguages) return orig_NSLocale_preferredLanguages(self, _cmd);
+    return @[LCSpoofedLanguageTag()];
+}
+
+static id hook_NSLocale_objectForKey(id self, SEL _cmd, id key) {
+    id original = orig_NSLocale_objectForKey ? orig_NSLocale_objectForKey(self, _cmd, key) : nil;
+    if (!LCDeviceSpoofingIsActive() || (g_spoofedLocale.length == 0 && g_spoofedPreferredCountryCode.length == 0)) {
+        return original;
+    }
+
+    NSString *keyString = nil;
+    if ([key isKindOfClass:[NSString class]]) {
+        keyString = (NSString *)key;
+    } else if (key) {
+        keyString = [key description];
+    }
+    if (keyString.length == 0) return original;
+
+    NSString *lower = keyString.lowercaseString;
+    if ([keyString isEqualToString:NSLocaleMeasurementSystem] || [lower containsString:@"measurementsystem"]) {
+        return LCSpoofedUsesMetricSystem() ? @"Metric" : @"US";
+    }
+    if ([lower containsString:@"temperatureunit"]) {
+        return LCSpoofedUsesMetricSystem() ? @"Celsius" : @"Fahrenheit";
+    }
+    return original;
 }
 
 static BOOL hook_CMMotionManager_isGyroAvailable(id self, SEL _cmd) {
@@ -2557,6 +2870,22 @@ static BOOL hook_MFMessageComposeViewController_canSendText(id self, SEL _cmd) {
     return NO;
 }
 
+static BOOL hook_MFMessageComposeViewController_canSendAttachments(id self, SEL _cmd) {
+    if (LCScreenFeatureEnabled(g_spoofMessageEnabled)) {
+        return YES;
+    }
+    if (orig_MFMessageComposeViewController_canSendAttachments) return orig_MFMessageComposeViewController_canSendAttachments(self, _cmd);
+    return NO;
+}
+
+static BOOL hook_MFMessageComposeViewController_canSendSubject(id self, SEL _cmd) {
+    if (LCScreenFeatureEnabled(g_spoofMessageEnabled)) {
+        return YES;
+    }
+    if (orig_MFMessageComposeViewController_canSendSubject) return orig_MFMessageComposeViewController_canSendSubject(self, _cmd);
+    return NO;
+}
+
 static BOOL hook_MFMailComposeViewController_canSendMail(id self, SEL _cmd) {
     if (LCScreenFeatureEnabled(g_spoofMailEnabled)) {
         return YES;
@@ -2571,6 +2900,172 @@ static NSString *hook_UIPasteboard_string(id self, SEL _cmd) {
     }
     if (orig_UIPasteboard_string) return orig_UIPasteboard_string(self, _cmd);
     return nil;
+}
+
+static NSArray<NSString *> *hook_UIPasteboard_strings(id self, SEL _cmd) {
+    if (LCScreenFeatureEnabled(g_spoofPasteboardEnabled)) {
+        return nil;
+    }
+    if (orig_UIPasteboard_strings) return orig_UIPasteboard_strings(self, _cmd);
+    return nil;
+}
+
+static BOOL hook_UIPasteboard_hasStrings(id self, SEL _cmd) {
+    if (LCScreenFeatureEnabled(g_spoofPasteboardEnabled)) {
+        return NO;
+    }
+    if (orig_UIPasteboard_hasStrings) return orig_UIPasteboard_hasStrings(self, _cmd);
+    return NO;
+}
+
+static NSData *hook_UIPasteboard_dataForPasteboardType(id self, SEL _cmd, NSString *pasteboardType) {
+    if (LCScreenFeatureEnabled(g_spoofPasteboardEnabled)) {
+        return nil;
+    }
+    if (orig_UIPasteboard_dataForPasteboardType) return orig_UIPasteboard_dataForPasteboardType(self, _cmd, pasteboardType);
+    return nil;
+}
+
+// MARK: - Capability / Preference fingerprint hooks
+
+static NSArray *hook_EAAccessoryManager_connectedAccessories(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        return @[];
+    }
+    if (orig_EAAccessoryManager_connectedAccessories) return orig_EAAccessoryManager_connectedAccessories(self, _cmd);
+    return @[];
+}
+
+static float hook_AVAudioSession_outputVolume(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        return LCSpoofedAudioOutputVolume();
+    }
+    if (orig_AVAudioSession_outputVolume) return orig_AVAudioSession_outputVolume(self, _cmd);
+    return 0.5f;
+}
+
+static BOOL hook_AVAudioSession_secondaryAudioShouldBeSilencedHint(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        return NO;
+    }
+    if (orig_AVAudioSession_secondaryAudioShouldBeSilencedHint) return orig_AVAudioSession_secondaryAudioShouldBeSilencedHint(self, _cmd);
+    return NO;
+}
+
+static BOOL hook_SLComposeViewController_isAvailableForServiceType(id self, SEL _cmd, NSString *serviceType) {
+    (void)serviceType;
+    if (LCDeviceSpoofingIsActive()) {
+        // Avoid leaking configured social accounts / entitlements.
+        return NO;
+    }
+    if (orig_SLComposeViewController_isAvailableForServiceType) return orig_SLComposeViewController_isAvailableForServiceType(self, _cmd, serviceType);
+    return NO;
+}
+
+static BOOL hook_CLLocationManager_locationServicesEnabled(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        // Hide global user preference (settings switch) from fingerprinting.
+        return YES;
+    }
+    if (orig_CLLocationManager_locationServicesEnabled) {
+        return orig_CLLocationManager_locationServicesEnabled(self, _cmd);
+    }
+    return YES;
+}
+
+static BOOL hook_SKPaymentQueue_canMakePayments(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        return YES;
+    }
+    if (orig_SKPaymentQueue_canMakePayments) return orig_SKPaymentQueue_canMakePayments(self, _cmd);
+    return YES;
+}
+
+static BOOL hook_PKPaymentAuthorizationViewController_canMakePayments(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        return YES;
+    }
+    if (orig_PKPaymentAuthorizationViewController_canMakePayments) return orig_PKPaymentAuthorizationViewController_canMakePayments(self, _cmd);
+    return YES;
+}
+
+static BOOL hook_PKPaymentAuthorizationViewController_canMakePaymentsUsingNetworks(id self, SEL _cmd, NSArray *networks) {
+    (void)networks;
+    if (LCDeviceSpoofingIsActive()) {
+        return YES;
+    }
+    if (orig_PKPaymentAuthorizationViewController_canMakePaymentsUsingNetworks) {
+        return orig_PKPaymentAuthorizationViewController_canMakePaymentsUsingNetworks(self, _cmd, networks);
+    }
+    return YES;
+}
+
+static BOOL hook_PKPaymentAuthorizationController_canMakePayments(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        return YES;
+    }
+    if (orig_PKPaymentAuthorizationController_canMakePayments) return orig_PKPaymentAuthorizationController_canMakePayments(self, _cmd);
+    return YES;
+}
+
+static BOOL hook_PKPaymentAuthorizationController_canMakePaymentsUsingNetworks(id self, SEL _cmd, NSArray *networks) {
+    (void)networks;
+    if (LCDeviceSpoofingIsActive()) {
+        return YES;
+    }
+    if (orig_PKPaymentAuthorizationController_canMakePaymentsUsingNetworks) {
+        return orig_PKPaymentAuthorizationController_canMakePaymentsUsingNetworks(self, _cmd, networks);
+    }
+    return YES;
+}
+
+static BOOL hook_LAContext_canEvaluatePolicy_error(id self, SEL _cmd, NSInteger policy, NSError **error) {
+    if (orig_LAContext_canEvaluatePolicy_error) {
+        return orig_LAContext_canEvaluatePolicy_error(self, _cmd, policy, error);
+    }
+    return NO;
+}
+
+static NSInteger hook_LAContext_biometryType(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        // LABiometryTypeFaceID for modern iPhones.
+        return 2;
+    }
+    if (orig_LAContext_biometryType) return orig_LAContext_biometryType(self, _cmd);
+    return 0;
+}
+
+static NSInteger hook_INPreferences_siriAuthorizationStatus(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_siriPrivacyProtectionEnabled) {
+        // INSiriAuthorizationStatusDenied
+        return 2;
+    }
+    if (orig_INPreferences_siriAuthorizationStatus) return orig_INPreferences_siriAuthorizationStatus(self, _cmd);
+    return 0;
+}
+
+static void hook_INPreferences_requestSiriAuthorization(id self, SEL _cmd, id handler) {
+    if (LCDeviceSpoofingIsActive() && g_siriPrivacyProtectionEnabled) {
+        if (handler) {
+            id copiedHandler = [handler copy];
+            dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+                void (^callback)(NSInteger status) = copiedHandler;
+                callback(2);
+            });
+        }
+        return;
+    }
+    if (orig_INPreferences_requestSiriAuthorization) {
+        orig_INPreferences_requestSiriAuthorization(self, _cmd, handler);
+    }
+}
+
+static NSString *hook_NSCalendar_identifier(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        return NSCalendarIdentifierGregorian;
+    }
+    if (orig_NSCalendar_identifier) return orig_NSCalendar_identifier(self, _cmd);
+    return NSCalendarIdentifierGregorian;
 }
 
 static BOOL hook_NSString_containsString(id self, SEL _cmd, NSString *query) {
@@ -3082,6 +3577,17 @@ static CGFloat hook_UITraitCollection_displayScale(id self, SEL _cmd) {
     return 2.0;
 }
 
+static NSString *hook_UITraitCollection_preferredContentSizeCategory(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        // Use a common default to reduce dynamic-type fingerprinting.
+        return UIContentSizeCategoryLarge;
+    }
+    if (orig_UITraitCollection_preferredContentSizeCategory) {
+        return orig_UITraitCollection_preferredContentSizeCategory(self, _cmd);
+    }
+    return UIContentSizeCategoryLarge;
+}
+
 static CGRect hook_UIApplication_statusBarFrame(id self, SEL _cmd) {
     CGRect frame = CGRectZero;
     if (orig_UIApplication_statusBarFrame) {
@@ -3096,6 +3602,24 @@ static CGRect hook_UIStatusBarManager_statusBarFrame(id self, SEL _cmd) {
         frame = orig_UIStatusBarManager_statusBarFrame(self, _cmd);
     }
     return LCAdjustedStatusBarFrameForProfile(frame);
+}
+
+static BOOL hook_UIApplication_canOpenURL(id self, SEL _cmd, NSURL *url) {
+    if (LCShouldBlockURLScheme(url)) {
+        return NO;
+    }
+    if (orig_UIApplication_canOpenURL) return orig_UIApplication_canOpenURL(self, _cmd, url);
+    return NO;
+}
+
+static NSString *hook_UIApplication_preferredContentSizeCategory(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        return UIContentSizeCategoryLarge;
+    }
+    if (orig_UIApplication_preferredContentSizeCategory) {
+        return orig_UIApplication_preferredContentSizeCategory(self, _cmd);
+    }
+    return UIContentSizeCategoryLarge;
 }
 
 // MARK: - UIDevice model hooks
@@ -4110,6 +4634,17 @@ void DeviceSpoofingGuestHooksInit(void) {
             {"getfsstat", (void *)hook_getfsstat, (void **)&orig_getfsstat},
             {"getfsstat64", (void *)hook_getfsstat64, (void **)&orig_getfsstat64},
             {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
+            {"UIAccessibilityIsVoiceOverRunning", (void *)hook_UIAccessibilityIsVoiceOverRunning, (void **)&orig_UIAccessibilityIsVoiceOverRunning},
+            {"UIAccessibilityIsGuidedAccessEnabled", (void *)hook_UIAccessibilityIsGuidedAccessEnabled, (void **)&orig_UIAccessibilityIsGuidedAccessEnabled},
+            {"UIAccessibilityIsMonoAudioEnabled", (void *)hook_UIAccessibilityIsMonoAudioEnabled, (void **)&orig_UIAccessibilityIsMonoAudioEnabled},
+            {"UIAccessibilityIsInvertColorsEnabled", (void *)hook_UIAccessibilityIsInvertColorsEnabled, (void **)&orig_UIAccessibilityIsInvertColorsEnabled},
+            {"UIAccessibilityIsBoldTextEnabled", (void *)hook_UIAccessibilityIsBoldTextEnabled, (void **)&orig_UIAccessibilityIsBoldTextEnabled},
+            {"UIAccessibilityDarkerSystemColorsEnabled", (void *)hook_UIAccessibilityDarkerSystemColorsEnabled, (void **)&orig_UIAccessibilityDarkerSystemColorsEnabled},
+            {"UIAccessibilityIsReduceMotionEnabled", (void *)hook_UIAccessibilityIsReduceMotionEnabled, (void **)&orig_UIAccessibilityIsReduceMotionEnabled},
+            {"UIAccessibilityIsReduceTransparencyEnabled", (void *)hook_UIAccessibilityIsReduceTransparencyEnabled, (void **)&orig_UIAccessibilityIsReduceTransparencyEnabled},
+            {"UIAccessibilityIsClosedCaptioningEnabled", (void *)hook_UIAccessibilityIsClosedCaptioningEnabled, (void **)&orig_UIAccessibilityIsClosedCaptioningEnabled},
+            {"UIAccessibilityIsAssistiveTouchRunning", (void *)hook_UIAccessibilityIsAssistiveTouchRunning, (void **)&orig_UIAccessibilityIsAssistiveTouchRunning},
+            {"UIAccessibilityIsVideoAutoplayEnabled", (void *)hook_UIAccessibilityIsVideoAutoplayEnabled, (void **)&orig_UIAccessibilityIsVideoAutoplayEnabled},
             {"clock_gettime", (void *)hook_clock_gettime, (void **)&orig_clock_gettime},
             {"clock_gettime_nsec_np", (void *)hook_clock_gettime_nsec_np, (void **)&orig_clock_gettime_nsec_np},
             {"mach_absolute_time", (void *)hook_mach_absolute_time, (void **)&orig_mach_absolute_time},
@@ -4140,6 +4675,7 @@ void DeviceSpoofingGuestHooksInit(void) {
 
         Class uiDeviceClass = objc_getClass("UIDevice");
         LCInstallInstanceHook(uiDeviceClass, @selector(systemVersion), (IMP)hook_UIDevice_systemVersion, (IMP *)&orig_UIDevice_systemVersion);
+        LCInstallInstanceHook(uiDeviceClass, @selector(systemName), (IMP)hook_UIDevice_systemName, (IMP *)&orig_UIDevice_systemName);
         LCInstallInstanceHook(uiDeviceClass, @selector(name), (IMP)hook_UIDevice_name, (IMP *)&orig_UIDevice_name);
         LCInstallInstanceHook(uiDeviceClass, @selector(identifierForVendor), (IMP)hook_UIDevice_identifierForVendor, (IMP *)&orig_UIDevice_identifierForVendor);
         LCInstallInstanceHook(uiDeviceClass, @selector(batteryLevel), (IMP)hook_UIDevice_batteryLevel, (IMP *)&orig_UIDevice_batteryLevel);
@@ -4188,9 +4724,20 @@ void DeviceSpoofingGuestHooksInit(void) {
 
         Class traitCollectionClass = objc_getClass("UITraitCollection");
         LCInstallInstanceHook(traitCollectionClass, @selector(displayScale), (IMP)hook_UITraitCollection_displayScale, (IMP *)&orig_UITraitCollection_displayScale);
+        SEL contentSizeSelector = NSSelectorFromString(@"preferredContentSizeCategory");
+        if (traitCollectionClass && contentSizeSelector && [traitCollectionClass instancesRespondToSelector:contentSizeSelector]) {
+            LCInstallInstanceHook(traitCollectionClass, contentSizeSelector, (IMP)hook_UITraitCollection_preferredContentSizeCategory, (IMP *)&orig_UITraitCollection_preferredContentSizeCategory);
+        }
 
         Class uiApplicationClass = objc_getClass("UIApplication");
         LCInstallInstanceHook(uiApplicationClass, NSSelectorFromString(@"statusBarFrame"), (IMP)hook_UIApplication_statusBarFrame, (IMP *)&orig_UIApplication_statusBarFrame);
+        LCInstallInstanceHook(uiApplicationClass, @selector(canOpenURL:), (IMP)hook_UIApplication_canOpenURL, (IMP *)&orig_UIApplication_canOpenURL);
+        SEL preferredContentSizeSelector = NSSelectorFromString(@"preferredContentSizeCategory");
+        if (preferredContentSizeSelector && [uiApplicationClass instancesRespondToSelector:preferredContentSizeSelector]) {
+            LCInstallInstanceHook(uiApplicationClass, preferredContentSizeSelector,
+                                  (IMP)hook_UIApplication_preferredContentSizeCategory,
+                                  (IMP *)&orig_UIApplication_preferredContentSizeCategory);
+        }
 
         Class statusBarManagerClass = objc_getClass("UIStatusBarManager");
         LCInstallInstanceHook(statusBarManagerClass, NSSelectorFromString(@"statusBarFrame"), (IMP)hook_UIStatusBarManager_statusBarFrame, (IMP *)&orig_UIStatusBarManager_statusBarFrame);
@@ -4225,6 +4772,10 @@ void DeviceSpoofingGuestHooksInit(void) {
         LCInstallInstanceHook(carrierClass, @selector(isoCountryCode), (IMP)hook_CTCarrier_isoCountryCode, (IMP *)&orig_CTCarrier_isoCountryCode);
         LCInstallInstanceHook(carrierClass, @selector(mobileCountryCode), (IMP)hook_CTCarrier_mobileCountryCode, (IMP *)&orig_CTCarrier_mobileCountryCode);
         LCInstallInstanceHook(carrierClass, @selector(mobileNetworkCode), (IMP)hook_CTCarrier_mobileNetworkCode, (IMP *)&orig_CTCarrier_mobileNetworkCode);
+        SEL allowsVoipSelector = NSSelectorFromString(@"allowsVOIP");
+        if (allowsVoipSelector && [carrierClass instancesRespondToSelector:allowsVoipSelector]) {
+            LCInstallInstanceHook(carrierClass, allowsVoipSelector, (IMP)hook_CTCarrier_allowsVOIP, (IMP *)&orig_CTCarrier_allowsVOIP);
+        }
 
         Class telephonyInfoClass = objc_getClass("CTTelephonyNetworkInfo");
         LCInstallInstanceHook(telephonyInfoClass, @selector(currentRadioAccessTechnology), (IMP)hook_CTTelephonyNetworkInfo_currentRadioAccessTechnology, (IMP *)&orig_CTTelephonyNetworkInfo_currentRadioAccessTechnology);
@@ -4242,12 +4793,16 @@ void DeviceSpoofingGuestHooksInit(void) {
         }
 
         // Locale hooks (class methods)
-        if (g_spoofedLocale.length > 0 || g_spoofedPreferredCountryCode.length > 0) {
+        if (g_spoofedLocale.length > 0 || g_spoofedPreferredCountryCode.length > 0 || g_userDefaultsSpoofingEnabled) {
             Class localeClass = objc_getClass("NSLocale");
             Class localeMeta = object_getClass(localeClass);
             if (g_spoofedLocale.length > 0) {
                 LCInstallInstanceHook(localeMeta, @selector(currentLocale), (IMP)hook_NSLocale_currentLocale, (IMP *)&orig_NSLocale_currentLocale);
                 LCInstallInstanceHook(localeMeta, @selector(autoupdatingCurrentLocale), (IMP)hook_NSLocale_autoupdatingCurrentLocale, (IMP *)&orig_NSLocale_autoupdatingCurrentLocale);
+            }
+            SEL preferredLanguagesSelector = @selector(preferredLanguages);
+            if (g_userDefaultsSpoofingEnabled && preferredLanguagesSelector && [localeMeta respondsToSelector:preferredLanguagesSelector]) {
+                LCInstallInstanceHook(localeMeta, preferredLanguagesSelector, (IMP)hook_NSLocale_preferredLanguages, (IMP *)&orig_NSLocale_preferredLanguages);
             }
             if (g_spoofedPreferredCountryCode.length > 0) {
                 LCInstallInstanceHook(localeClass, @selector(countryCode), (IMP)hook_NSLocale_countryCode, (IMP *)&orig_NSLocale_countryCode);
@@ -4265,6 +4820,29 @@ void DeviceSpoofingGuestHooksInit(void) {
             }
             if (g_spoofedLocaleCurrencySymbol.length > 0) {
                 LCInstallInstanceHook(localeClass, @selector(currencySymbol), (IMP)hook_NSLocale_currencySymbol, (IMP *)&orig_NSLocale_currencySymbol);
+            }
+        }
+
+        // Locale unit preference (metric/imperial)
+        Class localeClass2 = objc_getClass("NSLocale");
+        if (localeClass2 && [localeClass2 instancesRespondToSelector:@selector(usesMetricSystem)]) {
+            LCInstallInstanceHook(localeClass2, @selector(usesMetricSystem), (IMP)hook_NSLocale_usesMetricSystem, (IMP *)&orig_NSLocale_usesMetricSystem);
+        }
+        if (localeClass2 && [localeClass2 instancesRespondToSelector:@selector(objectForKey:)]) {
+            LCInstallInstanceHook(localeClass2, @selector(objectForKey:), (IMP)hook_NSLocale_objectForKey, (IMP *)&orig_NSLocale_objectForKey);
+        }
+
+        // Calendar identifier
+        Class calendarClass = objc_getClass("NSCalendar");
+        if (calendarClass) {
+            SEL calendarIdSelector = NSSelectorFromString(@"calendarIdentifier");
+            if (calendarIdSelector && [calendarClass instancesRespondToSelector:calendarIdSelector]) {
+                LCInstallInstanceHook(calendarClass, calendarIdSelector, (IMP)hook_NSCalendar_identifier, (IMP *)&orig_NSCalendar_identifier);
+            } else {
+                SEL identifierSelector = NSSelectorFromString(@"identifier");
+                if (identifierSelector && [calendarClass instancesRespondToSelector:identifierSelector]) {
+                    LCInstallInstanceHook(calendarClass, identifierSelector, (IMP)hook_NSCalendar_identifier, (IMP *)&orig_NSCalendar_identifier);
+                }
             }
         }
 
@@ -4303,6 +4881,14 @@ void DeviceSpoofingGuestHooksInit(void) {
             Class messageClass = objc_getClass("MFMessageComposeViewController");
             Class messageMeta = object_getClass(messageClass);
             LCInstallInstanceHook(messageMeta, @selector(canSendText), (IMP)hook_MFMessageComposeViewController_canSendText, (IMP *)&orig_MFMessageComposeViewController_canSendText);
+            SEL canSendAttachmentsSelector = NSSelectorFromString(@"canSendAttachments");
+            if (canSendAttachmentsSelector && [messageMeta respondsToSelector:canSendAttachmentsSelector]) {
+                LCInstallInstanceHook(messageMeta, canSendAttachmentsSelector, (IMP)hook_MFMessageComposeViewController_canSendAttachments, (IMP *)&orig_MFMessageComposeViewController_canSendAttachments);
+            }
+            SEL canSendSubjectSelector = NSSelectorFromString(@"canSendSubject");
+            if (canSendSubjectSelector && [messageMeta respondsToSelector:canSendSubjectSelector]) {
+                LCInstallInstanceHook(messageMeta, canSendSubjectSelector, (IMP)hook_MFMessageComposeViewController_canSendSubject, (IMP *)&orig_MFMessageComposeViewController_canSendSubject);
+            }
 
             Class mailClass = objc_getClass("MFMailComposeViewController");
             Class mailMeta = object_getClass(mailClass);
@@ -4310,6 +4896,18 @@ void DeviceSpoofingGuestHooksInit(void) {
 
             Class pasteboardClass = objc_getClass("UIPasteboard");
             LCInstallInstanceHook(pasteboardClass, @selector(string), (IMP)hook_UIPasteboard_string, (IMP *)&orig_UIPasteboard_string);
+            SEL stringsSelector = NSSelectorFromString(@"strings");
+            if (stringsSelector && [pasteboardClass instancesRespondToSelector:stringsSelector]) {
+                LCInstallInstanceHook(pasteboardClass, stringsSelector, (IMP)hook_UIPasteboard_strings, (IMP *)&orig_UIPasteboard_strings);
+            }
+            SEL hasStringsSelector = NSSelectorFromString(@"hasStrings");
+            if (hasStringsSelector && [pasteboardClass instancesRespondToSelector:hasStringsSelector]) {
+                LCInstallInstanceHook(pasteboardClass, hasStringsSelector, (IMP)hook_UIPasteboard_hasStrings, (IMP *)&orig_UIPasteboard_hasStrings);
+            }
+            SEL dataForTypeSelector = NSSelectorFromString(@"dataForPasteboardType:");
+            if (dataForTypeSelector && [pasteboardClass instancesRespondToSelector:dataForTypeSelector]) {
+                LCInstallInstanceHook(pasteboardClass, dataForTypeSelector, (IMP)hook_UIPasteboard_dataForPasteboardType, (IMP *)&orig_UIPasteboard_dataForPasteboardType);
+            }
 
             if (g_spoofCraneEnabled || g_spoofAppiumEnabled) {
                 Class nsStringClass = objc_getClass("NSString");
@@ -4333,6 +4931,110 @@ void DeviceSpoofingGuestHooksInit(void) {
 
             Class urlSessionClass = objc_getClass("NSURLSession");
             LCInstallInstanceHook(urlSessionClass, @selector(uploadTaskWithRequest:fromData:completionHandler:), (IMP)hook_NSURLSession_uploadTaskWithRequest_fromData_completionHandler, (IMP *)&orig_NSURLSession_uploadTaskWithRequest_fromData_completionHandler);
+        }
+
+        // External accessory fingerprinting
+        Class accessoryMgrClass = objc_getClass("EAAccessoryManager");
+        if (accessoryMgrClass && [accessoryMgrClass instancesRespondToSelector:@selector(connectedAccessories)]) {
+            LCInstallInstanceHook(accessoryMgrClass, @selector(connectedAccessories), (IMP)hook_EAAccessoryManager_connectedAccessories, (IMP *)&orig_EAAccessoryManager_connectedAccessories);
+        }
+
+        // Location services enabled probing (global switch)
+        Class clLocationMgrClass = objc_getClass("CLLocationManager");
+        if (clLocationMgrClass) {
+            Class clLocationMeta = object_getClass(clLocationMgrClass);
+            SEL enabledSelector = NSSelectorFromString(@"locationServicesEnabled");
+            if (enabledSelector && [clLocationMeta respondsToSelector:enabledSelector]) {
+                LCInstallInstanceHook(clLocationMeta, enabledSelector, (IMP)hook_CLLocationManager_locationServicesEnabled, (IMP *)&orig_CLLocationManager_locationServicesEnabled);
+            }
+        }
+
+        // Audio session heuristics (volume/mute-style probing)
+        Class audioSessionClass = objc_getClass("AVAudioSession");
+        if (audioSessionClass) {
+            SEL outputVolumeSelector = NSSelectorFromString(@"outputVolume");
+            if (outputVolumeSelector && [audioSessionClass instancesRespondToSelector:outputVolumeSelector]) {
+                LCInstallInstanceHook(audioSessionClass, outputVolumeSelector, (IMP)hook_AVAudioSession_outputVolume, (IMP *)&orig_AVAudioSession_outputVolume);
+            }
+            SEL secondarySilenceSelector = NSSelectorFromString(@"secondaryAudioShouldBeSilencedHint");
+            if (secondarySilenceSelector && [audioSessionClass instancesRespondToSelector:secondarySilenceSelector]) {
+                LCInstallInstanceHook(audioSessionClass, secondarySilenceSelector, (IMP)hook_AVAudioSession_secondaryAudioShouldBeSilencedHint, (IMP *)&orig_AVAudioSession_secondaryAudioShouldBeSilencedHint);
+            }
+        }
+
+        // Social accounts (deprecated but still probed)
+        Class slComposeClass = objc_getClass("SLComposeViewController");
+        if (slComposeClass) {
+            Class slComposeMeta = object_getClass(slComposeClass);
+            SEL availSelector = NSSelectorFromString(@"isAvailableForServiceType:");
+            if (availSelector && [slComposeMeta respondsToSelector:availSelector]) {
+                LCInstallInstanceHook(slComposeMeta, availSelector, (IMP)hook_SLComposeViewController_isAvailableForServiceType, (IMP *)&orig_SLComposeViewController_isAvailableForServiceType);
+            }
+        }
+
+        // StoreKit / PaymentKit capability checks
+        Class skQueueClass = objc_getClass("SKPaymentQueue");
+        if (skQueueClass) {
+            Class skQueueMeta = object_getClass(skQueueClass);
+            SEL canMakeSelector = NSSelectorFromString(@"canMakePayments");
+            if (canMakeSelector && [skQueueMeta respondsToSelector:canMakeSelector]) {
+                LCInstallInstanceHook(skQueueMeta, canMakeSelector, (IMP)hook_SKPaymentQueue_canMakePayments, (IMP *)&orig_SKPaymentQueue_canMakePayments);
+            }
+        }
+
+        Class pkAuthVCClass = objc_getClass("PKPaymentAuthorizationViewController");
+        if (pkAuthVCClass) {
+            Class pkMeta = object_getClass(pkAuthVCClass);
+            SEL pkCanMake = NSSelectorFromString(@"canMakePayments");
+            if (pkCanMake && [pkMeta respondsToSelector:pkCanMake]) {
+                LCInstallInstanceHook(pkMeta, pkCanMake, (IMP)hook_PKPaymentAuthorizationViewController_canMakePayments, (IMP *)&orig_PKPaymentAuthorizationViewController_canMakePayments);
+            }
+            SEL pkNetworks = NSSelectorFromString(@"canMakePaymentsUsingNetworks:");
+            if (pkNetworks && [pkMeta respondsToSelector:pkNetworks]) {
+                LCInstallInstanceHook(pkMeta, pkNetworks, (IMP)hook_PKPaymentAuthorizationViewController_canMakePaymentsUsingNetworks, (IMP *)&orig_PKPaymentAuthorizationViewController_canMakePaymentsUsingNetworks);
+            }
+        }
+
+        Class pkAuthControllerClass = objc_getClass("PKPaymentAuthorizationController");
+        if (pkAuthControllerClass) {
+            Class pkMeta = object_getClass(pkAuthControllerClass);
+            SEL pkCanMake = NSSelectorFromString(@"canMakePayments");
+            if (pkCanMake && [pkMeta respondsToSelector:pkCanMake]) {
+                LCInstallInstanceHook(pkMeta, pkCanMake, (IMP)hook_PKPaymentAuthorizationController_canMakePayments, (IMP *)&orig_PKPaymentAuthorizationController_canMakePayments);
+            }
+            SEL pkNetworks = NSSelectorFromString(@"canMakePaymentsUsingNetworks:");
+            if (pkNetworks && [pkMeta respondsToSelector:pkNetworks]) {
+                LCInstallInstanceHook(pkMeta, pkNetworks, (IMP)hook_PKPaymentAuthorizationController_canMakePaymentsUsingNetworks, (IMP *)&orig_PKPaymentAuthorizationController_canMakePaymentsUsingNetworks);
+            }
+        }
+
+        // Biometrics (LocalAuthentication)
+        Class laContextClass = objc_getClass("LAContext");
+        if (laContextClass) {
+            SEL canEvalSelector = NSSelectorFromString(@"canEvaluatePolicy:error:");
+            if (canEvalSelector && [laContextClass instancesRespondToSelector:canEvalSelector]) {
+                LCInstallInstanceHook(laContextClass, canEvalSelector, (IMP)hook_LAContext_canEvaluatePolicy_error, (IMP *)&orig_LAContext_canEvaluatePolicy_error);
+            }
+            SEL biometrySelector = NSSelectorFromString(@"biometryType");
+            if (biometrySelector && [laContextClass instancesRespondToSelector:biometrySelector]) {
+                LCInstallInstanceHook(laContextClass, biometrySelector, (IMP)hook_LAContext_biometryType, (IMP *)&orig_LAContext_biometryType);
+            }
+        }
+
+        // Siri authorization (Intents)
+        if (g_siriPrivacyProtectionEnabled) {
+            Class inPrefsClass = objc_getClass("INPreferences");
+            if (inPrefsClass) {
+                Class inPrefsMeta = object_getClass(inPrefsClass);
+                SEL statusSelector = NSSelectorFromString(@"siriAuthorizationStatus");
+                if (statusSelector && [inPrefsMeta respondsToSelector:statusSelector]) {
+                    LCInstallInstanceHook(inPrefsMeta, statusSelector, (IMP)hook_INPreferences_siriAuthorizationStatus, (IMP *)&orig_INPreferences_siriAuthorizationStatus);
+                }
+                SEL requestSelector = NSSelectorFromString(@"requestSiriAuthorization:");
+                if (requestSelector && [inPrefsMeta respondsToSelector:requestSelector]) {
+                    LCInstallInstanceHook(inPrefsMeta, requestSelector, (IMP)hook_INPreferences_requestSiriAuthorization, (IMP *)&orig_INPreferences_requestSiriAuthorization);
+                }
+            }
         }
 
         if (g_deviceCheckSpoofingEnabled) {
