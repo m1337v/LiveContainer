@@ -15,6 +15,7 @@
 #include <net/if.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <string.h>
 #include <SystemConfiguration/SystemConfiguration.h>
 #include <CFNetwork/CFNetwork.h>
 #import "../../fishhook/fishhook.h"
@@ -1313,39 +1314,30 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
         return result;
     }
 
-    // Filter VPN interfaces. If we unlink nodes from the system-owned list we must free them here,
-    // otherwise the caller's freeifaddrs() cannot reach them and they leak.
-    struct ifaddrs *current = *ifap;
-    struct ifaddrs *prev = NULL;
-    struct ifaddrs *removed = NULL;
+    // NOTE: Do NOT unlink/free nodes from the getifaddrs() list.
+    // Apple's getifaddrs/freeifaddrs implementation may share allocations between nodes
+    // (e.g., ifa_name pointers), so freeing a subset can corrupt the remaining list and crash.
+    // Instead, sanitize VPN-marking interface names in-place so callers don't see high-signal names
+    // like "utunX".
+    for (struct ifaddrs *node = *ifap; node != NULL; node = node->ifa_next) {
+        if (!node->ifa_name) continue;
+        if (!shouldFilterVPNInterfaceNameCStr(node->ifa_name)) continue;
 
-    while (current != NULL) {
-        BOOL shouldFilter = shouldFilterVPNInterfaceNameCStr(current->ifa_name);
-        if (shouldFilter && current->ifa_name) {
-            // NSLog(@"[LC] 🎭 getifaddrs - filtering VPN interface: %s", current->ifa_name);
-        }
-
-        if (shouldFilter) {
-            // Remove this interface from the linked list.
-            if (prev) {
-                prev->ifa_next = current->ifa_next;
-            } else {
-                *ifap = current->ifa_next;
-            }
-
-            struct ifaddrs *toFree = current;
-            current = current->ifa_next;
-
-            // Push onto removed list; freed below.
-            toFree->ifa_next = removed;
-            removed = toFree;
+        size_t nlen = strlen(node->ifa_name);
+        if (nlen == 0) continue;
+        if (nlen >= 3) {
+            node->ifa_name[0] = 'e';
+            node->ifa_name[1] = 'n';
+            node->ifa_name[2] = '0';
+            node->ifa_name[3] = '\0';
+        } else if (nlen == 2) {
+            node->ifa_name[0] = 'e';
+            node->ifa_name[1] = 'n';
+            node->ifa_name[2] = '\0';
         } else {
-            prev = current;
-            current = current->ifa_next;
+            node->ifa_name[0] = 'e';
+            node->ifa_name[1] = '\0';
         }
-    }
-    if (removed != NULL) {
-        freeifaddrs(removed);
     }
 
     if ((gSpoofWiFiAddressEnabled && gSpoofWiFiAddress.length > 0) ||
