@@ -118,14 +118,15 @@ struct LCMultiLCManagementView : View, InstallAnotherLCButtonDelegate {
         }
         
         do {
-            var keysToExclude: [String] = []
-            if !useGameCategory {
-                keysToExclude.append("LSApplicationCategoryType")
+            var extraInfo: [String : Any] = [:]
+            if useGameCategory {
+                extraInfo["LSApplicationCategoryType"] = "public.app-category.games"
             }
-            if !allowGameMode {
-                keysToExclude.append(contentsOf: ["GCSupportsGameMode", "LSSupportsGameMode"])
+            if allowGameMode {
+                extraInfo["GCSupportsGameMode"] = true
+                extraInfo["LSSupportsGameMode"] = true
             }
-            let packedIpaUrl = try LCUtils.archiveIPA(withBundleName: name, excludingInfoPlistKeys: keysToExclude)
+            let packedIpaUrl = try LCUtils.archiveIPA(withBundleName: name, includingExtraInfoDict: extraInfo)
             
             shareURL = packedIpaUrl
             
