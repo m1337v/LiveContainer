@@ -12,11 +12,12 @@ extension String: @retroactive Error {}
 
 struct LaunchAppExtension: AppIntent {
     static var title: LocalizedStringResource { "Launch App" }
-    static var description: IntentDescription { "Please note that this shortcut does not launch the app directly due to iOS limitations. Instead, it setups the launch config and returns an URL. To actually launch the app, add a \"Open URLs\" action that opens the URL it returns." }
+    static var description: IntentDescription { "This action directly launches an app in LiveContainer. To get the launch URL, open LiveContainer, hold the app, tap \"Add to Home Screen\" -> \"Copy Launch URL\"" }
     @Parameter(title: "Launch URL")
     var launchURL: URL
     
     static var bookmarkResolved = false
+    static var ext: NSExtension? = nil
 
     func forEachInstalledLC(isFree: Bool, block: (String, inout Bool) -> Void) {
         for scheme in LCSharedUtils.lcUrlSchemes() {
@@ -40,7 +41,26 @@ struct LaunchAppExtension: AppIntent {
         }
     }
     
-    func perform() async throws -> some ReturnsValue<URL> {
+    func openURL(url: URL) async throws {
+        var ext : NSExtension? = LaunchAppExtension.ext
+        if ext == nil {
+            do {
+                ext = try NSExtension(identifier: ((Bundle.main.bundleIdentifier! as NSString).deletingPathExtension as NSString).appendingPathExtension("LaunchAppExtensionHelper") )
+                LaunchAppExtension.ext = ext
+            } catch {
+                NSLog("Failed to start extension \(error)")
+                throw NSError(domain: "LaunchAppExtension", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to start extension \(error). To use the Launch App shortcut, reinstall LiveContainer with LaunchAppExtension and LaunchAppExtensionHelper installed. If you use SideStore, choose \"Keep App Extensions (Use Main Profile)\". If you use Impactor, choose \"Only Register Main Bundle\". For other sideloaders, select keep all extensions, i.e. DO NOT Remove any extension."])
+            }
+            
+        }
+        let extensionItem = NSExtensionItem()
+        extensionItem.userInfo = [
+            "url": url,
+        ]
+        await ext?.beginRequest(withInputItems: [extensionItem])
+    }
+    
+    func perform() async throws -> some IntentResult {
         // sanitize url
         if launchURL.scheme != "livecontainer" && launchURL.scheme != "sidestore" {
             throw "Not a livecontainer URL!"
@@ -56,7 +76,8 @@ struct LaunchAppExtension: AppIntent {
         if launchURL.scheme == "sidestore" {
             lcSharedDefaults.set("builtinSideStore", forKey: "LCLaunchExtensionBundleID")
             lcSharedDefaults.set(Date.now, forKey: "LCLaunchExtensionLaunchDate")
-            return.result(value: launchURL)
+            try await openURL(url: launchURL)
+            return .result()
         }
         
         if launchURL.host != "livecontainer-launch" {
@@ -112,7 +133,8 @@ struct LaunchAppExtension: AppIntent {
         let appBundle = LCSharedUtils.findBundle(withBundleId: bundleId, isSharedAppOut: &isSharedApp)
         guard let appBundle else {
             // app bundle cannot be found, we pass the url as-is in case it can only be handled by lc1
-            return .result(value: launchURL)
+            try await openURL(url: launchURL)
+            return .result()
         }
         
         // check if the app is locked/hidden/require JIT, if so we don't directly set keys in lcSharedDefaults
@@ -159,7 +181,8 @@ struct LaunchAppExtension: AppIntent {
 
         guard let schemeToLaunch else {
             // no free lc, we just open the lc1 and let the user to decide what to do
-            return .result(value: launchURL)
+            try await openURL(url: launchURL)
+            return .result()
         }
         
         if newLaunch && !forceJIT && !isHiden && !isLocked && !isJITNeeded {
@@ -172,6 +195,8 @@ struct LaunchAppExtension: AppIntent {
         guard let newURL = components.url else {
             throw "unable to construct new url"
         }
-        return .result(value: newURL)
+
+        try await openURL(url: newURL)
+        return .result()
     }
 }

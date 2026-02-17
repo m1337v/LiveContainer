@@ -6,14 +6,8 @@
 //
 @import Foundation;
 @import ObjectiveC;
-
-@interface LSApplicationWorkspace : NSObject
-+ (id)defaultWorkspace;
-- (BOOL)openURL:(id)url;
-- (BOOL)isApplicationAvailableToOpenURL:(id)arg1 error:(id*)arg2;
-@end
-
-#define PrivClass(name) ((Class)objc_lookUpClass(#name))
+#import "../LiveContainer/UIKitPrivate.h"
+#import "../LiveContainer/utils.h"
 
 bool lsApplicationWorkspaceCanOpenURL(NSURL* url) {
     LSApplicationWorkspace* workspace = [PrivClass(LSApplicationWorkspace) defaultWorkspace];

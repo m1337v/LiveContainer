@@ -2,6 +2,7 @@
 #include <mach-o/loader.h>
 #include <objc/runtime.h>
 #include <os/lock.h>
+#define PrivClass(name) ((Class)objc_lookUpClass(#name))
 
 const char **_CFGetProgname(void);
 const char **_CFGetProcessPath(void);
