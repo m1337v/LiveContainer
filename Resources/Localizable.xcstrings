@@ -2480,6 +2480,74 @@
         }
       }
     },
+    "lc.appList.generatedIconStyleSelector.dark" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dark"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "深色"
+          }
+        }
+      }
+    },
+    "lc.appList.generatedIconStyleSelector.light" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Light"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "浅色"
+          }
+        }
+      }
+    },
+    "lc.appList.generatedIconStyleSelector.original" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Original"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原版"
+          }
+        }
+      }
+    },
+    "lc.appList.generatedIconStyleSelector.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please select an icon style"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请选择一个图标样式"
+          }
+        }
+      }
+    },
     "lc.appList.hiddenApps" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3837,6 +3905,12 @@
             "value" : "Format d'URL de itms-services invalide"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недействительный itms-services URL-формат"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3884,6 +3958,18 @@
             "value" : "Aucune URL de téléchargement IPA trouvée dans le fichier plist"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "plist에서 IPA 파일 다운로드 URL을 찾을 수 없습니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не найден URL-адрес загрузки IPA в plist-файле"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3929,6 +4015,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec de l'analyse du fichier plist"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "plist를 파싱하는데 실패했습니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось обработать plist-файл"
           }
         },
         "vi" : {
@@ -5232,6 +5330,12 @@
             "value" : "Ajout d'un conteneur non local"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавление контейнера не локально"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5271,6 +5375,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "L'ajout d'un conteneur dans un stockage non local n'est pas pris en charge par la plupart des applications et provoquera un comportement indéfini, y compris un plantage. Continuer ?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавление контейнера в нелокальном хранилище не поддерживается большинством приложений и приведет к неопределённому поведению, включая сбой. Продолжить?"
           }
         },
         "vi" : {
@@ -7441,6 +7551,12 @@
             "value" : "Remarque"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Примечание"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7488,6 +7604,12 @@
             "value" : "Entrer une remarque..."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Введите примечания..."
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7533,6 +7655,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sélectionner un dossier de données externe"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите внешнюю папку данных"
           }
         },
         "vi" : {
@@ -11632,6 +11760,12 @@
             "value" : "Résolution du favori du conteneur..."
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешение закладки контейнера..."
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12146,6 +12280,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ce conteneur n'est pas disponible pour le moment"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지금은 이 컨테이너를 사용할 수 없습니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот контейнер сейчас недоступен"
           }
         },
         "vi" : {
@@ -15687,6 +15833,12 @@
             "value" : "ID d’équipe du certificat"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сертифицировать ID команды"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15821,6 +15973,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ID d'équipe attendu"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ожидаемый идентификатор команды"
           }
         },
         "vi" : {
@@ -18195,6 +18353,12 @@
             "value" : "Vider le cache des icônes"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очистить кэш иконки"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18234,6 +18398,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Icône du mode sombre"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다크 모드 아이콘"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Иконка в темном режиме"
           }
         },
         "vi" : {
@@ -23174,6 +23350,18 @@
             "value" : "Mode fenêtre unique"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "단일 윈도우 모드"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Однооконный режим"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -23184,6 +23372,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "单窗口模式"
+          }
+        }
+      }
+    },
+    "lc.settings.redirectURLToHost" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redirect URL Schemes to Host LiveContainer"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重定向URL到LiveContainer"
           }
         }
       }
@@ -23500,6 +23705,12 @@
             "value" : "Redémarrer l'application automatiquement après l'arrêt"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перезагружать приложение сразу после прекращения"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -23579,7 +23790,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "URL immer in der aktuellen Anwendung öffnen"
+            "value" : "URL immer in der aktuellen App öffnen"
           }
         },
         "en" : {
@@ -23972,6 +24183,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ignorer l'écran terminé"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пропустить завершение экрана"
           }
         },
         "vi" : {
@@ -26363,6 +26580,18 @@
             "value" : "Il y a trop d'applications dans le dépôt actuel, veuillez utiliser la recherche."
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 저장소에는 앱이 너무 많습니다. 검색을 사용하십시오."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В этом репозитории слишком много приложений, вместо этого используйте поиск."
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -27438,6 +27667,18 @@
             "value" : "Installer l'application"
           }
         },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 설치"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установить"
+          }
+        },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
@@ -27477,6 +27718,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette page Web souhaite installer une application. Continuer ?"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 웹페이지에서 앱 설치를 허용하시겠습니까?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта веб-страница хочет установить приложение. Продолжить?"
           }
         },
         "vi" : {
