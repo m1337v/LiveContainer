@@ -189,6 +189,7 @@ bool performHookDyldApi(const char* functionName, uint32_t adrpOffset, void** or
     uint32_t* baseAddr = dlsym(RTLD_DEFAULT, functionName);
     assert(baseAddr != 0);
     /*
+     arm64e 26.4b1+ has extra 20 instructions between adrpOffset and adrp
      arm64e
      1ad450b90  e10300aa   mov     x1, x0
      1ad450b94  487b2090   adrp    x8, dyld4::gAPIs
@@ -214,19 +215,12 @@ bool performHookDyldApi(const char* functionName, uint32_t adrpOffset, void** or
      00000001ac934c94         br         x2
      */
     uint32_t* adrpInstPtr = baseAddr + adrpOffset;
+    if ((*adrpInstPtr & 0x9f000000) != 0x90000000) {
+        adrpOffset += 20;
+        adrpInstPtr = baseAddr + adrpOffset;
+    }
     assert ((*adrpInstPtr & 0x9f000000) == 0x90000000);
-    uint32_t immlo = (*adrpInstPtr & 0x60000000) >> 29;
-    uint32_t immhi = (*adrpInstPtr & 0xFFFFE0) >> 5;
-    int64_t imm = (((int64_t)((immhi << 2) | immlo)) << 43) >> 31;
-    
-    void* gdyldPtr = (void*)(((uint64_t)baseAddr & 0xfffffffffffff000) + imm);
-    
-    uint32_t* ldrInstPtr1 = baseAddr + adrpOffset + 1;
-    // check if the instruction is ldr Unsigned offset
-    assert((*ldrInstPtr1 & 0xBFC00000) == 0xB9400000);
-    uint32_t size = (*ldrInstPtr1 & 0xC0000000) >> 30;
-    uint32_t imm12 = (*ldrInstPtr1 & 0x3FFC00) >> 10;
-    gdyldPtr += (imm12 << size);
+    void* gdyldPtr = (void*)aarch64_emulate_adrp_ldr(*adrpInstPtr, *(baseAddr + adrpOffset + 1), (uint64_t)(baseAddr + adrpOffset));
     
     assert(gdyldPtr != 0);
     assert(*(void**)gdyldPtr != 0);
