@@ -528,6 +528,7 @@ static NSString *(*orig_UIDevice_machineName)(id self, SEL _cmd) = NULL;
 static id (*orig_UIDevice_deviceInfoForKey)(id self, SEL _cmd, NSString *key) = NULL;
 
 static unsigned long long (*orig_NSProcessInfo_physicalMemory)(id self, SEL _cmd) = NULL;
+static unsigned long long (*orig_SwiftNSProcessInfo_physicalMemory)(id self, SEL _cmd) = NULL;
 static NSUInteger (*orig_NSProcessInfo_processorCount)(id self, SEL _cmd) = NULL;
 static NSUInteger (*orig_NSProcessInfo_activeProcessorCount)(id self, SEL _cmd) = NULL;
 static NSOperatingSystemVersion (*orig_NSProcessInfo_operatingSystemVersion)(id self, SEL _cmd) = NULL;
@@ -2727,6 +2728,16 @@ static unsigned long long hook_NSProcessInfo_physicalMemory(id self, SEL _cmd) {
         uint64_t value = LCSpoofedPhysicalMemory();
         if (value > 0) return value;
     }
+    if (orig_NSProcessInfo_physicalMemory) return orig_NSProcessInfo_physicalMemory(self, _cmd);
+    return 0;
+}
+
+static unsigned long long hook_SwiftNSProcessInfo_physicalMemory(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        uint64_t value = LCSpoofedPhysicalMemory();
+        if (value > 0) return value;
+    }
+    if (orig_SwiftNSProcessInfo_physicalMemory) return orig_SwiftNSProcessInfo_physicalMemory(self, _cmd);
     if (orig_NSProcessInfo_physicalMemory) return orig_NSProcessInfo_physicalMemory(self, _cmd);
     return 0;
 }
@@ -5233,6 +5244,13 @@ void DeviceSpoofingGuestHooksInit(void) {
         SEL globallyUniqueSelector = NSSelectorFromString(@"globallyUniqueString");
         if (globallyUniqueSelector && [processInfoClass instancesRespondToSelector:globallyUniqueSelector]) {
             LCInstallInstanceHook(processInfoClass, globallyUniqueSelector, (IMP)hook_NSProcessInfo_globallyUniqueString, (IMP *)&orig_NSProcessInfo_globallyUniqueString);
+        }
+
+        Class swiftProcessInfoClass = objc_getClass("_NSSwiftProcessInfo");
+        SEL swiftPhysicalMemorySelector = @selector(physicalMemory);
+        if (swiftProcessInfoClass && swiftPhysicalMemorySelector &&
+            [swiftProcessInfoClass instancesRespondToSelector:swiftPhysicalMemorySelector]) {
+            LCInstallInstanceHook(swiftProcessInfoClass, swiftPhysicalMemorySelector, (IMP)hook_SwiftNSProcessInfo_physicalMemory, (IMP *)&orig_SwiftNSProcessInfo_physicalMemory);
         }
 
         Class uiScreenClass = objc_getClass("UIScreen");

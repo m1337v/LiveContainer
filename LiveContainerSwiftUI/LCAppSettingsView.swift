@@ -2430,9 +2430,7 @@ struct LCAppSettingsView: View {
     }
 
     private var isRuntimeSpoofingEnabled: Bool {
-        model.uiDeviceSpoofMemoryEnabled ||
-        model.uiDeviceSpoofKernelVersionEnabled ||
-        model.uiDeviceSpoofProcessorEnabled
+        model.uiDeviceSpoofKernelVersionEnabled
     }
 
     private var runtimeSpoofingGroupBinding: Binding<Bool> {
@@ -2441,12 +2439,10 @@ struct LCAppSettingsView: View {
             set: { enabled in
                 if enabled {
                     if !isRuntimeSpoofingEnabled {
-                        model.uiDeviceSpoofMemoryEnabled = true
+                        model.uiDeviceSpoofKernelVersionEnabled = true
                     }
                 } else {
-                    model.uiDeviceSpoofMemoryEnabled = false
                     model.uiDeviceSpoofKernelVersionEnabled = false
-                    model.uiDeviceSpoofProcessorEnabled = false
                 }
             }
         )
@@ -3075,48 +3071,15 @@ struct LCAppSettingsView: View {
     // MARK: Runtime Hardware
     @ViewBuilder
     private func deviceSpoofHardwareSection() -> some View {
-        Toggle(isOn: $model.uiDeviceSpoofMemoryEnabled) {
-            HStack {
-                Image(systemName: "memorychip")
-                    .foregroundColor(.purple)
-                    .frame(width: 20)
-                Text("Spoof Physical Memory")
-            }
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "info.circle")
+                .foregroundColor(.secondary)
+                .frame(width: 20)
+            Text("CPU cores and physical memory are always derived from the selected Device Profile.")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
-        if model.uiDeviceSpoofMemoryEnabled {
-            VStack(alignment: .leading, spacing: 4) {
-                TextField("8 (GB) or bytes", text: $model.uiDeviceSpoofMemoryCount)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .font(.system(.caption, design: .monospaced))
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
-                Text("Values <= 64 are treated as GB. Larger values are treated as raw bytes.")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.leading, 28)
-        }
-
-        Toggle(isOn: $model.uiDeviceSpoofProcessorEnabled) {
-            HStack {
-                Image(systemName: "cpu")
-                    .foregroundColor(.orange)
-                    .frame(width: 20)
-                Text("Spoof CPU Core Count")
-            }
-        }
-        if model.uiDeviceSpoofProcessorEnabled {
-            VStack(alignment: .leading, spacing: 4) {
-                Stepper(value: $model.uiDeviceSpoofProcessorCount, in: 1...16) {
-                    Text("Cores: \(model.uiDeviceSpoofProcessorCount)")
-                        .font(.system(.caption, design: .monospaced))
-                }
-                Text("Overrides `hw.ncpu` / `activeProcessorCount` fingerprint checks.")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.leading, 28)
-        }
+        .padding(.leading, 28)
     }
 
     // MARK: Kernel

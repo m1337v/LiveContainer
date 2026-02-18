@@ -678,6 +678,10 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         if (deviceProfile.length > 0) {
             LCSetDeviceProfile(deviceProfile);
         }
+        // Always derive CPU core count and RAM from selected device profile.
+        // Clearing custom overrides prevents stale cross-launch mismatches.
+        LCSetSpoofedCPUCount(0);
+        LCSetSpoofedPhysicalMemory(0);
 
         // Independent iOS version override
         NSString *customVersion = guestAppInfo[@"deviceSpoofCustomVersion"];
@@ -945,43 +949,6 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             }
             if (kernelRelease.length > 0) {
                 LCSetSpoofedKernelRelease(kernelRelease);
-            }
-        }
-
-        BOOL spoofProcessor = [guestAppInfo[@"deviceSpoofProcessorEnabled"] boolValue] ||
-                              [guestAppInfo[@"enableSpoofProcessor"] boolValue];
-        id processorCountObj = guestAppInfo[@"deviceSpoofProcessorCount"] ?: guestAppInfo[@"processorCount"];
-        if (!spoofProcessor &&
-            guestAppInfo[@"deviceSpoofProcessorEnabled"] == nil &&
-            guestAppInfo[@"enableSpoofProcessor"] == nil &&
-            processorCountObj != nil) {
-            spoofProcessor = YES;
-        }
-        if (spoofProcessor && processorCountObj != nil) {
-            NSInteger processorCount = [processorCountObj integerValue];
-            if (processorCount > 0 && processorCount < 256) {
-                LCSetSpoofedCPUCount((uint32_t)processorCount);
-            }
-        }
-
-        BOOL spoofMemory = [guestAppInfo[@"deviceSpoofMemoryEnabled"] boolValue] ||
-                           [guestAppInfo[@"enableSpoofMemory"] boolValue];
-        id memoryCountObj = guestAppInfo[@"deviceSpoofMemoryCount"] ?: guestAppInfo[@"memoryCount"];
-        if (!spoofMemory && guestAppInfo[@"enableSpoofMemory"] == nil && memoryCountObj != nil) {
-            spoofMemory = YES;
-        }
-        if (spoofMemory && memoryCountObj != nil) {
-            double memoryValue = [memoryCountObj doubleValue];
-            uint64_t memoryBytes = 0;
-            if (memoryValue > 0) {
-                if (memoryValue <= 64.0) {
-                    memoryBytes = (uint64_t)(memoryValue * 1024.0 * 1024.0 * 1024.0);
-                } else {
-                    memoryBytes = (uint64_t)memoryValue;
-                }
-            }
-            if (memoryBytes > 0) {
-                LCSetSpoofedPhysicalMemory(memoryBytes);
             }
         }
 
