@@ -483,6 +483,7 @@ static os_unfair_lock g_hookInstallLock = OS_UNFAIR_LOCK_INIT;
 #pragma mark - Original Function Pointers
 
 static int (*orig_uname)(struct utsname *name) = NULL;
+static int (*orig_gethostname)(char *name, size_t namelen) = NULL;
 static long (*orig_sysconf)(int name) = NULL;
 static int (*orig_sysctlbyname)(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) = NULL;
 static int (*orig_sysctl)(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) = NULL;
@@ -1261,6 +1262,7 @@ static BOOL LCShouldForceZeroVendorID(void);
 static NSString *const LCZeroUUIDString;
 static NSString *LCSpoofedVendorIdentifierString(void);
 static NSString *LCSpoofedBootSessionUUIDString(void);
+static NSString *LCSpoofedDeviceNameString(void);
 static NSString *LCSpoofedHostNameString(void);
 
 static CFTypeRef LCCopySpoofedGestaltValue(CFStringRef key) {
@@ -1328,8 +1330,10 @@ static CFTypeRef LCCopySpoofedGestaltValue(CFStringRef key) {
         if (g_spoofedMACAddress.length > 0) return CFBridgingRetain(g_spoofedMACAddress);
     } else if (CFEqual(key, CFSTR("UserAssignedDeviceName")) ||
                CFEqual(key, CFSTR("DeviceName")) ||
-               CFEqual(key, CFSTR("ComputerName")) ||
-               CFEqual(key, CFSTR("LocalHostName"))) {
+               CFEqual(key, CFSTR("ComputerName"))) {
+        NSString *value = LCSpoofedDeviceNameString();
+        if (value.length > 0) return CFBridgingRetain(value);
+    } else if (CFEqual(key, CFSTR("LocalHostName"))) {
         NSString *value = LCSpoofedHostNameString();
         if (value.length > 0) return CFBridgingRetain(value);
     }
@@ -1545,6 +1549,19 @@ static NSString *LCNormalizedUUIDString(NSString *value) {
     return uuid ? uuid.UUIDString : nil;
 }
 
+static NSString *LCSpoofedDeviceNameString(void) {
+    if (!LCDeviceSpoofingIsActive()) return nil;
+    if (g_customDeviceName.length > 0) return g_customDeviceName;
+
+    const char *marketingName = LCSpoofedMarketingName();
+    if (marketingName) return @(marketingName);
+
+    const char *machine = LCSpoofedMachineModel();
+    if (machine) return @(machine);
+
+    return nil;
+}
+
 static NSString *LCSpoofedVendorIdentifierString(void) {
     if (!LCDeviceSpoofingIsActive()) return nil;
     if (LCShouldForceZeroVendorID()) return LCZeroUUIDString;
@@ -1560,16 +1577,7 @@ static NSString *LCSpoofedVendorIdentifierString(void) {
 
 static NSString *LCSpoofedHostNameString(void) {
     if (!LCDeviceSpoofingIsActive()) return nil;
-    NSString *candidate = g_customDeviceName;
-    if (candidate.length == 0) {
-        const char *model = LCSpoofedMachineModel();
-        if (model) {
-            candidate = @(model);
-        } else {
-            const char *marketingName = LCSpoofedMarketingName();
-            if (marketingName) candidate = @(marketingName);
-        }
-    }
+    NSString *candidate = LCSpoofedDeviceNameString();
     if (candidate.length == 0) return nil;
 
     NSCharacterSet *allowed = [NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-."];
@@ -2015,6 +2023,32 @@ static int hook_uname(struct utsname *name) {
     if (kernelVersion) strlcpy(name->version, kernelVersion, sizeof(name->version));
 
     return rc;
+}
+
+static int hook_gethostname(char *name, size_t namelen) {
+    if (!orig_gethostname) {
+        static dispatch_once_t onceToken;
+        dispatch_once(&onceToken, ^{
+            orig_gethostname = (int (*)(char *, size_t))dlsym(RTLD_DEFAULT, "gethostname");
+        });
+        if (!orig_gethostname) {
+            errno = ENOSYS;
+            return -1;
+        }
+    }
+
+    int rc = orig_gethostname(name, namelen);
+    if (rc != 0 || !LCDeviceSpoofingIsActive() || !name || namelen == 0) {
+        return rc;
+    }
+
+    NSString *hostName = LCSpoofedHostNameString();
+    if (hostName.length == 0) {
+        return rc;
+    }
+
+    strlcpy(name, hostName.UTF8String, namelen);
+    return 0;
 }
 
 static int hook_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
@@ -3041,8 +3075,9 @@ static NSString *hook_UIDevice_systemName(id self, SEL _cmd) {
 }
 
 static NSString *hook_UIDevice_name(id self, SEL _cmd) {
-    if (LCDeviceSpoofingIsActive() && g_customDeviceName.length > 0) {
-        return g_customDeviceName;
+    if (LCDeviceSpoofingIsActive()) {
+        NSString *deviceName = LCSpoofedDeviceNameString();
+        if (deviceName.length > 0) return deviceName;
     }
     if (orig_UIDevice_name) return orig_UIDevice_name(self, _cmd);
     return @"iPhone";
@@ -4387,9 +4422,12 @@ static id hook_UIDevice_deviceInfoForKey(id self, SEL _cmd, NSString *key) {
         NSUUID *uuid = LCUUIDFromOverrideString(g_spoofedAdvertisingID);
         if (uuid) return uuid.UUIDString;
     } else if ([key isEqualToString:@"DeviceName"]) {
-        if (g_customDeviceName.length > 0) return g_customDeviceName;
-        if (g_currentProfile && g_currentProfile->marketingName) return @(g_currentProfile->marketingName);
-    } else if ([key isEqualToString:@"LocalHostName"] || [key isEqualToString:@"ComputerName"]) {
+        NSString *value = LCSpoofedDeviceNameString();
+        if (value.length > 0) return value;
+    } else if ([key isEqualToString:@"ComputerName"]) {
+        NSString *value = LCSpoofedDeviceNameString();
+        if (value.length > 0) return value;
+    } else if ([key isEqualToString:@"LocalHostName"]) {
         NSString *value = LCSpoofedHostNameString();
         if (value.length > 0) return value;
     } else if ([key isEqualToString:@"ChipName"] || [key isEqualToString:@"CPUModel"] || [key isEqualToString:@"SoCModel"]) {
@@ -5544,6 +5582,7 @@ void DeviceSpoofingGuestHooksInit(void) {
 
         struct rebinding rebindings[] = {
             {"uname", (void *)hook_uname, (void **)&orig_uname},
+            {"gethostname", (void *)hook_gethostname, (void **)&orig_gethostname},
             {"sysconf", (void *)hook_sysconf, (void **)&orig_sysconf},
             {"sysctlbyname", (void *)hook_sysctlbyname, (void **)&orig_sysctlbyname},
             {"sysctl", (void *)hook_sysctl, (void **)&orig_sysctl},
