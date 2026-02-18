@@ -29,6 +29,8 @@
 #import <mach/mach.h>
 #import <mach/mach_time.h>
 #import <mach/machine.h>
+#import <mach/processor_info.h>
+#import <mach/task_info.h>
 #import <mach/vm_statistics.h>
 #import <math.h>
 #import <net/if_dl.h>
@@ -166,9 +168,9 @@ const LCDeviceProfile kDeviceProfileiPhone17ProMax = {
     .kernelVersion = "Darwin Kernel Version 25.0.0: Wed Jun 11 19:43:22 PDT 2025; root:xnu-12100.1.1~3/RELEASE_ARM64_T8140",
     .kernelRelease = "25.0.0",
     .physicalMemory = 12884901888ULL,
-    .cpuCoreCount = 6,
+    .cpuCoreCount = 8,
     .performanceCores = 2,
-    .efficiencyCores = 4,
+    .efficiencyCores = 6,
     .screenScale = 3.0,
     .screenWidth = 440,
     .screenHeight = 956,
@@ -185,9 +187,9 @@ const LCDeviceProfile kDeviceProfileiPhone17Pro = {
     .kernelVersion = "Darwin Kernel Version 25.0.0: Wed Jun 11 19:43:22 PDT 2025; root:xnu-12100.1.1~3/RELEASE_ARM64_T8140",
     .kernelRelease = "25.0.0",
     .physicalMemory = 12884901888ULL,
-    .cpuCoreCount = 6,
+    .cpuCoreCount = 8,
     .performanceCores = 2,
-    .efficiencyCores = 4,
+    .efficiencyCores = 6,
     .screenScale = 3.0,
     .screenWidth = 402,
     .screenHeight = 874,
@@ -396,8 +398,6 @@ static NSString *g_customSystemVersion = nil;
 static NSString *g_customBuildVersion = nil;
 static NSString *g_customKernelVersion = nil;
 static NSString *g_customKernelRelease = nil;
-static _Atomic uint32_t g_customCPUCoreCount = 0;
-static _Atomic uint64_t g_customPhysicalMemory = 0;
 static NSString *g_customDeviceName = nil;
 static NSString *g_customCarrierName = nil;
 static NSString *g_customCarrierMCC = nil;
@@ -483,6 +483,7 @@ static os_unfair_lock g_hookInstallLock = OS_UNFAIR_LOCK_INIT;
 #pragma mark - Original Function Pointers
 
 static int (*orig_uname)(struct utsname *name) = NULL;
+static long (*orig_sysconf)(int name) = NULL;
 static int (*orig_sysctlbyname)(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) = NULL;
 static int (*orig_sysctl)(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) = NULL;
 static int (*orig_statfs)(const char *path, struct statfs *buf) = NULL;
@@ -502,6 +503,11 @@ static size_t (*orig_CGDisplayPixelsWide)(uint32_t display) = NULL;
 static size_t (*orig_CGDisplayPixelsHigh)(uint32_t display) = NULL;
 static kern_return_t (*orig_host_statistics)(host_t host, host_flavor_t flavor, host_info_t info, mach_msg_type_number_t *count) = NULL;
 static kern_return_t (*orig_host_statistics64)(host_t host, host_flavor_t flavor, host_info64_t info, mach_msg_type_number_t *count) = NULL;
+static kern_return_t (*orig_host_processor_info)(host_t host, processor_flavor_t flavor, natural_t *out_processor_count,
+                                                  processor_info_array_t *out_processor_info,
+                                                  mach_msg_type_number_t *out_processor_infoCnt) = NULL;
+static kern_return_t (*orig_task_info)(task_t target_task, task_flavor_t flavor, task_info_t task_info_out,
+                                       mach_msg_type_number_t *task_info_outCnt) = NULL;
 static BOOL (*orig_UIAccessibilityIsVoiceOverRunning)(void) = NULL;
 static BOOL (*orig_UIAccessibilityIsGuidedAccessEnabled)(void) = NULL;
 static BOOL (*orig_UIAccessibilityIsMonoAudioEnabled)(void) = NULL;
@@ -844,17 +850,64 @@ static BOOL LCSpoofedUsesMetricSystem(void) {
     return YES;
 }
 
+static uint32_t LCSpoofedCPUSubtype(void);
+
 static uint64_t LCSpoofedPhysicalMemory(void) {
-    if (g_customPhysicalMemory > 0) return g_customPhysicalMemory;
+    // RAM spoofing is profile-derived only; custom overrides are intentionally ignored
+    // to prevent cross-surface mismatches.
     if (g_currentProfile) return g_currentProfile->physicalMemory;
     return 0;
 }
 
 static uint32_t LCSpoofedCPUCount(void) {
-    if (g_customCPUCoreCount > 0) return g_customCPUCoreCount;
-    // Default to the selected spoof profile's core count.
+    // Core count is profile-derived only; custom overrides are intentionally ignored.
     if (g_currentProfile) return g_currentProfile->cpuCoreCount;
     return 0;
+}
+
+static uint32_t LCSpoofedPerformanceCoreCount(void) {
+    if (g_currentProfile && g_currentProfile->performanceCores > 0) {
+        return g_currentProfile->performanceCores;
+    }
+    uint32_t total = LCSpoofedCPUCount();
+    if (total >= 6) return 2;
+    if (total >= 4) return 2;
+    if (total >= 2) return 1;
+    return total;
+}
+
+static uint32_t LCSpoofedEfficiencyCoreCount(void) {
+    if (g_currentProfile && g_currentProfile->efficiencyCores > 0) {
+        return g_currentProfile->efficiencyCores;
+    }
+    uint32_t total = LCSpoofedCPUCount();
+    uint32_t perf = LCSpoofedPerformanceCoreCount();
+    if (total > perf) return total - perf;
+    return 0;
+}
+
+static void LCApplySpoofedHostBasicInfo(host_basic_info_t basicInfo, uint64_t totalMemory) {
+    if (!basicInfo) return;
+
+    uint32_t logicalCPU = LCSpoofedCPUCount();
+    if (logicalCPU == 0) logicalCPU = 1;
+
+    uint32_t physicalCPU = logicalCPU;
+    if (g_currentProfile && g_currentProfile->cpuCoreCount > 0) {
+        physicalCPU = g_currentProfile->cpuCoreCount;
+    }
+
+    basicInfo->max_cpus = (integer_t)logicalCPU;
+    basicInfo->avail_cpus = (integer_t)logicalCPU;
+    basicInfo->memory_size = (natural_t)MIN(totalMemory, (uint64_t)UINT32_MAX);
+    basicInfo->cpu_type = CPU_TYPE_ARM64;
+    basicInfo->cpu_subtype = (cpu_subtype_t)LCSpoofedCPUSubtype();
+    basicInfo->cpu_threadtype = 0;
+    basicInfo->physical_cpu = (integer_t)physicalCPU;
+    basicInfo->physical_cpu_max = (integer_t)physicalCPU;
+    basicInfo->logical_cpu = (integer_t)logicalCPU;
+    basicInfo->logical_cpu_max = (integer_t)logicalCPU;
+    basicInfo->max_mem = totalMemory;
 }
 
 static const char *LCSpoofedChipName(void) {
@@ -1354,6 +1407,67 @@ static int LCWriteU64Value(void *oldp, size_t *oldlenp, uint64_t value) {
     return 0;
 }
 
+static void LCBuildSpoofedMemoryBucketsWithCompressor(uint64_t totalBytes,
+                                                      uint64_t *outFree,
+                                                      uint64_t *outWired,
+                                                      uint64_t *outActive,
+                                                      uint64_t *outInactive,
+                                                      uint64_t *outCompressed);
+
+static long hook_sysconf(int name) {
+    if (!orig_sysconf) {
+        static dispatch_once_t onceToken;
+        dispatch_once(&onceToken, ^{
+            orig_sysconf = (long (*)(int))dlsym(RTLD_DEFAULT, "sysconf");
+        });
+        if (!orig_sysconf) return -1;
+    }
+
+    if (!LCDeviceSpoofingIsActive()) {
+        return orig_sysconf(name);
+    }
+
+    switch (name) {
+#ifdef _SC_NPROCESSORS_CONF
+        case _SC_NPROCESSORS_CONF:
+#endif
+#ifdef _SC_NPROCESSORS_ONLN
+        case _SC_NPROCESSORS_ONLN:
+#endif
+        {
+            uint32_t cpuCount = LCSpoofedCPUCount();
+            if (cpuCount > 0) return (long)cpuCount;
+            break;
+        }
+#ifdef _SC_PHYS_PAGES
+        case _SC_PHYS_PAGES: {
+            uint64_t totalMemory = LCSpoofedPhysicalMemory();
+            vm_size_t pageSize = vm_kernel_page_size > 0 ? vm_kernel_page_size : 4096;
+            if (totalMemory > 0 && pageSize > 0) {
+                return (long)(totalMemory / (uint64_t)pageSize);
+            }
+            break;
+        }
+#endif
+#ifdef _SC_AVPHYS_PAGES
+        case _SC_AVPHYS_PAGES: {
+            uint64_t totalMemory = LCSpoofedPhysicalMemory();
+            vm_size_t pageSize = vm_kernel_page_size > 0 ? vm_kernel_page_size : 4096;
+            if (totalMemory > 0 && pageSize > 0) {
+                uint64_t freeBytes = 0, wiredBytes = 0, activeBytes = 0, inactiveBytes = 0, compressedBytes = 0;
+                LCBuildSpoofedMemoryBucketsWithCompressor(totalMemory, &freeBytes, &wiredBytes, &activeBytes, &inactiveBytes, &compressedBytes);
+                return (long)(freeBytes / (uint64_t)pageSize);
+            }
+            break;
+        }
+#endif
+        default:
+            break;
+    }
+
+    return orig_sysconf(name);
+}
+
 static void LCBuildSpoofedMemoryBuckets(uint64_t totalBytes, uint64_t *outFree, uint64_t *outWired, uint64_t *outActive, uint64_t *outInactive) {
     if (outFree) *outFree = 0;
     if (outWired) *outWired = 0;
@@ -1370,6 +1484,41 @@ static void LCBuildSpoofedMemoryBuckets(uint64_t totalBytes, uint64_t *outFree, 
     if (outWired) *outWired = wiredBytes;
     if (outActive) *outActive = activeBytes;
     if (outInactive) *outInactive = inactiveBytes;
+}
+
+static vm_size_t LCSpoofedHostPageSize(host_t host) {
+    vm_size_t pageSize = vm_kernel_page_size;
+    if (host_page_size(host, &pageSize) != KERN_SUCCESS || pageSize == 0) {
+        pageSize = 4096;
+    }
+    return pageSize;
+}
+
+static void LCBuildSpoofedMemoryBucketsWithCompressor(uint64_t totalBytes,
+                                                      uint64_t *outFree,
+                                                      uint64_t *outWired,
+                                                      uint64_t *outActive,
+                                                      uint64_t *outInactive,
+                                                      uint64_t *outCompressed) {
+    if (outFree) *outFree = 0;
+    if (outWired) *outWired = 0;
+    if (outActive) *outActive = 0;
+    if (outInactive) *outInactive = 0;
+    if (outCompressed) *outCompressed = 0;
+    if (totalBytes == 0) return;
+
+    // Keep memory classes deterministic and make displayed buckets add up to total RAM.
+    uint64_t freeBytes = (uint64_t)((double)totalBytes * 0.09);
+    uint64_t wiredBytes = (uint64_t)((double)totalBytes * 0.18);
+    uint64_t activeBytes = (uint64_t)((double)totalBytes * 0.37);
+    uint64_t inactiveBytes = (uint64_t)((double)totalBytes * 0.28);
+    uint64_t compressedBytes = totalBytes - (freeBytes + wiredBytes + activeBytes + inactiveBytes);
+
+    if (outFree) *outFree = freeBytes;
+    if (outWired) *outWired = wiredBytes;
+    if (outActive) *outActive = activeBytes;
+    if (outInactive) *outInactive = inactiveBytes;
+    if (outCompressed) *outCompressed = compressedBytes;
 }
 
 static NSUUID *LCUUIDFromOverrideString(NSString *value) {
@@ -1889,8 +2038,22 @@ static int hook_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void
             if (!value) value = LCSpoofedMachineModel();
             if (value) return LCWriteCStringValue(oldp, oldlenp, value);
         } else if (strcmp(name, "hw.ncpu") == 0 || strcmp(name, "hw.activecpu") == 0 ||
-                   strcmp(name, "hw.logicalcpu") == 0 || strcmp(name, "hw.physicalcpu") == 0) {
+                   strcmp(name, "hw.availcpu") == 0 ||
+                   strcmp(name, "hw.logicalcpu") == 0 || strcmp(name, "hw.physicalcpu") == 0 ||
+                   strcmp(name, "hw.logicalcpu_max") == 0 || strcmp(name, "hw.physicalcpu_max") == 0) {
             uint32_t value = LCSpoofedCPUCount();
+            if (value > 0) return LCWriteU32Value(oldp, oldlenp, value);
+        } else if (strcmp(name, "hw.perflevel0.logicalcpu") == 0 ||
+                   strcmp(name, "hw.perflevel0.physicalcpu") == 0 ||
+                   strcmp(name, "hw.perflevel0.logicalcpu_max") == 0 ||
+                   strcmp(name, "hw.perflevel0.physicalcpu_max") == 0) {
+            uint32_t value = LCSpoofedPerformanceCoreCount();
+            if (value > 0) return LCWriteU32Value(oldp, oldlenp, value);
+        } else if (strcmp(name, "hw.perflevel1.logicalcpu") == 0 ||
+                   strcmp(name, "hw.perflevel1.physicalcpu") == 0 ||
+                   strcmp(name, "hw.perflevel1.logicalcpu_max") == 0 ||
+                   strcmp(name, "hw.perflevel1.physicalcpu_max") == 0) {
+            uint32_t value = LCSpoofedEfficiencyCoreCount();
             if (value > 0) return LCWriteU32Value(oldp, oldlenp, value);
         } else if (strcmp(name, "hw.cpu.brand_string") == 0 || strcmp(name, "hw.cpubrand") == 0) {
             const char *value = LCSpoofedChipName();
@@ -2031,6 +2194,48 @@ static int hook_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, vo
                     if (value > 0) return LCWriteU32Value(oldp, oldlenp, value);
                     break;
                 }
+#ifdef HW_ACTIVECPU
+                case HW_ACTIVECPU: {
+                    uint32_t value = LCSpoofedCPUCount();
+                    if (value > 0) return LCWriteU32Value(oldp, oldlenp, value);
+                    break;
+                }
+#endif
+#ifdef HW_AVAILCPU
+                case HW_AVAILCPU: {
+                    uint32_t value = LCSpoofedCPUCount();
+                    if (value > 0) return LCWriteU32Value(oldp, oldlenp, value);
+                    break;
+                }
+#endif
+#ifdef HW_LOGICALCPU
+                case HW_LOGICALCPU: {
+                    uint32_t value = LCSpoofedCPUCount();
+                    if (value > 0) return LCWriteU32Value(oldp, oldlenp, value);
+                    break;
+                }
+#endif
+#ifdef HW_PHYSICALCPU
+                case HW_PHYSICALCPU: {
+                    uint32_t value = LCSpoofedCPUCount();
+                    if (value > 0) return LCWriteU32Value(oldp, oldlenp, value);
+                    break;
+                }
+#endif
+#ifdef HW_LOGICALCPU_MAX
+                case HW_LOGICALCPU_MAX: {
+                    uint32_t value = LCSpoofedCPUCount();
+                    if (value > 0) return LCWriteU32Value(oldp, oldlenp, value);
+                    break;
+                }
+#endif
+#ifdef HW_PHYSICALCPU_MAX
+                case HW_PHYSICALCPU_MAX: {
+                    uint32_t value = LCSpoofedCPUCount();
+                    if (value > 0) return LCWriteU32Value(oldp, oldlenp, value);
+                    break;
+                }
+#endif
                 case HW_MEMSIZE: {
                     uint64_t value = LCSpoofedPhysicalMemory();
                     if (value > 0) return LCWriteU64Value(oldp, oldlenp, value);
@@ -2495,22 +2700,23 @@ static kern_return_t hook_host_statistics(host_t host, host_flavor_t flavor, hos
         return result;
     }
 
+    #ifdef HOST_VM_INFO_REV0_COUNT
+    if (flavor == HOST_VM_INFO && *count >= HOST_VM_INFO_REV0_COUNT) {
+    #else
     if (flavor == HOST_VM_INFO && *count >= HOST_VM_INFO_COUNT) {
+    #endif
         vm_statistics_data_t *vmStats = (vm_statistics_data_t *)info;
         uint64_t freeBytes = 0, wiredBytes = 0, activeBytes = 0, inactiveBytes = 0;
         LCBuildSpoofedMemoryBuckets(totalMemory, &freeBytes, &wiredBytes, &activeBytes, &inactiveBytes);
 
-        vm_size_t pageSize = vm_kernel_page_size;
-        host_page_size(host, &pageSize);
-        if (pageSize == 0) pageSize = 4096;
+        vm_size_t pageSize = LCSpoofedHostPageSize(host);
 
         vmStats->free_count = (natural_t)MIN(freeBytes / pageSize, UINT32_MAX);
         vmStats->wire_count = (natural_t)MIN(wiredBytes / pageSize, UINT32_MAX);
         vmStats->active_count = (natural_t)MIN(activeBytes / pageSize, UINT32_MAX);
         vmStats->inactive_count = (natural_t)MIN(inactiveBytes / pageSize, UINT32_MAX);
     } else if (flavor == HOST_BASIC_INFO && *count >= HOST_BASIC_INFO_COUNT) {
-        host_basic_info_t basicInfo = (host_basic_info_t)info;
-        basicInfo->max_mem = totalMemory;
+        LCApplySpoofedHostBasicInfo((host_basic_info_t)info, totalMemory);
     }
 
     return result;
@@ -2542,35 +2748,214 @@ static kern_return_t hook_host_statistics64(host_t host, host_flavor_t flavor, h
         return result;
     }
 
+    #ifdef HOST_VM_INFO64_REV0_COUNT
+    if (flavor == HOST_VM_INFO64 && *count >= HOST_VM_INFO64_REV0_COUNT) {
+    #else
     if (flavor == HOST_VM_INFO64 && *count >= HOST_VM_INFO64_COUNT) {
+    #endif
         vm_statistics64_data_t *vmStats = (vm_statistics64_data_t *)info;
-        uint64_t freeBytes = 0, wiredBytes = 0, activeBytes = 0, inactiveBytes = 0;
-        LCBuildSpoofedMemoryBuckets(totalMemory, &freeBytes, &wiredBytes, &activeBytes, &inactiveBytes);
+        uint64_t freeBytes = 0, wiredBytes = 0, activeBytes = 0, inactiveBytes = 0, compressedBytes = 0;
+        LCBuildSpoofedMemoryBucketsWithCompressor(totalMemory, &freeBytes, &wiredBytes, &activeBytes, &inactiveBytes, &compressedBytes);
 
-        vm_size_t pageSize = vm_kernel_page_size;
-        host_page_size(host, &pageSize);
-        if (pageSize == 0) pageSize = 4096;
+        vm_size_t pageSize = LCSpoofedHostPageSize(host);
+        uint64_t freePages = freeBytes / pageSize;
+        uint64_t wiredPages = wiredBytes / pageSize;
+        uint64_t activePages = activeBytes / pageSize;
+        uint64_t inactivePages = inactiveBytes / pageSize;
+        uint64_t compressedPages = compressedBytes / pageSize;
 
-        vmStats->free_count = freeBytes / pageSize;
-        vmStats->wire_count = wiredBytes / pageSize;
-        vmStats->active_count = activeBytes / pageSize;
-        vmStats->inactive_count = inactiveBytes / pageSize;
+        vmStats->free_count = (natural_t)MIN(freePages, UINT32_MAX);
+        vmStats->wire_count = (natural_t)MIN(wiredPages, UINT32_MAX);
+        vmStats->active_count = (natural_t)MIN(activePages, UINT32_MAX);
+        vmStats->inactive_count = (natural_t)MIN(inactivePages, UINT32_MAX);
+        #ifdef HOST_VM_INFO64_REV1_COUNT
+        if (*count >= HOST_VM_INFO64_REV1_COUNT) {
+        #endif
+        vmStats->compressor_page_count = (natural_t)MIN(compressedPages, UINT32_MAX);
+        vmStats->total_uncompressed_pages_in_compressor = compressedPages;
+        vmStats->throttled_count = 0;
+        vmStats->speculative_count = (natural_t)MIN(freePages / 5, UINT32_MAX);
+        vmStats->purgeable_count = (natural_t)MIN(inactivePages / 8, UINT32_MAX);
+        vmStats->external_page_count = (natural_t)MIN(activePages / 6, UINT32_MAX);
+        vmStats->internal_page_count = (natural_t)MIN(activePages + inactivePages + wiredPages + compressedPages, UINT32_MAX);
+        #ifdef HOST_VM_INFO64_REV1_COUNT
+        }
+        #endif
+    #ifdef HOST_VM_INFO_REV0_COUNT
+    } else if (flavor == HOST_VM_INFO && *count >= HOST_VM_INFO_REV0_COUNT) {
+    #else
     } else if (flavor == HOST_VM_INFO && *count >= HOST_VM_INFO_COUNT) {
+    #endif
         vm_statistics_data_t *vmStats = (vm_statistics_data_t *)info;
-        uint64_t freeBytes = 0, wiredBytes = 0, activeBytes = 0, inactiveBytes = 0;
-        LCBuildSpoofedMemoryBuckets(totalMemory, &freeBytes, &wiredBytes, &activeBytes, &inactiveBytes);
+        uint64_t freeBytes = 0, wiredBytes = 0, activeBytes = 0, inactiveBytes = 0, compressedBytes = 0;
+        LCBuildSpoofedMemoryBucketsWithCompressor(totalMemory, &freeBytes, &wiredBytes, &activeBytes, &inactiveBytes, &compressedBytes);
 
-        vm_size_t pageSize = vm_kernel_page_size;
-        host_page_size(host, &pageSize);
-        if (pageSize == 0) pageSize = 4096;
+        vm_size_t pageSize = LCSpoofedHostPageSize(host);
 
         vmStats->free_count = (natural_t)MIN(freeBytes / pageSize, UINT32_MAX);
         vmStats->wire_count = (natural_t)MIN(wiredBytes / pageSize, UINT32_MAX);
         vmStats->active_count = (natural_t)MIN(activeBytes / pageSize, UINT32_MAX);
         vmStats->inactive_count = (natural_t)MIN(inactiveBytes / pageSize, UINT32_MAX);
     } else if (flavor == HOST_BASIC_INFO && *count >= HOST_BASIC_INFO_COUNT) {
-        host_basic_info_t basicInfo = (host_basic_info_t)info;
-        basicInfo->max_mem = totalMemory;
+        LCApplySpoofedHostBasicInfo((host_basic_info_t)info, totalMemory);
+    }
+
+    return result;
+}
+
+static kern_return_t hook_host_processor_info(host_t host,
+                                              processor_flavor_t flavor,
+                                              natural_t *out_processor_count,
+                                              processor_info_array_t *out_processor_info,
+                                              mach_msg_type_number_t *out_processor_infoCnt) {
+    if (!orig_host_processor_info) {
+        static dispatch_once_t onceToken;
+        dispatch_once(&onceToken, ^{
+            orig_host_processor_info = (kern_return_t (*)(host_t, processor_flavor_t, natural_t *,
+                                                          processor_info_array_t *, mach_msg_type_number_t *))
+                dlsym(RTLD_DEFAULT, "host_processor_info");
+        });
+        if (!orig_host_processor_info) return KERN_FAILURE;
+    }
+
+    kern_return_t result = orig_host_processor_info(host, flavor, out_processor_count, out_processor_info, out_processor_infoCnt);
+    if (result != KERN_SUCCESS || !LCDeviceSpoofingIsActive() ||
+        !out_processor_count || !out_processor_info || !out_processor_infoCnt) {
+        return result;
+    }
+
+    uint32_t spoofedCount = LCSpoofedCPUCount();
+    if (spoofedCount == 0) return result;
+
+    natural_t realCount = *out_processor_count;
+    if (realCount == spoofedCount) return result;
+    if (realCount == 0 || !*out_processor_info || *out_processor_infoCnt == 0) {
+        *out_processor_count = (natural_t)spoofedCount;
+        return result;
+    }
+
+    mach_msg_type_number_t perProcessorInfo = *out_processor_infoCnt / (mach_msg_type_number_t)realCount;
+    if (perProcessorInfo == 0) {
+        *out_processor_count = (natural_t)spoofedCount;
+        return result;
+    }
+
+    mach_msg_type_number_t newInfoCount = perProcessorInfo * (mach_msg_type_number_t)spoofedCount;
+    vm_size_t newInfoSize = (vm_size_t)newInfoCount * sizeof(integer_t);
+    vm_address_t newInfoAddress = 0;
+    if (vm_allocate(mach_task_self(), &newInfoAddress, newInfoSize, VM_FLAGS_ANYWHERE) != KERN_SUCCESS) {
+        return result;
+    }
+
+    memset((void *)newInfoAddress, 0, (size_t)newInfoSize);
+    integer_t *oldInfo = (integer_t *)*out_processor_info;
+    integer_t *newInfo = (integer_t *)newInfoAddress;
+    for (natural_t i = 0; i < (natural_t)spoofedCount; i++) {
+        natural_t srcIndex = (i < realCount) ? i : (realCount - 1);
+        memcpy(newInfo + (i * perProcessorInfo),
+               oldInfo + (srcIndex * perProcessorInfo),
+               (size_t)perProcessorInfo * sizeof(integer_t));
+        if (flavor == PROCESSOR_CPU_LOAD_INFO && i >= realCount) {
+            processor_cpu_load_info_t load = (processor_cpu_load_info_t)(newInfo + (i * perProcessorInfo));
+            if (perProcessorInfo >= CPU_STATE_MAX) {
+                load->cpu_ticks[CPU_STATE_USER] /= 2;
+                load->cpu_ticks[CPU_STATE_SYSTEM] /= 2;
+                load->cpu_ticks[CPU_STATE_NICE] = 0;
+            }
+        }
+    }
+
+    vm_size_t oldInfoSize = (vm_size_t)(*out_processor_infoCnt) * sizeof(integer_t);
+    if (oldInfoSize > 0 && *out_processor_info) {
+        vm_deallocate(mach_task_self(), (vm_address_t)*out_processor_info, oldInfoSize);
+    }
+
+    *out_processor_info = (processor_info_array_t)newInfo;
+    *out_processor_infoCnt = newInfoCount;
+    *out_processor_count = (natural_t)spoofedCount;
+    return result;
+}
+
+static kern_return_t hook_task_info(task_t target_task,
+                                    task_flavor_t flavor,
+                                    task_info_t task_info_out,
+                                    mach_msg_type_number_t *task_info_outCnt) {
+    if (!orig_task_info) {
+        static dispatch_once_t onceToken;
+        dispatch_once(&onceToken, ^{
+            orig_task_info = (kern_return_t (*)(task_t, task_flavor_t, task_info_t, mach_msg_type_number_t *))
+                dlsym(RTLD_DEFAULT, "task_info");
+        });
+        if (!orig_task_info) return KERN_FAILURE;
+    }
+
+    kern_return_t result = orig_task_info(target_task, flavor, task_info_out, task_info_outCnt);
+    if (result != KERN_SUCCESS || !LCDeviceSpoofingIsActive() || !task_info_out || !task_info_outCnt) {
+        return result;
+    }
+
+    uint64_t totalMemory = LCSpoofedPhysicalMemory();
+    if (totalMemory == 0) return result;
+
+    uint64_t freeBytes = 0, wiredBytes = 0, activeBytes = 0, inactiveBytes = 0, compressedBytes = 0;
+    LCBuildSpoofedMemoryBucketsWithCompressor(totalMemory, &freeBytes, &wiredBytes, &activeBytes, &inactiveBytes, &compressedBytes);
+    uint64_t usedBytes = totalMemory - freeBytes;
+
+    switch (flavor) {
+        case TASK_BASIC_INFO: {
+#ifdef TASK_BASIC_INFO_64_COUNT
+            if (*task_info_outCnt >= TASK_BASIC_INFO_64_COUNT) {
+                task_basic_info_64_t basic64 = (task_basic_info_64_t)task_info_out;
+                basic64->resident_size = (mach_vm_size_t)usedBytes;
+                basic64->virtual_size = (mach_vm_size_t)(totalMemory + (1024ULL * 1024ULL * 1024ULL));
+                break;
+            }
+#endif
+            if (*task_info_outCnt >= TASK_BASIC_INFO_COUNT) {
+                task_basic_info_t basic = (task_basic_info_t)task_info_out;
+                basic->resident_size = (mach_vm_size_t)usedBytes;
+                basic->virtual_size = (mach_vm_size_t)(totalMemory + (1024ULL * 1024ULL * 1024ULL));
+            }
+            break;
+        }
+        case TASK_VM_INFO:
+#ifdef TASK_VM_INFO_PURGEABLE
+        case TASK_VM_INFO_PURGEABLE:
+#endif
+        {
+            #ifdef TASK_VM_INFO_REV0_COUNT
+            if (*task_info_outCnt >= TASK_VM_INFO_REV0_COUNT) {
+            #else
+            if (*task_info_outCnt >= TASK_VM_INFO_COUNT) {
+            #endif
+                task_vm_info_t vmInfo = (task_vm_info_t)task_info_out;
+                uint64_t externalBytes = (uint64_t)((double)totalMemory * 0.08);
+                uint64_t reusableBytes = (uint64_t)((double)inactiveBytes * 0.35);
+                uint64_t internalBytes = activeBytes + inactiveBytes + compressedBytes;
+
+                vmInfo->virtual_size = (mach_vm_size_t)(totalMemory + (1024ULL * 1024ULL * 1024ULL));
+                vmInfo->resident_size = (mach_vm_size_t)usedBytes;
+                vmInfo->resident_size_peak = (mach_vm_size_t)(usedBytes + (usedBytes / 8));
+                vmInfo->internal = (mach_vm_size_t)internalBytes;
+                vmInfo->internal_peak = (mach_vm_size_t)(internalBytes + (internalBytes / 10));
+                vmInfo->external = (mach_vm_size_t)externalBytes;
+                vmInfo->external_peak = (mach_vm_size_t)(externalBytes + (externalBytes / 10));
+                vmInfo->reusable = (mach_vm_size_t)reusableBytes;
+                vmInfo->reusable_peak = (mach_vm_size_t)(reusableBytes + (reusableBytes / 8));
+                vmInfo->compressed = (mach_vm_size_t)compressedBytes;
+                vmInfo->compressed_peak = (mach_vm_size_t)(compressedBytes + (compressedBytes / 6));
+                #ifdef TASK_VM_INFO_REV1_COUNT
+                if (*task_info_outCnt >= TASK_VM_INFO_REV1_COUNT) {
+                #endif
+                vmInfo->phys_footprint = (mach_vm_size_t)usedBytes;
+                #ifdef TASK_VM_INFO_REV1_COUNT
+                }
+                #endif
+            }
+            break;
+        }
+        default:
+            break;
     }
 
     return result;
@@ -4636,12 +5021,12 @@ void LCSetSpoofedKernelRelease(NSString *kernelRelease) {
     g_customKernelRelease = [kernelRelease copy];
 }
 void LCSetSpoofedCPUCount(uint32_t cpuCount) {
+    (void)cpuCount;
     LC_DEVICE_SPOOFING_CONFIG_MUTATION_GUARD();
-    g_customCPUCoreCount = cpuCount;
 }
 void LCSetSpoofedPhysicalMemory(uint64_t memory) {
+    (void)memory;
     LC_DEVICE_SPOOFING_CONFIG_MUTATION_GUARD();
-    g_customPhysicalMemory = memory;
 }
 
 void LCSetSpoofedDeviceName(NSString *deviceName) {
@@ -5159,6 +5544,7 @@ void DeviceSpoofingGuestHooksInit(void) {
 
         struct rebinding rebindings[] = {
             {"uname", (void *)hook_uname, (void **)&orig_uname},
+            {"sysconf", (void *)hook_sysconf, (void **)&orig_sysconf},
             {"sysctlbyname", (void *)hook_sysctlbyname, (void **)&orig_sysctlbyname},
             {"sysctl", (void *)hook_sysctl, (void **)&orig_sysctl},
             {"statfs", (void *)hook_statfs, (void **)&orig_statfs},
@@ -5188,6 +5574,8 @@ void DeviceSpoofingGuestHooksInit(void) {
             {"CGDisplayPixelsHigh", (void *)hook_CGDisplayPixelsHigh, (void **)&orig_CGDisplayPixelsHigh},
             {"host_statistics", (void *)hook_host_statistics, (void **)&orig_host_statistics},
             {"host_statistics64", (void *)hook_host_statistics64, (void **)&orig_host_statistics64},
+            {"host_processor_info", (void *)hook_host_processor_info, (void **)&orig_host_processor_info},
+            {"task_info", (void *)hook_task_info, (void **)&orig_task_info},
             {"MTLCreateSystemDefaultDevice", (void *)hook_MTLCreateSystemDefaultDevice, (void **)&orig_MTLCreateSystemDefaultDevice},
             {"MTLCopyAllDevices", (void *)hook_MTLCopyAllDevices, (void **)&orig_MTLCopyAllDevices},
             {"MGCopyAnswer", (void *)hook_MGCopyAnswer, (void **)&orig_MGCopyAnswer},
