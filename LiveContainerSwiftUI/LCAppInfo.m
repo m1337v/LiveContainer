@@ -1313,6 +1313,24 @@ static BOOL LCIsContainerScopedAddonKey(NSString *key) {
     [self save];
 }
 
+- (NSString *)deviceSpoofAdTrackingMode {
+    NSString *mode = _info[@"deviceSpoofAdTrackingMode"];
+    if ([mode isKindOfClass:[NSString class]] && mode.length > 0) {
+        return mode;
+    }
+    return @"auto";
+}
+
+- (void)setDeviceSpoofAdTrackingMode:(NSString *)mode {
+    NSString *normalized = [mode isKindOfClass:[NSString class]] ? [(NSString *)mode lowercaseString] : @"";
+    if (normalized.length == 0 || [normalized isEqualToString:@"auto"]) {
+        [_info removeObjectForKey:@"deviceSpoofAdTrackingMode"];
+    } else {
+        _info[@"deviceSpoofAdTrackingMode"] = normalized;
+    }
+    [self save];
+}
+
 - (NSString *)deviceSpoofPersistentDeviceID {
     NSString *value = _info[@"deviceSpoofPersistentDeviceID"];
     if (value.length > 0) {
@@ -1331,6 +1349,19 @@ static BOOL LCIsContainerScopedAddonKey(NSString *key) {
         _info[@"deviceSpoofPersistentDeviceID"] = persistentDeviceID;
     } else {
         [_info removeObjectForKey:@"deviceSpoofPersistentDeviceID"];
+    }
+    [self save];
+}
+
+- (NSString *)deviceSpoofInstallationID {
+    return _info[@"deviceSpoofInstallationID"] ?: @"";
+}
+
+- (void)setDeviceSpoofInstallationID:(NSString *)installationID {
+    if (installationID.length > 0) {
+        _info[@"deviceSpoofInstallationID"] = installationID;
+    } else {
+        [_info removeObjectForKey:@"deviceSpoofInstallationID"];
     }
     [self save];
 }
@@ -1389,6 +1420,18 @@ static BOOL LCIsContainerScopedAddonKey(NSString *key) {
 
 - (void)setDeviceSpoofAppAttest:(bool)enabled {
     _info[@"deviceSpoofAppAttest"] = @(enabled);
+    [self save];
+}
+
+- (bool)deviceSpoofSiriPrivacyProtection {
+    if (_info[@"deviceSpoofSiriPrivacyProtection"] != nil) {
+        return [_info[@"deviceSpoofSiriPrivacyProtection"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setDeviceSpoofSiriPrivacyProtection:(bool)enabled {
+    _info[@"deviceSpoofSiriPrivacyProtection"] = @(enabled);
     [self save];
 }
 
@@ -1571,6 +1614,22 @@ static BOOL LCIsContainerScopedAddonKey(NSString *key) {
     [self save];
 }
 
+- (bool)deviceSpoofMACAddressEnabled {
+    if (_info[@"deviceSpoofMACAddressEnabled"] != nil) {
+        return [_info[@"deviceSpoofMACAddressEnabled"] boolValue];
+    }
+    NSString *mac = _info[@"deviceSpoofMACAddress"];
+    if ([mac isKindOfClass:[NSString class]] && mac.length > 0) {
+        return YES;
+    }
+    return NO;
+}
+
+- (void)setDeviceSpoofMACAddressEnabled:(bool)enabled {
+    _info[@"deviceSpoofMACAddressEnabled"] = @(enabled);
+    [self save];
+}
+
 - (NSString *)deviceSpoofWiFiAddress {
     NSString *addr = _info[@"deviceSpoofWiFiAddress"];
     if (addr.length > 0) {
@@ -1640,6 +1699,31 @@ static BOOL LCIsContainerScopedAddonKey(NSString *key) {
     } else {
         [_info removeObjectForKey:@"deviceSpoofWiFiBSSID"];
     }
+    [self save];
+}
+
+- (NSString *)deviceSpoofMACAddress {
+    return _info[@"deviceSpoofMACAddress"] ?: @"";
+}
+
+- (void)setDeviceSpoofMACAddress:(NSString *)macAddress {
+    if (macAddress.length > 0) {
+        _info[@"deviceSpoofMACAddress"] = macAddress;
+    } else {
+        [_info removeObjectForKey:@"deviceSpoofMACAddress"];
+    }
+    [self save];
+}
+
+- (bool)deviceSpoofCanvasFingerprintProtection {
+    if (_info[@"deviceSpoofCanvasFingerprintProtection"] != nil) {
+        return [_info[@"deviceSpoofCanvasFingerprintProtection"] boolValue];
+    }
+    return YES;
+}
+
+- (void)setDeviceSpoofCanvasFingerprintProtection:(bool)enabled {
+    _info[@"deviceSpoofCanvasFingerprintProtection"] = @(enabled);
     [self save];
 }
 
@@ -2132,6 +2216,19 @@ static BOOL LCIsContainerScopedAddonKey(NSString *key) {
 }
 - (void)setDeviceSpoofStorageRandomFree:(bool)enabled {
     _info[@"deviceSpoofStorageRandomFree"] = @(enabled);
+    [self save];
+}
+
+- (NSString *)deviceSpoofStorageFreeGB {
+    return _info[@"deviceSpoofStorageFreeGB"] ?: @"";
+}
+
+- (void)setDeviceSpoofStorageFreeGB:(NSString *)freeGB {
+    if (freeGB.length > 0) {
+        _info[@"deviceSpoofStorageFreeGB"] = freeGB;
+    } else {
+        [_info removeObjectForKey:@"deviceSpoofStorageFreeGB"];
+    }
     [self save];
 }
 

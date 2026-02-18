@@ -81,11 +81,15 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property bool deviceSpoofIdentifiers;
 @property (nonatomic) NSString* deviceSpoofVendorID;
 @property (nonatomic) NSString* deviceSpoofAdvertisingID;
+// "auto" (default), "enabled", "disabled"
+@property (nonatomic) NSString* deviceSpoofAdTrackingMode;
 @property (nonatomic) NSString* deviceSpoofPersistentDeviceID;
+@property (nonatomic) NSString* deviceSpoofInstallationID;
 @property bool deviceSpoofSecurityEnabled;
 @property bool deviceSpoofCloudToken;
 @property bool deviceSpoofDeviceChecker;
 @property bool deviceSpoofAppAttest;
+@property bool deviceSpoofSiriPrivacyProtection;
 @property bool deviceSpoofTimezone;
 @property (nonatomic) NSString* deviceSpoofTimezoneValue;
 @property bool deviceSpoofLocale;
@@ -98,10 +102,13 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property bool deviceSpoofNetworkInfo;
 @property bool deviceSpoofWiFiAddressEnabled;
 @property bool deviceSpoofCellularAddressEnabled;
+@property bool deviceSpoofMACAddressEnabled;
 @property (nonatomic) NSString* deviceSpoofWiFiAddress;
 @property (nonatomic) NSString* deviceSpoofCellularAddress;
 @property (nonatomic) NSString* deviceSpoofWiFiSSID;
 @property (nonatomic) NSString* deviceSpoofWiFiBSSID;
+@property (nonatomic) NSString* deviceSpoofMACAddress;
+@property bool deviceSpoofCanvasFingerprintProtection;
 @property bool deviceSpoofScreenCapture;
 @property bool enableSpoofMessage;
 @property bool enableSpoofMail;
@@ -140,6 +147,7 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property bool deviceSpoofStorage;
 @property (nonatomic) NSString* deviceSpoofStorageCapacity; // GB string e.g. "256"
 @property bool deviceSpoofStorageRandomFree;
+@property (nonatomic) NSString* deviceSpoofStorageFreeGB;   // e.g. "45.2"
 @property bool deviceSpoofBrightness;
 @property bool deviceSpoofBrightnessRandomize;
 @property float deviceSpoofBrightnessValue;    // 0.0 – 1.0

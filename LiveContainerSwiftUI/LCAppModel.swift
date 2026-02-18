@@ -273,9 +273,19 @@ class LCAppModel: ObservableObject, Hashable {
             appInfo.deviceSpoofAdvertisingID = uiDeviceSpoofAdvertisingID
         }
     }
+    @Published var uiDeviceSpoofAdTrackingMode: String {
+        didSet {
+            appInfo.deviceSpoofAdTrackingMode = uiDeviceSpoofAdTrackingMode
+        }
+    }
     @Published var uiDeviceSpoofPersistentDeviceID: String {
         didSet {
             appInfo.deviceSpoofPersistentDeviceID = uiDeviceSpoofPersistentDeviceID
+        }
+    }
+    @Published var uiDeviceSpoofInstallationID: String {
+        didSet {
+            appInfo.deviceSpoofInstallationID = uiDeviceSpoofInstallationID
         }
     }
     @Published var uiDeviceSpoofSecurityEnabled: Bool {
@@ -299,6 +309,10 @@ class LCAppModel: ObservableObject, Hashable {
             uiDeviceSpoofUserDefaults = uiDeviceSpoofSecurityEnabled
             uiDeviceSpoofEntitlements = uiDeviceSpoofSecurityEnabled
             uiDeviceSpoofFileTimestamps = uiDeviceSpoofSecurityEnabled
+            if !uiDeviceSpoofSecurityEnabled {
+                // Keep Siri privacy protection opt-in, but always disable it when the master toggle is off.
+                uiDeviceSpoofSiriPrivacyProtection = false
+            }
         }
     }
     @Published var uiDeviceSpoofCloudToken: Bool {
@@ -314,6 +328,11 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var uiDeviceSpoofAppAttest: Bool {
         didSet {
             appInfo.deviceSpoofAppAttest = uiDeviceSpoofAppAttest
+        }
+    }
+    @Published var uiDeviceSpoofSiriPrivacyProtection: Bool {
+        didSet {
+            appInfo.deviceSpoofSiriPrivacyProtection = uiDeviceSpoofSiriPrivacyProtection
         }
     }
     @Published var uiDeviceSpoofTimezone: Bool {
@@ -376,6 +395,11 @@ class LCAppModel: ObservableObject, Hashable {
             appInfo.deviceSpoofCellularAddressEnabled = uiDeviceSpoofCellularAddressEnabled
         }
     }
+    @Published var uiDeviceSpoofMACAddressEnabled: Bool {
+        didSet {
+            appInfo.deviceSpoofMACAddressEnabled = uiDeviceSpoofMACAddressEnabled
+        }
+    }
     @Published var uiDeviceSpoofWiFiAddress: String {
         didSet {
             appInfo.deviceSpoofWiFiAddress = uiDeviceSpoofWiFiAddress
@@ -394,6 +418,16 @@ class LCAppModel: ObservableObject, Hashable {
     @Published var uiDeviceSpoofWiFiBSSID: String {
         didSet {
             appInfo.deviceSpoofWiFiBSSID = uiDeviceSpoofWiFiBSSID
+        }
+    }
+    @Published var uiDeviceSpoofMACAddress: String {
+        didSet {
+            appInfo.deviceSpoofMACAddress = uiDeviceSpoofMACAddress
+        }
+    }
+    @Published var uiDeviceSpoofCanvasFingerprintProtection: Bool {
+        didSet {
+            appInfo.deviceSpoofCanvasFingerprintProtection = uiDeviceSpoofCanvasFingerprintProtection
         }
     }
     @Published var uiDeviceSpoofScreenCapture: Bool {
@@ -578,6 +612,11 @@ class LCAppModel: ObservableObject, Hashable {
             appInfo.deviceSpoofStorageRandomFree = uiDeviceSpoofStorageRandomFree
         }
     }
+    @Published var uiDeviceSpoofStorageFreeGB: String {
+        didSet {
+            appInfo.deviceSpoofStorageFreeGB = uiDeviceSpoofStorageFreeGB
+        }
+    }
     @Published var uiDeviceSpoofBrightness: Bool {
         didSet {
             appInfo.deviceSpoofBrightness = uiDeviceSpoofBrightness
@@ -704,11 +743,14 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDeviceSpoofIdentifiers = appInfo.deviceSpoofIdentifiers
         self.uiDeviceSpoofVendorID = appInfo.deviceSpoofVendorID ?? ""
         self.uiDeviceSpoofAdvertisingID = appInfo.deviceSpoofAdvertisingID ?? ""
+        self.uiDeviceSpoofAdTrackingMode = appInfo.deviceSpoofAdTrackingMode ?? "auto"
         self.uiDeviceSpoofPersistentDeviceID = appInfo.deviceSpoofPersistentDeviceID ?? ""
+        self.uiDeviceSpoofInstallationID = appInfo.deviceSpoofInstallationID ?? ""
         self.uiDeviceSpoofSecurityEnabled = appInfo.deviceSpoofSecurityEnabled
         self.uiDeviceSpoofCloudToken = appInfo.deviceSpoofCloudToken
         self.uiDeviceSpoofDeviceChecker = appInfo.deviceSpoofDeviceChecker
         self.uiDeviceSpoofAppAttest = appInfo.deviceSpoofAppAttest
+        self.uiDeviceSpoofSiriPrivacyProtection = appInfo.deviceSpoofSiriPrivacyProtection
         self.uiDeviceSpoofTimezone = appInfo.deviceSpoofTimezone
         self.uiDeviceSpoofTimezoneValue = appInfo.deviceSpoofTimezoneValue ?? "America/New_York"
         self.uiDeviceSpoofLocale = appInfo.deviceSpoofLocale
@@ -721,10 +763,13 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDeviceSpoofNetworkInfo = appInfo.deviceSpoofNetworkInfo
         self.uiDeviceSpoofWiFiAddressEnabled = appInfo.deviceSpoofWiFiAddressEnabled
         self.uiDeviceSpoofCellularAddressEnabled = appInfo.deviceSpoofCellularAddressEnabled
+        self.uiDeviceSpoofMACAddressEnabled = appInfo.deviceSpoofMACAddressEnabled
         self.uiDeviceSpoofWiFiAddress = appInfo.deviceSpoofWiFiAddress ?? ""
         self.uiDeviceSpoofCellularAddress = appInfo.deviceSpoofCellularAddress ?? ""
         self.uiDeviceSpoofWiFiSSID = appInfo.deviceSpoofWiFiSSID ?? "Public Network"
         self.uiDeviceSpoofWiFiBSSID = appInfo.deviceSpoofWiFiBSSID ?? "22:66:99:00"
+        self.uiDeviceSpoofMACAddress = appInfo.deviceSpoofMACAddress ?? ""
+        self.uiDeviceSpoofCanvasFingerprintProtection = appInfo.deviceSpoofCanvasFingerprintProtection
         self.uiDeviceSpoofScreenCapture = appInfo.deviceSpoofScreenCapture
         self.uiDeviceSpoofMessage = appInfo.enableSpoofMessage
         self.uiDeviceSpoofMail = appInfo.enableSpoofMail
@@ -763,6 +808,7 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDeviceSpoofStorage = appInfo.deviceSpoofStorage
         self.uiDeviceSpoofStorageCapacity = appInfo.deviceSpoofStorageCapacity ?? "256"
         self.uiDeviceSpoofStorageRandomFree = appInfo.deviceSpoofStorageRandomFree
+        self.uiDeviceSpoofStorageFreeGB = appInfo.deviceSpoofStorageFreeGB ?? ""
         self.uiDeviceSpoofBrightness = appInfo.deviceSpoofBrightness
         self.uiDeviceSpoofBrightnessRandomize = appInfo.deviceSpoofBrightnessRandomize
         self.uiDeviceSpoofBrightnessValue = appInfo.deviceSpoofBrightnessValue
@@ -853,11 +899,14 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDeviceSpoofIdentifiers = appInfo.deviceSpoofIdentifiers
         self.uiDeviceSpoofVendorID = appInfo.deviceSpoofVendorID ?? ""
         self.uiDeviceSpoofAdvertisingID = appInfo.deviceSpoofAdvertisingID ?? ""
+        self.uiDeviceSpoofAdTrackingMode = appInfo.deviceSpoofAdTrackingMode ?? "auto"
         self.uiDeviceSpoofPersistentDeviceID = appInfo.deviceSpoofPersistentDeviceID ?? ""
+        self.uiDeviceSpoofInstallationID = appInfo.deviceSpoofInstallationID ?? ""
         self.uiDeviceSpoofSecurityEnabled = appInfo.deviceSpoofSecurityEnabled
         self.uiDeviceSpoofCloudToken = appInfo.deviceSpoofCloudToken
         self.uiDeviceSpoofDeviceChecker = appInfo.deviceSpoofDeviceChecker
         self.uiDeviceSpoofAppAttest = appInfo.deviceSpoofAppAttest
+        self.uiDeviceSpoofSiriPrivacyProtection = appInfo.deviceSpoofSiriPrivacyProtection
         self.uiDeviceSpoofTimezone = appInfo.deviceSpoofTimezone
         self.uiDeviceSpoofTimezoneValue = appInfo.deviceSpoofTimezoneValue ?? "America/New_York"
         self.uiDeviceSpoofLocale = appInfo.deviceSpoofLocale
@@ -870,10 +919,13 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDeviceSpoofNetworkInfo = appInfo.deviceSpoofNetworkInfo
         self.uiDeviceSpoofWiFiAddressEnabled = appInfo.deviceSpoofWiFiAddressEnabled
         self.uiDeviceSpoofCellularAddressEnabled = appInfo.deviceSpoofCellularAddressEnabled
+        self.uiDeviceSpoofMACAddressEnabled = appInfo.deviceSpoofMACAddressEnabled
         self.uiDeviceSpoofWiFiAddress = appInfo.deviceSpoofWiFiAddress ?? ""
         self.uiDeviceSpoofCellularAddress = appInfo.deviceSpoofCellularAddress ?? ""
         self.uiDeviceSpoofWiFiSSID = appInfo.deviceSpoofWiFiSSID ?? "Public Network"
         self.uiDeviceSpoofWiFiBSSID = appInfo.deviceSpoofWiFiBSSID ?? "22:66:99:00"
+        self.uiDeviceSpoofMACAddress = appInfo.deviceSpoofMACAddress ?? ""
+        self.uiDeviceSpoofCanvasFingerprintProtection = appInfo.deviceSpoofCanvasFingerprintProtection
         self.uiDeviceSpoofScreenCapture = appInfo.deviceSpoofScreenCapture
         self.uiDeviceSpoofMessage = appInfo.enableSpoofMessage
         self.uiDeviceSpoofMail = appInfo.enableSpoofMail
@@ -910,6 +962,7 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDeviceSpoofStorage = appInfo.deviceSpoofStorage
         self.uiDeviceSpoofStorageCapacity = appInfo.deviceSpoofStorageCapacity ?? "256"
         self.uiDeviceSpoofStorageRandomFree = appInfo.deviceSpoofStorageRandomFree
+        self.uiDeviceSpoofStorageFreeGB = appInfo.deviceSpoofStorageFreeGB ?? ""
         self.uiDeviceSpoofBrightness = appInfo.deviceSpoofBrightness
         self.uiDeviceSpoofBrightnessRandomize = appInfo.deviceSpoofBrightnessRandomize
         self.uiDeviceSpoofBrightnessValue = appInfo.deviceSpoofBrightnessValue

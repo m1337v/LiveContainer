@@ -536,6 +536,9 @@ static NSInteger (*orig_NSProcessInfo_thermalState)(id self, SEL _cmd) = NULL;
 static BOOL (*orig_NSProcessInfo_isLowPowerModeEnabled)(id self, SEL _cmd) = NULL;
 static NSDictionary *(*orig_NSProcessInfo_environment)(id self, SEL _cmd) = NULL;
 static NSArray<NSString *> *(*orig_NSProcessInfo_arguments)(id self, SEL _cmd) = NULL;
+static NSString *(*orig_NSProcessInfo_hostName)(id self, SEL _cmd) = NULL;
+static NSString *(*orig_NSProcessInfo_operatingSystemName)(id self, SEL _cmd) = NULL;
+static NSString *(*orig_NSProcessInfo_globallyUniqueString)(id self, SEL _cmd) = NULL;
 
 static CGFloat (*orig_UIScreen_brightness)(id self, SEL _cmd) = NULL;
 
@@ -658,6 +661,7 @@ static void (*orig_INPreferences_requestSiriAuthorization)(id self, SEL _cmd, id
 
 static CFTypeRef (*orig_MGCopyAnswer)(CFStringRef key) = NULL;
 static CFTypeRef (*orig_IORegistryEntryCreateCFProperty)(io_registry_entry_t entry, CFStringRef key, CFAllocatorRef allocator, IOOptionBits options) = NULL;
+static CFTypeRef (*orig_IORegistryEntrySearchCFProperty)(io_registry_entry_t entry, const char *plane, CFStringRef key, CFAllocatorRef allocator, IOOptionBits options) = NULL;
 static CFDictionaryRef (*orig_CFCopySystemVersionDictionary)(void) = NULL;
 static CFDictionaryRef (*orig_CNCopyCurrentNetworkInfo)(CFStringRef interfaceName) = NULL;
 static id (*orig_MTLCreateSystemDefaultDevice)(void) = NULL;
@@ -712,6 +716,11 @@ static const char *LCSpoofedSystemName(void) {
         return "iPadOS";
     }
     return "iOS";
+}
+
+static const char *LCSpoofedMarketingName(void) {
+    if (g_currentProfile && g_currentProfile->marketingName) return g_currentProfile->marketingName;
+    return LCSpoofedMachineModel();
 }
 
 static const char *LCSpoofedKernelName(void) {
@@ -1193,6 +1202,13 @@ static NSString *LCSpoofedOSVersionString(void) {
     return [NSString stringWithFormat:@"Version %s (Build %s)", version, build];
 }
 
+static NSUUID *LCUUIDFromOverrideString(NSString *value);
+static BOOL LCShouldForceZeroVendorID(void);
+static NSString *const LCZeroUUIDString;
+static NSString *LCSpoofedVendorIdentifierString(void);
+static NSString *LCSpoofedBootSessionUUIDString(void);
+static NSString *LCSpoofedHostNameString(void);
+
 static CFTypeRef LCCopySpoofedGestaltValue(CFStringRef key) {
     if (!key || !LCDeviceSpoofingIsActive()) return NULL;
 
@@ -1205,11 +1221,20 @@ static CFTypeRef LCCopySpoofedGestaltValue(CFStringRef key) {
     } else if (CFEqual(key, CFSTR("ProductType"))) {
         const char *value = LCSpoofedMachineModel();
         if (value) return CFBridgingRetain(@(value));
+    } else if (CFEqual(key, CFSTR("HwMachine"))) {
+        const char *value = LCSpoofedMachineModel();
+        if (value) return CFBridgingRetain(@(value));
     } else if (CFEqual(key, CFSTR("HardwareModel"))) {
         const char *value = LCSpoofedHardwareModel();
         if (value) return CFBridgingRetain(@(value));
-    } else if (CFEqual(key, CFSTR("ProductName")) || CFEqual(key, CFSTR("MarketingProductName"))) {
-        if (g_currentProfile && g_currentProfile->marketingName) return CFBridgingRetain(@(g_currentProfile->marketingName));
+    } else if (CFEqual(key, CFSTR("HwModelStr"))) {
+        const char *value = LCSpoofedHardwareModel();
+        if (value) return CFBridgingRetain(@(value));
+    } else if (CFEqual(key, CFSTR("ProductName")) ||
+               CFEqual(key, CFSTR("MarketingName")) ||
+               CFEqual(key, CFSTR("MarketingProductName"))) {
+        const char *value = LCSpoofedMarketingName();
+        if (value) return CFBridgingRetain(@(value));
     } else if (CFEqual(key, CFSTR("HardwarePlatform"))) {
         const char *value = LCSpoofedHardwareModel();
         if (value) return CFBridgingRetain(@(value));
@@ -1219,6 +1244,40 @@ static CFTypeRef LCCopySpoofedGestaltValue(CFStringRef key) {
     } else if (CFEqual(key, CFSTR("GPUName")) || CFEqual(key, CFSTR("GPUModel"))) {
         const char *value = LCSpoofedGPUName();
         if (value) return CFBridgingRetain(@(value));
+    } else if (CFEqual(key, CFSTR("KernOsversion"))) {
+        const char *value = LCSpoofedBuildVersion();
+        if (value) return CFBridgingRetain(@(value));
+    } else if (CFEqual(key, CFSTR("KernOsrelease"))) {
+        const char *value = LCSpoofedKernelRelease();
+        if (value) return CFBridgingRetain(@(value));
+    } else if (CFEqual(key, CFSTR("KernVersion"))) {
+        const char *value = LCSpoofedKernelVersion();
+        if (value) return CFBridgingRetain(@(value));
+    } else if (CFEqual(key, CFSTR("KernOsproductversion"))) {
+        const char *value = LCSpoofedSystemVersion();
+        if (value) return CFBridgingRetain(@(value));
+    } else if (CFEqual(key, CFSTR("KernBootsessionuuid"))) {
+        NSString *value = LCSpoofedBootSessionUUIDString();
+        if (value.length > 0) return CFBridgingRetain(value);
+    } else if (CFEqual(key, CFSTR("IdentifierForVendor")) || CFEqual(key, CFSTR("VendorIdentifier"))) {
+        NSString *value = LCSpoofedVendorIdentifierString();
+        if (value.length > 0) return CFBridgingRetain(value);
+    } else if (CFEqual(key, CFSTR("AdvertisingIdentifier"))) {
+        if (LCShouldForceZeroVendorID() || (g_adTrackingConfigured && !g_spoofedAdTrackingEnabled)) {
+            return CFBridgingRetain(LCZeroUUIDString);
+        }
+        NSUUID *uuid = LCUUIDFromOverrideString(g_spoofedAdvertisingID);
+        if (uuid) return CFBridgingRetain(uuid.UUIDString);
+    } else if (CFEqual(key, CFSTR("WiFiAddress")) ||
+               CFEqual(key, CFSTR("BluetoothAddress")) ||
+               CFEqual(key, CFSTR("EthernetMacAddress"))) {
+        if (g_spoofedMACAddress.length > 0) return CFBridgingRetain(g_spoofedMACAddress);
+    } else if (CFEqual(key, CFSTR("UserAssignedDeviceName")) ||
+               CFEqual(key, CFSTR("DeviceName")) ||
+               CFEqual(key, CFSTR("ComputerName")) ||
+               CFEqual(key, CFSTR("LocalHostName"))) {
+        NSString *value = LCSpoofedHostNameString();
+        if (value.length > 0) return CFBridgingRetain(value);
     }
 
     return NULL;
@@ -1329,6 +1388,75 @@ static NSString *LCNormalizeCompactString(NSString *value) {
 static BOOL LCShouldForceZeroVendorID(void) {
     NSString *normalized = LCNormalizeCompactString(g_spoofedVendorID);
     return [normalized isEqualToString:@"00000"] || [normalized isEqualToString:@"0"] || [normalized isEqualToString:@"00000000000000000000000000000000"];
+}
+
+static NSString *LCNormalizedUUIDString(NSString *value) {
+    NSUUID *uuid = LCUUIDFromOverrideString(value);
+    return uuid ? uuid.UUIDString : nil;
+}
+
+static NSString *LCSpoofedVendorIdentifierString(void) {
+    if (!LCDeviceSpoofingIsActive()) return nil;
+    if (LCShouldForceZeroVendorID()) return LCZeroUUIDString;
+
+    NSString *vendorID = LCNormalizedUUIDString(g_spoofedVendorID);
+    if (vendorID.length > 0) return vendorID;
+
+    NSString *persistentID = LCNormalizedUUIDString(g_spoofedPersistentDeviceID);
+    if (persistentID.length > 0) return persistentID;
+
+    return nil;
+}
+
+static NSString *LCSpoofedHostNameString(void) {
+    if (!LCDeviceSpoofingIsActive()) return nil;
+    NSString *candidate = g_customDeviceName;
+    if (candidate.length == 0) {
+        const char *model = LCSpoofedMachineModel();
+        if (model) {
+            candidate = @(model);
+        } else {
+            const char *marketingName = LCSpoofedMarketingName();
+            if (marketingName) candidate = @(marketingName);
+        }
+    }
+    if (candidate.length == 0) return nil;
+
+    NSCharacterSet *allowed = [NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-."];
+    NSMutableString *normalized = [NSMutableString stringWithCapacity:candidate.length];
+    for (NSUInteger idx = 0; idx < candidate.length; idx++) {
+        unichar ch = [candidate characterAtIndex:idx];
+        if ([allowed characterIsMember:ch]) {
+            [normalized appendFormat:@"%C", ch];
+        } else {
+            [normalized appendString:@"-"];
+        }
+    }
+    while ([normalized containsString:@"--"]) {
+        [normalized replaceOccurrencesOfString:@"--" withString:@"-" options:0 range:NSMakeRange(0, normalized.length)];
+    }
+    NSString *trimmed = [normalized stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"-."]];
+    return trimmed.length > 0 ? trimmed : nil;
+}
+
+static NSString *LCSpoofedBootSessionUUIDString(void) {
+    if (!LCDeviceSpoofingIsActive()) return nil;
+
+    NSString *explicitUUID = LCNormalizedUUIDString(g_spoofedInstallationID);
+    if (explicitUUID.length > 0) return explicitUUID;
+
+    NSString *persistentUUID = LCNormalizedUUIDString(g_spoofedPersistentDeviceID);
+    if (persistentUUID.length > 0) return persistentUUID;
+
+    NSString *vendorUUID = LCNormalizedUUIDString(g_spoofedVendorID);
+    if (vendorUUID.length > 0) return vendorUUID;
+
+    static NSString *fallbackUUID = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        fallbackUUID = [NSUUID UUID].UUIDString;
+    });
+    return fallbackUUID;
 }
 
 static NSString *LCRadioAccessTechnologyForSpoofType(NSInteger type) {
@@ -1724,6 +1852,9 @@ static int hook_uname(struct utsname *name) {
     const char *machine = LCSpoofedMachineModel();
     if (machine) strlcpy(name->machine, machine, sizeof(name->machine));
 
+    NSString *hostName = LCSpoofedHostNameString();
+    if (hostName.length > 0) strlcpy(name->nodename, hostName.UTF8String, sizeof(name->nodename));
+
     const char *sysname = LCSpoofedKernelName();
     if (sysname) strlcpy(name->sysname, sysname, sizeof(name->sysname));
 
@@ -1752,8 +1883,9 @@ static int hook_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void
         } else if (strcmp(name, "hw.model") == 0) {
             const char *value = LCSpoofedHardwareModel();
             if (value) return LCWriteCStringValue(oldp, oldlenp, value);
-        } else if (strcmp(name, "hw.product") == 0) {
-            const char *value = LCSpoofedMachineModel();
+        } else if (strcmp(name, "hw.product") == 0 || strcmp(name, "hw.target") == 0) {
+            const char *value = LCSpoofedMarketingName();
+            if (!value) value = LCSpoofedMachineModel();
             if (value) return LCWriteCStringValue(oldp, oldlenp, value);
         } else if (strcmp(name, "hw.ncpu") == 0 || strcmp(name, "hw.activecpu") == 0 ||
                    strcmp(name, "hw.logicalcpu") == 0 || strcmp(name, "hw.physicalcpu") == 0) {
@@ -1835,6 +1967,9 @@ static int hook_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void
         } else if (strcmp(name, "kern.osrelease") == 0) {
             const char *value = LCSpoofedKernelRelease();
             if (value) return LCWriteCStringValue(oldp, oldlenp, value);
+        } else if (strcmp(name, "kern.osproductversion") == 0) {
+            const char *value = LCSpoofedSystemVersion();
+            if (value) return LCWriteCStringValue(oldp, oldlenp, value);
         } else if (strcmp(name, "kern.version") == 0) {
             const char *value = LCSpoofedKernelVersion();
             if (value) return LCWriteCStringValue(oldp, oldlenp, value);
@@ -1842,9 +1977,11 @@ static int hook_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void
             const char *value = LCSpoofedKernelName();
             if (value) return LCWriteCStringValue(oldp, oldlenp, value);
         } else if (strcmp(name, "kern.hostname") == 0) {
-            if (g_customDeviceName.length > 0) {
-                return LCWriteCStringValue(oldp, oldlenp, g_customDeviceName.UTF8String);
-            }
+            NSString *hostName = LCSpoofedHostNameString();
+            if (hostName.length > 0) return LCWriteCStringValue(oldp, oldlenp, hostName.UTF8String);
+        } else if (strcmp(name, "kern.bootsessionuuid") == 0) {
+            NSString *value = LCSpoofedBootSessionUUIDString();
+            if (value.length > 0) return LCWriteCStringValue(oldp, oldlenp, value.UTF8String);
         } else if (strcmp(name, "kern.boottime") == 0 && g_bootTimeSpoofingEnabled) {
             int ret = orig_sysctlbyname(name, oldp, oldlenp, newp, newlen);
             if (ret == 0 && oldp && *oldlenp >= sizeof(struct timeval)) {
@@ -1882,7 +2019,8 @@ static int hook_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, vo
                 }
 #ifdef HW_PRODUCT
                 case HW_PRODUCT: {
-                    const char *value = LCSpoofedMachineModel();
+                    const char *value = LCSpoofedMarketingName();
+                    if (!value) value = LCSpoofedMachineModel();
                     if (value) return LCWriteCStringValue(oldp, oldlenp, value);
                     break;
                 }
@@ -1922,10 +2060,31 @@ static int hook_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, vo
                     if (value) return LCWriteCStringValue(oldp, oldlenp, value);
                     break;
                 }
+#ifdef KERN_OSPRODUCTVERSION
+                case KERN_OSPRODUCTVERSION: {
+                    const char *value = LCSpoofedSystemVersion();
+                    if (value) return LCWriteCStringValue(oldp, oldlenp, value);
+                    break;
+                }
+#endif
 #ifdef KERN_OSTYPE
                 case KERN_OSTYPE: {
                     const char *value = LCSpoofedKernelName();
                     if (value) return LCWriteCStringValue(oldp, oldlenp, value);
+                    break;
+                }
+#endif
+#ifdef KERN_HOSTNAME
+                case KERN_HOSTNAME: {
+                    NSString *hostName = LCSpoofedHostNameString();
+                    if (hostName.length > 0) return LCWriteCStringValue(oldp, oldlenp, hostName.UTF8String);
+                    break;
+                }
+#endif
+#ifdef KERN_BOOTSESSIONUUID
+                case KERN_BOOTSESSIONUUID: {
+                    NSString *value = LCSpoofedBootSessionUUIDString();
+                    if (value.length > 0) return LCWriteCStringValue(oldp, oldlenp, value.UTF8String);
                     break;
                 }
 #endif
@@ -2606,6 +2765,33 @@ static NSString *hook_NSProcessInfo_operatingSystemVersionString(id self, SEL _c
     }
     if (orig_NSProcessInfo_operatingSystemVersionString) return orig_NSProcessInfo_operatingSystemVersionString(self, _cmd);
     return @"";
+}
+
+static NSString *hook_NSProcessInfo_hostName(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        NSString *hostName = LCSpoofedHostNameString();
+        if (hostName.length > 0) return hostName;
+    }
+    if (orig_NSProcessInfo_hostName) return orig_NSProcessInfo_hostName(self, _cmd);
+    return @"localhost";
+}
+
+static NSString *hook_NSProcessInfo_operatingSystemName(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        const char *value = LCSpoofedSystemName();
+        if (value) return @(value);
+    }
+    if (orig_NSProcessInfo_operatingSystemName) return orig_NSProcessInfo_operatingSystemName(self, _cmd);
+    return @"iOS";
+}
+
+static NSString *hook_NSProcessInfo_globallyUniqueString(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        NSString *value = LCSpoofedVendorIdentifierString();
+        if (value.length > 0) return value;
+    }
+    if (orig_NSProcessInfo_globallyUniqueString) return orig_NSProcessInfo_globallyUniqueString(self, _cmd);
+    return [NSUUID UUID].UUIDString;
 }
 
 static NSInteger hook_NSProcessInfo_thermalState(id self, SEL _cmd) {
@@ -3774,15 +3960,42 @@ static id hook_UIDevice_deviceInfoForKey(id self, SEL _cmd, NSString *key) {
     } else if ([key isEqualToString:@"BuildVersion"] || [key isEqualToString:@"j9Th5smJpdztHwc+i39zIg"]) {
         const char *value = LCSpoofedBuildVersion();
         if (value) return @(value);
+    } else if ([key isEqualToString:@"KernOsversion"]) {
+        const char *value = LCSpoofedBuildVersion();
+        if (value) return @(value);
+    } else if ([key isEqualToString:@"KernOsproductversion"]) {
+        const char *value = LCSpoofedSystemVersion();
+        if (value) return @(value);
+    } else if ([key isEqualToString:@"KernBootsessionuuid"]) {
+        NSString *value = LCSpoofedBootSessionUUIDString();
+        if (value.length > 0) return value;
     } else if ([key isEqualToString:@"ProductType"]) {
+        const char *value = LCSpoofedMachineModel();
+        if (value) return @(value);
+    } else if ([key isEqualToString:@"HwMachine"]) {
         const char *value = LCSpoofedMachineModel();
         if (value) return @(value);
     } else if ([key isEqualToString:@"HardwareModel"]) {
         const char *value = LCSpoofedHardwareModel();
         if (value) return @(value);
+    } else if ([key isEqualToString:@"HwModelStr"]) {
+        const char *value = LCSpoofedHardwareModel();
+        if (value) return @(value);
+    } else if ([key isEqualToString:@"IdentifierForVendor"] || [key isEqualToString:@"VendorIdentifier"]) {
+        NSString *value = LCSpoofedVendorIdentifierString();
+        if (value.length > 0) return value;
+    } else if ([key isEqualToString:@"AdvertisingIdentifier"]) {
+        if (LCShouldForceZeroVendorID() || (g_adTrackingConfigured && !g_spoofedAdTrackingEnabled)) {
+            return LCZeroUUIDString;
+        }
+        NSUUID *uuid = LCUUIDFromOverrideString(g_spoofedAdvertisingID);
+        if (uuid) return uuid.UUIDString;
     } else if ([key isEqualToString:@"DeviceName"]) {
         if (g_customDeviceName.length > 0) return g_customDeviceName;
         if (g_currentProfile && g_currentProfile->marketingName) return @(g_currentProfile->marketingName);
+    } else if ([key isEqualToString:@"LocalHostName"] || [key isEqualToString:@"ComputerName"]) {
+        NSString *value = LCSpoofedHostNameString();
+        if (value.length > 0) return value;
     } else if ([key isEqualToString:@"ChipName"] || [key isEqualToString:@"CPUModel"] || [key isEqualToString:@"SoCModel"]) {
         const char *value = LCSpoofedChipName();
         if (value) return @(value);
@@ -3850,19 +4063,30 @@ static CFDictionaryRef hook_CFCopySystemVersionDictionary(void) {
     return mutableDict;
 }
 
-static CFTypeRef hook_IORegistryEntryCreateCFProperty(io_registry_entry_t entry, CFStringRef key, CFAllocatorRef allocator, IOOptionBits options) {
-    CFTypeRef result = orig_IORegistryEntryCreateCFProperty ? orig_IORegistryEntryCreateCFProperty(entry, key, allocator, options) : NULL;
+static CFTypeRef LCApplySpoofedIORegistryProperty(CFTypeRef result, CFStringRef key, CFAllocatorRef allocator) {
     if (!LCDeviceSpoofingIsActive() || !key) {
         return result;
     }
 
-    // Storage size from IOKit (used by some technical fingerprint apps)
+    // Storage size from IOKit (used by some technical fingerprint apps).
     if (LCStorageSpoofingActive() &&
         LCCFStringEqualsIgnoreCase(key, CFSTR("Size")) &&
         result && CFGetTypeID(result) == CFNumberGetTypeID()) {
         uint64_t totalBytes = g_spoofedStorageTotal;
         CFRelease(result);
         return CFNumberCreate(allocator ?: kCFAllocatorDefault, kCFNumberSInt64Type, &totalBytes);
+    }
+
+    if (LCCFStringEqualsIgnoreCase(key, CFSTR("marketing-name")) ||
+        LCCFStringEqualsIgnoreCase(key, CFSTR("product-name"))) {
+        const char *marketingName = LCSpoofedMarketingName();
+        if (!marketingName) return result;
+
+        if (result) {
+            CFRelease(result);
+        }
+        size_t len = strlen(marketingName) + 1;
+        return CFDataCreate(allocator ?: kCFAllocatorDefault, (const UInt8 *)marketingName, (CFIndex)len);
     }
 
     const char *replacement = NULL;
@@ -3886,6 +4110,16 @@ static CFTypeRef hook_IORegistryEntryCreateCFProperty(io_registry_entry_t entry,
         CFRelease(result);
     }
     return CFStringCreateWithCString(allocator ?: kCFAllocatorDefault, replacement, kCFStringEncodingUTF8);
+}
+
+static CFTypeRef hook_IORegistryEntryCreateCFProperty(io_registry_entry_t entry, CFStringRef key, CFAllocatorRef allocator, IOOptionBits options) {
+    CFTypeRef result = orig_IORegistryEntryCreateCFProperty ? orig_IORegistryEntryCreateCFProperty(entry, key, allocator, options) : NULL;
+    return LCApplySpoofedIORegistryProperty(result, key, allocator);
+}
+
+static CFTypeRef hook_IORegistryEntrySearchCFProperty(io_registry_entry_t entry, const char *plane, CFStringRef key, CFAllocatorRef allocator, IOOptionBits options) {
+    CFTypeRef result = orig_IORegistryEntrySearchCFProperty ? orig_IORegistryEntrySearchCFProperty(entry, plane, key, allocator, options) : NULL;
+    return LCApplySpoofedIORegistryProperty(result, key, allocator);
 }
 
 __attribute__((unused)) static CFDictionaryRef hook_CNCopyCurrentNetworkInfo(CFStringRef interfaceName) {
@@ -4136,7 +4370,7 @@ static WKWebView *hook_WKWebView_initWithFrame(id self, SEL _cmd, CGRect frame, 
     }
 
     // Inject fingerprint-protection JS into the configuration's user content controller
-    if (g_canvasFingerprintProtectionEnabled || g_currentProfile) {
+    if (g_canvasFingerprintProtectionEnabled) {
         NSString *script = LCBuildFingerprintInjectionScript();
         if (script && config) {
             WKUserContentController *ucc = config.userContentController;
@@ -4947,6 +5181,7 @@ void DeviceSpoofingGuestHooksInit(void) {
             {"MTLCopyAllDevices", (void *)hook_MTLCopyAllDevices, (void **)&orig_MTLCopyAllDevices},
             {"MGCopyAnswer", (void *)hook_MGCopyAnswer, (void **)&orig_MGCopyAnswer},
             {"IORegistryEntryCreateCFProperty", (void *)hook_IORegistryEntryCreateCFProperty, (void **)&orig_IORegistryEntryCreateCFProperty},
+            {"IORegistryEntrySearchCFProperty", (void *)hook_IORegistryEntrySearchCFProperty, (void **)&orig_IORegistryEntrySearchCFProperty},
             {"CFCopySystemVersionDictionary", (void *)hook_CFCopySystemVersionDictionary, (void **)&orig_CFCopySystemVersionDictionary},
             // Network spoofing hooks are owned by Dyld.m to avoid double-hooking races.
         };
@@ -4987,6 +5222,18 @@ void DeviceSpoofingGuestHooksInit(void) {
         LCInstallInstanceHook(processInfoClass, @selector(environment), (IMP)hook_NSProcessInfo_environment, (IMP *)&orig_NSProcessInfo_environment);
         LCInstallInstanceHook(processInfoClass, @selector(arguments), (IMP)hook_NSProcessInfo_arguments, (IMP *)&orig_NSProcessInfo_arguments);
         LCInstallInstanceHook(processInfoClass, @selector(systemUptime), (IMP)hook_NSProcessInfo_systemUptime, (IMP *)&orig_NSProcessInfo_systemUptime);
+        SEL hostNameSelector = @selector(hostName);
+        if (hostNameSelector && [processInfoClass instancesRespondToSelector:hostNameSelector]) {
+            LCInstallInstanceHook(processInfoClass, hostNameSelector, (IMP)hook_NSProcessInfo_hostName, (IMP *)&orig_NSProcessInfo_hostName);
+        }
+        SEL osNameSelector = NSSelectorFromString(@"operatingSystemName");
+        if (osNameSelector && [processInfoClass instancesRespondToSelector:osNameSelector]) {
+            LCInstallInstanceHook(processInfoClass, osNameSelector, (IMP)hook_NSProcessInfo_operatingSystemName, (IMP *)&orig_NSProcessInfo_operatingSystemName);
+        }
+        SEL globallyUniqueSelector = NSSelectorFromString(@"globallyUniqueString");
+        if (globallyUniqueSelector && [processInfoClass instancesRespondToSelector:globallyUniqueSelector]) {
+            LCInstallInstanceHook(processInfoClass, globallyUniqueSelector, (IMP)hook_NSProcessInfo_globallyUniqueString, (IMP *)&orig_NSProcessInfo_globallyUniqueString);
+        }
 
         Class uiScreenClass = objc_getClass("UIScreen");
         LCInstallInstanceHook(uiScreenClass, @selector(brightness), (IMP)hook_UIScreen_brightness, (IMP *)&orig_UIScreen_brightness);

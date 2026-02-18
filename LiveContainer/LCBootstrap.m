@@ -792,6 +792,17 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             LCSetSpoofedCellularAddress(cellularAddress);
         }
 
+        // MAC address spoofing (en0)
+        id macEnabledObj = guestAppInfo[@"deviceSpoofMACAddressEnabled"];
+        BOOL spoofMAC = macEnabledObj ? [macEnabledObj boolValue] : NO;
+        NSString *macAddress = guestAppInfo[@"deviceSpoofMACAddress"];
+        if (!spoofMAC && macEnabledObj == nil && macAddress.length > 0) {
+            spoofMAC = YES;
+        }
+        if (spoofMAC && macAddress.length > 0) {
+            LCSetSpoofedMACAddress(macAddress);
+        }
+
         // Identifier spoofing (IDFV / IDFA)
         id spoofIdentifiersObj = guestAppInfo[@"deviceSpoofIdentifiers"];
         BOOL spoofIdentifiers = spoofIdentifiersObj ? [spoofIdentifiersObj boolValue] : legacyContainerIDFVEnabled;
@@ -806,6 +817,17 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             NSString *advertisingID = guestAppInfo[@"deviceSpoofAdvertisingID"];
             if (advertisingID.length > 0) {
                 LCSetSpoofedAdvertisingID(advertisingID);
+            }
+        }
+
+        // Ad tracking spoofing (optional override; auto by default)
+        NSString *adTrackingMode = guestAppInfo[@"deviceSpoofAdTrackingMode"];
+        if ([adTrackingMode isKindOfClass:[NSString class]] && adTrackingMode.length > 0) {
+            NSString *normalized = [adTrackingMode lowercaseString];
+            if ([normalized isEqualToString:@"enabled"]) {
+                LCSetSpoofedAdTrackingEnabled(YES);
+            } else if ([normalized isEqualToString:@"disabled"]) {
+                LCSetSpoofedAdTrackingEnabled(NO);
             }
         }
 
@@ -833,6 +855,10 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         }
         BOOL spoofCloudToken = cloudTokenSetting ? [cloudTokenSetting boolValue] : securityMasterEnabled;
         LCSetICloudPrivacyProtectionEnabled(spoofCloudToken);
+
+        // Siri privacy protection (opt-in)
+        BOOL spoofSiri = [guestAppInfo[@"deviceSpoofSiriPrivacyProtection"] boolValue];
+        LCSetSiriPrivacyProtectionEnabled(spoofSiri);
 
         // Timezone spoofing
         if ([guestAppInfo[@"deviceSpoofTimezone"] boolValue]) {
@@ -880,6 +906,11 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             LCSetSpoofedPreferredCountryCode(preferredCountry);
         }
 
+        NSString *installationID = guestAppInfo[@"deviceSpoofInstallationID"];
+        if (installationID.length > 0) {
+            LCSetSpoofedInstallationID(installationID);
+        }
+
         NSString *persistentDeviceID = guestAppInfo[@"deviceSpoofPersistentDeviceID"];
         if (persistentDeviceID.length == 0) {
             persistentDeviceID = guestAppInfo[@"persistentDeviceID"];
@@ -917,8 +948,21 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             }
         }
 
-        // Processor-count spoofing is profile-driven in DeviceSpoofing.m.
-        // We intentionally do not apply legacy per-app custom processor overrides here.
+        BOOL spoofProcessor = [guestAppInfo[@"deviceSpoofProcessorEnabled"] boolValue] ||
+                              [guestAppInfo[@"enableSpoofProcessor"] boolValue];
+        id processorCountObj = guestAppInfo[@"deviceSpoofProcessorCount"] ?: guestAppInfo[@"processorCount"];
+        if (!spoofProcessor &&
+            guestAppInfo[@"deviceSpoofProcessorEnabled"] == nil &&
+            guestAppInfo[@"enableSpoofProcessor"] == nil &&
+            processorCountObj != nil) {
+            spoofProcessor = YES;
+        }
+        if (spoofProcessor && processorCountObj != nil) {
+            NSInteger processorCount = [processorCountObj integerValue];
+            if (processorCount > 0 && processorCount < 256) {
+                LCSetSpoofedCPUCount((uint32_t)processorCount);
+            }
+        }
 
         BOOL spoofMemory = [guestAppInfo[@"deviceSpoofMemoryEnabled"] boolValue] ||
                            [guestAppInfo[@"enableSpoofMemory"] boolValue];
@@ -1029,6 +1073,11 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             }
         }
 
+        // Canvas/WebGL/Audio fingerprint protection (default ON to match historical profile spoofing behavior)
+        id canvasSetting = guestAppInfo[@"deviceSpoofCanvasFingerprintProtection"];
+        BOOL canvasProtectionEnabled = canvasSetting ? [canvasSetting boolValue] : YES;
+        LCSetCanvasFingerprintProtectionEnabled(canvasProtectionEnabled);
+
         // User-Agent spoofing
         if ([guestAppInfo[@"deviceSpoofUserAgent"] boolValue]) {
             NSString *ua = guestAppInfo[@"deviceSpoofUserAgentValue"];
@@ -1058,6 +1107,12 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             BOOL randomizeFree = randomizeFreeObj ? [randomizeFreeObj boolValue] : YES;
             LCSetStorageRandomFreeEnabled(randomizeFree);
             LCSetSpoofedStorageCapacity([cap longLongValue]);
+            if (!randomizeFree) {
+                NSString *freeGB = guestAppInfo[@"deviceSpoofStorageFreeGB"];
+                if (freeGB.length > 0) {
+                    LCSetSpoofedStorageFree(freeGB);
+                }
+            }
         }
 
         // Brightness spoofing

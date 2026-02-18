@@ -2376,6 +2376,7 @@ struct LCAppSettingsView: View {
                 deviceSpoofLowPowerSection()
 
                 deviceSpoofSectionHeader("Web")
+                deviceSpoofWebFingerprintSection()
                 deviceSpoofUserAgentSection()
 
                 deviceSpoofSectionHeader("Security")
@@ -2404,7 +2405,8 @@ struct LCAppSettingsView: View {
         model.uiDeviceSpoofCellularTypeEnabled ||
         model.uiDeviceSpoofNetworkInfo ||
         model.uiDeviceSpoofWiFiAddressEnabled ||
-        model.uiDeviceSpoofCellularAddressEnabled
+        model.uiDeviceSpoofCellularAddressEnabled ||
+        model.uiDeviceSpoofMACAddressEnabled
     }
 
     private var networkSpoofingGroupBinding: Binding<Bool> {
@@ -2421,6 +2423,7 @@ struct LCAppSettingsView: View {
                     model.uiDeviceSpoofNetworkInfo = false
                     model.uiDeviceSpoofWiFiAddressEnabled = false
                     model.uiDeviceSpoofCellularAddressEnabled = false
+                    model.uiDeviceSpoofMACAddressEnabled = false
                 }
             }
         )
@@ -2428,7 +2431,8 @@ struct LCAppSettingsView: View {
 
     private var isRuntimeSpoofingEnabled: Bool {
         model.uiDeviceSpoofMemoryEnabled ||
-        model.uiDeviceSpoofKernelVersionEnabled
+        model.uiDeviceSpoofKernelVersionEnabled ||
+        model.uiDeviceSpoofProcessorEnabled
     }
 
     private var runtimeSpoofingGroupBinding: Binding<Bool> {
@@ -2442,6 +2446,7 @@ struct LCAppSettingsView: View {
                 } else {
                     model.uiDeviceSpoofMemoryEnabled = false
                     model.uiDeviceSpoofKernelVersionEnabled = false
+                    model.uiDeviceSpoofProcessorEnabled = false
                 }
             }
         )
@@ -2817,6 +2822,44 @@ struct LCAppSettingsView: View {
                         .controlSize(.small)
                     }
                 }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Ad Tracking (ASIdentifierManager)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Picker("Ad Tracking", selection: $model.uiDeviceSpoofAdTrackingMode) {
+                        Text("Auto").tag("auto")
+                        Text("Enabled").tag("enabled")
+                        Text("Disabled").tag("disabled")
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
+                    Text("When disabled, IDFA is forced to 00000000-0000-0000-0000-000000000000.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Installation ID (HTTP header fallback)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    HStack {
+                        TextField("installation-id", text: $model.uiDeviceSpoofInstallationID)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .font(.system(.caption, design: .monospaced))
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                        Button {
+                            model.uiDeviceSpoofInstallationID = randomInstallationID(length: 32)
+                        } label: {
+                            Image(systemName: "dice")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                    Text("Used only when Persistent Device ID is empty.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
             }
             .padding(.leading, 28)
         }
@@ -2975,6 +3018,32 @@ struct LCAppSettingsView: View {
                 .padding(.leading, 28)
         }
 
+        Toggle(isOn: $model.uiDeviceSpoofMACAddressEnabled) {
+            HStack {
+                Image(systemName: "wifi")
+                    .foregroundColor(.indigo)
+                    .frame(width: 20)
+                Text("Spoof Wi-Fi MAC Address (en0)")
+            }
+        }
+        if model.uiDeviceSpoofMACAddressEnabled {
+            HStack {
+                TextField("02:00:00:AA:BB:CC", text: $model.uiDeviceSpoofMACAddress)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .font(.system(.caption, design: .monospaced))
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+                Button {
+                    model.uiDeviceSpoofMACAddress = randomLocallyAdministeredMAC()
+                } label: {
+                    Image(systemName: "dice")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            .padding(.leading, 28)
+        }
+
         Toggle(isOn: $model.uiDeviceSpoofCellularAddressEnabled) {
             HStack {
                 Image(systemName: "cellularbars")
@@ -3022,6 +3091,27 @@ struct LCAppSettingsView: View {
                     .autocapitalization(.none)
                     .disableAutocorrection(true)
                 Text("Values <= 64 are treated as GB. Larger values are treated as raw bytes.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.leading, 28)
+        }
+
+        Toggle(isOn: $model.uiDeviceSpoofProcessorEnabled) {
+            HStack {
+                Image(systemName: "cpu")
+                    .foregroundColor(.orange)
+                    .frame(width: 20)
+                Text("Spoof CPU Core Count")
+            }
+        }
+        if model.uiDeviceSpoofProcessorEnabled {
+            VStack(alignment: .leading, spacing: 4) {
+                Stepper(value: $model.uiDeviceSpoofProcessorCount, in: 1...16) {
+                    Text("Cores: \(model.uiDeviceSpoofProcessorCount)")
+                        .font(.system(.caption, design: .monospaced))
+                }
+                Text("Overrides `hw.ncpu` / `activeProcessorCount` fingerprint checks.")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -3142,6 +3232,25 @@ struct LCAppSettingsView: View {
         }
     }
 
+    // MARK: Web Fingerprinting (Canvas/WebGL/Audio)
+    @ViewBuilder
+    private func deviceSpoofWebFingerprintSection() -> some View {
+        Toggle(isOn: $model.uiDeviceSpoofCanvasFingerprintProtection) {
+            HStack {
+                Image(systemName: "globe")
+                    .foregroundColor(.blue)
+                    .frame(width: 20)
+                Text("Web Fingerprint Protection (Canvas/WebGL/Audio)")
+            }
+        }
+        if !model.uiDeviceSpoofCanvasFingerprintProtection {
+            Text("Disables WKWebView script injection that adds noise to Canvas/WebGL/Audio fingerprinting surfaces.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .padding(.leading, 28)
+        }
+    }
+
     // MARK: User-Agent
     @ViewBuilder
     private func deviceSpoofUserAgentSection() -> some View {
@@ -3249,6 +3358,28 @@ struct LCAppSettingsView: View {
                     Text("Randomize free storage")
                         .font(.caption)
                 }
+                if !model.uiDeviceSpoofStorageRandomFree {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Free Storage (GB)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        HStack {
+                            TextField("e.g. 45.2", text: $model.uiDeviceSpoofStorageFreeGB)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .font(.system(.caption, design: .monospaced))
+                                .autocapitalization(.none)
+                                .disableAutocorrection(true)
+                            Button("Clear") {
+                                model.uiDeviceSpoofStorageFreeGB = ""
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                        Text("Optional explicit free-space override. Leave blank to use a plausible value for the selected capacity.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
                 Text("Adjusts available bytes per launch so free space is plausible for the selected capacity.")
                     .font(.caption2)
                     .foregroundColor(.secondary)
@@ -3353,6 +3484,12 @@ struct LCAppSettingsView: View {
         if model.uiDeviceSpoofSecurityEnabled {
             Toggle(isOn: $model.uiDeviceSpoofCloudToken) {
                 Label("☁️ Mask iCloud Identity Token", systemImage: "icloud")
+                    .font(.caption)
+            }
+            .padding(.leading, 28)
+
+            Toggle(isOn: $model.uiDeviceSpoofSiriPrivacyProtection) {
+                Label("🎙️ Block Siri Authorization Checks", systemImage: "mic.slash")
                     .font(.caption)
             }
             .padding(.leading, 28)
@@ -3529,6 +3666,19 @@ struct LCAppSettingsView: View {
     private func randomBSSID() -> String {
         let bytes = (0..<6).map { _ in String(format: "%02X", Int.random(in: 0...255)) }
         return bytes.joined(separator: ":")
+    }
+
+    private func randomLocallyAdministeredMAC() -> String {
+        var bytes = (0..<6).map { _ in UInt8.random(in: 0...255) }
+        // Locally administered, unicast.
+        bytes[0] = (bytes[0] | 0x02) & 0xFE
+        return bytes.map { String(format: "%02X", $0) }.joined(separator: ":")
+    }
+
+    private func randomInstallationID(length: Int) -> String {
+        let chars = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
+        guard length > 0, !chars.isEmpty else { return "" }
+        return String((0..<length).compactMap { _ in chars.randomElement() })
     }
 
     private func applyProfileDefaultsIfNeeded(force: Bool) {
