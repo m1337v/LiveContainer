@@ -514,7 +514,6 @@ void *jitless_hook_dlopen(const char *path, int mode) {
 }
 
 void* jitless_hook_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset) {
-    NSLog(@"[DyldLVBypass] mmap %p called with prot: %d, fd: %d", addr, prot, fd);
     void *map = __mmap(addr, len, prot, flags, fd, offset);
     // only handle mapping __TEXT segment from fd outside of permitted path
     if (map != MAP_FAILED || !(prot & PROT_EXEC) || fd < 0) return map;
