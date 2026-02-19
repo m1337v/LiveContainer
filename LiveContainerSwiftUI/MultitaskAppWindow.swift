@@ -24,8 +24,9 @@ struct MultitaskAppInfo {
     @Environment(\.openWindow) static var openWindow
     static var appDict: [String: MultitaskAppInfo] = [:]
     
-    @objc class func openAppWindow(displayName: String, dataUUID: String, bundleId: String) {
+    @objc class func openAppWindow(displayName: String, dataUUID: String, bundleId: String, pidCallback: ((NSNumber, Error?) -> Void)?) {
         DataManager.shared.model.enableMultipleWindow = true
+        DataManager.shared.model.pidCallback = pidCallback
         appDict[dataUUID] = MultitaskAppInfo(displayName: displayName, dataUUID: dataUUID, bundleId: bundleId)
         openWindow(id: "appView", value: dataUUID)
     }
@@ -90,6 +91,7 @@ struct MultitaskAppWindow: View {
     @State var show = true
     @State var pid = 0
     @State var appInfo: MultitaskAppInfo? = nil
+    @State var errorMessage: String? = nil
     @State private var hasScheduledAutoClose = false
     @State private var didRequestManualClose = false
     @EnvironmentObject var sceneDelegate: SceneDelegate
@@ -110,10 +112,14 @@ struct MultitaskAppWindow: View {
             GeometryReader { geometry in
                 AppSceneViewSwiftUI(show: $show, bundleId: appInfo.bundleId, dataUUID: appInfo.dataUUID, initSize: geometry.size,
                                     onAppInitialize: { pid, error in
-                    if error == nil {
-                        DispatchQueue.main.async {
+                    DispatchQueue.main.async {
+                        if error == nil {
                             self.pid = Int(pid)
+                        } else {
+                            self.errorMessage = error?.localizedDescription
                         }
+                        DataManager.shared.model.pidCallback?(NSNumber(value: pid), error)
+                        DataManager.shared.model.pidCallback = nil
                     }
                 })
                 .background(.black)
@@ -145,9 +151,20 @@ struct MultitaskAppWindow: View {
         } else {
             VStack {
                 Text("lc.multitaskAppWindow.appTerminated".loc)
+                    .font(.largeTitle)
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.system(.body, design: .monospaced))
+                    Button("lc.common.copy".loc) {
+                        UIPasteboard.general.string = errorMessage
+                        requestSceneDestruction(isManual: true)
+                    }
+                    .buttonStyle(.bordered)
+                }
                 Button("lc.common.close".loc) {
                     requestSceneDestruction(isManual: true)
                 }
+                .buttonStyle(.bordered)
             }.onAppear {
                 // appInfo == nil indicates this is the first scene opened in this launch. We don't want this so we open lc's main scene and close this view
                 // however lc's main view may already be starting in another scene so we wait a bit before opening the main view

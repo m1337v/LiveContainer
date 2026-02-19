@@ -36,9 +36,9 @@ struct LCDataManagementView : View {
         _appDataFolderNames = appDataFolderNames
         
         _folderPaths = State(initialValue: [
+            LCFolderPath(path: LCPath.docPath, desc: "Private Container"),
             LCFolderPath(path: LCPath.lcGroupDocPath, desc: "App Group Container"),
-            LCFolderPath(path: LCPath.docPath, desc: "Container"),
-            LCFolderPath(path: Bundle.main.bundleURL.appendingPathComponent("Frameworks"), desc: "LiveContainer Bundle"),
+            LCFolderPath(path: Bundle.main.bundleURL, desc: "LiveContainer Bundle"),
         ])
     }
     
@@ -93,17 +93,23 @@ struct LCDataManagementView : View {
             
             Section {
                 ForEach(folderPaths, id:\.desc) { path in
-                    Button {
-                        copy(text: path.path.path)
-                    } label: {
-                        Text("Copy \(path.desc) Path")
-                    }
-                    if filzaInstalled {
-                        Button {
-                            openInFilza(path: path.path)
-                        } label: {
-                            Text("Open in Filza")
+                    HStack(spacing: 10) {
+                        Text(path.desc)
+                        Spacer()
+                        if filzaInstalled {
+                            Button {
+                                openInFilza(path: path.path)
+                            } label: {
+                                Text("Filza")
+                            }
+                            .buttonStyle(.bordered)
                         }
+                        Button {
+                            copy(text: path.path.path)
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                        }
+                        .buttonStyle(.bordered)
                     }
                 }
             }
@@ -570,27 +576,16 @@ struct LCDataManagementView : View {
     }
     
     func openInFilza(path: URL) {
-        let launchURLStr = "filza://view\(path.path)"
-        var filzaBundleName : String? = nil
-        for app in sharedModel.apps {
-            if app.appInfo.bundleIdentifier() == "com.tigisoftware.Filza" {
-                filzaBundleName = app.appInfo.relativeBundlePath!
-            }
-        }
-        if let filzaBundleName {
-            UserDefaults.standard.setValue(launchURLStr, forKey: "launchAppUrlScheme")
-            for app in sharedModel.apps {
-                if app.appInfo.bundleIdentifier() == "com.tigisoftware.Filza" {
-                    Task {
-                        do {
-                            try await app.runApp(multitask: launchInMultitaskMode)
-                        } catch {
-                            successInfo = error.localizedDescription
-                            successShow = true
-                        }
-                    }
-                    break
-                }
+        let launchURLStr = "filza://view\(path.path)/."
+        UserDefaults.standard.setValue(launchURLStr, forKey: "launchAppUrlScheme")
+        Task {
+            do {
+                try await sharedModel.apps.first(where: { app in
+                    return app.appInfo.bundleIdentifier() == "com.tigisoftware.Filza"
+                })?.runApp(multitask: launchInMultitaskMode)
+            } catch {
+                successInfo = error.localizedDescription
+                successShow = true
             }
         }
     }

@@ -1191,7 +1191,7 @@ class LCAppModel: ObservableObject, Hashable {
         if jitNeeded || is32bit {
             if multitask, #available(iOS 17.4, *) {
                 try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                    LCUtils.launchMultitaskGuestApp(withPIDCallback: appInfo.displayName(), pidCompletionHandler: { pidNumber, error in
+                    LCUtils.launchMultitaskGuestApp(appInfo.displayName()) { pidNumber, error in
                         if let error {
                             continuation.resume(throwing: error)
                             return
@@ -1208,7 +1208,7 @@ class LCAppModel: ObservableObject, Hashable {
                             }
                             continuation.resume()
                         }
-                    })
+                    }
                 }
             } else {
                 // Non-multitask JIT flow remains unchanged

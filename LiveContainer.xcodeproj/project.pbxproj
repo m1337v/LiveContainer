@@ -17,6 +17,7 @@
 		17554B742DA169AA004C6D90 /* OpenSSL.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 17554B712DA16988004C6D90 /* OpenSSL.xcframework */; };
 		17CAE6262F230548008B1977 /* LiveContainerShared.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1292BD62DCA3B660065E12D /* LiveContainerShared.framework */; };
 		17CAED2C2F234814008B1977 /* LaunchAppExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 17CAE6172F230449008B1977 /* LaunchAppExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		17E23DE92F443A9300C55733 /* LaunchAppExtensionHelper.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 17E23DDF2F443A9300C55733 /* LaunchAppExtensionHelper.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E11884B92EF7A164009C6FA6 /* dyld_bypass_validation.h in Headers */ = {isa = PBXBuildFile; fileRef = E11884B82EF7A15F009C6FA6 /* dyld_bypass_validation.h */; };
 		E1292AF32DCA3A660065E12D /* LiveProcess.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E1292AE52DCA3A660065E12D /* LiveProcess.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E1292BEC2DCA3B670065E12D /* LiveContainerShared.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E1292BD62DCA3B660065E12D /* LiveContainerShared.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -66,6 +67,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 17CAE6162F230449008B1977;
 			remoteInfo = LaunchAppExtension;
+		};
+		17E23DE72F443A9300C55733 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 17DCE9952C7067EC00731D42 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 17E23DDE2F443A9300C55733;
+			remoteInfo = LaunchAppExtensionHelper;
 		};
 		E1292AF12DCA3A660065E12D /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -127,6 +135,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
+				17E23DE92F443A9300C55733 /* LaunchAppExtensionHelper.appex in Embed Foundation Extensions */,
 				17CAED2C2F234814008B1977 /* LaunchAppExtension.appex in Embed Foundation Extensions */,
 				E1292AF32DCA3A660065E12D /* LiveProcess.appex in Embed Foundation Extensions */,
 			);
@@ -156,6 +165,7 @@
 		17554B712DA16988004C6D90 /* OpenSSL.xcframework */ = {isa = PBXFileReference; expectedSignature = "AppleDeveloperProgram:67RAULRX93:Marcin Krzyzanowski"; lastKnownFileType = wrapper.xcframework; name = OpenSSL.xcframework; path = OpenSSL/Frameworks/OpenSSL.xcframework; sourceTree = "<group>"; };
 		17CAE6172F230449008B1977 /* LaunchAppExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.extensionkit-extension"; includeInIndex = 0; path = LaunchAppExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		17DCE99D2C7067EC00731D42 /* LiveContainer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LiveContainer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		17E23DDF2F443A9300C55733 /* LaunchAppExtensionHelper.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LaunchAppExtensionHelper.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E11884B82EF7A15F009C6FA6 /* dyld_bypass_validation.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = dyld_bypass_validation.h; sourceTree = "<group>"; };
 		E12928C92DCA38380065E12D /* UniformTypeIdentifiers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UniformTypeIdentifiers.framework; path = System/Library/Frameworks/UniformTypeIdentifiers.framework; sourceTree = SDKROOT; };
 		E1292AE52DCA3A660065E12D /* LiveProcess.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LiveProcess.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -235,6 +245,13 @@
 				Info.plist,
 			);
 			target = 17CAE6162F230449008B1977 /* LaunchAppExtension */;
+		};
+		17E23DED2F443A9300C55733 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 17E23DDE2F443A9300C55733 /* LaunchAppExtensionHelper */;
 		};
 		E1292AF72DCA3A660065E12D /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -327,6 +344,7 @@
 		17780D3B2E1C02420077E636 /* litehook */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (17780E512E1C039D0077E636 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = litehook; sourceTree = "<group>"; };
 		17B0F8452DE16FE4008110EA /* xcconfigs */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = xcconfigs; sourceTree = "<group>"; };
 		17CAE6182F230449008B1977 /* LaunchAppExtension */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (17CAE6252F230449008B1977 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = LaunchAppExtension; sourceTree = "<group>"; };
+		17E23DE02F443A9300C55733 /* LaunchAppExtensionHelper */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (17E23DED2F443A9300C55733 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = LaunchAppExtensionHelper; sourceTree = "<group>"; };
 		E1292AE72DCA3A660065E12D /* LiveProcess */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (E1292AF72DCA3A660065E12D /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = LiveProcess; sourceTree = "<group>"; };
 		E1292C1A2DCA48F00065E12D /* Tweaks */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (58AB1E232E433721003668F2 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, E1292C202DCA48F00065E12D /* PBXFileSystemSynchronizedBuildFileExceptionSet */, 58AB1E2A2E43389A003668F2 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Tweaks; sourceTree = "<group>"; };
 		E1292C242DCA4E6F0065E12D /* MultitaskSupport */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (E1292C2D2DCA4E800065E12D /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = MultitaskSupport; sourceTree = "<group>"; };
@@ -383,6 +401,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				17CAE6262F230548008B1977 /* LiveContainerShared.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		17E23DDC2F443A9300C55733 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -453,6 +478,7 @@
 				E1292AE72DCA3A660065E12D /* LiveProcess */,
 				173545A92E2C7913001B3B4C /* SideStore */,
 				17CAE6182F230449008B1977 /* LaunchAppExtension */,
+				17E23DE02F443A9300C55733 /* LaunchAppExtensionHelper */,
 				174140B82D9C0F9100F3F928 /* Frameworks */,
 				17DCE99E2C7067EC00731D42 /* Products */,
 				17780D3B2E1C02420077E636 /* litehook */,
@@ -471,6 +497,7 @@
 				E1292BD62DCA3B660065E12D /* LiveContainerShared.framework */,
 				173545A82E2C7913001B3B4C /* SideStore.framework */,
 				17CAE6172F230449008B1977 /* LaunchAppExtension.appex */,
+				17E23DDF2F443A9300C55733 /* LaunchAppExtensionHelper.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -678,11 +705,34 @@
 				E1292BEA2DCA3B670065E12D /* PBXTargetDependency */,
 				173545AD2E2C7913001B3B4C /* PBXTargetDependency */,
 				17CAE61F2F230449008B1977 /* PBXTargetDependency */,
+				17E23DE82F443A9300C55733 /* PBXTargetDependency */,
 			);
 			name = LiveContainer;
 			productName = jump;
 			productReference = 17DCE99D2C7067EC00731D42 /* LiveContainer.app */;
 			productType = "com.apple.product-type.application";
+		};
+		17E23DDE2F443A9300C55733 /* LaunchAppExtensionHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 17E23DEA2F443A9300C55733 /* Build configuration list for PBXNativeTarget "LaunchAppExtensionHelper" */;
+			buildPhases = (
+				17E23DDB2F443A9300C55733 /* Sources */,
+				17E23DDC2F443A9300C55733 /* Frameworks */,
+				17E23DDD2F443A9300C55733 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				17E23DE02F443A9300C55733 /* LaunchAppExtensionHelper */,
+			);
+			name = LaunchAppExtensionHelper;
+			packageProductDependencies = (
+			);
+			productName = LaunchAppExtensionHelper;
+			productReference = 17E23DDF2F443A9300C55733 /* LaunchAppExtensionHelper.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		E1292AE42DCA3A660065E12D /* LiveProcess */ = {
 			isa = PBXNativeTarget;
@@ -760,6 +810,10 @@
 					17DCE99C2C7067EC00731D42 = {
 						CreatedOnToolsVersion = 15.4;
 					};
+					17E23DDE2F443A9300C55733 = {
+						CreatedOnToolsVersion = 26.1;
+						LastSwiftMigration = 2610;
+					};
 					E1292AE42DCA3A660065E12D = {
 						CreatedOnToolsVersion = 16.3;
 					};
@@ -831,6 +885,7 @@
 				E1292BD52DCA3B660065E12D /* LiveContainerShared */,
 				173545A72E2C7913001B3B4C /* SideStore */,
 				17CAE6162F230449008B1977 /* LaunchAppExtension */,
+				17E23DDE2F443A9300C55733 /* LaunchAppExtensionHelper */,
 			);
 		};
 /* End PBXProject section */
@@ -858,6 +913,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		17DCE99B2C7067EC00731D42 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		17E23DDD2F443A9300C55733 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -952,6 +1014,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		17E23DDB2F443A9300C55733 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E1292AE12DCA3A660065E12D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -999,6 +1068,11 @@
 			isa = PBXTargetDependency;
 			target = 17CAE6162F230449008B1977 /* LaunchAppExtension */;
 			targetProxy = 17CAE61E2F230449008B1977 /* PBXContainerItemProxy */;
+		};
+		17E23DE82F443A9300C55733 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 17E23DDE2F443A9300C55733 /* LaunchAppExtensionHelper */;
+			targetProxy = 17E23DE72F443A9300C55733 /* PBXContainerItemProxy */;
 		};
 		E1292AF22DCA3A660065E12D /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -1609,6 +1683,79 @@
 			};
 			name = Release;
 		};
+		17E23DEB2F443A9300C55733 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 17B0F8452DE16FE4008110EA /* xcconfigs */;
+			baseConfigurationReferenceRelativePath = LaunchAppExtensionHelper.xcconfig;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = LaunchAppExtensionHelper/LaunchAppExtensionHelper.entitlements;
+				CODE_SIGN_IDENTITY = "$(inherited)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LaunchAppExtensionHelper/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = LaunchAppExtensionHelper;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(PRODUCT_BUNDLE_IDENTIFIER)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		17E23DEC2F443A9300C55733 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 17B0F8452DE16FE4008110EA /* xcconfigs */;
+			baseConfigurationReferenceRelativePath = LaunchAppExtensionHelper.xcconfig;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = LaunchAppExtensionHelper/LaunchAppExtensionHelper.entitlements;
+				CODE_SIGN_IDENTITY = "$(inherited)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LaunchAppExtensionHelper/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = LaunchAppExtensionHelper;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(PRODUCT_BUNDLE_IDENTIFIER)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		E1292AF52DCA3A660065E12D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReferenceAnchor = 17B0F8452DE16FE4008110EA /* xcconfigs */;
@@ -1896,6 +2043,15 @@
 			buildConfigurations = (
 				17DCE9DB2C7067ED00731D42 /* Debug */,
 				17DCE9DC2C7067ED00731D42 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		17E23DEA2F443A9300C55733 /* Build configuration list for PBXNativeTarget "LaunchAppExtensionHelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				17E23DEB2F443A9300C55733 /* Debug */,
+				17E23DEC2F443A9300C55733 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

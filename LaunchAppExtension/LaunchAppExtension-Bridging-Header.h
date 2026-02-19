@@ -6,4 +6,5 @@
 //
 
 #import "../LiveContainer/LCSharedUtils.h"
+#import "../LiveContainer/FoundationPrivate.h"
 bool lsApplicationWorkspaceCanOpenURL(NSURL* url);

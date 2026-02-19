@@ -14,6 +14,7 @@
 #import <MobileCoreServices/MobileCoreServices.h> 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <objc/runtime.h>
+#import <dlfcn.h>
 #import "Tweaks.h"
 // #import "../utils.h" // duplicate swizzle
 
@@ -90,6 +91,7 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer);
 static void cleanupPhotoCache(void);
 static void createStaticImageFromUIImage(UIImage *sourceImage);
 static CVPixelBufferRef rotatePixelBufferToPortrait(CVPixelBufferRef sourceBuffer);
+static void installPrivateCapturePipelineHooks(void);
 
 @class GetFrameKVOObserver;
 
