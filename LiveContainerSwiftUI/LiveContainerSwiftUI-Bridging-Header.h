@@ -13,7 +13,9 @@
 #include <CoreLocation/CoreLocation.h>
 #include "../MultitaskSupport/AppSceneViewController.h"
 #include "../MultitaskSupport/DecoratedAppSceneViewController.h"
+#include "../MultitaskSupport/LCStatusBarManager.h"
 #include "../MultitaskSupport/PiPManager.h"
+#include "../MultitaskSupport/VirtualWindowsHostView.h"
 #include "../LiveContainer/FoundationPrivate.h"
 #include "../LiveContainer/Tweaks/CoreLocation+GuestHooks.h"
 #include "../LiveContainer/Tweaks/AVFoundation+GuestHooks.h"

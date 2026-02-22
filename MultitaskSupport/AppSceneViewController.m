@@ -300,5 +300,13 @@
     }];
 }
 
+- (void)handleStatusBarTapAction:(UIAction *)action {
+    [self.presenter.scene updateSettingsWithTransitionBlock:^(id settings) {
+        UIApplicationSceneTransitionContext *context = [UIApplicationSceneTransitionContext new];
+        context.actions = [NSSet setWithObject:action];
+        return context;
+    }];
+}
+
 @end
  
