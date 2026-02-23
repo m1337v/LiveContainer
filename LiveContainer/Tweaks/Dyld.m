@@ -156,6 +156,7 @@ static NSString* (*orig_NSBundle_pathForResource_ofType)(id self, SEL _cmd, NSSt
 static NSURL* (*orig_NSBundle_URLForResource_withExtension)(id self, SEL _cmd, NSString *name, NSString *ext);
 static NSURL* (*orig_NSBundle_appStoreReceiptURL)(id self, SEL _cmd);
 static BOOL (*orig_NSFileManager_fileExistsAtPath)(id self, SEL _cmd, NSString *path);
+static BOOL (*orig_UIApplication_canOpenURL_guest)(id self, SEL _cmd, NSURL *url);
 
 // LC specific variables
 uint32_t guestAppSdkVersion = 0;
@@ -2803,9 +2804,7 @@ static BOOL shouldUseLiveContainerBundleId(void) {
         }
 
         // Keychain access (system level)
-        if ([frame containsString:@"SecItem"] ||
-            [frame containsString:@"keychain"] ||
-            [frame containsString:@"Security"]) {
+        if ([frame containsString:@"SecItem"]) {
             return YES;
         }
     }
@@ -2838,12 +2837,20 @@ static BOOL shouldUseLiveContainerBundleId(void) {
 }
 
 static NSString *LCResolvedBundleIDForCurrentContext(void) {
+    NSString *guestBundleId = NSUserDefaults.lcGuestAppId;
+    if (guestBundleId.length == 0) {
+        guestBundleId = originalGuestBundleId;
+    }
+
     if (useSelectiveBundleIdSpoofing) {
         BOOL useLCBundleID = shouldUseLiveContainerBundleId();
         NSString *bundleIDToExpose = useLCBundleID ? liveContainerBundleId : originalGuestBundleId;
         if (bundleIDToExpose.length > 0) {
             return bundleIDToExpose;
         }
+    }
+    if (guestBundleId.length > 0) {
+        return guestBundleId;
     }
     if (originalGuestBundleId.length > 0) {
         return originalGuestBundleId;
@@ -2917,24 +2924,59 @@ static BOOL LCShouldHideProvisioningPath(NSString *path) {
     return [path.lowercaseString hasSuffix:@"embedded.mobileprovision"];
 }
 
+static BOOL LCShouldBypassGuestCanOpenURLBlock(void) {
+    NSArray<NSString *> *callStack = [NSThread callStackSymbols];
+    for (NSString *frame in callStack) {
+        if ([frame containsString:@"UIKit+GuestHooks"] ||
+            [frame containsString:@"LCSharedUtils"] ||
+            [frame containsString:@"LaunchAppExtension"]) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+static BOOL LCShouldBlockGuestCanOpenURL(NSURL *url) {
+    if (![url isKindOfClass:NSURL.class]) {
+        return NO;
+    }
+    NSString *scheme = url.scheme.lowercaseString;
+    if (scheme.length == 0) {
+        return NO;
+    }
+    if ([scheme hasPrefix:@"livecontainer"]) {
+        return YES;
+    }
+    static NSSet<NSString *> *blockedSchemes = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        blockedSchemes = [NSSet setWithArray:@[
+            @"sidestore",
+        ]];
+    });
+    return [blockedSchemes containsObject:scheme];
+}
+
+static BOOL hook_UIApplication_canOpenURL_guest(id self, SEL _cmd, NSURL *url) {
+    if (!LCShouldBypassGuestCanOpenURLBlock() && LCShouldBlockGuestCanOpenURL(url)) {
+        return NO;
+    }
+    if (orig_UIApplication_canOpenURL_guest) {
+        return orig_UIApplication_canOpenURL_guest(self, _cmd, url);
+    }
+    return NO;
+}
+
 static NSString* hook_NSBundle_bundleIdentifier(id self, SEL _cmd) {
     NSString* result = orig_NSBundle_bundleIdentifier(self, _cmd);
 
-    if (!useSelectiveBundleIdSpoofing || ![self isEqual:[NSBundle mainBundle]]) {
+    if (![self isEqual:[NSBundle mainBundle]]) {
         return result;
     }
 
-    // Get calling context to determine which bundle ID to return
-    if (shouldUseLiveContainerBundleId()) {
-        if (liveContainerBundleId.length > 0) {
-            // NSLog(@"[LC] 🎭 Returning LiveContainer bundle ID for system API: %@", liveContainerBundleId);
-            return liveContainerBundleId;
-        }
-    } else {
-        if (originalGuestBundleId.length > 0) {
-            // NSLog(@"[LC] 🎭 Returning original bundle ID for security check: %@", originalGuestBundleId);
-            return originalGuestBundleId;
-        }
+    NSString *bundleIDToExpose = LCResolvedBundleIDForCurrentContext();
+    if (bundleIDToExpose.length > 0) {
+        return bundleIDToExpose;
     }
     return result;
 }
@@ -2960,9 +3002,7 @@ static NSDictionary* hook_NSBundle_infoDictionary(id self, SEL _cmd) {
         return result;
     }
 
-    if (useSelectiveBundleIdSpoofing) {
-        modifiedDict[@"CFBundleIdentifier"] = bundleIDToExpose;
-    }
+    modifiedDict[@"CFBundleIdentifier"] = bundleIDToExpose;
 
     LCApplyBundleIdentityCompatibility(modifiedDict, bundleIDToExpose);
     return [modifiedDict copy];
@@ -2979,7 +3019,7 @@ static id hook_NSBundle_objectForInfoDictionaryKey(id self, SEL _cmd, NSString *
     }
 
     NSString *bundleIDToExpose = LCResolvedBundleIDForCurrentContext();
-    if (useSelectiveBundleIdSpoofing && [key isEqualToString:@"CFBundleIdentifier"] && bundleIDToExpose.length > 0) {
+    if ([key isEqualToString:@"CFBundleIdentifier"] && bundleIDToExpose.length > 0) {
         return bundleIDToExpose;
     }
 
@@ -3139,6 +3179,12 @@ static void configureSelectiveBundleIdSpoofing(NSDictionary *guestAppInfo, BOOL 
     Method fileExistsMethod = class_getInstanceMethod(NSFileManager.class, @selector(fileExistsAtPath:));
     if (fileExistsMethod && !orig_NSFileManager_fileExistsAtPath) {
         orig_NSFileManager_fileExistsAtPath = (BOOL (*)(id, SEL, NSString *))method_setImplementation(fileExistsMethod, (IMP)hook_NSFileManager_fileExistsAtPath);
+    }
+
+    Class uiApplicationClass = objc_getClass("UIApplication");
+    Method canOpenURLMethod = class_getInstanceMethod(uiApplicationClass, @selector(canOpenURL:));
+    if (canOpenURLMethod && !orig_UIApplication_canOpenURL_guest) {
+        orig_UIApplication_canOpenURL_guest = (BOOL (*)(id, SEL, NSURL *))method_setImplementation(canOpenURLMethod, (IMP)hook_UIApplication_canOpenURL_guest);
     }
 
     didInstallSelectiveBundleHooks = YES;
