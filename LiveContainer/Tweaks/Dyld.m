@@ -2796,10 +2796,9 @@ static BOOL shouldUseLiveContainerBundleId(void) {
             return YES;
         }
 
-        // App Store and system services
+        // App Store services that rely on host app identity
         if ([frame containsString:@"StoreKit"] ||
-            [frame containsString:@"SKStoreProductViewController"] ||
-            [frame containsString:@"openURL"]) {
+            [frame containsString:@"SKStoreProductViewController"]) {
             return YES;
         }
 
