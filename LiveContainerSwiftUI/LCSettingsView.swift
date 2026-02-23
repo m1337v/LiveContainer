@@ -65,6 +65,7 @@ struct LCSettingsView: View {
     @AppStorage("LCKeepSelectedWhenQuit") var keepSelectedWhenQuit = false
     @AppStorage("LCWaitForDebugger") var waitForDebugger = false
     @AppStorage("LCSharePrivateDataWithLiveProcess") var sharePrivateDataWithLiveProcess = false
+    @AppStorage("BKNoWatchdogs") var disableLiveProcessWatchdog = false
     
     @EnvironmentObject private var sharedModel : SharedModel
     
@@ -380,6 +381,9 @@ struct LCSettingsView: View {
                         }
                         Toggle(isOn: $sharePrivateDataWithLiveProcess) {
                             Text("Allow Private Data access from LiveProcess")
+                        }
+                        Toggle(isOn: $disableLiveProcessWatchdog) {
+                            Text("Disable LiveProcess watchdog termination")
                         }
                         Button {
                             export()
