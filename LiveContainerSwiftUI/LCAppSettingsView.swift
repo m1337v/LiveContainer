@@ -1950,7 +1950,7 @@ struct LCAppSettingsView: View {
                 }
 
                 if !model.uiContainers.isEmpty {
-                    Picker("Addon Settings Container", selection: $model.uiAddonSettingsContainerFolderName) {
+                    Picker("Switch Default Container", selection: $model.uiAddonSettingsContainerFolderName) {
                         ForEach(model.uiContainers, id: \.folderName) { container in
                             Text(container.name).tag(container.folderName)
                         }
@@ -2045,8 +2045,10 @@ struct LCAppSettingsView: View {
                         Text("lc.appSettings.dontLoadTweakLoader".loc)
                     }
                 }
-                Toggle(isOn: $model.uiBypassSSLPinning) {
-                    Text("Bypass SSL Pinning")
+                if sharedModel.developerMode {
+                    Toggle(isOn: $model.uiBypassSSLPinning) {
+                        Text("Bypass SSL Pinning")
+                    }
                 }
             } header: {
                 Text("Security Settings")
@@ -2343,7 +2345,7 @@ struct LCAppSettingsView: View {
                     Image(systemName: "iphone")
                         .foregroundColor(.blue)
                         .frame(width: 20)
-                    Text("Device Spoofing")
+                    Text("Spoof Device")
                 }
             }
 
