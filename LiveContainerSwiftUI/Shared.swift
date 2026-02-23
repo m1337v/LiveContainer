@@ -59,11 +59,17 @@ struct LCPath {
 }
 
 class SharedModel: ObservableObject {
+    private static let developerModeDefaultsKey = "LCDeveloperMode"
+
     @Published var selectedTab: LCTabIdentifier = .apps
     @Published var deepLink: URL?
     
     @Published var isHiddenAppUnlocked = false
-    @Published var developerMode = false
+    @Published var developerMode = false {
+        didSet {
+            LCUtils.appGroupUserDefault.set(developerMode, forKey: Self.developerModeDefaultsKey)
+        }
+    }
     // 0 = current liveContainer is the primary one,
     // 2 = current liveContainer is not the primary one
     @Published var multiLCStatus = 0
@@ -108,6 +114,7 @@ class SharedModel: ObservableObject {
     }
     
     init() {
+        developerMode = LCUtils.appGroupUserDefault.bool(forKey: Self.developerModeDefaultsKey)
         updateMultiLCStatus()
     }
 }

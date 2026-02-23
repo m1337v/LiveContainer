@@ -358,7 +358,7 @@ struct LCSettingsView: View {
                     Text(LCUtils.getVersionInfo())
                         .foregroundStyle(.gray)
                         .onTapGesture(count: 5) {
-                            sharedModel.developerMode = true
+                            sharedModel.developerMode.toggle()
                         }
                 }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)

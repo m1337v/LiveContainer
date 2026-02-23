@@ -1966,9 +1966,11 @@ struct LCAppSettingsView: View {
                         model.refreshAddonSettingsContainerSelection()
                     }
 
-                    Text("Location, camera, and device fingerprinting settings below are saved per selected container. Selecting one also sets it as the default container.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                    if sharedModel.developerMode {
+                        Text("Location, camera, and device fingerprinting settings below are saved per selected container. Selecting one also sets it as the default container.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 
                 if(model.uiContainers.count < SharedModel.keychainAccessGroupCount) {
@@ -1996,35 +1998,36 @@ struct LCAppSettingsView: View {
             }
             
             
-            // MARK: GPS Settings init
-            GPSSettingsSection(
-                spoofGPS: $model.uiSpoofGPS,
-                latitude: $model.uiSpoofLatitude,
-                longitude: $model.uiSpoofLongitude,
-                altitude: $model.uiSpoofAltitude,
-                locationName: $model.uiSpoofLocationName
-            )
-            
-            // MARK: Camera Settings init
-            CameraSettingsSection(
-                spoofCamera: $model.uiSpoofCamera,
-                spoofCameraMode: $model.uiSpoofCameraMode,
-                spoofCameraType: $model.uiSpoofCameraType,
-                spoofCameraImagePath: $model.uiSpoofCameraImagePath,
-                spoofCameraVideoPath: $model.uiSpoofCameraVideoPath,
-                spoofCameraLoop: $model.uiSpoofCameraLoop,
-                spoofCameraTransformOrientation: $model.uiSpoofCameraTransformOrientation,
-                spoofCameraTransformScale: $model.uiSpoofCameraTransformScale,
-                spoofCameraTransformFlip: $model.uiSpoofCameraTransformFlip,
-                isProcessingVideo: $model.isProcessingVideo,
-                videoProcessingProgress: $model.videoProcessingProgress,
-                errorInfo: $errorInfo,
-                errorShow: $errorShow
-            )
-           
+            if sharedModel.developerMode {
+                // MARK: GPS Settings init
+                GPSSettingsSection(
+                    spoofGPS: $model.uiSpoofGPS,
+                    latitude: $model.uiSpoofLatitude,
+                    longitude: $model.uiSpoofLongitude,
+                    altitude: $model.uiSpoofAltitude,
+                    locationName: $model.uiSpoofLocationName
+                )
+                
+                // MARK: Camera Settings init
+                CameraSettingsSection(
+                    spoofCamera: $model.uiSpoofCamera,
+                    spoofCameraMode: $model.uiSpoofCameraMode,
+                    spoofCameraType: $model.uiSpoofCameraType,
+                    spoofCameraImagePath: $model.uiSpoofCameraImagePath,
+                    spoofCameraVideoPath: $model.uiSpoofCameraVideoPath,
+                    spoofCameraLoop: $model.uiSpoofCameraLoop,
+                    spoofCameraTransformOrientation: $model.uiSpoofCameraTransformOrientation,
+                    spoofCameraTransformScale: $model.uiSpoofCameraTransformScale,
+                    spoofCameraTransformFlip: $model.uiSpoofCameraTransformFlip,
+                    isProcessingVideo: $model.isProcessingVideo,
+                    videoProcessingProgress: $model.videoProcessingProgress,
+                    errorInfo: $errorInfo,
+                    errorShow: $errorShow
+                )
 
-            // MARK: Device Spoofing (Profile-Based) — moved to old network section location
-            deviceSpoofingSection()
+                // MARK: Device Spoofing (Profile-Based) — moved to old network section location
+                deviceSpoofingSection()
+            }
 
             // MARK: Security Section
             Section {
