@@ -68,10 +68,13 @@ static int (*orig_getifaddrs)(struct ifaddrs **ifap);
 // NWPath C-level (minimal low-level path used by NWPath.availableInterfaces).
 static void (*orig_nw_path_enumerate_interfaces)(nw_path_t path, nw_path_enumerate_interfaces_block_t enumerate_block);
 static nw_interface_t (*orig_nw_path_copy_interface_with_generation)(void *context, unsigned int interface_index, unsigned int generation);
+static nw_interface_t (*orig_nw_interface_create_from_necp)(int necp_fd, unsigned int interface_index);
 static const char* (*orig_nw_interface_get_name)(nw_interface_t interface);
 static nw_interface_t (*orig_nw_interface_create_with_name)(const char *name);
 static BOOL gDidInlineHookNWPathCopyInterfaceWithGeneration = NO;
+static BOOL gDidInlineHookNWInterfaceCreateFromNECP = NO;
 static __thread BOOL gInHookNWPathCopyInterfaceWithGeneration = NO;
+static __thread BOOL gInHookNWInterfaceCreateFromNECP = NO;
 static BOOL gDidInstallNWPathLowLevelHooks = NO;
 static BOOL gSpoofNetworkInfoEnabled = NO;
 static BOOL gSpoofWiFiAddressEnabled = NO;
@@ -1015,6 +1018,15 @@ static void lc_resolveNetworkSymbolPointers(void) {
                 orig_nw_path_copy_interface_with_generation = (nw_interface_t (*)(void *, unsigned int, unsigned int))orig_dlsym(RTLD_DEFAULT, "nw_path_copy_interface_with_generation");
             }
         }
+
+        if (!orig_nw_interface_create_from_necp) {
+            if (libnetworkHandle) {
+                orig_nw_interface_create_from_necp = (nw_interface_t (*)(int, unsigned int))orig_dlsym(libnetworkHandle, "nw_interface_create_from_necp");
+            }
+            if (!orig_nw_interface_create_from_necp) {
+                orig_nw_interface_create_from_necp = (nw_interface_t (*)(int, unsigned int))orig_dlsym(RTLD_DEFAULT, "nw_interface_create_from_necp");
+            }
+        }
     }
 
     // Prefer canonical dyld-cache symbols for private/internal callers.
@@ -1022,6 +1034,8 @@ static void lc_resolveNetworkSymbolPointers(void) {
         (void (*)(nw_path_t, nw_path_enumerate_interfaces_block_t))lc_findNetworkDSCSymbol("_nw_path_enumerate_interfaces");
     nw_interface_t (*dscCopyWithGeneration)(void *, unsigned int, unsigned int) =
         (nw_interface_t (*)(void *, unsigned int, unsigned int))lc_findNetworkDSCSymbol("_nw_path_copy_interface_with_generation");
+    nw_interface_t (*dscCreateFromNECP)(int, unsigned int) =
+        (nw_interface_t (*)(int, unsigned int))lc_findNetworkDSCSymbol("_nw_interface_create_from_necp");
     const char *(*dscGetName)(nw_interface_t) =
         (const char *(*)(nw_interface_t))lc_findNetworkDSCSymbol("_nw_interface_get_name");
     nw_interface_t (*dscCreateWithName)(const char *) =
@@ -1033,6 +1047,9 @@ static void lc_resolveNetworkSymbolPointers(void) {
     if (dscCopyWithGeneration) {
         orig_nw_path_copy_interface_with_generation = dscCopyWithGeneration;
     }
+    if (dscCreateFromNECP) {
+        orig_nw_interface_create_from_necp = dscCreateFromNECP;
+    }
     if (dscGetName) {
         orig_nw_interface_get_name = dscGetName;
     }
@@ -1043,9 +1060,10 @@ static void lc_resolveNetworkSymbolPointers(void) {
     static BOOL loggedSymbolResolution = NO;
     if (!loggedSymbolResolution) {
         loggedSymbolResolution = YES;
-        NSLog(@"[LC] 🌐 network symbols resolved: nw_path_enumerate_interfaces=%p nw_path_copy_interface_with_generation=%p nw_interface_get_name=%p nw_interface_create_with_name=%p",
+        NSLog(@"[LC] 🌐 network symbols resolved: nw_path_enumerate_interfaces=%p nw_path_copy_interface_with_generation=%p nw_interface_create_from_necp=%p nw_interface_get_name=%p nw_interface_create_with_name=%p",
               orig_nw_path_enumerate_interfaces,
               orig_nw_path_copy_interface_with_generation,
+              orig_nw_interface_create_from_necp,
               orig_nw_interface_get_name,
               orig_nw_interface_create_with_name);
     }
@@ -1132,17 +1150,41 @@ static nw_interface_t lc_sanitizePrivatePathInterface(const char *context, nw_in
 }
 
 static BOOL lc_shouldEnableNWInlineHooks(void) {
-    const char *flag = getenv("LC_ENABLE_NW_INLINE_HOOKS");
-    return flag && flag[0] == '1';
+    const char *disableFlag = getenv("LC_DISABLE_NW_INLINE_HOOKS");
+    return !(disableFlag && disableFlag[0] == '1');
+}
+
+static nw_interface_t lc_createInterfaceFromIndexForLowLevelHook(const char *context, unsigned int interface_index) {
+    if (!orig_nw_interface_create_with_name) {
+        lc_resolveNetworkSymbolPointers();
+    }
+    if (!orig_nw_interface_create_with_name) {
+        return NULL;
+    }
+
+    char ifname[IF_NAMESIZE] = {0};
+    const char *resolved = if_indextoname(interface_index, ifname);
+    const char *targetName = resolved;
+
+    if (!targetName || targetName[0] == '\0') {
+        targetName = "en0";
+    } else if (shouldFilterVPNInterfaceNameCStr(targetName)) {
+        NSLog(@"[LC] 🎭 %s - remapping VPN interface %s -> en0", context, targetName);
+        targetName = "en0";
+    }
+
+    nw_interface_t replacement = orig_nw_interface_create_with_name(targetName);
+    if (!replacement && strcmp(targetName, "en0") != 0) {
+        replacement = orig_nw_interface_create_with_name("en0");
+    }
+    return replacement;
 }
 
 static nw_interface_t hook_nw_path_copy_interface_with_generation(void *context,
                                                                    unsigned int interface_index,
                                                                    unsigned int generation) {
     if (gInHookNWPathCopyInterfaceWithGeneration) {
-        return orig_nw_path_copy_interface_with_generation
-            ? orig_nw_path_copy_interface_with_generation(context, interface_index, generation)
-            : NULL;
+        return NULL;
     }
     gInHookNWPathCopyInterfaceWithGeneration = YES;
 
@@ -1154,12 +1196,46 @@ static nw_interface_t hook_nw_path_copy_interface_with_generation(void *context,
         NSLog(@"[LC] ✅ hook hit: nw_path_copy_interface_with_generation");
     }
 
-    nw_interface_t interface = orig_nw_path_copy_interface_with_generation
-        ? orig_nw_path_copy_interface_with_generation(context, interface_index, generation)
-        : NULL;
-    interface = lc_sanitizePrivatePathInterface("nw_path_copy_interface_with_generation", interface);
+    nw_interface_t interface = NULL;
+    if (!gDidInlineHookNWPathCopyInterfaceWithGeneration &&
+        orig_nw_path_copy_interface_with_generation) {
+        interface = orig_nw_path_copy_interface_with_generation(context, interface_index, generation);
+        interface = lc_sanitizePrivatePathInterface("nw_path_copy_interface_with_generation", interface);
+    }
+
+    if (!interface) {
+        interface = lc_createInterfaceFromIndexForLowLevelHook("nw_path_copy_interface_with_generation", interface_index);
+    }
 
     gInHookNWPathCopyInterfaceWithGeneration = NO;
+    return interface;
+}
+
+static nw_interface_t hook_nw_interface_create_from_necp(int necp_fd, unsigned int interface_index) {
+    if (gInHookNWInterfaceCreateFromNECP) {
+        return NULL;
+    }
+    gInHookNWInterfaceCreateFromNECP = YES;
+
+    lc_resolveNetworkSymbolPointers();
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: nw_interface_create_from_necp");
+    }
+
+    nw_interface_t interface = NULL;
+    if (!gDidInlineHookNWInterfaceCreateFromNECP && orig_nw_interface_create_from_necp) {
+        interface = orig_nw_interface_create_from_necp(necp_fd, interface_index);
+        interface = lc_sanitizePrivatePathInterface("nw_interface_create_from_necp", interface);
+    }
+
+    if (!interface) {
+        interface = lc_createInterfaceFromIndexForLowLevelHook("nw_interface_create_from_necp", interface_index);
+    }
+
+    gInHookNWInterfaceCreateFromNECP = NO;
     return interface;
 }
 
@@ -1200,8 +1276,12 @@ static void setupNetworkFrameworkLowLevelHooks(void) {
     }
 
     lc_resolveNetworkSymbolPointers();
+    BOOL enableNWInlineHooks = lc_shouldEnableNWInlineHooks();
+    NSLog(@"[LC] 🌐 network inline hooks %@", enableNWInlineHooks ? @"ENABLED (set LC_DISABLE_NW_INLINE_HOOKS=1 to disable)" : @"disabled (LC_DISABLE_NW_INLINE_HOOKS=1)");
 
-    if (!orig_nw_path_enumerate_interfaces && !orig_nw_path_copy_interface_with_generation) {
+    if (!orig_nw_path_enumerate_interfaces &&
+        !orig_nw_path_copy_interface_with_generation &&
+        !orig_nw_interface_create_from_necp) {
         NSLog(@"[LC] ⚠️ NWPath low-level hooks unavailable: could not resolve required symbols");
         return;
     }
@@ -1220,7 +1300,14 @@ static void setupNetworkFrameworkLowLevelHooks(void) {
                                nil);
     }
 
-    if (lc_shouldEnableNWInlineHooks() &&
+    if (orig_nw_interface_create_from_necp) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL,
+                               (void *)orig_nw_interface_create_from_necp,
+                               (void *)hook_nw_interface_create_from_necp,
+                               nil);
+    }
+
+    if (enableNWInlineHooks &&
         orig_nw_path_copy_interface_with_generation &&
         !gDidInlineHookNWPathCopyInterfaceWithGeneration) {
         kern_return_t kr = litehook_hook_function((void *)orig_nw_path_copy_interface_with_generation,
@@ -1230,6 +1317,19 @@ static void setupNetworkFrameworkLowLevelHooks(void) {
             NSLog(@"[LC] ✅ Inline hooked nw_path_copy_interface_with_generation");
         } else {
             NSLog(@"[LC] ⚠️ Failed to inline hook nw_path_copy_interface_with_generation (kr=%d)", kr);
+        }
+    }
+
+    if (enableNWInlineHooks &&
+        orig_nw_interface_create_from_necp &&
+        !gDidInlineHookNWInterfaceCreateFromNECP) {
+        kern_return_t kr = litehook_hook_function((void *)orig_nw_interface_create_from_necp,
+                                                  (void *)hook_nw_interface_create_from_necp);
+        if (kr == KERN_SUCCESS) {
+            gDidInlineHookNWInterfaceCreateFromNECP = YES;
+            NSLog(@"[LC] ✅ Inline hooked nw_interface_create_from_necp");
+        } else {
+            NSLog(@"[LC] ⚠️ Failed to inline hook nw_interface_create_from_necp (kr=%d)", kr);
         }
     }
 
