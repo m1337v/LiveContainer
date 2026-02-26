@@ -87,6 +87,7 @@ static NSArray *(*orig_NWPath_availableInterfaces_objc)(id self, SEL _cmd);
 static NSString *(*orig_NWInterface_name_objc)(id self, SEL _cmd);
 static BOOL gDidInlineHookNWPathCopyInterfaceWithGeneration = NO;
 static BOOL gDidInlineHookNECPClientAction = NO;
+static BOOL gRegisteredNWImageCallback = NO;
 static __thread BOOL gInHookNWPathCopyInterfaceWithGeneration = NO;
 static __thread BOOL gInHookNECPClientAction = NO;
 static __thread BOOL gInHookNECPSyscall = NO;
@@ -1351,6 +1352,22 @@ static NSString *lc_getInterfaceNameFromObject(id interfaceObj) {
     return name;
 }
 
+static BOOL lc_classNameContainsToken(Class cls, const char *token) {
+    if (!cls || !token || !token[0]) {
+        return NO;
+    }
+    const char *name = class_getName(cls);
+    return (name && strstr(name, token) != NULL);
+}
+
+static BOOL lc_isLikelyNWPathClass(Class cls) {
+    return lc_classNameContainsToken(cls, "NWPath");
+}
+
+static BOOL lc_isLikelyNWInterfaceClass(Class cls) {
+    return lc_classNameContainsToken(cls, "NWInterface");
+}
+
 static NSString *hook_NWInterface_name_objc(id self, SEL _cmd) {
     if (!orig_NWInterface_name_objc) {
         return @"en0";
@@ -1401,37 +1418,66 @@ static NSArray *hook_NWPath_availableInterfaces_objc(id self, SEL _cmd) {
 }
 
 static void lc_installNWObjCInterfaceHooks(void) {
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        const char *pathClassNames[] = { "NWPath", "__NSCFNWPath", "_NWPath" };
-        const char *interfaceClassNames[] = { "NWInterface", "__NSCFNWInterface", "_NWInterface" };
+    if (orig_NWPath_availableInterfaces_objc && orig_NWInterface_name_objc) {
+        return;
+    }
 
-        for (size_t i = 0; i < sizeof(pathClassNames) / sizeof(pathClassNames[0]); i++) {
-            Class cls = objc_getClass(pathClassNames[i]);
-            if (!cls) {
-                continue;
-            }
+    int classCount = objc_getClassList(NULL, 0);
+    if (classCount <= 0) {
+        return;
+    }
+
+    Class *classes = (Class *)malloc((size_t)classCount * sizeof(Class));
+    if (!classes) {
+        return;
+    }
+
+    classCount = objc_getClassList(classes, classCount);
+    for (int i = 0; i < classCount; i++) {
+        Class cls = classes[i];
+        if (!cls) {
+            continue;
+        }
+
+        if (!orig_NWPath_availableInterfaces_objc &&
+            lc_isLikelyNWPathClass(cls)) {
             Method method = class_getInstanceMethod(cls, @selector(availableInterfaces));
-            if (method && !orig_NWPath_availableInterfaces_objc) {
+            if (method) {
                 orig_NWPath_availableInterfaces_objc = (NSArray *(*)(id, SEL))
                     method_setImplementation(method, (IMP)hook_NWPath_availableInterfaces_objc);
-                NSLog(@"[LC] 🌐 installed ObjC hook for %s availableInterfaces", pathClassNames[i]);
+                NSLog(@"[LC] 🌐 installed ObjC hook for %s availableInterfaces", class_getName(cls));
             }
         }
 
-        for (size_t i = 0; i < sizeof(interfaceClassNames) / sizeof(interfaceClassNames[0]); i++) {
-            Class cls = objc_getClass(interfaceClassNames[i]);
-            if (!cls) {
-                continue;
-            }
+        if (!orig_NWInterface_name_objc &&
+            lc_isLikelyNWInterfaceClass(cls)) {
             Method method = class_getInstanceMethod(cls, @selector(name));
-            if (method && !orig_NWInterface_name_objc) {
+            if (method) {
                 orig_NWInterface_name_objc = (NSString *(*)(id, SEL))
                     method_setImplementation(method, (IMP)hook_NWInterface_name_objc);
-                NSLog(@"[LC] 🌐 installed ObjC hook for %s name", interfaceClassNames[i]);
+                NSLog(@"[LC] 🌐 installed ObjC hook for %s name", class_getName(cls));
             }
         }
-    });
+
+        if (orig_NWPath_availableInterfaces_objc && orig_NWInterface_name_objc) {
+            break;
+        }
+    }
+
+    free(classes);
+}
+
+static void lc_networkImageAddedCallback(__unused const struct mach_header *mh,
+                                         __unused intptr_t vmaddr_slide) {
+    lc_installNWObjCInterfaceHooks();
+}
+
+static void lc_registerNWImageCallback(void) {
+    if (gRegisteredNWImageCallback) {
+        return;
+    }
+    gRegisteredNWImageCallback = YES;
+    _dyld_register_func_for_add_image(lc_networkImageAddedCallback);
 }
 
 static int hook_necp_client_action(int necp_fd,
@@ -1698,6 +1744,11 @@ static void setupNECPClientActionHooks(void) {
         {"necp_client_action", (void *)hook_necp_client_action, (void **)&orig_necp_client_action},
     }, 1);
     NSLog(@"[LC] 🌐 fishhook rebound necp_client_action; orig=%p", orig_necp_client_action);
+    litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL,
+                           (void *)orig_necp_client_action,
+                           (void *)hook_necp_client_action,
+                           nil);
+    NSLog(@"[LC] 🌐 litehook rebound necp_client_action; orig=%p", orig_necp_client_action);
 
     if (lc_shouldEnableNECPInlineHooks()) {
         kern_return_t kr = litehook_hook_function((void *)orig_necp_client_action,
@@ -1721,6 +1772,7 @@ static void setupNetworkFrameworkLowLevelHooks(void) {
     }
 
     lc_resolveNetworkSymbolPointers();
+    lc_registerNWImageCallback();
     lc_installNWObjCInterfaceHooks();
 
     if (!orig_nw_path_enumerate_interfaces && !orig_nw_path_copy_interface_with_generation) {
@@ -1734,6 +1786,10 @@ static void setupNetworkFrameworkLowLevelHooks(void) {
             {"nw_interface_get_name", (void *)hook_nw_interface_get_name, (void **)&orig_nw_interface_get_name},
         }, 1);
         NSLog(@"[LC] 🌐 fishhook rebound nw_interface_get_name; orig=%p", orig_nw_interface_get_name);
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL,
+                               (void *)orig_nw_interface_get_name,
+                               (void *)hook_nw_interface_get_name,
+                               nil);
     }
 
     if (orig_nw_path_enumerate_interfaces) {
@@ -2587,6 +2643,24 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
           orig_if_indextoname,
           orig_if_nameindex);
     NSLog(@"[LC] 🌐 fishhook rebound syscall; orig=%p", orig_syscall);
+    if (orig_if_nametoindex) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL,
+                               (void *)orig_if_nametoindex,
+                               (void *)hook_if_nametoindex,
+                               nil);
+    }
+    if (orig_if_indextoname) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL,
+                               (void *)orig_if_indextoname,
+                               (void *)hook_if_indextoname,
+                               nil);
+    }
+    if (orig_if_nameindex) {
+        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL,
+                               (void *)orig_if_nameindex,
+                               (void *)hook_if_nameindex,
+                               nil);
+    }
 
     if (lc_shouldEnableNECPHooks()) {
         setupNECPClientActionHooks();
