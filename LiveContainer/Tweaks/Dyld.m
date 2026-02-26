@@ -1228,10 +1228,10 @@ static int hook_necp_client_action(int necp_fd,
             if (output_buffer && output_buffer_size > 0) {
                 memset(output_buffer, 0, output_buffer_size);
             }
-            // Keep success semantics for stability; callers should treat empty payload as no interface.
-            errno = 0;
+            // Treat filtered interfaces as not present so callers skip the lookup slot.
+            errno = ENOENT;
             gInHookNECPClientAction = NO;
-            return 0;
+            return -1;
         }
     }
 
@@ -1273,13 +1273,13 @@ static nw_interface_t lc_sanitizePrivatePathInterface(const char *context, nw_in
 }
 
 static BOOL lc_shouldEnableNWInlineHooks(void) {
-    const char *flag = getenv("LC_ENABLE_NW_INLINE_HOOKS");
-    return flag && flag[0] == '1';
+    const char *disableFlag = getenv("LC_DISABLE_NW_INLINE_HOOKS");
+    return !(disableFlag && disableFlag[0] == '1');
 }
 
 static BOOL lc_shouldEnableNWPathLowLevelHooks(void) {
-    const char *flag = getenv("LC_ENABLE_NWPATH_LOWLEVEL_HOOKS");
-    return flag && flag[0] == '1';
+    const char *disableFlag = getenv("LC_DISABLE_NWPATH_LOWLEVEL_HOOKS");
+    return !(disableFlag && disableFlag[0] == '1');
 }
 
 static nw_interface_t hook_nw_path_copy_interface_with_generation(void *context,
@@ -1342,12 +1342,7 @@ static void hook_nw_path_enumerate_interfaces(nw_path_t path,
 
 static BOOL lc_shouldEnableNECPInlineHooks(void) {
     const char *disableFlag = getenv("LC_DISABLE_NECP_INLINE_HOOKS");
-    if (disableFlag && disableFlag[0] == '1') {
-        return NO;
-    }
-
-    const char *enableFlag = getenv("LC_ENABLE_NECP_INLINE_HOOKS");
-    return enableFlag && enableFlag[0] == '1';
+    return !(disableFlag && disableFlag[0] == '1');
 }
 
 static BOOL lc_shouldEnableNECPHooks(void) {
@@ -1382,7 +1377,7 @@ static void setupNECPClientActionHooks(void) {
             NSLog(@"[LC] ⚠️ Failed to inline hook necp_client_action (kr=%d)", kr);
         }
     } else {
-        NSLog(@"[LC] 🌐 necp inline hooks disabled (set LC_ENABLE_NECP_INLINE_HOOKS=0/1 or LC_DISABLE_NECP_INLINE_HOOKS=1)");
+        NSLog(@"[LC] 🌐 necp inline hooks disabled via LC_DISABLE_NECP_INLINE_HOOKS=1");
     }
 
     gDidInstallNECPClientActionHooks = YES;
@@ -2246,7 +2241,7 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     if (lc_shouldEnableNECPHooks()) {
         setupNECPClientActionHooks();
     } else {
-        NSLog(@"[LC] 🌐 NECP hooks disabled (set LC_DISABLE_NECP_HOOKS=0/1)");
+        NSLog(@"[LC] 🌐 NECP hooks disabled via LC_DISABLE_NECP_HOOKS=1");
     }
 
     if (lc_shouldEnableNWPathLowLevelHooks()) {
@@ -2254,7 +2249,7 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
         // NWPath.availableInterfaces -> _nw_path_enumerate_interfaces -> _nw_path_copy_interface_with_generation.
         setupNetworkFrameworkLowLevelHooks();
     } else {
-        NSLog(@"[LC] 🌐 NWPath low-level hooks disabled (using upstream NECP filtering only; set LC_ENABLE_NWPATH_LOWLEVEL_HOOKS=1 to enable)");
+        NSLog(@"[LC] 🌐 NWPath low-level hooks disabled (using upstream NECP filtering only; set LC_DISABLE_NWPATH_LOWLEVEL_HOOKS=1 to disable)");
     }
 
     if (bypassSSLPinning) {
