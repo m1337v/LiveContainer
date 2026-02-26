@@ -934,6 +934,15 @@ static void lc_overwriteInterfaceName(char *name, size_t buflen) {
     strlcpy(name, "en0", buflen);
 }
 
+#ifndef IFXNAMSIZ
+#define IFXNAMSIZ (IFNAMSIZ + 8)
+#endif
+
+struct lc_necp_interface_details_prefix {
+    char name[IFXNAMSIZ];
+    u_int32_t index;
+};
+
 static uint32_t lc_findSafeInterfaceIndex(void) {
     uint32_t index = if_nametoindex("en0");
     if (index != 0) {
@@ -1722,25 +1731,32 @@ static int hook_necp_client_action(int necp_fd,
     if (result == 0 &&
         action == 9 &&
         output_buffer &&
-        output_buffer_size >= IFNAMSIZ) {
-        char *nameField = (char *)output_buffer;
-        char returnedName[IFNAMSIZ + 1] = {0};
-        memcpy(returnedName, nameField, IFNAMSIZ);
-        returnedName[IFNAMSIZ] = '\0';
+        output_buffer_size >= sizeof(struct lc_necp_interface_details_prefix)) {
+        struct lc_necp_interface_details_prefix *details =
+            (struct lc_necp_interface_details_prefix *)output_buffer;
 
-        if (shouldFilterVPNInterfaceNameCStr(returnedName)) {
+        char returnedName[IFXNAMSIZ + 1] = {0};
+        memcpy(returnedName, details->name, IFXNAMSIZ);
+        returnedName[IFXNAMSIZ] = '\0';
+
+        BOOL shouldSanitize = shouldFilterVPNInterfaceNameCStr(returnedName);
+        if (!shouldSanitize && details->index != 0) {
+            char resolvedName[IFNAMSIZ] = {0};
+            if (if_indextoname(details->index, resolvedName) &&
+                shouldFilterVPNInterfaceNameCStr(resolvedName)) {
+                shouldSanitize = YES;
+            }
+        }
+
+        if (shouldSanitize) {
             uint32_t safeInterfaceIndex = remappedInputSafeInterfaceIndex;
             if (safeInterfaceIndex == 0) {
                 safeInterfaceIndex = lc_findSafeInterfaceIndex();
             }
-            strlcpy(nameField, "en0", IFNAMSIZ);
+            strlcpy(details->name, "en0", IFXNAMSIZ);
 
-            // struct necp_interface_details starts with name[IFNAMSIZ], then index.
-            if (safeInterfaceIndex != 0 &&
-                output_buffer_size >= (IFNAMSIZ + sizeof(uint32_t))) {
-                memcpy((uint8_t *)output_buffer + IFNAMSIZ,
-                       &safeInterfaceIndex,
-                       sizeof(uint32_t));
+            if (safeInterfaceIndex != 0) {
+                details->index = safeInterfaceIndex;
             }
             NSLog(@"[LC] 🎭 necp_client_action - sanitized returned interface %s -> en0%s",
                   returnedName,
