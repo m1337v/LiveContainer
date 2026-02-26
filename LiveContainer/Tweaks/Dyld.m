@@ -825,6 +825,36 @@ static BOOL shouldFilterVPNInterfaceName(NSString *name) {
     return shouldFilterVPNInterfaceNameCStr(name.UTF8String);
 }
 
+static uint32_t lc_findSafeInterfaceIndex(void) {
+    uint32_t index = if_nametoindex("en0");
+    if (index != 0) {
+        return index;
+    }
+
+    index = if_nametoindex("pdp_ip0");
+    if (index != 0) {
+        return index;
+    }
+
+    struct if_nameindex *interfaces = if_nameindex();
+    if (!interfaces) {
+        return 0;
+    }
+
+    uint32_t fallback = 0;
+    for (struct if_nameindex *entry = interfaces;
+         entry->if_index != 0 && entry->if_name != NULL;
+         entry++) {
+        if (!shouldFilterVPNInterfaceNameCStr(entry->if_name)) {
+            fallback = entry->if_index;
+            break;
+        }
+    }
+
+    if_freenameindex(interfaces);
+    return fallback;
+}
+
 static NSString *sanitizeVPNMarkersInString(NSString *text) {
     if (![text isKindOfClass:[NSString class]] || text.length == 0) {
         return text;
@@ -1215,6 +1245,11 @@ static int hook_necp_client_action(int necp_fd,
         NSLog(@"[LC] ✅ hook hit: necp_client_action");
     }
 
+    const void *effectiveInputBuffer = input_buffer;
+    uint32_t rewrittenInterfaceIndex = 0;
+    uint32_t safeInterfaceIndex = 0;
+    BOOL filteredInterfaceLookup = NO;
+
     // iOS 18.5 Network.framework path:
     // _nw_interface_create_from_necp -> necp_client_action(action=9, in_size=4).
     if (action == 9 && input_buffer && input_buffer_size == sizeof(uint32_t)) {
@@ -1222,25 +1257,46 @@ static int hook_necp_client_action(int necp_fd,
         char interfaceName[IFNAMSIZ] = {0};
         if (if_indextoname(interfaceIndex, interfaceName) &&
             shouldFilterVPNInterfaceNameCStr(interfaceName)) {
-            NSLog(@"[LC] 🎭 necp_client_action - filtering VPN interface index %u (%s)",
-                  interfaceIndex,
-                  interfaceName);
-            if (output_buffer && output_buffer_size > 0) {
-                memset(output_buffer, 0, output_buffer_size);
+            filteredInterfaceLookup = YES;
+            safeInterfaceIndex = lc_findSafeInterfaceIndex();
+            if (safeInterfaceIndex != 0 && safeInterfaceIndex != interfaceIndex) {
+                rewrittenInterfaceIndex = safeInterfaceIndex;
+                effectiveInputBuffer = &rewrittenInterfaceIndex;
+                NSLog(@"[LC] 🎭 necp_client_action - remapping VPN interface index %u (%s) -> %u",
+                      interfaceIndex,
+                      interfaceName,
+                      safeInterfaceIndex);
+            } else {
+                NSLog(@"[LC] 🎭 necp_client_action - sanitizing VPN interface lookup index %u (%s)",
+                      interfaceIndex,
+                      interfaceName);
             }
-            // Treat filtered interfaces as not present so callers skip the lookup slot.
-            errno = ENOENT;
-            gInHookNECPClientAction = NO;
-            return -1;
         }
     }
 
     int result = lc_call_original_necp_client_action(necp_fd,
                                                      action,
-                                                     input_buffer,
+                                                     effectiveInputBuffer,
                                                      input_buffer_size,
                                                      output_buffer,
                                                      output_buffer_size);
+
+    if (result == 0 &&
+        filteredInterfaceLookup &&
+        action == 9 &&
+        output_buffer &&
+        output_buffer_size >= IFNAMSIZ) {
+        char *nameField = (char *)output_buffer;
+        strlcpy(nameField, "en0", IFNAMSIZ);
+
+        // struct necp_interface_details starts with name[IFNAMSIZ], then index.
+        if (safeInterfaceIndex != 0 &&
+            output_buffer_size >= (IFNAMSIZ + sizeof(uint32_t))) {
+            memcpy((uint8_t *)output_buffer + IFNAMSIZ,
+                   &safeInterfaceIndex,
+                   sizeof(uint32_t));
+        }
+    }
 
     gInHookNECPClientAction = NO;
     return result;
@@ -1345,8 +1401,8 @@ static void hook_nw_path_enumerate_interfaces(nw_path_t path,
 }
 
 static BOOL lc_shouldEnableNECPInlineHooks(void) {
-    const char *disableFlag = getenv("LC_DISABLE_NECP_INLINE_HOOKS");
-    return !(disableFlag && disableFlag[0] == '1');
+    const char *enableFlag = getenv("LC_ENABLE_NECP_INLINE_HOOKS");
+    return (enableFlag && enableFlag[0] == '1');
 }
 
 static BOOL lc_shouldEnableNECPHooks(void) {
@@ -1381,7 +1437,7 @@ static void setupNECPClientActionHooks(void) {
             NSLog(@"[LC] ⚠️ Failed to inline hook necp_client_action (kr=%d)", kr);
         }
     } else {
-        NSLog(@"[LC] 🌐 necp inline hooks disabled");
+        NSLog(@"[LC] 🌐 necp inline hooks disabled (set LC_ENABLE_NECP_INLINE_HOOKS=1 to enable)");
     }
 
     gDidInstallNECPClientActionHooks = YES;
