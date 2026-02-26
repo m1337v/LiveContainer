@@ -99,7 +99,8 @@ static BOOL gDidInstallNWPathLowLevelHooks = NO;
 static BOOL gDidInstallNECPClientActionHooks = NO;
 static BOOL gDidInstallNWObjCInterfaceHooks = NO;
 static BOOL gScheduledNWObjCHookRetry = NO;
-static BOOL gScheduledSwiftNetworkRebindRetry = NO;
+static BOOL gDidApplySwiftNetworkRebind = NO;
+static BOOL gLoggedMissingSwiftNetworkImage = NO;
 static BOOL gSpoofNetworkInfoEnabled = NO;
 static BOOL gSpoofWiFiAddressEnabled = NO;
 static BOOL gSpoofCellularAddressEnabled = NO;
@@ -170,7 +171,6 @@ static nw_interface_t hook_nw_interface_create_with_name(const char *name);
 static nw_interface_t hook_nw_interface_create_with_index_and_name(unsigned int interface_index, const char *name);
 static BOOL lc_shouldEnableNWObjCHooks(void);
 static void lc_forceRebindSwiftNetworkImports(void);
-static void lc_scheduleSwiftNetworkRebindRetry(void);
 static void lc_registerNWImageCallback(void);
 
 // LC specific variables
@@ -1300,176 +1300,79 @@ static const mach_header_u *lc_findLoadedImageHeaderContaining(const char *needl
     return NULL;
 }
 
-static BOOL lc_sectionNameEquals(const char sectionName[16], const char *name) {
-    return !strncmp(sectionName, name, 16);
-}
-
-static BOOL lc_isGOTLikeSection(const section_u *section) {
-    uint32_t sectionType = section->flags & SECTION_TYPE;
-    if (sectionType == S_LAZY_SYMBOL_POINTERS || sectionType == S_NON_LAZY_SYMBOL_POINTERS) {
-        return YES;
+static const char *lc_findLoadedImageNameForHeader(const mach_header_u *header, intptr_t *slideOut) {
+    if (slideOut) {
+        *slideOut = 0;
+    }
+    if (!header) {
+        return NULL;
     }
 
-    return lc_sectionNameEquals(section->sectname, "__auth_got") ||
-           lc_sectionNameEquals(section->sectname, "__got") ||
-           lc_sectionNameEquals(section->sectname, "__la_symbol_ptr") ||
-           lc_sectionNameEquals(section->sectname, "__nl_symbol_ptr");
-}
-
-static size_t lc_countImagePointersToFunction(const mach_header_u *header, void *target) {
-    if (!header || !target) {
-        return 0;
-    }
-
-    size_t count = 0;
-    void *normalizedTarget = ptrauth_strip(ptrauth_auth_function(target, ptrauth_key_function_pointer, 0),
-                                           ptrauth_key_function_pointer);
-
-    struct load_command *loadCommand = (void *)((uintptr_t)header + sizeof(mach_header_u));
-    for (uint32_t i = 0; i < header->ncmds; i++) {
-        if (loadCommand->cmd == LC_SEGMENT_U) {
-            segment_command_u *segment = (segment_command_u *)loadCommand;
-            if (!strncmp(segment->segname, "__AUTH_CONST", sizeof(segment->segname)) ||
-                !strncmp(segment->segname, "__DATA_CONST", sizeof(segment->segname)) ||
-                !strncmp(segment->segname, "__DATA", sizeof(segment->segname))) {
-                section_u *sections = (void *)((uintptr_t)segment + sizeof(segment_command_u));
-                for (uint32_t j = 0; j < segment->nsects; j++) {
-                    section_u *section = &sections[j];
-                    if (!lc_isGOTLikeSection(section)) {
-                        continue;
-                    }
-
-                    char segname[sizeof(section->segname) + 1];
-                    strlcpy(segname, section->segname, sizeof(segname));
-                    char sectname[sizeof(section->sectname) + 1];
-                    strlcpy(sectname, section->sectname, sizeof(sectname));
-
-                    unsigned long sectionSize = 0;
-                    uint8_t *sectionStart = getsectiondata(header, segname, sectname, &sectionSize);
-                    if (!sectionStart || sectionSize == 0) {
-                        continue;
-                    }
-
-                    BOOL auth = lc_sectionNameEquals(section->sectname, "__auth_got");
-                    void **symbolPointers = (void **)sectionStart;
-                    size_t pointerCount = sectionSize / sizeof(void *);
-                    for (size_t k = 0; k < pointerCount; k++) {
-                        void *entry = symbolPointers[k];
-                        if (!entry) {
-                            continue;
-                        }
-                        if (auth) {
-                            entry = ptrauth_strip(ptrauth_auth_function(symbolPointers[k],
-                                                                         ptrauth_key_function_pointer,
-                                                                         &symbolPointers[k]),
-                                                  ptrauth_key_function_pointer);
-                        }
-                        if (entry == normalizedTarget) {
-                            count++;
-                        }
-                    }
-                }
+    uint32_t imageCount = _dyld_image_count();
+    for (uint32_t i = 0; i < imageCount; i++) {
+        const mach_header_u *currentHeader = (const mach_header_u *)_dyld_get_image_header(i);
+        if (currentHeader == header) {
+            if (slideOut) {
+                *slideOut = _dyld_get_image_vmaddr_slide(i);
             }
+            return _dyld_get_image_name(i);
         }
+    }
+    return NULL;
+}
 
-        loadCommand = (void *)((uintptr_t)loadCommand + loadCommand->cmdsize);
+static BOOL lc_rebindNWImportsForImage(const mach_header_u *header, intptr_t slide) {
+    if (!header) {
+        return NO;
     }
 
-    return count;
+    struct rebinding nwRebindings[16];
+    size_t nwRebindingCount = 0;
+    nwRebindings[nwRebindingCount++] = (struct rebinding){"nw_interface_get_name", (void *)hook_nw_interface_get_name, NULL};
+    nwRebindings[nwRebindingCount++] = (struct rebinding){"nw_interface_get_index", (void *)hook_nw_interface_get_index, NULL};
+    nwRebindings[nwRebindingCount++] = (struct rebinding){"nw_interface_get_type", (void *)hook_nw_interface_get_type, NULL};
+    nwRebindings[nwRebindingCount++] = (struct rebinding){"nw_path_enumerate_interfaces", (void *)hook_nw_path_enumerate_interfaces, NULL};
+    nwRebindings[nwRebindingCount++] = (struct rebinding){"nw_path_copy_interface_with_generation", (void *)hook_nw_path_copy_interface_with_generation, NULL};
+    nwRebindings[nwRebindingCount++] = (struct rebinding){"nw_interface_create_with_name", (void *)hook_nw_interface_create_with_name, NULL};
+    nwRebindings[nwRebindingCount++] = (struct rebinding){"nw_interface_create_with_index_and_name", (void *)hook_nw_interface_create_with_index_and_name, NULL};
+    nwRebindings[nwRebindingCount++] = (struct rebinding){"__nw_interface_get_name", (void *)hook_nw_interface_get_name, NULL};
+    nwRebindings[nwRebindingCount++] = (struct rebinding){"__nw_interface_get_index", (void *)hook_nw_interface_get_index, NULL};
+    nwRebindings[nwRebindingCount++] = (struct rebinding){"__nw_interface_get_type", (void *)hook_nw_interface_get_type, NULL};
+    nwRebindings[nwRebindingCount++] = (struct rebinding){"__nw_path_enumerate_interfaces", (void *)hook_nw_path_enumerate_interfaces, NULL};
+    nwRebindings[nwRebindingCount++] = (struct rebinding){"__nw_path_copy_interface_with_generation", (void *)hook_nw_path_copy_interface_with_generation, NULL};
+
+    return (rebind_symbols_image((void *)header, slide, nwRebindings, nwRebindingCount) == 0);
 }
 
 static void lc_forceRebindSwiftNetworkImports(void) {
-    static BOOL loggedMissingSwiftNetwork = NO;
-    static BOOL loggedAppliedSwiftNetwork = NO;
+    if (gDidApplySwiftNetworkRebind) {
+        return;
+    }
+
+    lc_resolveNetworkSymbolPointers();
 
     const mach_header_u *swiftNetworkHeader = lc_findLoadedImageHeaderContaining("libswiftNetwork.dylib");
     if (!swiftNetworkHeader) {
-        if (!loggedMissingSwiftNetwork) {
-            loggedMissingSwiftNetwork = YES;
-            NSLog(@"[LC] 🌐 libswiftNetwork not loaded yet; will retry NW import rebinding");
+        if (!gLoggedMissingSwiftNetworkImage) {
+            gLoggedMissingSwiftNetworkImage = YES;
+            NSLog(@"[LC] 🌐 libswiftNetwork not loaded yet; waiting for image callback");
         }
-        lc_scheduleSwiftNetworkRebindRetry();
         return;
     }
 
-    if (orig_nw_interface_get_name) {
-        litehook_rebind_symbol(swiftNetworkHeader,
-                               (void *)orig_nw_interface_get_name,
-                               (void *)hook_nw_interface_get_name,
-                               NULL);
-    }
-    if (orig_nw_interface_get_index) {
-        litehook_rebind_symbol(swiftNetworkHeader,
-                               (void *)orig_nw_interface_get_index,
-                               (void *)hook_nw_interface_get_index,
-                               NULL);
-    }
-    if (orig_nw_interface_get_type) {
-        litehook_rebind_symbol(swiftNetworkHeader,
-                               (void *)orig_nw_interface_get_type,
-                               (void *)hook_nw_interface_get_type,
-                               NULL);
-    }
-    if (orig_nw_path_enumerate_interfaces) {
-        litehook_rebind_symbol(swiftNetworkHeader,
-                               (void *)orig_nw_path_enumerate_interfaces,
-                               (void *)hook_nw_path_enumerate_interfaces,
-                               NULL);
-    }
-    if (orig_nw_path_copy_interface_with_generation) {
-        litehook_rebind_symbol(swiftNetworkHeader,
-                               (void *)orig_nw_path_copy_interface_with_generation,
-                               (void *)hook_nw_path_copy_interface_with_generation,
-                               NULL);
-    }
-
-    // Some builds resolve to double-underscore symbols in libnetwork.
-    void *altGetName = lc_findNetworkDSCSymbol("__nw_interface_get_name");
-    if (altGetName) {
-        litehook_rebind_symbol(swiftNetworkHeader, altGetName, (void *)hook_nw_interface_get_name, NULL);
-    }
-    void *altGetIndex = lc_findNetworkDSCSymbol("__nw_interface_get_index");
-    if (altGetIndex) {
-        litehook_rebind_symbol(swiftNetworkHeader, altGetIndex, (void *)hook_nw_interface_get_index, NULL);
-    }
-    void *altGetType = lc_findNetworkDSCSymbol("__nw_interface_get_type");
-    if (altGetType) {
-        litehook_rebind_symbol(swiftNetworkHeader, altGetType, (void *)hook_nw_interface_get_type, NULL);
-    }
-    void *altEnumerate = lc_findNetworkDSCSymbol("__nw_path_enumerate_interfaces");
-    if (altEnumerate) {
-        litehook_rebind_symbol(swiftNetworkHeader, altEnumerate, (void *)hook_nw_path_enumerate_interfaces, NULL);
-    }
-    void *altCopyWithGeneration = lc_findNetworkDSCSymbol("__nw_path_copy_interface_with_generation");
-    if (altCopyWithGeneration) {
-        litehook_rebind_symbol(swiftNetworkHeader, altCopyWithGeneration, (void *)hook_nw_path_copy_interface_with_generation, NULL);
-    }
-
-    size_t hitGetName = lc_countImagePointersToFunction(swiftNetworkHeader, (void *)hook_nw_interface_get_name);
-    size_t hitGetIndex = lc_countImagePointersToFunction(swiftNetworkHeader, (void *)hook_nw_interface_get_index);
-    size_t hitGetType = lc_countImagePointersToFunction(swiftNetworkHeader, (void *)hook_nw_interface_get_type);
-    size_t hitEnumerate = lc_countImagePointersToFunction(swiftNetworkHeader, (void *)hook_nw_path_enumerate_interfaces);
-    size_t hitCopyWithGeneration = lc_countImagePointersToFunction(swiftNetworkHeader, (void *)hook_nw_path_copy_interface_with_generation);
-
-    if (!loggedAppliedSwiftNetwork) {
-        loggedAppliedSwiftNetwork = YES;
-        NSLog(@"[LC] 🌐 force-rebound NW imports in libswiftNetwork (hits: get_name=%zu get_index=%zu get_type=%zu enumerate=%zu copy_with_generation=%zu)",
-              hitGetName, hitGetIndex, hitGetType, hitEnumerate, hitCopyWithGeneration);
-    } else if ((hitGetName + hitGetIndex + hitGetType + hitEnumerate + hitCopyWithGeneration) == 0) {
-        NSLog(@"[LC] ⚠️ libswiftNetwork rebinding currently has zero hook hits");
-    }
-}
-
-static void lc_scheduleSwiftNetworkRebindRetry(void) {
-    if (gScheduledSwiftNetworkRebindRetry) {
+    intptr_t slide = 0;
+    const char *imageName = lc_findLoadedImageNameForHeader(swiftNetworkHeader, &slide);
+    if (lc_rebindNWImportsForImage(swiftNetworkHeader, slide)) {
+        gDidApplySwiftNetworkRebind = YES;
+        NSLog(@"[LC] 🌐 rebound NW imports in %s", imageName ? imageName : "libswiftNetwork");
         return;
     }
-    gScheduledSwiftNetworkRebindRetry = YES;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        gScheduledSwiftNetworkRebindRetry = NO;
-        lc_forceRebindSwiftNetworkImports();
-    });
+
+    static BOOL loggedRebindFailure = NO;
+    if (!loggedRebindFailure) {
+        loggedRebindFailure = YES;
+        NSLog(@"[LC] ⚠️ failed to rebind NW imports in %s", imageName ? imageName : "libswiftNetwork");
+    }
 }
 
 static void lc_resolveNetworkSymbolPointers(void) {
@@ -2033,9 +1936,16 @@ static void lc_installNWObjCInterfaceHooksWithRetry(void) {
     });
 }
 
-static void lc_networkImageAddedCallback(__unused const struct mach_header *mh,
+static void lc_networkImageAddedCallback(const struct mach_header *mh,
                                          __unused intptr_t vmaddr_slide) {
-    lc_forceRebindSwiftNetworkImports();
+    const char *imageName = NULL;
+    Dl_info imageInfo = {0};
+    if (dladdr(mh, &imageInfo) != 0) {
+        imageName = imageInfo.dli_fname;
+    }
+    if (imageName && strstr(imageName, "libswiftNetwork.dylib") != NULL) {
+        lc_forceRebindSwiftNetworkImports();
+    }
     if (lc_shouldEnableNWObjCHooks()) {
         lc_installNWObjCInterfaceHooks();
     }
@@ -3434,21 +3344,23 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }
 
     // Minimal network spoofing hooks.
-    rebind_symbols((struct rebinding[6]){
+    rebind_symbols((struct rebinding[7]){
                 {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                 {"CNCopyCurrentNetworkInfo", (void *)hook_CNCopyCurrentNetworkInfo, (void **)&orig_CNCopyCurrentNetworkInfo},
                 {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
                 {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
                 {"if_indextoname", (void *)hook_if_indextoname, (void **)&orig_if_indextoname},
+                {"if_nameindex", (void *)hook_if_nameindex, (void **)&orig_if_nameindex},
                 {"syscall", (void *)hook_syscall, (void **)&orig_syscall},
-    }, 6);
+    }, 7);
     NSLog(@"[LC] 🌐 fishhook rebound base network hooks: CFNetworkCopySystemProxySettings=%p CNCopyCurrentNetworkInfo=%p getifaddrs=%p",
           orig_CFNetworkCopySystemProxySettings,
           orig_CNCopyCurrentNetworkInfo,
           orig_getifaddrs);
-    NSLog(@"[LC] 🌐 fishhook rebound if_nametoindex=%p if_indextoname=%p",
+    NSLog(@"[LC] 🌐 fishhook rebound if_nametoindex=%p if_indextoname=%p if_nameindex=%p",
           orig_if_nametoindex,
-          orig_if_indextoname);
+          orig_if_indextoname,
+          orig_if_nameindex);
     NSLog(@"[LC] 🌐 fishhook rebound syscall; orig=%p", orig_syscall);
 
     if (lc_shouldEnableNECPHooks()) {
