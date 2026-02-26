@@ -2775,11 +2775,19 @@ static nw_interface_t lc_sanitizePrivatePathInterface(const char *context, nw_in
 }
 
 static BOOL lc_shouldEnableNWPathLowLevelHooks(void) {
+    const char *enableFlag = getenv("LC_ENABLE_NWPATH_HOOKS");
+    if (!(enableFlag && enableFlag[0] == '1')) {
+        return NO;
+    }
     const char *disableFlag = getenv("LC_DISABLE_NWPATH_HOOKS");
     return !(disableFlag && disableFlag[0] == '1');
 }
 
 static BOOL lc_shouldEnableNWObjCHooks(void) {
+    const char *enableFlag = getenv("LC_ENABLE_NW_OBJC_HOOKS");
+    if (!(enableFlag && enableFlag[0] == '1')) {
+        return NO;
+    }
     const char *disableFlag = getenv("LC_DISABLE_NW_OBJC_HOOKS");
     return !(disableFlag && disableFlag[0] == '1');
 }
@@ -3053,7 +3061,7 @@ static void setupNetworkFrameworkLowLevelHooks(void) {
     if (lc_shouldEnableNWObjCHooks()) {
         lc_installNWObjCInterfaceHooksWithRetry();
     } else {
-        NSLog(@"[LC] 🌐 NW ObjC hooks disabled via LC_DISABLE_NW_OBJC_HOOKS=1");
+        NSLog(@"[LC] 🌐 NW ObjC hooks disabled by default (set LC_ENABLE_NW_OBJC_HOOKS=1 to enable)");
     }
 
     gDidInstallNWPathLowLevelHooks = YES;
@@ -3898,6 +3906,8 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
 
     if (lc_shouldEnableNWPathLowLevelHooks()) {
         setupNetworkFrameworkLowLevelHooks();
+    } else {
+        NSLog(@"[LC] 🌐 NWPath low-level hooks disabled by default (set LC_ENABLE_NWPATH_HOOKS=1 to enable)");
     }
 
     if (bypassSSLPinning) {

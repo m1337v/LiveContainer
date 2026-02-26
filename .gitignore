@@ -2,6 +2,7 @@
 .deriveddata/
 build/
 packages/
+tools/
 .DS_Store
 *.xcscmblueprint
 *.xccheckout
