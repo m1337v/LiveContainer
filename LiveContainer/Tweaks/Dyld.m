@@ -1368,22 +1368,40 @@ static struct if_nameindex *hook_if_nameindex(void) {
     }
 
     static BOOL loggedHookHit = NO;
-    for (struct if_nameindex *entry = list;
-         entry->if_index != 0 && entry->if_name != NULL;
-         entry++) {
-        if (!shouldFilterVPNInterfaceNameCStr(entry->if_name)) {
+    static BOOL loggedCompaction = NO;
+    struct if_nameindex *readPtr = list;
+    struct if_nameindex *writePtr = list;
+    unsigned int removedCount = 0;
+
+    while (readPtr->if_index != 0 && readPtr->if_name != NULL) {
+        if (shouldFilterVPNInterfaceNameCStr(readPtr->if_name)) {
+            if (!loggedHookHit) {
+                loggedHookHit = YES;
+                NSLog(@"[LC] ✅ hook hit: if_nameindex");
+            }
+
+            NSLog(@"[LC] 🎭 if_nameindex - removing VPN interface index %u (%s)",
+                  readPtr->if_index,
+                  readPtr->if_name);
+            removedCount++;
+            readPtr++;
             continue;
         }
 
-        if (!loggedHookHit) {
-            loggedHookHit = YES;
-            NSLog(@"[LC] ✅ hook hit: if_nameindex");
+        if (writePtr != readPtr) {
+            *writePtr = *readPtr;
         }
+        writePtr++;
+        readPtr++;
+    }
 
-        NSLog(@"[LC] 🎭 if_nameindex - filtering VPN interface index %u (%s)",
-              entry->if_index,
-              entry->if_name);
-        lc_overwriteInterfaceName(entry->if_name, IFNAMSIZ);
+    // Terminate at compacted length so callers observe fewer interfaces.
+    writePtr->if_index = 0;
+    writePtr->if_name = NULL;
+
+    if (removedCount > 0 && !loggedCompaction) {
+        loggedCompaction = YES;
+        NSLog(@"[LC] 🎭 if_nameindex - compacted interface list, removed %u VPN entries", removedCount);
     }
 
     return list;
@@ -1405,15 +1423,9 @@ static unsigned int hook_if_nametoindex(const char *ifname) {
         NSLog(@"[LC] ✅ hook hit: if_nametoindex");
     }
 
-    uint32_t safeIndex = lc_findSafeInterfaceIndex();
-    if (safeIndex != 0) {
-        NSLog(@"[LC] 🎭 if_nametoindex - remapping VPN interface %s -> ifindex %u",
-              ifname,
-              safeIndex);
-        return safeIndex;
-    }
-
-    return orig_if_nametoindex("en0");
+    NSLog(@"[LC] 🎭 if_nametoindex - hiding VPN interface lookup: %s", ifname);
+    errno = ENXIO;
+    return 0;
 }
 
 static NSString *lc_getInterfaceNameFromObject(id interfaceObj) {
