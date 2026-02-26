@@ -86,11 +86,14 @@ static nw_interface_t (*orig_nw_interface_create_with_name)(const char *name);
 static nw_interface_t (*orig_nw_interface_create_with_index_and_name)(unsigned int interface_index, const char *name);
 static NSArray *(*orig_NWPath_availableInterfaces_objc)(id self, SEL _cmd);
 static NSString *(*orig_NWInterface_name_objc)(id self, SEL _cmd);
+static NSString *(*orig_NWInterface_description_objc)(id self, SEL _cmd);
+static NSString *(*orig_NWInterface_debugDescription_objc)(id self, SEL _cmd);
 static BOOL gDidInlineHookNECPClientAction = NO;
 static BOOL gRegisteredNWImageCallback = NO;
 static __thread BOOL gInHookNWPathCopyInterfaceWithGeneration = NO;
 static __thread BOOL gInHookNECPClientAction = NO;
 static __thread BOOL gInHookNECPSyscall = NO;
+static uint8_t gLoggedNECPAction[256];
 static BOOL gDidInstallNWPathLowLevelHooks = NO;
 static BOOL gDidInstallNECPClientActionHooks = NO;
 static BOOL gSpoofNetworkInfoEnabled = NO;
@@ -1468,6 +1471,18 @@ static BOOL lc_isLikelyNWInterfaceClass(Class cls) {
            lc_classNameContainsToken(cls, "nw_interface");
 }
 
+static BOOL lc_classIsFromNetworkFramework(Class cls) {
+    if (!cls) {
+        return NO;
+    }
+    const char *imageName = class_getImageName(cls);
+    if (!imageName) {
+        return NO;
+    }
+    return (strstr(imageName, "/Network.framework/") != NULL ||
+            strstr(imageName, "/libnetwork.") != NULL);
+}
+
 static NSString *hook_NWInterface_name_objc(id self, SEL _cmd) {
     if (!orig_NWInterface_name_objc) {
         return @"en0";
@@ -1486,6 +1501,22 @@ static NSString *hook_NWInterface_name_objc(id self, SEL _cmd) {
 
     NSLog(@"[LC] 🎭 NWInterface.name - filtering VPN interface: %@", name);
     return @"en0";
+}
+
+static NSString *hook_NWInterface_description_objc(id self, SEL _cmd) {
+    if (!orig_NWInterface_description_objc) {
+        return @"en0";
+    }
+    NSString *text = orig_NWInterface_description_objc(self, _cmd);
+    return sanitizeVPNMarkersInString(text);
+}
+
+static NSString *hook_NWInterface_debugDescription_objc(id self, SEL _cmd) {
+    if (!orig_NWInterface_debugDescription_objc) {
+        return @"en0";
+    }
+    NSString *text = orig_NWInterface_debugDescription_objc(self, _cmd);
+    return sanitizeVPNMarkersInString(text);
 }
 
 static NSArray *hook_NWPath_availableInterfaces_objc(id self, SEL _cmd) {
@@ -1518,7 +1549,10 @@ static NSArray *hook_NWPath_availableInterfaces_objc(id self, SEL _cmd) {
 }
 
 static void lc_installNWObjCInterfaceHooks(void) {
-    if (orig_NWPath_availableInterfaces_objc && orig_NWInterface_name_objc) {
+    if (orig_NWPath_availableInterfaces_objc &&
+        orig_NWInterface_name_objc &&
+        orig_NWInterface_description_objc &&
+        orig_NWInterface_debugDescription_objc) {
         return;
     }
 
@@ -1532,15 +1566,24 @@ static void lc_installNWObjCInterfaceHooks(void) {
         return;
     }
 
+    int nwFrameworkClassCount = 0;
+    int nwPathCandidateCount = 0;
+    int nwInterfaceCandidateCount = 0;
     classCount = objc_getClassList(classes, classCount);
     for (int i = 0; i < classCount; i++) {
         Class cls = classes[i];
         if (!cls) {
             continue;
         }
+        if (!lc_classIsFromNetworkFramework(cls)) {
+            continue;
+        }
+        nwFrameworkClassCount++;
 
         if (!orig_NWPath_availableInterfaces_objc &&
-            lc_isLikelyNWPathClass(cls)) {
+            lc_isLikelyNWPathClass(cls) &&
+            class_respondsToSelector(cls, @selector(availableInterfaces))) {
+            nwPathCandidateCount++;
             Method method = class_getInstanceMethod(cls, @selector(availableInterfaces));
             if (method) {
                 orig_NWPath_availableInterfaces_objc = (NSArray *(*)(id, SEL))
@@ -1550,21 +1593,53 @@ static void lc_installNWObjCInterfaceHooks(void) {
         }
 
         if (!orig_NWInterface_name_objc &&
-            lc_isLikelyNWInterfaceClass(cls)) {
+            lc_isLikelyNWInterfaceClass(cls) &&
+            class_respondsToSelector(cls, @selector(name))) {
+            nwInterfaceCandidateCount++;
             Method method = class_getInstanceMethod(cls, @selector(name));
             if (method) {
                 orig_NWInterface_name_objc = (NSString *(*)(id, SEL))
                     method_setImplementation(method, (IMP)hook_NWInterface_name_objc);
                 NSLog(@"[LC] 🌐 installed ObjC hook for %s name", class_getName(cls));
+
+                Method descriptionMethod = class_getInstanceMethod(cls, @selector(description));
+                if (descriptionMethod && !orig_NWInterface_description_objc) {
+                    orig_NWInterface_description_objc = (NSString *(*)(id, SEL))
+                        method_setImplementation(descriptionMethod, (IMP)hook_NWInterface_description_objc);
+                    NSLog(@"[LC] 🌐 installed ObjC hook for %s description", class_getName(cls));
+                }
+
+                Method debugDescriptionMethod = class_getInstanceMethod(cls, @selector(debugDescription));
+                if (debugDescriptionMethod && !orig_NWInterface_debugDescription_objc) {
+                    orig_NWInterface_debugDescription_objc = (NSString *(*)(id, SEL))
+                        method_setImplementation(debugDescriptionMethod, (IMP)hook_NWInterface_debugDescription_objc);
+                    NSLog(@"[LC] 🌐 installed ObjC hook for %s debugDescription", class_getName(cls));
+                }
             }
         }
 
-        if (orig_NWPath_availableInterfaces_objc && orig_NWInterface_name_objc) {
+        if (orig_NWPath_availableInterfaces_objc &&
+            orig_NWInterface_name_objc &&
+            orig_NWInterface_description_objc &&
+            orig_NWInterface_debugDescription_objc) {
             break;
         }
     }
 
     free(classes);
+
+    static BOOL loggedNWObjCHookScan = NO;
+    if (!loggedNWObjCHookScan) {
+        loggedNWObjCHookScan = YES;
+        NSLog(@"[LC] 🌐 NW ObjC scan: frameworkClasses=%d pathCandidates=%d interfaceCandidates=%d installed(path=%d name=%d desc=%d debugDesc=%d)",
+              nwFrameworkClassCount,
+              nwPathCandidateCount,
+              nwInterfaceCandidateCount,
+              orig_NWPath_availableInterfaces_objc != NULL,
+              orig_NWInterface_name_objc != NULL,
+              orig_NWInterface_description_objc != NULL,
+              orig_NWInterface_debugDescription_objc != NULL);
+    }
 }
 
 static void lc_networkImageAddedCallback(__unused const struct mach_header *mh,
@@ -1609,6 +1684,14 @@ static int hook_necp_client_action(int necp_fd,
     if (!loggedHookHit) {
         loggedHookHit = YES;
         NSLog(@"[LC] ✅ hook hit: necp_client_action");
+    }
+
+    if (action < sizeof(gLoggedNECPAction) && gLoggedNECPAction[action] == 0) {
+        gLoggedNECPAction[action] = 1;
+        NSLog(@"[LC] 🌐 necp action observed: action=%u in=%zu out=%zu",
+              action,
+              input_buffer_size,
+              output_buffer_size);
     }
 
     const void *effectiveInputBuffer = input_buffer;
