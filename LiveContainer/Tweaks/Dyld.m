@@ -16,6 +16,8 @@
 #include <net/if.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 #include <string.h>
 #include <SystemConfiguration/SystemConfiguration.h>
 #include <CFNetwork/CFNetwork.h>
@@ -78,9 +80,11 @@ static nw_interface_t (*orig_nw_path_copy_interface_with_generation)(void *conte
 static const char* (*orig_nw_interface_get_name)(nw_interface_t interface);
 static nw_interface_t (*orig_nw_interface_create_with_name)(const char *name);
 static BOOL gDidInlineHookNWPathCopyInterfaceWithGeneration = NO;
+static BOOL gDidInlineHookNECPClientAction = NO;
 static __thread BOOL gInHookNWPathCopyInterfaceWithGeneration = NO;
 static __thread BOOL gInHookNECPClientAction = NO;
 static BOOL gDidInstallNWPathLowLevelHooks = NO;
+static BOOL gDidInstallNECPClientActionHooks = NO;
 static BOOL gSpoofNetworkInfoEnabled = NO;
 static BOOL gSpoofWiFiAddressEnabled = NO;
 static BOOL gSpoofCellularAddressEnabled = NO;
@@ -1059,6 +1063,73 @@ static void lc_resolveNetworkSymbolPointers(void) {
     }
 }
 
+static void lc_resolveNECPSymbolPointer(void) {
+    if (orig_necp_client_action) {
+        return;
+    }
+
+    void *libsystemKernelHandle = NULL;
+    if (orig_dlopen) {
+        libsystemKernelHandle = orig_dlopen("/usr/lib/system/libsystem_kernel.dylib", RTLD_LAZY);
+    }
+
+    if (orig_dlsym) {
+        if (libsystemKernelHandle) {
+            orig_necp_client_action = (int (*)(int, uint32_t, const void *, size_t, void *, size_t))
+                orig_dlsym(libsystemKernelHandle, "necp_client_action");
+        }
+        if (!orig_necp_client_action) {
+            orig_necp_client_action = (int (*)(int, uint32_t, const void *, size_t, void *, size_t))
+                orig_dlsym(RTLD_DEFAULT, "necp_client_action");
+        }
+    }
+
+    if (!orig_necp_client_action) {
+        void *dscSym = litehook_find_dsc_symbol("/usr/lib/system/libsystem_kernel.dylib", "_necp_client_action");
+        if (!dscSym) {
+            dscSym = litehook_find_dsc_symbol("/usr/lib/system/libsystem_networkextension.dylib", "_necp_client_action");
+        }
+        if (dscSym) {
+            orig_necp_client_action = (int (*)(int, uint32_t, const void *, size_t, void *, size_t))dscSym;
+        }
+    }
+
+    static BOOL logged = NO;
+    if (!logged) {
+        logged = YES;
+        NSLog(@"[LC] 🌐 necp symbol resolved: necp_client_action=%p", orig_necp_client_action);
+    }
+}
+
+static int lc_call_original_necp_client_action(int necp_fd,
+                                               uint32_t action,
+                                               const void *input_buffer,
+                                               size_t input_buffer_size,
+                                               void *output_buffer,
+                                               size_t output_buffer_size) {
+    if (gDidInlineHookNECPClientAction) {
+        return (int)syscall(SYS_necp_client_action,
+                            necp_fd,
+                            action,
+                            input_buffer,
+                            input_buffer_size,
+                            output_buffer,
+                            output_buffer_size);
+    }
+
+    if (orig_necp_client_action) {
+        return orig_necp_client_action(necp_fd,
+                                       action,
+                                       input_buffer,
+                                       input_buffer_size,
+                                       output_buffer,
+                                       output_buffer_size);
+    }
+
+    errno = ENOSYS;
+    return -1;
+}
+
 static int hook_getifaddrs(struct ifaddrs **ifap) {
     if (!orig_getifaddrs) {
         return -1;
@@ -1119,17 +1190,22 @@ static int hook_necp_client_action(int necp_fd,
                                    size_t input_buffer_size,
                                    void *output_buffer,
                                    size_t output_buffer_size) {
-    if (!orig_necp_client_action) {
+    if (!orig_necp_client_action && !gDidInlineHookNECPClientAction) {
+        lc_resolveNECPSymbolPointer();
+    }
+
+    if (!orig_necp_client_action && !gDidInlineHookNECPClientAction) {
+        errno = ENOSYS;
         return -1;
     }
 
     if (gInHookNECPClientAction) {
-        return orig_necp_client_action(necp_fd,
-                                       action,
-                                       input_buffer,
-                                       input_buffer_size,
-                                       output_buffer,
-                                       output_buffer_size);
+        return lc_call_original_necp_client_action(necp_fd,
+                                                   action,
+                                                   input_buffer,
+                                                   input_buffer_size,
+                                                   output_buffer,
+                                                   output_buffer_size);
     }
     gInHookNECPClientAction = YES;
 
@@ -1155,12 +1231,12 @@ static int hook_necp_client_action(int necp_fd,
         }
     }
 
-    int result = orig_necp_client_action(necp_fd,
-                                         action,
-                                         input_buffer,
-                                         input_buffer_size,
-                                         output_buffer,
-                                         output_buffer_size);
+    int result = lc_call_original_necp_client_action(necp_fd,
+                                                     action,
+                                                     input_buffer,
+                                                     input_buffer_size,
+                                                     output_buffer,
+                                                     output_buffer_size);
 
     gInHookNECPClientAction = NO;
     return result;
@@ -1253,6 +1329,44 @@ static void hook_nw_path_enumerate_interfaces(nw_path_t path,
 
         return enumerate_block(interface);
     });
+}
+
+static BOOL lc_shouldEnableNECPInlineHooks(void) {
+    const char *disableFlag = getenv("LC_DISABLE_NECP_INLINE_HOOKS");
+    return !(disableFlag && disableFlag[0] == '1');
+}
+
+static void setupNECPClientActionHooks(void) {
+    if (gDidInstallNECPClientActionHooks) {
+        return;
+    }
+
+    lc_resolveNECPSymbolPointer();
+    if (!orig_necp_client_action) {
+        NSLog(@"[LC] ⚠️ necp_client_action hook unavailable: symbol not resolved");
+        return;
+    }
+
+    // Rebind imports for normal external callers.
+    litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL,
+                           (void *)orig_necp_client_action,
+                           (void *)hook_necp_client_action,
+                           nil);
+
+    if (lc_shouldEnableNECPInlineHooks()) {
+        kern_return_t kr = litehook_hook_function((void *)orig_necp_client_action,
+                                                  (void *)hook_necp_client_action);
+        if (kr == KERN_SUCCESS) {
+            gDidInlineHookNECPClientAction = YES;
+            NSLog(@"[LC] ✅ Inline hooked necp_client_action");
+        } else {
+            NSLog(@"[LC] ⚠️ Failed to inline hook necp_client_action (kr=%d)", kr);
+        }
+    } else {
+        NSLog(@"[LC] 🌐 necp inline hooks disabled (set LC_DISABLE_NECP_INLINE_HOOKS=1)");
+    }
+
+    gDidInstallNECPClientActionHooks = YES;
 }
 
 static void setupNetworkFrameworkLowLevelHooks(void) {
@@ -2104,12 +2218,13 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }
 
     // Minimal network spoofing hooks.
-    rebind_symbols((struct rebinding[4]){
+    rebind_symbols((struct rebinding[3]){
                 {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                 {"CNCopyCurrentNetworkInfo", (void *)hook_CNCopyCurrentNetworkInfo, (void **)&orig_CNCopyCurrentNetworkInfo},
                 {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
-                {"necp_client_action", (void *)hook_necp_client_action, (void **)&orig_necp_client_action},
-    }, 4);
+    }, 3);
+
+    setupNECPClientActionHooks();
 
     // Low-level NWPath path for Swift Network API:
     // NWPath.availableInterfaces -> _nw_path_enumerate_interfaces -> _nw_path_copy_interface_with_generation.
