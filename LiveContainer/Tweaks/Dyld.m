@@ -1228,10 +1228,10 @@ static int hook_necp_client_action(int necp_fd,
             if (output_buffer && output_buffer_size > 0) {
                 memset(output_buffer, 0, output_buffer_size);
             }
-            // Return ENOENT to make upstream interface creation skip this index.
-            errno = ENOENT;
+            // Keep success semantics for stability; callers should treat empty payload as no interface.
+            errno = 0;
             gInHookNECPClientAction = NO;
-            return -1;
+            return 0;
         }
     }
 
@@ -1347,12 +1347,12 @@ static BOOL lc_shouldEnableNECPInlineHooks(void) {
     }
 
     const char *enableFlag = getenv("LC_ENABLE_NECP_INLINE_HOOKS");
-    if (enableFlag) {
-        return enableFlag[0] == '1';
-    }
+    return enableFlag && enableFlag[0] == '1';
+}
 
-    // Default ON to catch internal Network.framework callers that bypass import rebinding.
-    return YES;
+static BOOL lc_shouldEnableNECPHooks(void) {
+    const char *disableFlag = getenv("LC_DISABLE_NECP_HOOKS");
+    return !(disableFlag && disableFlag[0] == '1');
 }
 
 static void setupNECPClientActionHooks(void) {
@@ -2243,7 +2243,11 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
                 {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
     }, 3);
 
-    setupNECPClientActionHooks();
+    if (lc_shouldEnableNECPHooks()) {
+        setupNECPClientActionHooks();
+    } else {
+        NSLog(@"[LC] 🌐 NECP hooks disabled (set LC_DISABLE_NECP_HOOKS=0/1)");
+    }
 
     if (lc_shouldEnableNWPathLowLevelHooks()) {
         // Optional downstream path for debugging:
