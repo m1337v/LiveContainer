@@ -69,6 +69,8 @@ const char* (*orig_dyld_get_image_name)(uint32_t image_index) = _dyld_get_image_
 static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
 static CFDictionaryRef (*orig_CNCopyCurrentNetworkInfo)(CFStringRef interfaceName);
 static int (*orig_getifaddrs)(struct ifaddrs **ifap);
+static char *(*orig_if_indextoname)(unsigned int ifindex, char *ifname);
+static struct if_nameindex *(*orig_if_nameindex)(void);
 static int (*orig_necp_client_action)(int necp_fd,
                                       uint32_t action,
                                       const void *input_buffer,
@@ -828,6 +830,13 @@ static BOOL shouldFilterVPNInterfaceName(NSString *name) {
     return shouldFilterVPNInterfaceNameCStr(name.UTF8String);
 }
 
+static void lc_overwriteInterfaceName(char *name, size_t buflen) {
+    if (!name || buflen == 0) {
+        return;
+    }
+    strlcpy(name, "en0", buflen);
+}
+
 static uint32_t lc_findSafeInterfaceIndex(void) {
     uint32_t index = if_nametoindex("en0");
     if (index != 0) {
@@ -1200,24 +1209,7 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
         }
 
         NSLog(@"[LC] 🎭 getifaddrs - filtering VPN interface: %s", node->ifa_name);
-
-        size_t nlen = strlen(node->ifa_name);
-        if (nlen == 0) {
-            continue;
-        }
-        if (nlen >= 3) {
-            node->ifa_name[0] = 'e';
-            node->ifa_name[1] = 'n';
-            node->ifa_name[2] = '0';
-            node->ifa_name[3] = '\0';
-        } else if (nlen == 2) {
-            node->ifa_name[0] = 'e';
-            node->ifa_name[1] = 'n';
-            node->ifa_name[2] = '\0';
-        } else {
-            node->ifa_name[0] = 'e';
-            node->ifa_name[1] = '\0';
-        }
+        lc_overwriteInterfaceName(node->ifa_name, IFNAMSIZ);
     }
 
     if ((gSpoofWiFiAddressEnabled && gSpoofWiFiAddress.length > 0) ||
@@ -1228,6 +1220,61 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
     }
 
     return result;
+}
+
+static char *hook_if_indextoname(unsigned int ifindex, char *ifname) {
+    if (!orig_if_indextoname) {
+        errno = ENOSYS;
+        return NULL;
+    }
+
+    char *result = orig_if_indextoname(ifindex, ifname);
+    if (result && ifname && shouldFilterVPNInterfaceNameCStr(ifname)) {
+        static BOOL loggedHookHit = NO;
+        if (!loggedHookHit) {
+            loggedHookHit = YES;
+            NSLog(@"[LC] ✅ hook hit: if_indextoname");
+        }
+
+        NSLog(@"[LC] 🎭 if_indextoname - filtering VPN interface index %u (%s)",
+              ifindex,
+              ifname);
+        lc_overwriteInterfaceName(ifname, IFNAMSIZ);
+    }
+
+    return result;
+}
+
+static struct if_nameindex *hook_if_nameindex(void) {
+    if (!orig_if_nameindex) {
+        return NULL;
+    }
+
+    struct if_nameindex *list = orig_if_nameindex();
+    if (!list) {
+        return NULL;
+    }
+
+    static BOOL loggedHookHit = NO;
+    for (struct if_nameindex *entry = list;
+         entry->if_index != 0 && entry->if_name != NULL;
+         entry++) {
+        if (!shouldFilterVPNInterfaceNameCStr(entry->if_name)) {
+            continue;
+        }
+
+        if (!loggedHookHit) {
+            loggedHookHit = YES;
+            NSLog(@"[LC] ✅ hook hit: if_nameindex");
+        }
+
+        NSLog(@"[LC] 🎭 if_nameindex - filtering VPN interface index %u (%s)",
+              entry->if_index,
+              entry->if_name);
+        lc_overwriteInterfaceName(entry->if_name, IFNAMSIZ);
+    }
+
+    return list;
 }
 
 static int hook_necp_client_action(int necp_fd,
@@ -1354,6 +1401,22 @@ static int hook_syscall(int number,
     return -1;
 }
 
+static const char *hook_nw_interface_get_name(nw_interface_t interface) {
+    const char *name = orig_nw_interface_get_name ? orig_nw_interface_get_name(interface) : NULL;
+    if (!shouldFilterVPNInterfaceNameCStr(name)) {
+        return name;
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: nw_interface_get_name");
+    }
+
+    NSLog(@"[LC] 🎭 nw_interface_get_name - filtering VPN interface: %s", name);
+    return "en0";
+}
+
 static nw_interface_t lc_sanitizePrivatePathInterface(const char *context, nw_interface_t interface) {
     if (!interface) {
         return interface;
@@ -1390,8 +1453,8 @@ static BOOL lc_shouldEnableNWInlineHooks(void) {
 }
 
 static BOOL lc_shouldEnableNWPathLowLevelHooks(void) {
-    // Temporarily disable NWPath low-level hooks and focus on NECP-only behavior.
-    return NO;
+    const char *disableFlag = getenv("LC_DISABLE_NWPATH_HOOKS");
+    return !(disableFlag && disableFlag[0] == '1');
 }
 
 static nw_interface_t hook_nw_path_copy_interface_with_generation(void *context,
@@ -1504,7 +1567,15 @@ static void setupNetworkFrameworkLowLevelHooks(void) {
 
     if (!orig_nw_path_enumerate_interfaces && !orig_nw_path_copy_interface_with_generation) {
         NSLog(@"[LC] ⚠️ NWPath low-level hooks unavailable: could not resolve required symbols");
-        return;
+        // Continue anyway; nw_interface_get_name can still be useful.
+    }
+
+    // Rebind public name getter so any consumer sees sanitized interface names.
+    if (orig_nw_interface_get_name) {
+        rebind_symbols((struct rebinding[1]){
+            {"nw_interface_get_name", (void *)hook_nw_interface_get_name, (void **)&orig_nw_interface_get_name},
+        }, 1);
+        NSLog(@"[LC] 🌐 fishhook rebound nw_interface_get_name; orig=%p", orig_nw_interface_get_name);
     }
 
     if (orig_nw_path_enumerate_interfaces) {
@@ -2344,12 +2415,15 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }
 
     // Minimal network spoofing hooks.
-    rebind_symbols((struct rebinding[4]){
+    rebind_symbols((struct rebinding[6]){
                 {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                 {"CNCopyCurrentNetworkInfo", (void *)hook_CNCopyCurrentNetworkInfo, (void **)&orig_CNCopyCurrentNetworkInfo},
                 {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
+                {"if_indextoname", (void *)hook_if_indextoname, (void **)&orig_if_indextoname},
+                {"if_nameindex", (void *)hook_if_nameindex, (void **)&orig_if_nameindex},
                 {"syscall", (void *)hook_syscall, (void **)&orig_syscall},
-    }, 4);
+    }, 6);
+    NSLog(@"[LC] 🌐 fishhook rebound if_indextoname=%p if_nameindex=%p", orig_if_indextoname, orig_if_nameindex);
     NSLog(@"[LC] 🌐 fishhook rebound syscall; orig=%p", orig_syscall);
 
     if (lc_shouldEnableNECPHooks()) {
