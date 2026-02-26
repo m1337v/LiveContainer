@@ -1222,9 +1222,13 @@ static int hook_necp_client_action(int necp_fd,
         char interfaceName[IFNAMSIZ] = {0};
         if (if_indextoname(interfaceIndex, interfaceName) &&
             shouldFilterVPNInterfaceNameCStr(interfaceName)) {
-            NSLog(@"[LC] 🎭 necp_client_action - skipping VPN interface index %u (%s)",
+            NSLog(@"[LC] 🎭 necp_client_action - filtering VPN interface index %u (%s)",
                   interfaceIndex,
                   interfaceName);
+            if (output_buffer && output_buffer_size > 0) {
+                memset(output_buffer, 0, output_buffer_size);
+            }
+            // Return ENOENT to make upstream interface creation skip this index.
             errno = ENOENT;
             gInHookNECPClientAction = NO;
             return -1;
@@ -1270,6 +1274,11 @@ static nw_interface_t lc_sanitizePrivatePathInterface(const char *context, nw_in
 
 static BOOL lc_shouldEnableNWInlineHooks(void) {
     const char *flag = getenv("LC_ENABLE_NW_INLINE_HOOKS");
+    return flag && flag[0] == '1';
+}
+
+static BOOL lc_shouldEnableNWPathLowLevelHooks(void) {
+    const char *flag = getenv("LC_ENABLE_NWPATH_LOWLEVEL_HOOKS");
     return flag && flag[0] == '1';
 }
 
@@ -1333,7 +1342,17 @@ static void hook_nw_path_enumerate_interfaces(nw_path_t path,
 
 static BOOL lc_shouldEnableNECPInlineHooks(void) {
     const char *disableFlag = getenv("LC_DISABLE_NECP_INLINE_HOOKS");
-    return !(disableFlag && disableFlag[0] == '1');
+    if (disableFlag && disableFlag[0] == '1') {
+        return NO;
+    }
+
+    const char *enableFlag = getenv("LC_ENABLE_NECP_INLINE_HOOKS");
+    if (enableFlag) {
+        return enableFlag[0] == '1';
+    }
+
+    // Default ON to catch internal Network.framework callers that bypass import rebinding.
+    return YES;
 }
 
 static void setupNECPClientActionHooks(void) {
@@ -1363,7 +1382,7 @@ static void setupNECPClientActionHooks(void) {
             NSLog(@"[LC] ⚠️ Failed to inline hook necp_client_action (kr=%d)", kr);
         }
     } else {
-        NSLog(@"[LC] 🌐 necp inline hooks disabled (set LC_DISABLE_NECP_INLINE_HOOKS=1)");
+        NSLog(@"[LC] 🌐 necp inline hooks disabled (set LC_ENABLE_NECP_INLINE_HOOKS=0/1 or LC_DISABLE_NECP_INLINE_HOOKS=1)");
     }
 
     gDidInstallNECPClientActionHooks = YES;
@@ -2226,9 +2245,13 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
 
     setupNECPClientActionHooks();
 
-    // Low-level NWPath path for Swift Network API:
-    // NWPath.availableInterfaces -> _nw_path_enumerate_interfaces -> _nw_path_copy_interface_with_generation.
-    setupNetworkFrameworkLowLevelHooks();
+    if (lc_shouldEnableNWPathLowLevelHooks()) {
+        // Optional downstream path for debugging:
+        // NWPath.availableInterfaces -> _nw_path_enumerate_interfaces -> _nw_path_copy_interface_with_generation.
+        setupNetworkFrameworkLowLevelHooks();
+    } else {
+        NSLog(@"[LC] 🌐 NWPath low-level hooks disabled (using upstream NECP filtering only; set LC_ENABLE_NWPATH_LOWLEVEL_HOOKS=1 to enable)");
+    }
 
     if (bypassSSLPinning) {
         setupSSLPinningBypass();
