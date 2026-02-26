@@ -96,6 +96,7 @@ static __thread BOOL gInHookNECPSyscall = NO;
 static BOOL gDidInstallNWPathLowLevelHooks = NO;
 static BOOL gDidInstallNECPClientActionHooks = NO;
 static BOOL gDidInstallNWObjCInterfaceHooks = NO;
+static BOOL gScheduledNWObjCHookRetry = NO;
 static BOOL gSpoofNetworkInfoEnabled = NO;
 static BOOL gSpoofWiFiAddressEnabled = NO;
 static BOOL gSpoofCellularAddressEnabled = NO;
@@ -1013,6 +1014,33 @@ static uint32_t lc_sanitizeInterfaceIndex(uint32_t interfaceIndex) {
     return interfaceIndex;
 }
 
+static void lc_scrubVPNInterfaceStrings(uint8_t *buffer, size_t bufferLength) {
+    if (!buffer || bufferLength < 5) {
+        return;
+    }
+
+    for (size_t i = 0; i + 4 < bufferLength; i++) {
+        if (buffer[i] != 'u' || buffer[i + 1] != 't' || buffer[i + 2] != 'u' || buffer[i + 3] != 'n') {
+            continue;
+        }
+
+        size_t j = i + 4;
+        while (j < bufferLength && buffer[j] >= '0' && buffer[j] <= '9') {
+            j++;
+        }
+
+        // Replace only C-string tokens ("utunX\0") to avoid corrupting binary payloads.
+        if (j < bufferLength && buffer[j] == '\0') {
+            buffer[i] = 'e';
+            buffer[i + 1] = 'n';
+            buffer[i + 2] = '0';
+            if (i + 3 < bufferLength) {
+                buffer[i + 3] = '\0';
+            }
+        }
+    }
+}
+
 static void lc_sanitizeNECPResultTLVs(uint8_t *buffer, size_t bufferLength, int depth) {
     if (!buffer || bufferLength < sizeof(struct lc_necp_tlv_header) || depth > 2) {
         return;
@@ -1023,6 +1051,9 @@ static void lc_sanitizeNECPResultTLVs(uint8_t *buffer, size_t bufferLength, int 
         struct lc_necp_tlv_header *tlv = (struct lc_necp_tlv_header *)(buffer + cursor);
         size_t valueOffset = cursor + sizeof(struct lc_necp_tlv_header);
         size_t valueLength = (size_t)tlv->length;
+        if (tlv->type == 0 && valueLength == 0) {
+            break;
+        }
         if (valueLength > (bufferLength - valueOffset)) {
             break;
         }
@@ -1713,6 +1744,20 @@ static void lc_installNWObjCInterfaceHooks(void) {
           orig_NWInterface_debugDescription_objc != NULL);
 }
 
+static void lc_installNWObjCInterfaceHooksWithRetry(void) {
+    lc_installNWObjCInterfaceHooks();
+    if ((orig_NWPath_availableInterfaces_objc && orig_NWInterface_name_objc) ||
+        gScheduledNWObjCHookRetry) {
+        return;
+    }
+
+    gScheduledNWObjCHookRetry = YES;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        lc_installNWObjCInterfaceHooks();
+    });
+}
+
 static void lc_networkImageAddedCallback(__unused const struct mach_header *mh,
                                          __unused intptr_t vmaddr_slide) {
     lc_installNWObjCInterfaceHooks();
@@ -1805,16 +1850,17 @@ static int hook_necp_client_action(int necp_fd,
         }
     }
 
-    if (result > 0 &&
+    if (result >= 0 &&
         output_buffer &&
         (action == LC_NECP_CLIENT_ACTION_COPY_RESULT ||
          action == LC_NECP_CLIENT_ACTION_COPY_UPDATED_RESULT ||
          action == LC_NECP_CLIENT_ACTION_COPY_UPDATED_RESULT_FINAL)) {
-        size_t responseLength = (size_t)result;
-        if (responseLength > output_buffer_size) {
-            responseLength = output_buffer_size;
+        size_t responseLength = output_buffer_size;
+        if (result > 0 && (size_t)result < responseLength) {
+            responseLength = (size_t)result;
         }
         lc_sanitizeNECPResultTLVs((uint8_t *)output_buffer, responseLength, 0);
+        lc_scrubVPNInterfaceStrings((uint8_t *)output_buffer, responseLength);
     }
 
     gInHookNECPClientAction = NO;
@@ -2134,7 +2180,7 @@ static void setupNetworkFrameworkLowLevelHooks(void) {
     }
 
     // Minimal, direct ObjC hooks for NWPath/NWInterface without runtime scanning.
-    lc_installNWObjCInterfaceHooks();
+    lc_installNWObjCInterfaceHooksWithRetry();
 
     gDidInstallNWPathLowLevelHooks = YES;
     NSLog(@"[LC] ✅ Network low-level NWPath hooks installed");
@@ -2946,16 +2992,21 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }
 
     // Minimal network spoofing hooks.
-    rebind_symbols((struct rebinding[4]){
+    rebind_symbols((struct rebinding[6]){
                 {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                 {"CNCopyCurrentNetworkInfo", (void *)hook_CNCopyCurrentNetworkInfo, (void **)&orig_CNCopyCurrentNetworkInfo},
                 {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
+                {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
+                {"if_indextoname", (void *)hook_if_indextoname, (void **)&orig_if_indextoname},
                 {"syscall", (void *)hook_syscall, (void **)&orig_syscall},
-    }, 4);
+    }, 6);
     NSLog(@"[LC] 🌐 fishhook rebound base network hooks: CFNetworkCopySystemProxySettings=%p CNCopyCurrentNetworkInfo=%p getifaddrs=%p",
           orig_CFNetworkCopySystemProxySettings,
           orig_CNCopyCurrentNetworkInfo,
           orig_getifaddrs);
+    NSLog(@"[LC] 🌐 fishhook rebound if_nametoindex=%p if_indextoname=%p",
+          orig_if_nametoindex,
+          orig_if_indextoname);
     NSLog(@"[LC] 🌐 fishhook rebound syscall; orig=%p", orig_syscall);
 
     if (lc_shouldEnableNECPHooks()) {
@@ -3128,6 +3179,13 @@ void *dlopen_nolock(const char *path, int mode) {
 
     os_unfair_lock_unlock(&gDlopenNoLockPatchLock);
     gDlopenNoLockDepth--;
+
+    if (result && path &&
+        (strstr(path, "/Network.framework/") != NULL ||
+         strstr(path, "libnetwork.dylib") != NULL)) {
+        lc_installNWObjCInterfaceHooksWithRetry();
+    }
+
     return result;
 }
 
@@ -3183,6 +3241,12 @@ void *jitless_hook_dlopen(const char *path, int mode) {
     thread_set_state(thread, ARM_DEBUG_STATE64, (thread_state_t)&origDebugState, ARM_DEBUG_STATE64_COUNT);
     thread_swap_exception_ports(thread, mask, handler, behavior, flavor, &mask, &masksCnt, &handler, &behavior, &flavor);
     
+    if (result && path &&
+        (strstr(path, "/Network.framework/") != NULL ||
+         strstr(path, "libnetwork.dylib") != NULL)) {
+        lc_installNWObjCInterfaceHooksWithRetry();
+    }
+
     return result;
 }
 
