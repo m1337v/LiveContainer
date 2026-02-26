@@ -87,7 +87,11 @@ static nw_interface_type_t (*orig_nw_interface_get_type)(nw_interface_t interfac
 static nw_interface_t (*orig_nw_interface_create_with_name)(const char *name);
 static nw_interface_t (*orig_nw_interface_create_with_index_and_name)(unsigned int interface_index, const char *name);
 static NSArray *(*orig_NWPath_availableInterfaces_objc)(id self, SEL _cmd);
+static NSArray *(*orig_NWPath_interfaces_objc)(id self, SEL _cmd);
 static NSString *(*orig_NWInterface_name_objc)(id self, SEL _cmd);
+static NSString *(*orig_NWInterface_interfaceName_objc)(id self, SEL _cmd);
+static NSInteger (*orig_NWInterface_index_objc)(id self, SEL _cmd);
+static NSInteger (*orig_NWInterface_type_objc)(id self, SEL _cmd);
 static NSString *(*orig_NWInterface_description_objc)(id self, SEL _cmd);
 static NSString *(*orig_NWInterface_debugDescription_objc)(id self, SEL _cmd);
 static BOOL gDidInlineHookNECPClientAction = NO;
@@ -168,6 +172,12 @@ static nw_interface_t hook_nw_path_copy_interface_with_generation(void *context,
                                                                    unsigned int generation);
 static nw_interface_t hook_nw_interface_create_with_name(const char *name);
 static nw_interface_t hook_nw_interface_create_with_index_and_name(unsigned int interface_index, const char *name);
+static NSArray *hook_NWPath_availableInterfaces_objc(id self, SEL _cmd);
+static NSArray *hook_NWPath_interfaces_objc(id self, SEL _cmd);
+static NSString *hook_NWInterface_name_objc(id self, SEL _cmd);
+static NSString *hook_NWInterface_interfaceName_objc(id self, SEL _cmd);
+static NSInteger hook_NWInterface_index_objc(id self, SEL _cmd);
+static NSInteger hook_NWInterface_type_objc(id self, SEL _cmd);
 static BOOL lc_shouldEnableNWObjCHooks(void);
 static void lc_forceRebindSwiftNetworkImports(void);
 static void lc_registerNWImageCallback(void);
@@ -1740,17 +1750,49 @@ static NSString *lc_getInterfaceNameFromObject(id interfaceObj) {
     @try {
         if ([interfaceObj respondsToSelector:@selector(name)]) {
             name = ((id (*)(id, SEL))objc_msgSend)(interfaceObj, @selector(name));
+        } else if ([interfaceObj respondsToSelector:NSSelectorFromString(@"interfaceName")]) {
+            name = ((id (*)(id, SEL))objc_msgSend)(interfaceObj, NSSelectorFromString(@"interfaceName"));
         }
         if (![name isKindOfClass:[NSString class]]) {
             id kvcName = [interfaceObj valueForKey:@"name"];
             if ([kvcName isKindOfClass:[NSString class]]) {
                 name = kvcName;
+            } else {
+                id kvcInterfaceName = [interfaceObj valueForKey:@"interfaceName"];
+                if ([kvcInterfaceName isKindOfClass:[NSString class]]) {
+                    name = kvcInterfaceName;
+                }
             }
         }
     } @catch (__unused NSException *e) {
         name = nil;
     }
     return name;
+}
+
+static uint32_t lc_getInterfaceIndexFromObject(id interfaceObj) {
+    if (!interfaceObj) {
+        return 0;
+    }
+
+    uint32_t index = 0;
+    @try {
+        if ([interfaceObj respondsToSelector:@selector(index)]) {
+            NSInteger value = ((NSInteger (*)(id, SEL))objc_msgSend)(interfaceObj, @selector(index));
+            if (value > 0) {
+                index = (uint32_t)value;
+            }
+        }
+        if (index == 0) {
+            id kvcIndex = [interfaceObj valueForKey:@"index"];
+            if ([kvcIndex respondsToSelector:@selector(unsignedIntValue)]) {
+                index = (uint32_t)[kvcIndex unsignedIntValue];
+            }
+        }
+    } @catch (__unused NSException *e) {
+        index = 0;
+    }
+    return index;
 }
 
 static BOOL lc_classNameContainsToken(Class cls, const char *token) {
@@ -1803,6 +1845,69 @@ static NSString *hook_NWInterface_name_objc(id self, SEL _cmd) {
     return @"en0";
 }
 
+static NSString *hook_NWInterface_interfaceName_objc(id self, SEL _cmd) {
+    if (!orig_NWInterface_interfaceName_objc) {
+        return @"en0";
+    }
+
+    NSString *name = orig_NWInterface_interfaceName_objc(self, _cmd);
+    if (!shouldFilterVPNInterfaceName(name)) {
+        return name;
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: -[NWInterface interfaceName]");
+    }
+
+    NSLog(@"[LC] 🎭 NWInterface.interfaceName - filtering VPN interface: %@", name);
+    return @"en0";
+}
+
+static NSInteger hook_NWInterface_index_objc(id self, SEL _cmd) {
+    NSInteger index = orig_NWInterface_index_objc ? orig_NWInterface_index_objc(self, _cmd) : 0;
+    if (index <= 0) {
+        return index;
+    }
+
+    if (!lc_isFilteredInterfaceIndex((uint32_t)index)) {
+        return index;
+    }
+
+    uint32_t safeIndex = lc_findSafeInterfaceIndex();
+    if (safeIndex == 0) {
+        return index;
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: -[NWInterface index]");
+    }
+    NSLog(@"[LC] 🎭 NWInterface.index - remapping VPN ifindex %ld -> %u",
+          (long)index,
+          safeIndex);
+    return (NSInteger)safeIndex;
+}
+
+static NSInteger hook_NWInterface_type_objc(id self, SEL _cmd) {
+    NSInteger type = orig_NWInterface_type_objc ? orig_NWInterface_type_objc(self, _cmd) : 0;
+    NSString *name = lc_getInterfaceNameFromObject(self);
+    uint32_t index = lc_getInterfaceIndexFromObject(self);
+    if (!shouldFilterVPNInterfaceName(name) && !lc_isFilteredInterfaceIndex(index)) {
+        return type;
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: -[NWInterface type]");
+    }
+    // Match NWInterface.InterfaceType.wifi raw value.
+    return 1;
+}
+
 static NSString *hook_NWInterface_description_objc(id self, SEL _cmd) {
     if (!orig_NWInterface_description_objc) {
         return @"en0";
@@ -1817,6 +1922,38 @@ static NSString *hook_NWInterface_debugDescription_objc(id self, SEL _cmd) {
     }
     NSString *text = orig_NWInterface_debugDescription_objc(self, _cmd);
     return sanitizeVPNMarkersInString(text);
+}
+
+static NSArray *hook_NWPath_interfaces_objc(id self, SEL _cmd) {
+    if (!orig_NWPath_interfaces_objc) {
+        return @[];
+    }
+
+    NSArray *interfaces = orig_NWPath_interfaces_objc(self, _cmd);
+    if (![interfaces isKindOfClass:[NSArray class]] || interfaces.count == 0) {
+        return interfaces;
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: -[NWPath interfaces]");
+    }
+
+    NSMutableArray *filtered = [NSMutableArray arrayWithCapacity:interfaces.count];
+    for (id interfaceObj in interfaces) {
+        NSString *name = lc_getInterfaceNameFromObject(interfaceObj);
+        uint32_t index = lc_getInterfaceIndexFromObject(interfaceObj);
+        if (shouldFilterVPNInterfaceName(name) || lc_isFilteredInterfaceIndex(index)) {
+            NSLog(@"[LC] 🎭 NWPath.interfaces - removing VPN interface: %@ (%u)",
+                  name ?: @"(unknown)",
+                  index);
+            continue;
+        }
+        [filtered addObject:interfaceObj];
+    }
+
+    return filtered;
 }
 
 static NSArray *hook_NWPath_availableInterfaces_objc(id self, SEL _cmd) {
@@ -1838,8 +1975,11 @@ static NSArray *hook_NWPath_availableInterfaces_objc(id self, SEL _cmd) {
     NSMutableArray *filtered = [NSMutableArray arrayWithCapacity:interfaces.count];
     for (id interfaceObj in interfaces) {
         NSString *name = lc_getInterfaceNameFromObject(interfaceObj);
-        if (shouldFilterVPNInterfaceName(name)) {
-            NSLog(@"[LC] 🎭 NWPath.availableInterfaces - removing VPN interface: %@", name);
+        uint32_t index = lc_getInterfaceIndexFromObject(interfaceObj);
+        if (shouldFilterVPNInterfaceName(name) || lc_isFilteredInterfaceIndex(index)) {
+            NSLog(@"[LC] 🎭 NWPath.availableInterfaces - removing VPN interface: %@ (%u)",
+                  name ?: @"(unknown)",
+                  index);
             continue;
         }
         [filtered addObject:interfaceObj];
@@ -1857,19 +1997,30 @@ static void lc_installNWObjCInterfaceHooks(void) {
     const char *interfaceClassNames[] = {"NWInterface", "NWConcrete_nw_interface", "OS_nw_interface"};
 
     for (size_t i = 0; i < (sizeof(pathClassNames) / sizeof(pathClassNames[0])); i++) {
-        if (orig_NWPath_availableInterfaces_objc) {
+        if (orig_NWPath_availableInterfaces_objc && orig_NWPath_interfaces_objc) {
             break;
         }
         Class pathClass = objc_getClass(pathClassNames[i]);
         if (!pathClass) {
             continue;
         }
-        Method availableInterfacesMethod =
-            class_getInstanceMethod(pathClass, @selector(availableInterfaces));
-        if (availableInterfacesMethod) {
-            orig_NWPath_availableInterfaces_objc = (NSArray *(*)(id, SEL))
-                method_setImplementation(availableInterfacesMethod, (IMP)hook_NWPath_availableInterfaces_objc);
-            NSLog(@"[LC] 🌐 installed ObjC hook for %s availableInterfaces", pathClassNames[i]);
+        if (!orig_NWPath_availableInterfaces_objc) {
+            Method availableInterfacesMethod =
+                class_getInstanceMethod(pathClass, @selector(availableInterfaces));
+            if (availableInterfacesMethod) {
+                orig_NWPath_availableInterfaces_objc = (NSArray *(*)(id, SEL))
+                    method_setImplementation(availableInterfacesMethod, (IMP)hook_NWPath_availableInterfaces_objc);
+                NSLog(@"[LC] 🌐 installed ObjC hook for %s availableInterfaces", pathClassNames[i]);
+            }
+        }
+        if (!orig_NWPath_interfaces_objc) {
+            SEL interfacesSEL = NSSelectorFromString(@"interfaces");
+            Method interfacesMethod = class_getInstanceMethod(pathClass, interfacesSEL);
+            if (interfacesMethod) {
+                orig_NWPath_interfaces_objc = (NSArray *(*)(id, SEL))
+                    method_setImplementation(interfacesMethod, (IMP)hook_NWPath_interfaces_objc);
+                NSLog(@"[LC] 🌐 installed ObjC hook for %s interfaces", pathClassNames[i]);
+            }
         }
     }
 
@@ -1885,6 +2036,31 @@ static void lc_installNWObjCInterfaceHooks(void) {
                 orig_NWInterface_name_objc = (NSString *(*)(id, SEL))
                     method_setImplementation(nameMethod, (IMP)hook_NWInterface_name_objc);
                 NSLog(@"[LC] 🌐 installed ObjC hook for %s name", interfaceClassNames[i]);
+            }
+        }
+        if (!orig_NWInterface_interfaceName_objc) {
+            SEL interfaceNameSEL = NSSelectorFromString(@"interfaceName");
+            Method interfaceNameMethod = class_getInstanceMethod(interfaceClass, interfaceNameSEL);
+            if (interfaceNameMethod) {
+                orig_NWInterface_interfaceName_objc = (NSString *(*)(id, SEL))
+                    method_setImplementation(interfaceNameMethod, (IMP)hook_NWInterface_interfaceName_objc);
+                NSLog(@"[LC] 🌐 installed ObjC hook for %s interfaceName", interfaceClassNames[i]);
+            }
+        }
+        if (!orig_NWInterface_index_objc) {
+            Method indexMethod = class_getInstanceMethod(interfaceClass, @selector(index));
+            if (indexMethod) {
+                orig_NWInterface_index_objc = (NSInteger (*)(id, SEL))
+                    method_setImplementation(indexMethod, (IMP)hook_NWInterface_index_objc);
+                NSLog(@"[LC] 🌐 installed ObjC hook for %s index", interfaceClassNames[i]);
+            }
+        }
+        if (!orig_NWInterface_type_objc) {
+            Method typeMethod = class_getInstanceMethod(interfaceClass, @selector(type));
+            if (typeMethod) {
+                orig_NWInterface_type_objc = (NSInteger (*)(id, SEL))
+                    method_setImplementation(typeMethod, (IMP)hook_NWInterface_type_objc);
+                NSLog(@"[LC] 🌐 installed ObjC hook for %s type", interfaceClassNames[i]);
             }
         }
 
@@ -1906,24 +2082,30 @@ static void lc_installNWObjCInterfaceHooks(void) {
             }
         }
 
-        if (orig_NWInterface_name_objc &&
+        if ((orig_NWInterface_name_objc || orig_NWInterface_interfaceName_objc) &&
             orig_NWInterface_description_objc &&
-            orig_NWInterface_debugDescription_objc) {
+            orig_NWInterface_debugDescription_objc &&
+            orig_NWInterface_index_objc &&
+            orig_NWInterface_type_objc) {
             break;
         }
     }
 
-    BOOL hasPathHook = (orig_NWPath_availableInterfaces_objc != NULL);
-    BOOL hasNameHook = (orig_NWInterface_name_objc != NULL);
+    BOOL hasPathHook = (orig_NWPath_availableInterfaces_objc != NULL) || (orig_NWPath_interfaces_objc != NULL);
+    BOOL hasNameHook = (orig_NWInterface_name_objc != NULL) || (orig_NWInterface_interfaceName_objc != NULL);
     BOOL hasDescHook = (orig_NWInterface_description_objc != NULL);
     BOOL hasDebugDescHook = (orig_NWInterface_debugDescription_objc != NULL);
+    BOOL hasIndexHook = (orig_NWInterface_index_objc != NULL);
+    BOOL hasTypeHook = (orig_NWInterface_type_objc != NULL);
 
     // Consider install complete once the core filtering hooks are present.
     gDidInstallNWObjCInterfaceHooks = (hasPathHook && hasNameHook);
     if (gDidInstallNWObjCInterfaceHooks) {
-        NSLog(@"[LC] 🌐 NW ObjC hooks installed (path=%d name=%d desc=%d debugDesc=%d)",
+        NSLog(@"[LC] 🌐 NW ObjC hooks installed (path=%d name=%d index=%d type=%d desc=%d debugDesc=%d)",
               hasPathHook,
               hasNameHook,
+              hasIndexHook,
+              hasTypeHook,
               hasDescHook,
               hasDebugDescHook);
     }
