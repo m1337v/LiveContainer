@@ -1346,11 +1346,7 @@ static void hook_nw_path_enumerate_interfaces(nw_path_t path,
 
 static BOOL lc_shouldEnableNECPInlineHooks(void) {
     const char *disableFlag = getenv("LC_DISABLE_NECP_INLINE_HOOKS");
-    if (disableFlag && disableFlag[0] == '1') {
-        return NO;
-    }
-    const char *enableFlag = getenv("LC_ENABLE_NECP_INLINE_HOOKS");
-    return enableFlag && enableFlag[0] == '1';
+    return !(disableFlag && disableFlag[0] == '1');
 }
 
 static BOOL lc_shouldEnableNECPHooks(void) {
