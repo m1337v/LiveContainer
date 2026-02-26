@@ -1781,11 +1781,36 @@ static void setupNetworkFrameworkLowLevelHooks(void) {
     }
 
     // Rebind public name getter so any consumer sees sanitized interface names.
+    struct rebinding nwRebindings[3];
+    size_t nwRebindingCount = 0;
     if (orig_nw_interface_get_name) {
-        rebind_symbols((struct rebinding[1]){
-            {"nw_interface_get_name", (void *)hook_nw_interface_get_name, (void **)&orig_nw_interface_get_name},
-        }, 1);
-        NSLog(@"[LC] 🌐 fishhook rebound nw_interface_get_name; orig=%p", orig_nw_interface_get_name);
+        nwRebindings[nwRebindingCount++] =
+            (struct rebinding){"nw_interface_get_name",
+                               (void *)hook_nw_interface_get_name,
+                               (void **)&orig_nw_interface_get_name};
+    }
+    if (orig_nw_path_enumerate_interfaces) {
+        nwRebindings[nwRebindingCount++] =
+            (struct rebinding){"nw_path_enumerate_interfaces",
+                               (void *)hook_nw_path_enumerate_interfaces,
+                               (void **)&orig_nw_path_enumerate_interfaces};
+    }
+    if (orig_nw_path_copy_interface_with_generation) {
+        nwRebindings[nwRebindingCount++] =
+            (struct rebinding){"nw_path_copy_interface_with_generation",
+                               (void *)hook_nw_path_copy_interface_with_generation,
+                               (void **)&orig_nw_path_copy_interface_with_generation};
+    }
+
+    if (nwRebindingCount > 0) {
+        rebind_symbols(nwRebindings, nwRebindingCount);
+        NSLog(@"[LC] 🌐 fishhook rebound nw symbols: get_name=%p enumerate_interfaces=%p copy_interface_with_generation=%p",
+              orig_nw_interface_get_name,
+              orig_nw_path_enumerate_interfaces,
+              orig_nw_path_copy_interface_with_generation);
+    }
+
+    if (orig_nw_interface_get_name) {
         litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL,
                                (void *)orig_nw_interface_get_name,
                                (void *)hook_nw_interface_get_name,
