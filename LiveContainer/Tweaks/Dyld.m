@@ -98,7 +98,6 @@ static __thread BOOL gInHookNECPSyscall = NO;
 static BOOL gDidInstallNWPathLowLevelHooks = NO;
 static BOOL gDidInstallNECPClientActionHooks = NO;
 static BOOL gDidInstallNWObjCInterfaceHooks = NO;
-static BOOL gScheduledNWObjCHookRetry = NO;
 static BOOL gDidApplySwiftNetworkRebind = NO;
 static BOOL gLoggedMissingSwiftNetworkImage = NO;
 static BOOL gSpoofNetworkInfoEnabled = NO;
@@ -1914,26 +1913,24 @@ static void lc_installNWObjCInterfaceHooks(void) {
         }
     }
 
-    gDidInstallNWObjCInterfaceHooks = YES;
-    NSLog(@"[LC] 🌐 NW ObjC hooks installed (path=%d name=%d desc=%d debugDesc=%d)",
-          orig_NWPath_availableInterfaces_objc != NULL,
-          orig_NWInterface_name_objc != NULL,
-          orig_NWInterface_description_objc != NULL,
-          orig_NWInterface_debugDescription_objc != NULL);
+    BOOL hasPathHook = (orig_NWPath_availableInterfaces_objc != NULL);
+    BOOL hasNameHook = (orig_NWInterface_name_objc != NULL);
+    BOOL hasDescHook = (orig_NWInterface_description_objc != NULL);
+    BOOL hasDebugDescHook = (orig_NWInterface_debugDescription_objc != NULL);
+
+    // Consider install complete once the core filtering hooks are present.
+    gDidInstallNWObjCInterfaceHooks = (hasPathHook && hasNameHook);
+    if (gDidInstallNWObjCInterfaceHooks) {
+        NSLog(@"[LC] 🌐 NW ObjC hooks installed (path=%d name=%d desc=%d debugDesc=%d)",
+              hasPathHook,
+              hasNameHook,
+              hasDescHook,
+              hasDebugDescHook);
+    }
 }
 
 static void lc_installNWObjCInterfaceHooksWithRetry(void) {
     lc_installNWObjCInterfaceHooks();
-    if ((orig_NWPath_availableInterfaces_objc && orig_NWInterface_name_objc) ||
-        gScheduledNWObjCHookRetry) {
-        return;
-    }
-
-    gScheduledNWObjCHookRetry = YES;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        lc_installNWObjCInterfaceHooks();
-    });
 }
 
 static void lc_networkImageAddedCallback(const struct mach_header *mh,
@@ -2271,8 +2268,8 @@ static BOOL lc_shouldEnableNWPathLowLevelHooks(void) {
 }
 
 static BOOL lc_shouldEnableNWObjCHooks(void) {
-    const char *enableFlag = getenv("LC_ENABLE_NW_OBJC_HOOKS");
-    return (enableFlag && enableFlag[0] == '1');
+    const char *disableFlag = getenv("LC_DISABLE_NW_OBJC_HOOKS");
+    return !(disableFlag && disableFlag[0] == '1');
 }
 
 static nw_interface_t hook_nw_path_copy_interface_with_generation(void *context,
@@ -2531,7 +2528,7 @@ static void setupNetworkFrameworkLowLevelHooks(void) {
     if (lc_shouldEnableNWObjCHooks()) {
         lc_installNWObjCInterfaceHooksWithRetry();
     } else {
-        NSLog(@"[LC] 🌐 NW ObjC hooks disabled (set LC_ENABLE_NW_OBJC_HOOKS=1 to enable)");
+        NSLog(@"[LC] 🌐 NW ObjC hooks disabled via LC_DISABLE_NW_OBJC_HOOKS=1");
     }
 
     gDidInstallNWPathLowLevelHooks = YES;
