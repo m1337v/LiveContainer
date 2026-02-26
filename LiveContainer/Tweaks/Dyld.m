@@ -6,6 +6,7 @@
 //
 #include <dlfcn.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <errno.h>
 #include <stdatomic.h>
 #include <os/lock.h>
@@ -83,6 +84,7 @@ static BOOL gDidInlineHookNWPathCopyInterfaceWithGeneration = NO;
 static BOOL gDidInlineHookNECPClientAction = NO;
 static __thread BOOL gInHookNWPathCopyInterfaceWithGeneration = NO;
 static __thread BOOL gInHookNECPClientAction = NO;
+static __thread BOOL gInHookNECPSyscall = NO;
 static BOOL gDidInstallNWPathLowLevelHooks = NO;
 static BOOL gDidInstallNECPClientActionHooks = NO;
 static BOOL gSpoofNetworkInfoEnabled = NO;
@@ -95,6 +97,7 @@ static NSString *gSpoofWiFiBSSID = nil;
 // Signal handlers
 int (*orig_fcntl)(int fildes, int cmd, void *param) = 0;
 int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact);
+int (*orig_syscall)(int number, ...) = NULL;
 // Apple Sign In
 // TODO
 // SSL Pinning
@@ -1137,6 +1140,19 @@ static int lc_call_original_necp_client_action(int necp_fd,
                                                size_t input_buffer_size,
                                                void *output_buffer,
                                                size_t output_buffer_size) {
+    if (gInHookNECPSyscall && orig_syscall) {
+        return ((int (*)(int, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))orig_syscall)(
+            SYS_necp_client_action,
+            (uintptr_t)necp_fd,
+            (uintptr_t)action,
+            (uintptr_t)input_buffer,
+            (uintptr_t)input_buffer_size,
+            (uintptr_t)output_buffer,
+            (uintptr_t)output_buffer_size,
+            (uintptr_t)0,
+            (uintptr_t)0);
+    }
+
     if (gDidInlineHookNECPClientAction) {
         return (int)syscall(SYS_necp_client_action,
                             necp_fd,
@@ -1300,6 +1316,42 @@ static int hook_necp_client_action(int necp_fd,
 
     gInHookNECPClientAction = NO;
     return result;
+}
+
+static int hook_syscall(int number,
+                        uintptr_t a1,
+                        uintptr_t a2,
+                        uintptr_t a3,
+                        uintptr_t a4,
+                        uintptr_t a5,
+                        uintptr_t a6,
+                        uintptr_t a7,
+                        uintptr_t a8) {
+    if (number == SYS_necp_client_action) {
+        static BOOL loggedSyscallHookHit = NO;
+        if (!loggedSyscallHookHit) {
+            loggedSyscallHookHit = YES;
+            NSLog(@"[LC] ✅ hook hit: syscall(SYS_necp_client_action)");
+        }
+
+        gInHookNECPSyscall = YES;
+        int result = hook_necp_client_action((int)a1,
+                                             (uint32_t)a2,
+                                             (const void *)a3,
+                                             (size_t)a4,
+                                             (void *)a5,
+                                             (size_t)a6);
+        gInHookNECPSyscall = NO;
+        return result;
+    }
+
+    if (orig_syscall) {
+        return ((int (*)(int, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))orig_syscall)(
+            number, a1, a2, a3, a4, a5, a6, a7, a8);
+    }
+
+    errno = ENOSYS;
+    return -1;
 }
 
 static nw_interface_t lc_sanitizePrivatePathInterface(const char *context, nw_interface_t interface) {
@@ -2292,11 +2344,13 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }
 
     // Minimal network spoofing hooks.
-    rebind_symbols((struct rebinding[3]){
+    rebind_symbols((struct rebinding[4]){
                 {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                 {"CNCopyCurrentNetworkInfo", (void *)hook_CNCopyCurrentNetworkInfo, (void **)&orig_CNCopyCurrentNetworkInfo},
                 {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
-    }, 3);
+                {"syscall", (void *)hook_syscall, (void **)&orig_syscall},
+    }, 4);
+    NSLog(@"[LC] 🌐 fishhook rebound syscall; orig=%p", orig_syscall);
 
     if (lc_shouldEnableNECPHooks()) {
         setupNECPClientActionHooks();
