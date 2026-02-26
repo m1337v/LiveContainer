@@ -95,6 +95,7 @@ static __thread BOOL gInHookNECPClientAction = NO;
 static __thread BOOL gInHookNECPSyscall = NO;
 static BOOL gDidInstallNWPathLowLevelHooks = NO;
 static BOOL gDidInstallNECPClientActionHooks = NO;
+static BOOL gDidInstallNWObjCInterfaceHooks = NO;
 static BOOL gSpoofNetworkInfoEnabled = NO;
 static BOOL gSpoofWiFiAddressEnabled = NO;
 static BOOL gSpoofCellularAddressEnabled = NO;
@@ -943,6 +944,25 @@ struct lc_necp_interface_details_prefix {
     u_int32_t index;
 };
 
+struct lc_necp_tlv_header {
+    u_int8_t type;
+    u_int32_t length;
+} __attribute__((__packed__));
+
+struct lc_necp_client_result_interface {
+    u_int32_t generation;
+    u_int32_t index;
+};
+
+#define LC_NECP_CLIENT_ACTION_COPY_RESULT 4
+#define LC_NECP_CLIENT_ACTION_COPY_INTERFACE 9
+#define LC_NECP_CLIENT_ACTION_COPY_UPDATED_RESULT 16
+#define LC_NECP_CLIENT_ACTION_COPY_UPDATED_RESULT_FINAL 26
+
+#define LC_NECP_CLIENT_RESULT_INTERFACE_INDEX 5
+#define LC_NECP_CLIENT_RESULT_INTERFACE 8
+#define LC_NECP_CLIENT_RESULT_FLOW 11
+
 static uint32_t lc_findSafeInterfaceIndex(void) {
     uint32_t index = if_nametoindex("en0");
     if (index != 0) {
@@ -971,6 +991,70 @@ static uint32_t lc_findSafeInterfaceIndex(void) {
 
     if_freenameindex(interfaces);
     return fallback;
+}
+
+static BOOL lc_isFilteredInterfaceIndex(uint32_t interfaceIndex) {
+    if (interfaceIndex == 0) {
+        return NO;
+    }
+    char interfaceName[IFNAMSIZ] = {0};
+    return (if_indextoname(interfaceIndex, interfaceName) &&
+            shouldFilterVPNInterfaceNameCStr(interfaceName));
+}
+
+static uint32_t lc_sanitizeInterfaceIndex(uint32_t interfaceIndex) {
+    if (!lc_isFilteredInterfaceIndex(interfaceIndex)) {
+        return interfaceIndex;
+    }
+    uint32_t safeIndex = lc_findSafeInterfaceIndex();
+    if (safeIndex != 0 && safeIndex != interfaceIndex) {
+        return safeIndex;
+    }
+    return interfaceIndex;
+}
+
+static void lc_sanitizeNECPResultTLVs(uint8_t *buffer, size_t bufferLength, int depth) {
+    if (!buffer || bufferLength < sizeof(struct lc_necp_tlv_header) || depth > 2) {
+        return;
+    }
+
+    size_t cursor = 0;
+    while ((cursor + sizeof(struct lc_necp_tlv_header)) <= bufferLength) {
+        struct lc_necp_tlv_header *tlv = (struct lc_necp_tlv_header *)(buffer + cursor);
+        size_t valueOffset = cursor + sizeof(struct lc_necp_tlv_header);
+        size_t valueLength = (size_t)tlv->length;
+        if (valueLength > (bufferLength - valueOffset)) {
+            break;
+        }
+
+        uint8_t *value = buffer + valueOffset;
+        if (tlv->type == LC_NECP_CLIENT_RESULT_INTERFACE_INDEX &&
+            valueLength >= sizeof(u_int32_t)) {
+            u_int32_t *interfaceIndex = (u_int32_t *)value;
+            u_int32_t oldIndex = *interfaceIndex;
+            u_int32_t newIndex = lc_sanitizeInterfaceIndex(oldIndex);
+            if (newIndex != oldIndex) {
+                *interfaceIndex = newIndex;
+                NSLog(@"[LC] 🎭 necp_client_action - sanitized result interface index %u -> %u",
+                      oldIndex, newIndex);
+            }
+        } else if (tlv->type == LC_NECP_CLIENT_RESULT_INTERFACE &&
+                   valueLength >= sizeof(struct lc_necp_client_result_interface)) {
+            struct lc_necp_client_result_interface *interfaceResult =
+                (struct lc_necp_client_result_interface *)value;
+            u_int32_t oldIndex = interfaceResult->index;
+            u_int32_t newIndex = lc_sanitizeInterfaceIndex(oldIndex);
+            if (newIndex != oldIndex) {
+                interfaceResult->index = newIndex;
+                NSLog(@"[LC] 🎭 necp_client_action - sanitized result interface struct index %u -> %u",
+                      oldIndex, newIndex);
+            }
+        } else if (tlv->type == LC_NECP_CLIENT_RESULT_FLOW) {
+            lc_sanitizeNECPResultTLVs(value, valueLength, depth + 1);
+        }
+
+        cursor = valueOffset + valueLength;
+    }
 }
 
 static NSString *sanitizeVPNMarkersInString(NSString *text) {
@@ -1557,97 +1641,76 @@ static NSArray *hook_NWPath_availableInterfaces_objc(id self, SEL _cmd) {
 }
 
 static void lc_installNWObjCInterfaceHooks(void) {
-    if (orig_NWPath_availableInterfaces_objc &&
-        orig_NWInterface_name_objc &&
-        orig_NWInterface_description_objc &&
-        orig_NWInterface_debugDescription_objc) {
+    if (gDidInstallNWObjCInterfaceHooks) {
         return;
     }
 
-    int classCount = objc_getClassList(NULL, 0);
-    if (classCount <= 0) {
-        return;
-    }
+    const char *pathClassNames[] = {"NWPath", "NWConcrete_nw_path", "OS_nw_path"};
+    const char *interfaceClassNames[] = {"NWInterface", "NWConcrete_nw_interface", "OS_nw_interface"};
 
-    Class *classes = (Class *)malloc((size_t)classCount * sizeof(Class));
-    if (!classes) {
-        return;
-    }
-
-    int nwFrameworkClassCount = 0;
-    int nwPathCandidateCount = 0;
-    int nwInterfaceCandidateCount = 0;
-    classCount = objc_getClassList(classes, classCount);
-    for (int i = 0; i < classCount; i++) {
-        Class cls = classes[i];
-        if (!cls) {
+    for (size_t i = 0; i < (sizeof(pathClassNames) / sizeof(pathClassNames[0])); i++) {
+        if (orig_NWPath_availableInterfaces_objc) {
+            break;
+        }
+        Class pathClass = objc_getClass(pathClassNames[i]);
+        if (!pathClass) {
             continue;
         }
-        if (!lc_classIsFromNetworkFramework(cls)) {
+        Method availableInterfacesMethod =
+            class_getInstanceMethod(pathClass, @selector(availableInterfaces));
+        if (availableInterfacesMethod) {
+            orig_NWPath_availableInterfaces_objc = (NSArray *(*)(id, SEL))
+                method_setImplementation(availableInterfacesMethod, (IMP)hook_NWPath_availableInterfaces_objc);
+            NSLog(@"[LC] 🌐 installed ObjC hook for %s availableInterfaces", pathClassNames[i]);
+        }
+    }
+
+    for (size_t i = 0; i < (sizeof(interfaceClassNames) / sizeof(interfaceClassNames[0])); i++) {
+        Class interfaceClass = objc_getClass(interfaceClassNames[i]);
+        if (!interfaceClass) {
             continue;
         }
-        nwFrameworkClassCount++;
 
-        if (!orig_NWPath_availableInterfaces_objc &&
-            lc_isLikelyNWPathClass(cls) &&
-            class_respondsToSelector(cls, @selector(availableInterfaces))) {
-            nwPathCandidateCount++;
-            Method method = class_getInstanceMethod(cls, @selector(availableInterfaces));
-            if (method) {
-                orig_NWPath_availableInterfaces_objc = (NSArray *(*)(id, SEL))
-                    method_setImplementation(method, (IMP)hook_NWPath_availableInterfaces_objc);
-                NSLog(@"[LC] 🌐 installed ObjC hook for %s availableInterfaces", class_getName(cls));
-            }
-        }
-
-        if (!orig_NWInterface_name_objc &&
-            lc_isLikelyNWInterfaceClass(cls) &&
-            class_respondsToSelector(cls, @selector(name))) {
-            nwInterfaceCandidateCount++;
-            Method method = class_getInstanceMethod(cls, @selector(name));
-            if (method) {
+        if (!orig_NWInterface_name_objc) {
+            Method nameMethod = class_getInstanceMethod(interfaceClass, @selector(name));
+            if (nameMethod) {
                 orig_NWInterface_name_objc = (NSString *(*)(id, SEL))
-                    method_setImplementation(method, (IMP)hook_NWInterface_name_objc);
-                NSLog(@"[LC] 🌐 installed ObjC hook for %s name", class_getName(cls));
-
-                Method descriptionMethod = class_getInstanceMethod(cls, @selector(description));
-                if (descriptionMethod && !orig_NWInterface_description_objc) {
-                    orig_NWInterface_description_objc = (NSString *(*)(id, SEL))
-                        method_setImplementation(descriptionMethod, (IMP)hook_NWInterface_description_objc);
-                    NSLog(@"[LC] 🌐 installed ObjC hook for %s description", class_getName(cls));
-                }
-
-                Method debugDescriptionMethod = class_getInstanceMethod(cls, @selector(debugDescription));
-                if (debugDescriptionMethod && !orig_NWInterface_debugDescription_objc) {
-                    orig_NWInterface_debugDescription_objc = (NSString *(*)(id, SEL))
-                        method_setImplementation(debugDescriptionMethod, (IMP)hook_NWInterface_debugDescription_objc);
-                    NSLog(@"[LC] 🌐 installed ObjC hook for %s debugDescription", class_getName(cls));
-                }
+                    method_setImplementation(nameMethod, (IMP)hook_NWInterface_name_objc);
+                NSLog(@"[LC] 🌐 installed ObjC hook for %s name", interfaceClassNames[i]);
             }
         }
 
-        if (orig_NWPath_availableInterfaces_objc &&
-            orig_NWInterface_name_objc &&
+        if (!orig_NWInterface_description_objc) {
+            Method descriptionMethod = class_getInstanceMethod(interfaceClass, @selector(description));
+            if (descriptionMethod) {
+                orig_NWInterface_description_objc = (NSString *(*)(id, SEL))
+                    method_setImplementation(descriptionMethod, (IMP)hook_NWInterface_description_objc);
+                NSLog(@"[LC] 🌐 installed ObjC hook for %s description", interfaceClassNames[i]);
+            }
+        }
+
+        if (!orig_NWInterface_debugDescription_objc) {
+            Method debugDescriptionMethod = class_getInstanceMethod(interfaceClass, @selector(debugDescription));
+            if (debugDescriptionMethod) {
+                orig_NWInterface_debugDescription_objc = (NSString *(*)(id, SEL))
+                    method_setImplementation(debugDescriptionMethod, (IMP)hook_NWInterface_debugDescription_objc);
+                NSLog(@"[LC] 🌐 installed ObjC hook for %s debugDescription", interfaceClassNames[i]);
+            }
+        }
+
+        if (orig_NWInterface_name_objc &&
             orig_NWInterface_description_objc &&
             orig_NWInterface_debugDescription_objc) {
             break;
         }
     }
 
-    free(classes);
-
-    static BOOL loggedNWObjCHookScan = NO;
-    if (!loggedNWObjCHookScan) {
-        loggedNWObjCHookScan = YES;
-        NSLog(@"[LC] 🌐 NW ObjC scan: frameworkClasses=%d pathCandidates=%d interfaceCandidates=%d installed(path=%d name=%d desc=%d debugDesc=%d)",
-              nwFrameworkClassCount,
-              nwPathCandidateCount,
-              nwInterfaceCandidateCount,
-              orig_NWPath_availableInterfaces_objc != NULL,
-              orig_NWInterface_name_objc != NULL,
-              orig_NWInterface_description_objc != NULL,
-              orig_NWInterface_debugDescription_objc != NULL);
-    }
+    gDidInstallNWObjCInterfaceHooks = YES;
+    NSLog(@"[LC] 🌐 NW ObjC hooks installed (path=%d name=%d desc=%d debugDesc=%d)",
+          orig_NWPath_availableInterfaces_objc != NULL,
+          orig_NWInterface_name_objc != NULL,
+          orig_NWInterface_description_objc != NULL,
+          orig_NWInterface_debugDescription_objc != NULL);
 }
 
 static void lc_networkImageAddedCallback(__unused const struct mach_header *mh,
@@ -1694,42 +1757,27 @@ static int hook_necp_client_action(int necp_fd,
         NSLog(@"[LC] ✅ hook hit: necp_client_action");
     }
 
-    const void *effectiveInputBuffer = input_buffer;
-    uint32_t rewrittenInterfaceIndex = 0;
-    uint32_t remappedInputSafeInterfaceIndex = 0;
+    BOOL copyInterfaceInputIsFiltered = NO;
+    uint32_t copyInterfaceRequestedIndex = 0;
 
     // iOS 18.5 Network.framework path:
     // _nw_interface_create_from_necp -> necp_client_action(action=9, in_size=4).
-    if (action == 9 && input_buffer && input_buffer_size == sizeof(uint32_t)) {
-        uint32_t interfaceIndex = *(const uint32_t *)input_buffer;
-        char interfaceName[IFNAMSIZ] = {0};
-        if (if_indextoname(interfaceIndex, interfaceName) &&
-            shouldFilterVPNInterfaceNameCStr(interfaceName)) {
-            remappedInputSafeInterfaceIndex = lc_findSafeInterfaceIndex();
-            if (remappedInputSafeInterfaceIndex != 0 && remappedInputSafeInterfaceIndex != interfaceIndex) {
-                rewrittenInterfaceIndex = remappedInputSafeInterfaceIndex;
-                effectiveInputBuffer = &rewrittenInterfaceIndex;
-                NSLog(@"[LC] 🎭 necp_client_action - remapping VPN interface index %u (%s) -> %u",
-                      interfaceIndex,
-                      interfaceName,
-                      remappedInputSafeInterfaceIndex);
-            } else {
-                NSLog(@"[LC] 🎭 necp_client_action - sanitizing VPN interface lookup index %u (%s)",
-                      interfaceIndex,
-                      interfaceName);
-            }
-        }
+    if (action == LC_NECP_CLIENT_ACTION_COPY_INTERFACE &&
+        input_buffer &&
+        input_buffer_size == sizeof(uint32_t)) {
+        copyInterfaceRequestedIndex = *(const uint32_t *)input_buffer;
+        copyInterfaceInputIsFiltered = lc_isFilteredInterfaceIndex(copyInterfaceRequestedIndex);
     }
 
     int result = lc_call_original_necp_client_action(necp_fd,
                                                      action,
-                                                     effectiveInputBuffer,
+                                                     input_buffer,
                                                      input_buffer_size,
                                                      output_buffer,
                                                      output_buffer_size);
 
-    if (result == 0 &&
-        action == 9 &&
+    if (result >= 0 &&
+        action == LC_NECP_CLIENT_ACTION_COPY_INTERFACE &&
         output_buffer &&
         output_buffer_size >= sizeof(struct lc_necp_interface_details_prefix)) {
         struct lc_necp_interface_details_prefix *details =
@@ -1739,29 +1787,34 @@ static int hook_necp_client_action(int necp_fd,
         memcpy(returnedName, details->name, IFXNAMSIZ);
         returnedName[IFXNAMSIZ] = '\0';
 
-        BOOL shouldSanitize = shouldFilterVPNInterfaceNameCStr(returnedName);
-        if (!shouldSanitize && details->index != 0) {
-            char resolvedName[IFNAMSIZ] = {0};
-            if (if_indextoname(details->index, resolvedName) &&
-                shouldFilterVPNInterfaceNameCStr(resolvedName)) {
-                shouldSanitize = YES;
-            }
-        }
+        BOOL shouldSanitize = copyInterfaceInputIsFiltered ||
+                              shouldFilterVPNInterfaceNameCStr(returnedName) ||
+                              lc_isFilteredInterfaceIndex(details->index);
 
         if (shouldSanitize) {
-            uint32_t safeInterfaceIndex = remappedInputSafeInterfaceIndex;
-            if (safeInterfaceIndex == 0) {
-                safeInterfaceIndex = lc_findSafeInterfaceIndex();
-            }
+            uint32_t safeInterfaceIndex = lc_findSafeInterfaceIndex();
             strlcpy(details->name, "en0", IFXNAMSIZ);
 
             if (safeInterfaceIndex != 0) {
                 details->index = safeInterfaceIndex;
             }
-            NSLog(@"[LC] 🎭 necp_client_action - sanitized returned interface %s -> en0%s",
+            NSLog(@"[LC] 🎭 necp_client_action - sanitized copy_interface response index=%u (%s) -> %u (en0)",
+                  copyInterfaceRequestedIndex,
                   returnedName,
-                  (safeInterfaceIndex != 0 ? " with safe index" : ""));
+                  safeInterfaceIndex);
         }
+    }
+
+    if (result > 0 &&
+        output_buffer &&
+        (action == LC_NECP_CLIENT_ACTION_COPY_RESULT ||
+         action == LC_NECP_CLIENT_ACTION_COPY_UPDATED_RESULT ||
+         action == LC_NECP_CLIENT_ACTION_COPY_UPDATED_RESULT_FINAL)) {
+        size_t responseLength = (size_t)result;
+        if (responseLength > output_buffer_size) {
+            responseLength = output_buffer_size;
+        }
+        lc_sanitizeNECPResultTLVs((uint8_t *)output_buffer, responseLength, 0);
     }
 
     gInHookNECPClientAction = NO;
@@ -2079,6 +2132,9 @@ static void setupNetworkFrameworkLowLevelHooks(void) {
                                (void *)hook_nw_interface_create_with_index_and_name,
                                nil);
     }
+
+    // Minimal, direct ObjC hooks for NWPath/NWInterface without runtime scanning.
+    lc_installNWObjCInterfaceHooks();
 
     gDidInstallNWPathLowLevelHooks = YES;
     NSLog(@"[LC] ✅ Network low-level NWPath hooks installed");
