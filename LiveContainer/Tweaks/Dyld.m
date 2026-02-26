@@ -1401,8 +1401,8 @@ static void hook_nw_path_enumerate_interfaces(nw_path_t path,
 }
 
 static BOOL lc_shouldEnableNECPInlineHooks(void) {
-    const char *enableFlag = getenv("LC_ENABLE_NECP_INLINE_HOOKS");
-    return (enableFlag && enableFlag[0] == '1');
+    const char *disableFlag = getenv("LC_DISABLE_NECP_INLINE_HOOKS");
+    return !(disableFlag && disableFlag[0] == '1');
 }
 
 static BOOL lc_shouldEnableNECPHooks(void) {
@@ -1437,7 +1437,7 @@ static void setupNECPClientActionHooks(void) {
             NSLog(@"[LC] ⚠️ Failed to inline hook necp_client_action (kr=%d)", kr);
         }
     } else {
-        NSLog(@"[LC] 🌐 necp inline hooks disabled (set LC_ENABLE_NECP_INLINE_HOOKS=1 to enable)");
+        NSLog(@"[LC] 🌐 necp inline hooks disabled via LC_DISABLE_NECP_INLINE_HOOKS=1");
     }
 
     gDidInstallNECPClientActionHooks = YES;
