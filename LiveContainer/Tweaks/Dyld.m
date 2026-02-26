@@ -69,6 +69,7 @@ const char* (*orig_dyld_get_image_name)(uint32_t image_index) = _dyld_get_image_
 static CFDictionaryRef (*orig_CFNetworkCopySystemProxySettings)(void);
 static CFDictionaryRef (*orig_CNCopyCurrentNetworkInfo)(CFStringRef interfaceName);
 static int (*orig_getifaddrs)(struct ifaddrs **ifap);
+static unsigned int (*orig_if_nametoindex)(const char *ifname);
 static char *(*orig_if_indextoname)(unsigned int ifindex, char *ifname);
 static struct if_nameindex *(*orig_if_nameindex)(void);
 static int (*orig_necp_client_action)(int necp_fd,
@@ -82,6 +83,8 @@ static void (*orig_nw_path_enumerate_interfaces)(nw_path_t path, nw_path_enumera
 static nw_interface_t (*orig_nw_path_copy_interface_with_generation)(void *context, unsigned int interface_index, unsigned int generation);
 static const char* (*orig_nw_interface_get_name)(nw_interface_t interface);
 static nw_interface_t (*orig_nw_interface_create_with_name)(const char *name);
+static NSArray *(*orig_NWPath_availableInterfaces_objc)(id self, SEL _cmd);
+static NSString *(*orig_NWInterface_name_objc)(id self, SEL _cmd);
 static BOOL gDidInlineHookNWPathCopyInterfaceWithGeneration = NO;
 static BOOL gDidInlineHookNECPClientAction = NO;
 static __thread BOOL gInHookNWPathCopyInterfaceWithGeneration = NO;
@@ -138,6 +141,14 @@ static NSURL* (*orig_NSBundle_URLForResource_withExtension)(id self, SEL _cmd, N
 static NSURL* (*orig_NSBundle_appStoreReceiptURL)(id self, SEL _cmd);
 static BOOL (*orig_NSFileManager_fileExistsAtPath)(id self, SEL _cmd, NSString *path);
 static BOOL (*orig_UIApplication_canOpenURL_guest)(id self, SEL _cmd, NSURL *url);
+
+static void lc_resolveNECPSymbolPointer(void);
+static int hook_necp_client_action(int necp_fd,
+                                   uint32_t action,
+                                   const void *input_buffer,
+                                   size_t input_buffer_size,
+                                   void *output_buffer,
+                                   size_t output_buffer_size);
 
 // LC specific variables
 uint32_t guestAppSdkVersion = 0;
@@ -349,6 +360,20 @@ static void ensureAppMainIndexIsSet(void) {
 // MARK: Dyld Section
 
 void* hook_dlsym(void * __handle, const char * __symbol) {
+    if (__symbol &&
+        (strcmp(__symbol, "necp_client_action") == 0 ||
+         strcmp(__symbol, "_necp_client_action") == 0)) {
+        if (!orig_necp_client_action) {
+            lc_resolveNECPSymbolPointer();
+        }
+        static BOOL logged = NO;
+        if (!logged) {
+            logged = YES;
+            NSLog(@"[LC] 🌐 dlsym override for %s -> hook_necp_client_action", __symbol);
+        }
+        return (void *)hook_necp_client_action;
+    }
+
     // Hide jailbreak detection symbols
     if (__symbol && (
         // MobileSubstrate/Substrate
@@ -1277,6 +1302,138 @@ static struct if_nameindex *hook_if_nameindex(void) {
     return list;
 }
 
+static unsigned int hook_if_nametoindex(const char *ifname) {
+    if (!orig_if_nametoindex) {
+        errno = ENOSYS;
+        return 0;
+    }
+
+    if (!ifname || !shouldFilterVPNInterfaceNameCStr(ifname)) {
+        return orig_if_nametoindex(ifname);
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: if_nametoindex");
+    }
+
+    uint32_t safeIndex = lc_findSafeInterfaceIndex();
+    if (safeIndex != 0) {
+        NSLog(@"[LC] 🎭 if_nametoindex - remapping VPN interface %s -> ifindex %u",
+              ifname,
+              safeIndex);
+        return safeIndex;
+    }
+
+    return orig_if_nametoindex("en0");
+}
+
+static NSString *lc_getInterfaceNameFromObject(id interfaceObj) {
+    if (!interfaceObj) {
+        return nil;
+    }
+
+    NSString *name = nil;
+    @try {
+        if ([interfaceObj respondsToSelector:@selector(name)]) {
+            name = ((id (*)(id, SEL))objc_msgSend)(interfaceObj, @selector(name));
+        }
+        if (![name isKindOfClass:[NSString class]]) {
+            id kvcName = [interfaceObj valueForKey:@"name"];
+            if ([kvcName isKindOfClass:[NSString class]]) {
+                name = kvcName;
+            }
+        }
+    } @catch (__unused NSException *e) {
+        name = nil;
+    }
+    return name;
+}
+
+static NSString *hook_NWInterface_name_objc(id self, SEL _cmd) {
+    if (!orig_NWInterface_name_objc) {
+        return @"en0";
+    }
+
+    NSString *name = orig_NWInterface_name_objc(self, _cmd);
+    if (!shouldFilterVPNInterfaceName(name)) {
+        return name;
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: -[NWInterface name]");
+    }
+
+    NSLog(@"[LC] 🎭 NWInterface.name - filtering VPN interface: %@", name);
+    return @"en0";
+}
+
+static NSArray *hook_NWPath_availableInterfaces_objc(id self, SEL _cmd) {
+    if (!orig_NWPath_availableInterfaces_objc) {
+        return @[];
+    }
+
+    NSArray *interfaces = orig_NWPath_availableInterfaces_objc(self, _cmd);
+    if (![interfaces isKindOfClass:[NSArray class]] || interfaces.count == 0) {
+        return interfaces;
+    }
+
+    static BOOL loggedHookHit = NO;
+    if (!loggedHookHit) {
+        loggedHookHit = YES;
+        NSLog(@"[LC] ✅ hook hit: -[NWPath availableInterfaces]");
+    }
+
+    NSMutableArray *filtered = [NSMutableArray arrayWithCapacity:interfaces.count];
+    for (id interfaceObj in interfaces) {
+        NSString *name = lc_getInterfaceNameFromObject(interfaceObj);
+        if (shouldFilterVPNInterfaceName(name)) {
+            NSLog(@"[LC] 🎭 NWPath.availableInterfaces - removing VPN interface: %@", name);
+            continue;
+        }
+        [filtered addObject:interfaceObj];
+    }
+
+    return filtered;
+}
+
+static void lc_installNWObjCInterfaceHooks(void) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        const char *pathClassNames[] = { "NWPath", "__NSCFNWPath", "_NWPath" };
+        const char *interfaceClassNames[] = { "NWInterface", "__NSCFNWInterface", "_NWInterface" };
+
+        for (size_t i = 0; i < sizeof(pathClassNames) / sizeof(pathClassNames[0]); i++) {
+            Class cls = objc_getClass(pathClassNames[i]);
+            if (!cls) {
+                continue;
+            }
+            Method method = class_getInstanceMethod(cls, @selector(availableInterfaces));
+            if (method && !orig_NWPath_availableInterfaces_objc) {
+                orig_NWPath_availableInterfaces_objc = (NSArray *(*)(id, SEL))
+                    method_setImplementation(method, (IMP)hook_NWPath_availableInterfaces_objc);
+                NSLog(@"[LC] 🌐 installed ObjC hook for %s availableInterfaces", pathClassNames[i]);
+            }
+        }
+
+        for (size_t i = 0; i < sizeof(interfaceClassNames) / sizeof(interfaceClassNames[0]); i++) {
+            Class cls = objc_getClass(interfaceClassNames[i]);
+            if (!cls) {
+                continue;
+            }
+            Method method = class_getInstanceMethod(cls, @selector(name));
+            if (method && !orig_NWInterface_name_objc) {
+                orig_NWInterface_name_objc = (NSString *(*)(id, SEL))
+                    method_setImplementation(method, (IMP)hook_NWInterface_name_objc);
+                NSLog(@"[LC] 🌐 installed ObjC hook for %s name", interfaceClassNames[i]);
+            }
+        }
+    });
+}
+
 static int hook_necp_client_action(int necp_fd,
                                    uint32_t action,
                                    const void *input_buffer,
@@ -1564,6 +1721,7 @@ static void setupNetworkFrameworkLowLevelHooks(void) {
     }
 
     lc_resolveNetworkSymbolPointers();
+    lc_installNWObjCInterfaceHooks();
 
     if (!orig_nw_path_enumerate_interfaces && !orig_nw_path_copy_interface_with_generation) {
         NSLog(@"[LC] ⚠️ NWPath low-level hooks unavailable: could not resolve required symbols");
@@ -2415,15 +2573,19 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }
 
     // Minimal network spoofing hooks.
-    rebind_symbols((struct rebinding[6]){
+    rebind_symbols((struct rebinding[7]){
                 {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                 {"CNCopyCurrentNetworkInfo", (void *)hook_CNCopyCurrentNetworkInfo, (void **)&orig_CNCopyCurrentNetworkInfo},
                 {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
+                {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
                 {"if_indextoname", (void *)hook_if_indextoname, (void **)&orig_if_indextoname},
                 {"if_nameindex", (void *)hook_if_nameindex, (void **)&orig_if_nameindex},
                 {"syscall", (void *)hook_syscall, (void **)&orig_syscall},
-    }, 6);
-    NSLog(@"[LC] 🌐 fishhook rebound if_indextoname=%p if_nameindex=%p", orig_if_indextoname, orig_if_nameindex);
+    }, 7);
+    NSLog(@"[LC] 🌐 fishhook rebound if_nametoindex=%p if_indextoname=%p if_nameindex=%p",
+          orig_if_nametoindex,
+          orig_if_indextoname,
+          orig_if_nameindex);
     NSLog(@"[LC] 🌐 fishhook rebound syscall; orig=%p", orig_syscall);
 
     if (lc_shouldEnableNECPHooks()) {
