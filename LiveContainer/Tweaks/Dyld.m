@@ -1401,8 +1401,8 @@ static void hook_nw_path_enumerate_interfaces(nw_path_t path,
 }
 
 static BOOL lc_shouldEnableNECPInlineHooks(void) {
-    const char *disableFlag = getenv("LC_DISABLE_NECP_INLINE_HOOKS");
-    return !(disableFlag && disableFlag[0] == '1');
+    const char *enableFlag = getenv("LC_ENABLE_NECP_INLINE_HOOKS");
+    return (enableFlag && enableFlag[0] == '1');
 }
 
 static BOOL lc_shouldEnableNECPHooks(void) {
@@ -1421,11 +1421,11 @@ static void setupNECPClientActionHooks(void) {
         return;
     }
 
-    // Rebind imports for normal external callers.
-    litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL,
-                           (void *)orig_necp_client_action,
-                           (void *)hook_necp_client_action,
-                           nil);
+    // Rebind by symbol name first; this is more stable than inline patching libsystem text.
+    rebind_symbols((struct rebinding[1]){
+        {"necp_client_action", (void *)hook_necp_client_action, (void **)&orig_necp_client_action},
+    }, 1);
+    NSLog(@"[LC] 🌐 fishhook rebound necp_client_action; orig=%p", orig_necp_client_action);
 
     if (lc_shouldEnableNECPInlineHooks()) {
         kern_return_t kr = litehook_hook_function((void *)orig_necp_client_action,
@@ -1437,7 +1437,7 @@ static void setupNECPClientActionHooks(void) {
             NSLog(@"[LC] ⚠️ Failed to inline hook necp_client_action (kr=%d)", kr);
         }
     } else {
-        NSLog(@"[LC] 🌐 necp inline hooks disabled via LC_DISABLE_NECP_INLINE_HOOKS=1");
+        NSLog(@"[LC] 🌐 necp inline hooks disabled (set LC_ENABLE_NECP_INLINE_HOOKS=1 to enable)");
     }
 
     gDidInstallNECPClientActionHooks = YES;
