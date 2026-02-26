@@ -93,7 +93,6 @@ static BOOL gRegisteredNWImageCallback = NO;
 static __thread BOOL gInHookNWPathCopyInterfaceWithGeneration = NO;
 static __thread BOOL gInHookNECPClientAction = NO;
 static __thread BOOL gInHookNECPSyscall = NO;
-static uint8_t gLoggedNECPAction[256];
 static BOOL gDidInstallNWPathLowLevelHooks = NO;
 static BOOL gDidInstallNECPClientActionHooks = NO;
 static BOOL gSpoofNetworkInfoEnabled = NO;
@@ -1686,14 +1685,6 @@ static int hook_necp_client_action(int necp_fd,
         NSLog(@"[LC] ✅ hook hit: necp_client_action");
     }
 
-    if (action < sizeof(gLoggedNECPAction) && gLoggedNECPAction[action] == 0) {
-        gLoggedNECPAction[action] = 1;
-        NSLog(@"[LC] 🌐 necp action observed: action=%u in=%zu out=%zu",
-              action,
-              input_buffer_size,
-              output_buffer_size);
-    }
-
     const void *effectiveInputBuffer = input_buffer;
     uint32_t rewrittenInterfaceIndex = 0;
     uint32_t remappedInputSafeInterfaceIndex = 0;
@@ -1987,8 +1978,6 @@ static void setupNetworkFrameworkLowLevelHooks(void) {
     }
 
     lc_resolveNetworkSymbolPointers();
-    lc_registerNWImageCallback();
-    lc_installNWObjCInterfaceHooks();
 
     if (!orig_nw_path_enumerate_interfaces &&
         !orig_nw_path_copy_interface_with_generation &&
@@ -2885,38 +2874,17 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }
 
     // Minimal network spoofing hooks.
-    rebind_symbols((struct rebinding[7]){
+    rebind_symbols((struct rebinding[4]){
                 {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                 {"CNCopyCurrentNetworkInfo", (void *)hook_CNCopyCurrentNetworkInfo, (void **)&orig_CNCopyCurrentNetworkInfo},
                 {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
-                {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
-                {"if_indextoname", (void *)hook_if_indextoname, (void **)&orig_if_indextoname},
-                {"if_nameindex", (void *)hook_if_nameindex, (void **)&orig_if_nameindex},
                 {"syscall", (void *)hook_syscall, (void **)&orig_syscall},
-    }, 7);
-    NSLog(@"[LC] 🌐 fishhook rebound if_nametoindex=%p if_indextoname=%p if_nameindex=%p",
-          orig_if_nametoindex,
-          orig_if_indextoname,
-          orig_if_nameindex);
+    }, 4);
+    NSLog(@"[LC] 🌐 fishhook rebound base network hooks: CFNetworkCopySystemProxySettings=%p CNCopyCurrentNetworkInfo=%p getifaddrs=%p",
+          orig_CFNetworkCopySystemProxySettings,
+          orig_CNCopyCurrentNetworkInfo,
+          orig_getifaddrs);
     NSLog(@"[LC] 🌐 fishhook rebound syscall; orig=%p", orig_syscall);
-    if (orig_if_nametoindex) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL,
-                               (void *)orig_if_nametoindex,
-                               (void *)hook_if_nametoindex,
-                               nil);
-    }
-    if (orig_if_indextoname) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL,
-                               (void *)orig_if_indextoname,
-                               (void *)hook_if_indextoname,
-                               nil);
-    }
-    if (orig_if_nameindex) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL,
-                               (void *)orig_if_nameindex,
-                               (void *)hook_if_nameindex,
-                               nil);
-    }
 
     if (lc_shouldEnableNECPHooks()) {
         setupNECPClientActionHooks();
