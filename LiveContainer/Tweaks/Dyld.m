@@ -99,6 +99,7 @@ static BOOL gDidInstallNWPathLowLevelHooks = NO;
 static BOOL gDidInstallNECPClientActionHooks = NO;
 static BOOL gDidInstallNWObjCInterfaceHooks = NO;
 static BOOL gScheduledNWObjCHookRetry = NO;
+static BOOL gScheduledSwiftNetworkRebindRetry = NO;
 static BOOL gSpoofNetworkInfoEnabled = NO;
 static BOOL gSpoofWiFiAddressEnabled = NO;
 static BOOL gSpoofCellularAddressEnabled = NO;
@@ -169,6 +170,8 @@ static nw_interface_t hook_nw_interface_create_with_name(const char *name);
 static nw_interface_t hook_nw_interface_create_with_index_and_name(unsigned int interface_index, const char *name);
 static BOOL lc_shouldEnableNWObjCHooks(void);
 static void lc_forceRebindSwiftNetworkImports(void);
+static void lc_scheduleSwiftNetworkRebindRetry(void);
+static void lc_registerNWImageCallback(void);
 
 // LC specific variables
 uint32_t guestAppSdkVersion = 0;
@@ -1376,8 +1379,16 @@ static size_t lc_countImagePointersToFunction(const mach_header_u *header, void 
 }
 
 static void lc_forceRebindSwiftNetworkImports(void) {
+    static BOOL loggedMissingSwiftNetwork = NO;
+    static BOOL loggedAppliedSwiftNetwork = NO;
+
     const mach_header_u *swiftNetworkHeader = lc_findLoadedImageHeaderContaining("libswiftNetwork.dylib");
     if (!swiftNetworkHeader) {
+        if (!loggedMissingSwiftNetwork) {
+            loggedMissingSwiftNetwork = YES;
+            NSLog(@"[LC] 🌐 libswiftNetwork not loaded yet; will retry NW import rebinding");
+        }
+        lc_scheduleSwiftNetworkRebindRetry();
         return;
     }
 
@@ -1434,16 +1445,31 @@ static void lc_forceRebindSwiftNetworkImports(void) {
         litehook_rebind_symbol(swiftNetworkHeader, altCopyWithGeneration, (void *)hook_nw_path_copy_interface_with_generation, NULL);
     }
 
-    static BOOL logged = NO;
-    if (!logged) {
-        logged = YES;
+    size_t hitGetName = lc_countImagePointersToFunction(swiftNetworkHeader, (void *)hook_nw_interface_get_name);
+    size_t hitGetIndex = lc_countImagePointersToFunction(swiftNetworkHeader, (void *)hook_nw_interface_get_index);
+    size_t hitGetType = lc_countImagePointersToFunction(swiftNetworkHeader, (void *)hook_nw_interface_get_type);
+    size_t hitEnumerate = lc_countImagePointersToFunction(swiftNetworkHeader, (void *)hook_nw_path_enumerate_interfaces);
+    size_t hitCopyWithGeneration = lc_countImagePointersToFunction(swiftNetworkHeader, (void *)hook_nw_path_copy_interface_with_generation);
+
+    if (!loggedAppliedSwiftNetwork) {
+        loggedAppliedSwiftNetwork = YES;
         NSLog(@"[LC] 🌐 force-rebound NW imports in libswiftNetwork (hits: get_name=%zu get_index=%zu get_type=%zu enumerate=%zu copy_with_generation=%zu)",
-              lc_countImagePointersToFunction(swiftNetworkHeader, (void *)hook_nw_interface_get_name),
-              lc_countImagePointersToFunction(swiftNetworkHeader, (void *)hook_nw_interface_get_index),
-              lc_countImagePointersToFunction(swiftNetworkHeader, (void *)hook_nw_interface_get_type),
-              lc_countImagePointersToFunction(swiftNetworkHeader, (void *)hook_nw_path_enumerate_interfaces),
-              lc_countImagePointersToFunction(swiftNetworkHeader, (void *)hook_nw_path_copy_interface_with_generation));
+              hitGetName, hitGetIndex, hitGetType, hitEnumerate, hitCopyWithGeneration);
+    } else if ((hitGetName + hitGetIndex + hitGetType + hitEnumerate + hitCopyWithGeneration) == 0) {
+        NSLog(@"[LC] ⚠️ libswiftNetwork rebinding currently has zero hook hits");
     }
+}
+
+static void lc_scheduleSwiftNetworkRebindRetry(void) {
+    if (gScheduledSwiftNetworkRebindRetry) {
+        return;
+    }
+    gScheduledSwiftNetworkRebindRetry = YES;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        gScheduledSwiftNetworkRebindRetry = NO;
+        lc_forceRebindSwiftNetworkImports();
+    });
 }
 
 static void lc_resolveNetworkSymbolPointers(void) {
@@ -2453,6 +2479,7 @@ static void setupNetworkFrameworkLowLevelHooks(void) {
         return;
     }
 
+    lc_registerNWImageCallback();
     lc_resolveNetworkSymbolPointers();
 
     if (!orig_nw_path_enumerate_interfaces &&
