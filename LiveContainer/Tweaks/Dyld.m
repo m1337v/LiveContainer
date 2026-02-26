@@ -93,6 +93,7 @@ static nw_interface_t (*orig_nw_interface_create_with_name)(const char *name);
 static NSArray *(*orig_NWPath_availableInterfaces_objc)(id self, SEL _cmd);
 static NSString *(*orig_NWInterface_name_objc)(id self, SEL _cmd);
 static BOOL gDidInlineHookNWPathCopyInterfaceWithGeneration = NO;
+static BOOL gDidInlineHookNWInterfaceGetName = NO;
 static BOOL gDidInlineHookNECPClientAction = NO;
 static BOOL gRegisteredNWImageCallback = NO;
 static __thread BOOL gInHookNWPathCopyInterfaceWithGeneration = NO;
@@ -1348,7 +1349,7 @@ static int hook_getifaddrs(struct ifaddrs **ifap) {
             continue;
         }
 
-        NSLog(@"[LC] 🎭 getifaddrs - filtering VPN interface: %s", node->ifa_name);
+        // NSLog(@"[LC] 🎭 getifaddrs - filtering VPN interface: %s", node->ifa_name);
         lc_overwriteInterfaceName(node->ifa_name, IFNAMSIZ);
     }
 
@@ -1719,6 +1720,17 @@ static int hook_syscall(int number,
 }
 
 static const char *hook_nw_interface_get_name(nw_interface_t interface) {
+    if (gDidInlineHookNWInterfaceGetName) {
+        static BOOL loggedInlineHookHit = NO;
+        if (!loggedInlineHookHit) {
+            loggedInlineHookHit = YES;
+            NSLog(@"[LC] ✅ hook hit: nw_interface_get_name (inline)");
+        }
+        // Inline hook path cannot call original safely with current hook engine.
+        // Return a stable non-VPN name.
+        return "en0";
+    }
+
     const char *name = orig_nw_interface_get_name ? orig_nw_interface_get_name(interface) : NULL;
     if (!shouldFilterVPNInterfaceNameCStr(name)) {
         return name;
@@ -1767,6 +1779,11 @@ static BOOL lc_shouldEnableNWInlineHooks(void) {
     }
     const char *enableFlag = getenv("LC_ENABLE_NW_INLINE_HOOKS");
     return enableFlag && enableFlag[0] == '1';
+}
+
+static BOOL lc_shouldEnableNWInterfaceNameInlineHook(void) {
+    const char *disableFlag = getenv("LC_DISABLE_NW_INTERFACE_NAME_INLINE_HOOK");
+    return !(disableFlag && disableFlag[0] == '1');
 }
 
 static BOOL lc_shouldEnableNWPathLowLevelHooks(void) {
@@ -2053,6 +2070,19 @@ static void setupNetworkFrameworkLowLevelHooks(void) {
                                (void *)orig_nw_interface_get_name,
                                (void *)hook_nw_interface_get_name,
                                nil);
+        if (lc_shouldEnableNWInterfaceNameInlineHook() &&
+            !gDidInlineHookNWInterfaceGetName) {
+            kern_return_t kr = litehook_hook_function((void *)orig_nw_interface_get_name,
+                                                      (void *)hook_nw_interface_get_name);
+            if (kr == KERN_SUCCESS) {
+                gDidInlineHookNWInterfaceGetName = YES;
+                NSLog(@"[LC] ✅ Inline hooked nw_interface_get_name");
+            } else {
+                NSLog(@"[LC] ⚠️ Failed to inline hook nw_interface_get_name (kr=%d)", kr);
+            }
+        } else if (!lc_shouldEnableNWInterfaceNameInlineHook()) {
+            NSLog(@"[LC] 🌐 nw_interface_get_name inline hook disabled (set LC_DISABLE_NW_INTERFACE_NAME_INLINE_HOOK=1)");
+        }
     }
 
     if (orig_nw_path_enumerate_interfaces) {
