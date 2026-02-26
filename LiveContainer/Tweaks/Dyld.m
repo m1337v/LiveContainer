@@ -94,12 +94,17 @@ static id (*orig_NWPath_delegateInterface_objc)(id self, SEL _cmd);
 static id (*orig_NWPath_scopedInterface_objc)(id self, SEL _cmd);
 static id (*orig_NWPath_fallbackInterface_objc)(id self, SEL _cmd);
 static NSUInteger (*orig_NWPath_fallbackInterfaceIndex_objc)(id self, SEL _cmd);
+static NSString *(*orig_NWPath_description_objc)(id self, SEL _cmd);
+static NSString *(*orig_NWPath_privateDescription_objc)(id self, SEL _cmd);
+static NSString *(*orig_NWPath_descriptionWithIndent_showFullContent_objc)(id self, SEL _cmd, NSUInteger indent, BOOL showFullContent);
 static NSString *(*orig_NWInterface_name_objc)(id self, SEL _cmd);
 static NSString *(*orig_NWInterface_interfaceName_objc)(id self, SEL _cmd);
 static NSInteger (*orig_NWInterface_index_objc)(id self, SEL _cmd);
 static NSInteger (*orig_NWInterface_interfaceIndex_objc)(id self, SEL _cmd);
 static NSInteger (*orig_NWInterface_type_objc)(id self, SEL _cmd);
 static NSString *(*orig_NWInterface_description_objc)(id self, SEL _cmd);
+static NSString *(*orig_NWInterface_privateDescription_objc)(id self, SEL _cmd);
+static NSString *(*orig_NWInterface_descriptionWithIndent_showFullContent_objc)(id self, SEL _cmd, NSUInteger indent, BOOL showFullContent);
 static NSString *(*orig_NWInterface_debugDescription_objc)(id self, SEL _cmd);
 static BOOL gDidInlineHookNECPClientAction = NO;
 static BOOL gRegisteredNWImageCallback = NO;
@@ -188,11 +193,16 @@ static id hook_NWPath_delegateInterface_objc(id self, SEL _cmd);
 static id hook_NWPath_scopedInterface_objc(id self, SEL _cmd);
 static id hook_NWPath_fallbackInterface_objc(id self, SEL _cmd);
 static NSUInteger hook_NWPath_fallbackInterfaceIndex_objc(id self, SEL _cmd);
+static NSString *hook_NWPath_description_objc(id self, SEL _cmd);
+static NSString *hook_NWPath_privateDescription_objc(id self, SEL _cmd);
+static NSString *hook_NWPath_descriptionWithIndent_showFullContent_objc(id self, SEL _cmd, NSUInteger indent, BOOL showFullContent);
 static NSString *hook_NWInterface_name_objc(id self, SEL _cmd);
 static NSString *hook_NWInterface_interfaceName_objc(id self, SEL _cmd);
 static NSInteger hook_NWInterface_index_objc(id self, SEL _cmd);
 static NSInteger hook_NWInterface_interfaceIndex_objc(id self, SEL _cmd);
 static NSInteger hook_NWInterface_type_objc(id self, SEL _cmd);
+static NSString *hook_NWInterface_privateDescription_objc(id self, SEL _cmd);
+static NSString *hook_NWInterface_descriptionWithIndent_showFullContent_objc(id self, SEL _cmd, NSUInteger indent, BOOL showFullContent);
 static BOOL lc_shouldEnableNWObjCHooks(void);
 static void lc_forceRebindSwiftNetworkImports(void);
 static void lc_registerNWImageCallback(void);
@@ -1953,6 +1963,22 @@ static NSString *hook_NWInterface_description_objc(id self, SEL _cmd) {
     return sanitizeVPNMarkersInString(text);
 }
 
+static NSString *hook_NWInterface_privateDescription_objc(id self, SEL _cmd) {
+    if (!orig_NWInterface_privateDescription_objc) {
+        return @"en0";
+    }
+    NSString *text = orig_NWInterface_privateDescription_objc(self, _cmd);
+    return sanitizeVPNMarkersInString(text);
+}
+
+static NSString *hook_NWInterface_descriptionWithIndent_showFullContent_objc(id self, SEL _cmd, NSUInteger indent, BOOL showFullContent) {
+    if (!orig_NWInterface_descriptionWithIndent_showFullContent_objc) {
+        return @"en0";
+    }
+    NSString *text = orig_NWInterface_descriptionWithIndent_showFullContent_objc(self, _cmd, indent, showFullContent);
+    return sanitizeVPNMarkersInString(text);
+}
+
 static NSString *hook_NWInterface_debugDescription_objc(id self, SEL _cmd) {
     if (!orig_NWInterface_debugDescription_objc) {
         return @"en0";
@@ -2119,6 +2145,30 @@ static NSUInteger hook_NWPath_fallbackInterfaceIndex_objc(id self, SEL _cmd) {
     return (NSUInteger)safeIndex;
 }
 
+static NSString *hook_NWPath_description_objc(id self, SEL _cmd) {
+    if (!orig_NWPath_description_objc) {
+        return @"";
+    }
+    NSString *text = orig_NWPath_description_objc(self, _cmd);
+    return sanitizeVPNMarkersInString(text);
+}
+
+static NSString *hook_NWPath_privateDescription_objc(id self, SEL _cmd) {
+    if (!orig_NWPath_privateDescription_objc) {
+        return @"";
+    }
+    NSString *text = orig_NWPath_privateDescription_objc(self, _cmd);
+    return sanitizeVPNMarkersInString(text);
+}
+
+static NSString *hook_NWPath_descriptionWithIndent_showFullContent_objc(id self, SEL _cmd, NSUInteger indent, BOOL showFullContent) {
+    if (!orig_NWPath_descriptionWithIndent_showFullContent_objc) {
+        return @"";
+    }
+    NSString *text = orig_NWPath_descriptionWithIndent_showFullContent_objc(self, _cmd, indent, showFullContent);
+    return sanitizeVPNMarkersInString(text);
+}
+
 static void lc_installNWObjCInterfaceHooks(void) {
     if (gDidInstallNWObjCInterfaceHooks) {
         return;
@@ -2134,6 +2184,8 @@ static void lc_installNWObjCInterfaceHooks(void) {
     SEL scopedInterfaceSEL = NSSelectorFromString(@"scopedInterface");
     SEL fallbackInterfaceSEL = NSSelectorFromString(@"fallbackInterface");
     SEL fallbackInterfaceIndexSEL = NSSelectorFromString(@"fallbackInterfaceIndex");
+    SEL privateDescriptionSEL = NSSelectorFromString(@"privateDescription");
+    SEL descriptionWithIndentShowFullContentSEL = NSSelectorFromString(@"descriptionWithIndent:showFullContent:");
     SEL interfaceNameSEL = NSSelectorFromString(@"interfaceName");
     SEL interfaceIndexSEL = NSSelectorFromString(@"interfaceIndex");
 
@@ -2215,6 +2267,30 @@ static void lc_installNWObjCInterfaceHooks(void) {
                 NSLog(@"[LC] 🌐 installed ObjC hook for %s fallbackInterfaceIndex", pathClassNames[i]);
             }
         }
+        if (!orig_NWPath_description_objc) {
+            Method method = class_getInstanceMethod(pathClass, @selector(description));
+            if (method) {
+                orig_NWPath_description_objc = (NSString *(*)(id, SEL))
+                    method_setImplementation(method, (IMP)hook_NWPath_description_objc);
+                NSLog(@"[LC] 🌐 installed ObjC hook for %s description", pathClassNames[i]);
+            }
+        }
+        if (!orig_NWPath_privateDescription_objc) {
+            Method method = class_getInstanceMethod(pathClass, privateDescriptionSEL);
+            if (method) {
+                orig_NWPath_privateDescription_objc = (NSString *(*)(id, SEL))
+                    method_setImplementation(method, (IMP)hook_NWPath_privateDescription_objc);
+                NSLog(@"[LC] 🌐 installed ObjC hook for %s privateDescription", pathClassNames[i]);
+            }
+        }
+        if (!orig_NWPath_descriptionWithIndent_showFullContent_objc) {
+            Method method = class_getInstanceMethod(pathClass, descriptionWithIndentShowFullContentSEL);
+            if (method) {
+                orig_NWPath_descriptionWithIndent_showFullContent_objc = (NSString *(*)(id, SEL, NSUInteger, BOOL))
+                    method_setImplementation(method, (IMP)hook_NWPath_descriptionWithIndent_showFullContent_objc);
+                NSLog(@"[LC] 🌐 installed ObjC hook for %s descriptionWithIndent:showFullContent:", pathClassNames[i]);
+            }
+        }
     }
 
     for (size_t i = 0; i < (sizeof(interfaceClassNames) / sizeof(interfaceClassNames[0])); i++) {
@@ -2272,6 +2348,22 @@ static void lc_installNWObjCInterfaceHooks(void) {
                 NSLog(@"[LC] 🌐 installed ObjC hook for %s description", interfaceClassNames[i]);
             }
         }
+        if (!orig_NWInterface_privateDescription_objc) {
+            Method privateDescriptionMethod = class_getInstanceMethod(interfaceClass, privateDescriptionSEL);
+            if (privateDescriptionMethod) {
+                orig_NWInterface_privateDescription_objc = (NSString *(*)(id, SEL))
+                    method_setImplementation(privateDescriptionMethod, (IMP)hook_NWInterface_privateDescription_objc);
+                NSLog(@"[LC] 🌐 installed ObjC hook for %s privateDescription", interfaceClassNames[i]);
+            }
+        }
+        if (!orig_NWInterface_descriptionWithIndent_showFullContent_objc) {
+            Method descriptionWithIndentMethod = class_getInstanceMethod(interfaceClass, descriptionWithIndentShowFullContentSEL);
+            if (descriptionWithIndentMethod) {
+                orig_NWInterface_descriptionWithIndent_showFullContent_objc = (NSString *(*)(id, SEL, NSUInteger, BOOL))
+                    method_setImplementation(descriptionWithIndentMethod, (IMP)hook_NWInterface_descriptionWithIndent_showFullContent_objc);
+                NSLog(@"[LC] 🌐 installed ObjC hook for %s descriptionWithIndent:showFullContent:", interfaceClassNames[i]);
+            }
+        }
 
         if (!orig_NWInterface_debugDescription_objc) {
             Method debugDescriptionMethod = class_getInstanceMethod(interfaceClass, @selector(debugDescription));
@@ -2301,6 +2393,8 @@ static void lc_installNWObjCInterfaceHooks(void) {
                        (orig_NWPath_fallbackInterfaceIndex_objc != NULL);
     BOOL hasNameHook = (orig_NWInterface_name_objc != NULL) || (orig_NWInterface_interfaceName_objc != NULL);
     BOOL hasDescHook = (orig_NWInterface_description_objc != NULL);
+    BOOL hasPrivateDescHook = (orig_NWInterface_privateDescription_objc != NULL);
+    BOOL hasDescWithIndentHook = (orig_NWInterface_descriptionWithIndent_showFullContent_objc != NULL);
     BOOL hasDebugDescHook = (orig_NWInterface_debugDescription_objc != NULL);
     BOOL hasIndexHook = (orig_NWInterface_index_objc != NULL) || (orig_NWInterface_interfaceIndex_objc != NULL);
     BOOL hasTypeHook = (orig_NWInterface_type_objc != NULL);
@@ -2308,12 +2402,14 @@ static void lc_installNWObjCInterfaceHooks(void) {
     // Consider install complete once the core filtering hooks are present.
     gDidInstallNWObjCInterfaceHooks = (hasPathHook && hasNameHook);
     if (gDidInstallNWObjCInterfaceHooks) {
-        NSLog(@"[LC] 🌐 NW ObjC hooks installed (path=%d name=%d index=%d type=%d desc=%d debugDesc=%d)",
+        NSLog(@"[LC] 🌐 NW ObjC hooks installed (path=%d name=%d index=%d type=%d desc=%d privateDesc=%d descWithIndent=%d debugDesc=%d)",
               hasPathHook,
               hasNameHook,
               hasIndexHook,
               hasTypeHook,
               hasDescHook,
+              hasPrivateDescHook,
+              hasDescWithIndentHook,
               hasDebugDescHook);
     }
 }
