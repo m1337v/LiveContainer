@@ -104,6 +104,7 @@ static BOOL gDidInstallNECPClientActionHooks = NO;
 static BOOL gDidInstallNWObjCInterfaceHooks = NO;
 static BOOL gDidApplySwiftNetworkRebind = NO;
 static BOOL gLoggedMissingSwiftNetworkImage = NO;
+static BOOL gDidRunDyldHooksInit = NO;
 static BOOL gSpoofNetworkInfoEnabled = NO;
 static BOOL gSpoofWiFiAddressEnabled = NO;
 static BOOL gSpoofCellularAddressEnabled = NO;
@@ -1736,6 +1737,15 @@ static unsigned int hook_if_nametoindex(const char *ifname) {
         NSLog(@"[LC] ✅ hook hit: if_nametoindex");
     }
 
+    uint32_t safeIndex = lc_findSafeInterfaceIndex();
+    if (safeIndex != 0) {
+        NSLog(@"[LC] 🎭 if_nametoindex - remapping VPN interface lookup: %s -> ifindex %u",
+              ifname,
+              safeIndex);
+        errno = 0;
+        return safeIndex;
+    }
+
     NSLog(@"[LC] 🎭 if_nametoindex - hiding VPN interface lookup: %s", ifname);
     errno = ENXIO;
     return 0;
@@ -2171,6 +2181,9 @@ static int hook_necp_client_action(int necp_fd,
 
     BOOL copyInterfaceInputIsFiltered = NO;
     uint32_t copyInterfaceRequestedIndex = 0;
+    uint32_t copyInterfaceSanitizedIndex = 0;
+    const void *effectiveInputBuffer = input_buffer;
+    size_t effectiveInputBufferSize = input_buffer_size;
 
     // iOS 18.5 Network.framework path:
     // _nw_interface_create_from_necp -> necp_client_action(action=9, in_size=4).
@@ -2179,12 +2192,22 @@ static int hook_necp_client_action(int necp_fd,
         input_buffer_size == sizeof(uint32_t)) {
         copyInterfaceRequestedIndex = *(const uint32_t *)input_buffer;
         copyInterfaceInputIsFiltered = lc_isFilteredInterfaceIndex(copyInterfaceRequestedIndex);
+        if (copyInterfaceInputIsFiltered) {
+            copyInterfaceSanitizedIndex = lc_findSafeInterfaceIndex();
+            if (copyInterfaceSanitizedIndex != 0) {
+                effectiveInputBuffer = &copyInterfaceSanitizedIndex;
+                effectiveInputBufferSize = sizeof(copyInterfaceSanitizedIndex);
+                NSLog(@"[LC] 🎭 necp_client_action - remapping copy_interface request ifindex %u -> %u",
+                      copyInterfaceRequestedIndex,
+                      copyInterfaceSanitizedIndex);
+            }
+        }
     }
 
     int result = lc_call_original_necp_client_action(necp_fd,
                                                      action,
-                                                     input_buffer,
-                                                     input_buffer_size,
+                                                     effectiveInputBuffer,
+                                                     effectiveInputBufferSize,
                                                      output_buffer,
                                                      output_buffer_size);
 
@@ -3484,6 +3507,11 @@ static void configureSelectiveBundleIdSpoofing(NSDictionary *guestAppInfo, BOOL 
 
 // MARK: Init
 void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVersion) {
+    if (gDidRunDyldHooksInit) {
+        return;
+    }
+    gDidRunDyldHooksInit = YES;
+
     // iterate through loaded images and find LiveContainer it self
     NSDictionary *guestAppInfo = [NSUserDefaults guestAppInfo];
     lc_configureNetworkSpoofing(guestAppInfo);
