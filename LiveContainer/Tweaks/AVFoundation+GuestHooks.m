@@ -139,9 +139,13 @@ static BOOL isValidPixelFormat(OSType format);
 static CVPixelBufferRef (*original_AVCapturePhoto_pixelBuffer)(id, SEL);
 static CGImageRef (*original_AVCapturePhoto_CGImageRepresentation)(id, SEL);
 static NSData *(*original_AVCapturePhoto_fileDataRepresentation)(id, SEL);
+static NSData *(*original_AVCaptureDeferredPhotoProxy_fileDataRepresentation)(id, SEL);
+static NSData *(*original_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer)(id, SEL, CMSampleBufferRef, CMSampleBufferRef);
 CVPixelBufferRef hook_AVCapturePhoto_pixelBuffer(id self, SEL _cmd);
 CGImageRef hook_AVCapturePhoto_CGImageRepresentation(id self, SEL _cmd);
 NSData *hook_AVCapturePhoto_fileDataRepresentation(id self, SEL _cmd);
+NSData *hook_AVCaptureDeferredPhotoProxy_fileDataRepresentation(id self, SEL _cmd);
+NSData *hook_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer(id self, SEL _cmd, CMSampleBufferRef jpegSampleBuffer, CMSampleBufferRef previewPhotoSampleBuffer);
 
 // pragma MARK: - Core Utilities
 
@@ -2373,6 +2377,161 @@ static void cleanupPhotoCache(void) {
 
 // pragma MARK: - Delegate Wrapper
 
+static void primePhotoCacheIfNeeded(void) {
+    if (!spoofCameraEnabled) {
+        return;
+    }
+    if (g_cachedPhotoPixelBuffer && g_cachedPhotoCGImage && g_cachedPhotoJPEGData.length > 0) {
+        return;
+    }
+
+    CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
+    if (!spoofedFrame) {
+        return;
+    }
+    cachePhotoDataFromSampleBuffer(spoofedFrame);
+    CFRelease(spoofedFrame);
+}
+
+@interface LCSpoofPhotoCaptureDelegate : NSObject <AVCapturePhotoCaptureDelegate>
+@property (nonatomic, strong) id<AVCapturePhotoCaptureDelegate> originalDelegate;
+@property (nonatomic, weak) AVCapturePhotoOutput *photoOutput;
+- (instancetype)initWithDelegate:(id<AVCapturePhotoCaptureDelegate>)delegate photoOutput:(AVCapturePhotoOutput *)output;
+@end
+
+@implementation LCSpoofPhotoCaptureDelegate
+
+- (instancetype)initWithDelegate:(id<AVCapturePhotoCaptureDelegate>)delegate photoOutput:(AVCapturePhotoOutput *)output {
+    if (self = [super init]) {
+        _originalDelegate = delegate;
+        _photoOutput = output;
+    }
+    return self;
+}
+
+- (BOOL)respondsToSelector:(SEL)aSelector {
+    if ([super respondsToSelector:aSelector]) {
+        return YES;
+    }
+    return [self.originalDelegate respondsToSelector:aSelector];
+}
+
+- (id)forwardingTargetForSelector:(SEL)aSelector {
+    if ([self.originalDelegate respondsToSelector:aSelector]) {
+        return self.originalDelegate;
+    }
+    return [super forwardingTargetForSelector:aSelector];
+}
+
+- (void)captureOutput:(AVCapturePhotoOutput *)output
+didFinishProcessingPhoto:(AVCapturePhoto *)photo
+                error:(NSError *)error {
+    if (spoofCameraEnabled && !error) {
+        primePhotoCacheIfNeeded();
+    }
+    if ([self.originalDelegate respondsToSelector:_cmd]) {
+        [self.originalDelegate captureOutput:output didFinishProcessingPhoto:photo error:error];
+    }
+}
+
+- (void)captureOutput:(AVCapturePhotoOutput *)output
+didFinishProcessingPhotoSampleBuffer:(CMSampleBufferRef)photoSampleBuffer
+previewPhotoSampleBuffer:(CMSampleBufferRef)previewPhotoSampleBuffer
+     resolvedSettings:(AVCaptureResolvedPhotoSettings *)resolvedSettings
+      bracketSettings:(AVCaptureBracketedStillImageSettings *)bracketSettings
+                error:(NSError *)error {
+    CMSampleBufferRef spoofedFrame = NULL;
+    CMSampleBufferRef forwardedPhotoSampleBuffer = photoSampleBuffer;
+
+    if (spoofCameraEnabled && !error) {
+        primePhotoCacheIfNeeded();
+        if (photoSampleBuffer && CMSampleBufferGetImageBuffer(photoSampleBuffer)) {
+            spoofedFrame = createSpoofedSampleBuffer();
+            if (spoofedFrame) {
+                forwardedPhotoSampleBuffer = spoofedFrame;
+            }
+        }
+    }
+
+    if ([self.originalDelegate respondsToSelector:_cmd]) {
+        #pragma clang diagnostic push
+        #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        [self.originalDelegate captureOutput:output
+          didFinishProcessingPhotoSampleBuffer:forwardedPhotoSampleBuffer
+                  previewPhotoSampleBuffer:previewPhotoSampleBuffer
+                          resolvedSettings:resolvedSettings
+                           bracketSettings:bracketSettings
+                                     error:error];
+        #pragma clang diagnostic pop
+    }
+
+    if (spoofedFrame) {
+        CFRelease(spoofedFrame);
+    }
+}
+
+- (void)captureOutput:(AVCapturePhotoOutput *)output
+didFinishProcessingRawPhotoSampleBuffer:(CMSampleBufferRef)rawSampleBuffer
+previewPhotoSampleBuffer:(CMSampleBufferRef)previewPhotoSampleBuffer
+     resolvedSettings:(AVCaptureResolvedPhotoSettings *)resolvedSettings
+      bracketSettings:(AVCaptureBracketedStillImageSettings *)bracketSettings
+                error:(NSError *)error {
+    CMSampleBufferRef spoofedFrame = NULL;
+    CMSampleBufferRef forwardedRawSampleBuffer = rawSampleBuffer;
+
+    if (spoofCameraEnabled && !error) {
+        primePhotoCacheIfNeeded();
+        if (rawSampleBuffer && CMSampleBufferGetImageBuffer(rawSampleBuffer)) {
+            spoofedFrame = createSpoofedSampleBuffer();
+            if (spoofedFrame) {
+                forwardedRawSampleBuffer = spoofedFrame;
+            }
+        }
+    }
+
+    if ([self.originalDelegate respondsToSelector:_cmd]) {
+        #pragma clang diagnostic push
+        #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        [self.originalDelegate captureOutput:output
+ didFinishProcessingRawPhotoSampleBuffer:forwardedRawSampleBuffer
+                  previewPhotoSampleBuffer:previewPhotoSampleBuffer
+                          resolvedSettings:resolvedSettings
+                           bracketSettings:bracketSettings
+                                     error:error];
+        #pragma clang diagnostic pop
+    }
+
+    if (spoofedFrame) {
+        CFRelease(spoofedFrame);
+    }
+}
+
+- (void)captureOutput:(AVCapturePhotoOutput *)output
+didFinishCapturingDeferredPhotoProxy:(id)deferredPhotoProxy
+                error:(NSError *)error {
+    if (spoofCameraEnabled && !error) {
+        primePhotoCacheIfNeeded();
+    }
+    if ([self.originalDelegate respondsToSelector:_cmd]) {
+        if (@available(iOS 17.0, *)) {
+            [self.originalDelegate captureOutput:output didFinishCapturingDeferredPhotoProxy:deferredPhotoProxy error:error];
+        }
+    }
+}
+
+- (void)captureOutput:(AVCapturePhotoOutput *)output
+didFinishCaptureForResolvedSettings:(AVCaptureResolvedPhotoSettings *)resolvedSettings
+                error:(NSError *)error {
+    if ([self.originalDelegate respondsToSelector:_cmd]) {
+        [self.originalDelegate captureOutput:output didFinishCaptureForResolvedSettings:resolvedSettings error:error];
+    }
+    if (output == self.photoOutput) {
+        objc_setAssociatedObject(output, @selector(lc_capturePhotoWithSettings:delegate:), nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+}
+
+@end
+
 @interface SimpleSpoofDelegate : NSObject <AVCaptureVideoDataOutputSampleBufferDelegate>
 @property (nonatomic, strong) id<AVCaptureVideoDataOutputSampleBufferDelegate> originalDelegate;
 @property (nonatomic, assign) AVCaptureOutput *originalOutput;
@@ -2546,6 +2705,292 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
     CVReturn result = original_CVPixelBufferCreate(allocator, width, height, pixelFormatType, pixelBufferAttributes, pixelBufferOut);
     NSLog(@"[LC] 🔧 L1: Original CVPixelBufferCreate result: %d", result);
     return result;
+}
+
+// pragma MARK: - PRIVATE PIPELINE HOOKS (BTATM-style fallback)
+
+static IMP original_BWGraph_start = NULL;
+static IMP original_BWGraph_stop = NULL;
+static IMP original_FigVideoCaptureConnectionConfiguration_setOutputFormat = NULL;
+static IMP original_FigVideoCaptureConnectionConfiguration_setOutputWidth = NULL;
+static IMP original_FigVideoCaptureConnectionConfiguration_setOutputHeight = NULL;
+static IMP original_BWNodeOutput_emitSampleBuffer = NULL;
+static IMP original_BWMetadataSourceNode_appendMetadataSampleBuffer = NULL;
+static IMP original_BWPixelTransferNode_renderSampleBuffer_forInput = NULL;
+static IMP original_BWNode_renderSampleBuffer_forInput = NULL;
+static IMP original_BWUBNode_renderSampleBuffer_forInput = NULL;
+static IMP original_BWStillImageScalerNode_renderSampleBuffer_forInput = NULL;
+static IMP original_BWPhotoEncoderNode_renderSampleBuffer_forInput = NULL;
+static IMP original_BWMetadataDetectorGatingNode_renderSampleBuffer_forInput = NULL;
+static IMP original_BWVideoOrientationMetadataNode_renderSampleBuffer_forInput = NULL;
+
+static BOOL shouldReplacePrivateRenderStages(void) {
+    if (!spoofCameraEnabled) {
+        return NO;
+    }
+    return [spoofCameraMode isEqualToString:@"aggressive"] || [spoofCameraMode isEqualToString:@"compatibility"];
+}
+
+static void updateCaptureHintsFromSampleBuffer(CMSampleBufferRef sampleBuffer) {
+    if (!sampleBuffer) {
+        return;
+    }
+
+    CMFormatDescriptionRef formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer);
+    if (formatDesc) {
+        OSType mediaSubType = CMFormatDescriptionGetMediaSubType(formatDesc);
+        if (isValidPixelFormat(mediaSubType)) {
+            lastRequestedFormat = mediaSubType;
+        }
+    }
+
+    CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
+    if (!imageBuffer) {
+        return;
+    }
+
+    size_t width = CVPixelBufferGetWidth(imageBuffer);
+    size_t height = CVPixelBufferGetHeight(imageBuffer);
+    if (width == 0 || height == 0) {
+        return;
+    }
+
+    if (!resolutionDetected ||
+        (size_t)targetResolution.width != width ||
+        (size_t)targetResolution.height != height) {
+        targetResolution = CGSizeMake((CGFloat)width, (CGFloat)height);
+    }
+    resolutionDetected = YES;
+}
+
+static CMSampleBufferRef createPrivatePipelineSpoofedSampleBuffer(CMSampleBufferRef originalSampleBuffer) {
+    if (!spoofCameraEnabled || !originalSampleBuffer) {
+        return NULL;
+    }
+
+    // Only replace true image sample buffers.
+    if (!CMSampleBufferGetImageBuffer(originalSampleBuffer)) {
+        return NULL;
+    }
+
+    @try {
+        CMSampleBufferRef spoofedFrame = [GetFrame getCurrentFrame:originalSampleBuffer preserveOrientation:YES];
+        if (spoofedFrame) {
+            return spoofedFrame;
+        }
+        return createSpoofedSampleBuffer();
+    } @catch (NSException *exception) {
+        NSLog(@"[LC] ❌ Private pipeline frame creation failed: %@", exception);
+        return NULL;
+    }
+}
+
+static BOOL installPrivateInstanceHook(NSString *className, NSString *selectorName, IMP replacement, IMP *originalOut) {
+    Class cls = NSClassFromString(className);
+    if (!cls) {
+        return NO;
+    }
+
+    SEL selector = NSSelectorFromString(selectorName);
+    Method method = class_getInstanceMethod(cls, selector);
+    if (!method) {
+        return NO;
+    }
+
+    IMP current = method_getImplementation(method);
+    if (current == replacement) {
+        return YES;
+    }
+
+    const char *typeEncoding = method_getTypeEncoding(method);
+    BOOL addedClassOverride = class_addMethod(cls, selector, replacement, typeEncoding);
+    if (!addedClassOverride) {
+        method_setImplementation(method, replacement);
+    }
+
+    if (originalOut) {
+        *originalOut = current;
+    }
+    NSLog(@"[LC] ✅ Private camera hook installed: %@ %@", className, selectorName);
+    return YES;
+}
+
+static uintptr_t lc_BWGraph_start(id self, SEL _cmd, id arg) {
+    if (spoofCameraEnabled) {
+        cleanupPhotoCache();
+    }
+    if (!original_BWGraph_start) {
+        return 0;
+    }
+    return ((uintptr_t (*)(id, SEL, id))original_BWGraph_start)(self, _cmd, arg);
+}
+
+static uintptr_t lc_BWGraph_stop(id self, SEL _cmd, id arg) {
+    if (spoofCameraEnabled) {
+        cleanupPhotoCache();
+    }
+    if (!original_BWGraph_stop) {
+        return 0;
+    }
+    return ((uintptr_t (*)(id, SEL, id))original_BWGraph_stop)(self, _cmd, arg);
+}
+
+static uintptr_t lc_FigVideoCaptureConnectionConfiguration_setOutputFormat(id self, SEL _cmd, OSType outputFormat) {
+    if (isValidPixelFormat(outputFormat)) {
+        lastRequestedFormat = outputFormat;
+    }
+    if (!original_FigVideoCaptureConnectionConfiguration_setOutputFormat) {
+        return 0;
+    }
+    return ((uintptr_t (*)(id, SEL, OSType))original_FigVideoCaptureConnectionConfiguration_setOutputFormat)(self, _cmd, outputFormat);
+}
+
+static uintptr_t lc_FigVideoCaptureConnectionConfiguration_setOutputWidth(id self, SEL _cmd, int outputWidth) {
+    if (outputWidth > 0) {
+        CGFloat height = targetResolution.height > 0 ? targetResolution.height : 1920.0;
+        targetResolution = CGSizeMake((CGFloat)outputWidth, height);
+        resolutionDetected = YES;
+    }
+    if (!original_FigVideoCaptureConnectionConfiguration_setOutputWidth) {
+        return 0;
+    }
+    return ((uintptr_t (*)(id, SEL, int))original_FigVideoCaptureConnectionConfiguration_setOutputWidth)(self, _cmd, outputWidth);
+}
+
+static uintptr_t lc_FigVideoCaptureConnectionConfiguration_setOutputHeight(id self, SEL _cmd, int outputHeight) {
+    if (outputHeight > 0) {
+        CGFloat width = targetResolution.width > 0 ? targetResolution.width : 1080.0;
+        targetResolution = CGSizeMake(width, (CGFloat)outputHeight);
+        resolutionDetected = YES;
+    }
+    if (!original_FigVideoCaptureConnectionConfiguration_setOutputHeight) {
+        return 0;
+    }
+    return ((uintptr_t (*)(id, SEL, int))original_FigVideoCaptureConnectionConfiguration_setOutputHeight)(self, _cmd, outputHeight);
+}
+
+static uintptr_t lc_BWNodeOutput_emitSampleBuffer(id self, SEL _cmd, CMSampleBufferRef sampleBuffer) {
+    updateCaptureHintsFromSampleBuffer(sampleBuffer);
+
+    CMSampleBufferRef spoofedFrame = createPrivatePipelineSpoofedSampleBuffer(sampleBuffer);
+    CMSampleBufferRef forwardedFrame = spoofedFrame ? spoofedFrame : sampleBuffer;
+
+    uintptr_t result = 0;
+    if (original_BWNodeOutput_emitSampleBuffer) {
+        result = ((uintptr_t (*)(id, SEL, CMSampleBufferRef))original_BWNodeOutput_emitSampleBuffer)(self, _cmd, forwardedFrame);
+    }
+
+    if (spoofedFrame) {
+        CFRelease(spoofedFrame);
+    }
+    return result;
+}
+
+static uintptr_t lc_BWMetadataSourceNode_appendMetadataSampleBuffer(id self, SEL _cmd, CMSampleBufferRef sampleBuffer) {
+    updateCaptureHintsFromSampleBuffer(sampleBuffer);
+    if (!original_BWMetadataSourceNode_appendMetadataSampleBuffer) {
+        return 0;
+    }
+    return ((uintptr_t (*)(id, SEL, CMSampleBufferRef))original_BWMetadataSourceNode_appendMetadataSampleBuffer)(self, _cmd, sampleBuffer);
+}
+
+#define DEFINE_PRIVATE_RENDER_HOOK(hook_name, original_imp) \
+static uintptr_t hook_name(id self, SEL _cmd, CMSampleBufferRef sampleBuffer, id input) { \
+    updateCaptureHintsFromSampleBuffer(sampleBuffer); \
+    CMSampleBufferRef spoofedFrame = NULL; \
+    if (shouldReplacePrivateRenderStages()) { \
+        spoofedFrame = createPrivatePipelineSpoofedSampleBuffer(sampleBuffer); \
+    } \
+    CMSampleBufferRef forwardedFrame = spoofedFrame ? spoofedFrame : sampleBuffer; \
+    uintptr_t result = 0; \
+    if (original_imp) { \
+        result = ((uintptr_t (*)(id, SEL, CMSampleBufferRef, id))original_imp)(self, _cmd, forwardedFrame, input); \
+    } \
+    if (spoofedFrame) { \
+        CFRelease(spoofedFrame); \
+    } \
+    return result; \
+}
+
+DEFINE_PRIVATE_RENDER_HOOK(lc_BWPixelTransferNode_renderSampleBuffer_forInput, original_BWPixelTransferNode_renderSampleBuffer_forInput)
+DEFINE_PRIVATE_RENDER_HOOK(lc_BWNode_renderSampleBuffer_forInput, original_BWNode_renderSampleBuffer_forInput)
+DEFINE_PRIVATE_RENDER_HOOK(lc_BWUBNode_renderSampleBuffer_forInput, original_BWUBNode_renderSampleBuffer_forInput)
+DEFINE_PRIVATE_RENDER_HOOK(lc_BWStillImageScalerNode_renderSampleBuffer_forInput, original_BWStillImageScalerNode_renderSampleBuffer_forInput)
+DEFINE_PRIVATE_RENDER_HOOK(lc_BWPhotoEncoderNode_renderSampleBuffer_forInput, original_BWPhotoEncoderNode_renderSampleBuffer_forInput)
+DEFINE_PRIVATE_RENDER_HOOK(lc_BWMetadataDetectorGatingNode_renderSampleBuffer_forInput, original_BWMetadataDetectorGatingNode_renderSampleBuffer_forInput)
+DEFINE_PRIVATE_RENDER_HOOK(lc_BWVideoOrientationMetadataNode_renderSampleBuffer_forInput, original_BWVideoOrientationMetadataNode_renderSampleBuffer_forInput)
+
+#undef DEFINE_PRIVATE_RENDER_HOOK
+
+static void installPrivateCapturePipelineHooks(void) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        // Match BTATM strategy: load private camera frameworks before trying class hooks.
+        (void)dlopen("/System/Library/PrivateFrameworks/CMCaptureCore.framework/CMCaptureCore", RTLD_LAZY);
+        (void)dlopen("/System/Library/PrivateFrameworks/CMCapture.framework/CMCapture", RTLD_LAZY);
+
+        NSUInteger installedCount = 0;
+
+        installedCount += installPrivateInstanceHook(@"BWGraph", @"start:", (IMP)lc_BWGraph_start, &original_BWGraph_start) ? 1 : 0;
+        installedCount += installPrivateInstanceHook(@"BWGraph", @"stop:", (IMP)lc_BWGraph_stop, &original_BWGraph_stop) ? 1 : 0;
+
+        installedCount += installPrivateInstanceHook(@"FigVideoCaptureConnectionConfiguration",
+                                                     @"setOutputFormat:",
+                                                     (IMP)lc_FigVideoCaptureConnectionConfiguration_setOutputFormat,
+                                                     &original_FigVideoCaptureConnectionConfiguration_setOutputFormat) ? 1 : 0;
+        installedCount += installPrivateInstanceHook(@"FigVideoCaptureConnectionConfiguration",
+                                                     @"setOutputWidth:",
+                                                     (IMP)lc_FigVideoCaptureConnectionConfiguration_setOutputWidth,
+                                                     &original_FigVideoCaptureConnectionConfiguration_setOutputWidth) ? 1 : 0;
+        installedCount += installPrivateInstanceHook(@"FigVideoCaptureConnectionConfiguration",
+                                                     @"setOutputHeight:",
+                                                     (IMP)lc_FigVideoCaptureConnectionConfiguration_setOutputHeight,
+                                                     &original_FigVideoCaptureConnectionConfiguration_setOutputHeight) ? 1 : 0;
+
+        installedCount += installPrivateInstanceHook(@"BWNodeOutput",
+                                                     @"emitSampleBuffer:",
+                                                     (IMP)lc_BWNodeOutput_emitSampleBuffer,
+                                                     &original_BWNodeOutput_emitSampleBuffer) ? 1 : 0;
+        installedCount += installPrivateInstanceHook(@"BWMetadataSourceNode",
+                                                     @"appendMetadataSampleBuffer:",
+                                                     (IMP)lc_BWMetadataSourceNode_appendMetadataSampleBuffer,
+                                                     &original_BWMetadataSourceNode_appendMetadataSampleBuffer) ? 1 : 0;
+
+        installedCount += installPrivateInstanceHook(@"BWPixelTransferNode",
+                                                     @"renderSampleBuffer:forInput:",
+                                                     (IMP)lc_BWPixelTransferNode_renderSampleBuffer_forInput,
+                                                     &original_BWPixelTransferNode_renderSampleBuffer_forInput) ? 1 : 0;
+        installedCount += installPrivateInstanceHook(@"BWNode",
+                                                     @"renderSampleBuffer:forInput:",
+                                                     (IMP)lc_BWNode_renderSampleBuffer_forInput,
+                                                     &original_BWNode_renderSampleBuffer_forInput) ? 1 : 0;
+        installedCount += installPrivateInstanceHook(@"BWUBNode",
+                                                     @"renderSampleBuffer:forInput:",
+                                                     (IMP)lc_BWUBNode_renderSampleBuffer_forInput,
+                                                     &original_BWUBNode_renderSampleBuffer_forInput) ? 1 : 0;
+        installedCount += installPrivateInstanceHook(@"BWStillImageScalerNode",
+                                                     @"renderSampleBuffer:forInput:",
+                                                     (IMP)lc_BWStillImageScalerNode_renderSampleBuffer_forInput,
+                                                     &original_BWStillImageScalerNode_renderSampleBuffer_forInput) ? 1 : 0;
+        installedCount += installPrivateInstanceHook(@"BWPhotoEncoderNode",
+                                                     @"renderSampleBuffer:forInput:",
+                                                     (IMP)lc_BWPhotoEncoderNode_renderSampleBuffer_forInput,
+                                                     &original_BWPhotoEncoderNode_renderSampleBuffer_forInput) ? 1 : 0;
+        installedCount += installPrivateInstanceHook(@"BWMetadataDetectorGatingNode",
+                                                     @"renderSampleBuffer:forInput:",
+                                                     (IMP)lc_BWMetadataDetectorGatingNode_renderSampleBuffer_forInput,
+                                                     &original_BWMetadataDetectorGatingNode_renderSampleBuffer_forInput) ? 1 : 0;
+        installedCount += installPrivateInstanceHook(@"BWVideoOrientationMetadataNode",
+                                                     @"renderSampleBuffer:forInput:",
+                                                     (IMP)lc_BWVideoOrientationMetadataNode_renderSampleBuffer_forInput,
+                                                     &original_BWVideoOrientationMetadataNode_renderSampleBuffer_forInput) ? 1 : 0;
+
+        if (installedCount > 0) {
+            NSLog(@"[LC] ✅ Private camera pipeline hooks active (%lu)", (unsigned long)installedCount);
+        } else {
+            NSLog(@"[LC] ℹ️ Private camera pipeline classes unavailable in this process");
+        }
+    });
 }
 
 // pragma MARK: - LEVEL 2: Device Level Hooks
@@ -2850,8 +3295,17 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
 @implementation AVCapturePhotoOutput(LiveContainerSpoof)
 
 - (void)lc_capturePhotoWithSettings:(AVCapturePhotoSettings *)settings delegate:(id<AVCapturePhotoCaptureDelegate>)delegate {
+    id<AVCapturePhotoCaptureDelegate> effectiveDelegate = delegate;
+
     if (spoofCameraEnabled) {
     NSLog(@"[LC] 📷 L5: Photo capture intercepted - Mode: %@", spoofCameraMode);
+
+        if (delegate && ![delegate isKindOfClass:[LCSpoofPhotoCaptureDelegate class]]) {
+            LCSpoofPhotoCaptureDelegate *proxy = [[LCSpoofPhotoCaptureDelegate alloc] initWithDelegate:delegate photoOutput:self];
+            objc_setAssociatedObject(self, @selector(lc_capturePhotoWithSettings:delegate:), proxy, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            effectiveDelegate = (id<AVCapturePhotoCaptureDelegate>)proxy;
+            NSLog(@"[LC] ✅ L5: Photo delegate wrapped for sample-buffer interception: %@", NSStringFromClass([delegate class]));
+        }
     
         if ([spoofCameraMode isEqualToString:@"standard"]) {
             // Standard mode: Simple cache update
@@ -2911,7 +3365,7 @@ CVReturn hook_CVPixelBufferCreate(CFAllocatorRef allocator, size_t width, size_t
         });
     }
     
-    [self lc_capturePhotoWithSettings:settings delegate:delegate];
+    [self lc_capturePhotoWithSettings:settings delegate:effectiveDelegate];
 }
 
 @end
@@ -3530,6 +3984,46 @@ NSData *hook_AVCapturePhoto_fileDataRepresentation(id self, SEL _cmd) {
     return nil;
 }
 
+NSData *hook_AVCaptureDeferredPhotoProxy_fileDataRepresentation(id self, SEL _cmd) {
+    @try {
+        if (spoofCameraEnabled) {
+            primePhotoCacheIfNeeded();
+            if (g_cachedPhotoJPEGData.length > 0) {
+                NSLog(@"[LC] ✅ L6: Returning spoofed deferred photo data (%lu bytes)",
+                      (unsigned long)g_cachedPhotoJPEGData.length);
+                return g_cachedPhotoJPEGData;
+            }
+        }
+    } @catch (NSException *exception) {
+        NSLog(@"[LC] ❌ Exception in deferred photo data hook: %@", exception);
+    }
+
+    if (original_AVCaptureDeferredPhotoProxy_fileDataRepresentation) {
+        return original_AVCaptureDeferredPhotoProxy_fileDataRepresentation(self, _cmd);
+    }
+    return nil;
+}
+
+NSData *hook_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer(id self, SEL _cmd, CMSampleBufferRef jpegSampleBuffer, CMSampleBufferRef previewPhotoSampleBuffer) {
+    @try {
+        if (spoofCameraEnabled) {
+            primePhotoCacheIfNeeded();
+            if (g_cachedPhotoJPEGData.length > 0) {
+                NSLog(@"[LC] ✅ L6: Returning spoofed JPEG from JPEGSampleBuffer helper (%lu bytes)",
+                      (unsigned long)g_cachedPhotoJPEGData.length);
+                return g_cachedPhotoJPEGData;
+            }
+        }
+    } @catch (NSException *exception) {
+        NSLog(@"[LC] ❌ Exception in JPEGPhotoDataRepresentation hook: %@", exception);
+    }
+
+    if (original_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer) {
+        return original_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer(self, _cmd, jpegSampleBuffer, previewPhotoSampleBuffer);
+    }
+    return nil;
+}
+
 // pragma MARK: - Configuration Loading
 
 static void loadSpoofingConfiguration(void) {
@@ -3723,6 +4217,13 @@ void AVFoundationGuestHooksInit(void) {
                 } @catch (NSException *e) {
                     NSLog(@"[LC] ❌ Level 5 hook error: %@", e);
                 }
+
+                // BTATM-inspired fallback: hook private camera pipeline nodes when available.
+                @try {
+                    installPrivateCapturePipelineHooks();
+                } @catch (NSException *e) {
+                    NSLog(@"[LC] ❌ Private pipeline hook error: %@", e);
+                }
                 
                 // DIAGNOSTIC: Hook AVAssetWriter (common alternative to MovieFileOutput)
                 @try {
@@ -3763,6 +4264,28 @@ void AVFoundationGuestHooksInit(void) {
                         original_AVCapturePhoto_fileDataRepresentation = (NSData *(*)(id, SEL))method_getImplementation(fileDataMethod);
                         method_setImplementation(fileDataMethod, (IMP)hook_AVCapturePhoto_fileDataRepresentation);
                         NSLog(@"[LC] ✅ L6: Photo fileDataRepresentation hook installed");
+                    }
+
+                    Class deferredPhotoProxyClass = NSClassFromString(@"AVCaptureDeferredPhotoProxy");
+                    if (deferredPhotoProxyClass) {
+                        Method deferredFileDataMethod = class_getInstanceMethod(deferredPhotoProxyClass, @selector(fileDataRepresentation));
+                        if (deferredFileDataMethod) {
+                            original_AVCaptureDeferredPhotoProxy_fileDataRepresentation =
+                                (NSData *(*)(id, SEL))method_getImplementation(deferredFileDataMethod);
+                            method_setImplementation(deferredFileDataMethod, (IMP)hook_AVCaptureDeferredPhotoProxy_fileDataRepresentation);
+                            NSLog(@"[LC] ✅ L6: Deferred photo proxy fileDataRepresentation hook installed");
+                        }
+                    }
+
+                    #pragma clang diagnostic push
+                    #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+                    Method jpegHelperMethod = class_getClassMethod([AVCapturePhotoOutput class], @selector(JPEGPhotoDataRepresentationForJPEGSampleBuffer:previewPhotoSampleBuffer:));
+                    #pragma clang diagnostic pop
+                    if (jpegHelperMethod) {
+                        original_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer =
+                            (NSData *(*)(id, SEL, CMSampleBufferRef, CMSampleBufferRef))method_getImplementation(jpegHelperMethod);
+                        method_setImplementation(jpegHelperMethod, (IMP)hook_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer);
+                        NSLog(@"[LC] ✅ L6: JPEGPhotoDataRepresentation helper hook installed");
                     }
                 } @catch (NSException *e) {
                     NSLog(@"[LC] ❌ Level 6 hook error: %@", e);
