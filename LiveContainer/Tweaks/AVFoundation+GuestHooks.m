@@ -137,14 +137,30 @@ static BOOL isValidPixelFormat(OSType format);
 
 // Level 6 hooks (Photo Accessor Level)
 static CVPixelBufferRef (*original_AVCapturePhoto_pixelBuffer)(id, SEL);
+static CVPixelBufferRef (*original_AVCapturePhoto_previewPixelBuffer)(id, SEL);
 static CGImageRef (*original_AVCapturePhoto_CGImageRepresentation)(id, SEL);
+static CGImageRef (*original_AVCapturePhoto_previewCGImageRepresentation)(id, SEL);
 static NSData *(*original_AVCapturePhoto_fileDataRepresentation)(id, SEL);
+static NSData *(*original_AVCapturePhoto_fileDataRepresentationWithCustomizer)(id, SEL, id);
+static CVPixelBufferRef (*original_AVCaptureDeferredPhotoProxy_pixelBuffer)(id, SEL);
+static CVPixelBufferRef (*original_AVCaptureDeferredPhotoProxy_previewPixelBuffer)(id, SEL);
+static CGImageRef (*original_AVCaptureDeferredPhotoProxy_CGImageRepresentation)(id, SEL);
+static CGImageRef (*original_AVCaptureDeferredPhotoProxy_previewCGImageRepresentation)(id, SEL);
 static NSData *(*original_AVCaptureDeferredPhotoProxy_fileDataRepresentation)(id, SEL);
+static NSData *(*original_AVCaptureDeferredPhotoProxy_fileDataRepresentationWithCustomizer)(id, SEL, id);
 static NSData *(*original_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer)(id, SEL, CMSampleBufferRef, CMSampleBufferRef);
 CVPixelBufferRef hook_AVCapturePhoto_pixelBuffer(id self, SEL _cmd);
+CVPixelBufferRef hook_AVCapturePhoto_previewPixelBuffer(id self, SEL _cmd);
 CGImageRef hook_AVCapturePhoto_CGImageRepresentation(id self, SEL _cmd);
+CGImageRef hook_AVCapturePhoto_previewCGImageRepresentation(id self, SEL _cmd);
 NSData *hook_AVCapturePhoto_fileDataRepresentation(id self, SEL _cmd);
+NSData *hook_AVCapturePhoto_fileDataRepresentationWithCustomizer(id self, SEL _cmd, id customizer);
+CVPixelBufferRef hook_AVCaptureDeferredPhotoProxy_pixelBuffer(id self, SEL _cmd);
+CVPixelBufferRef hook_AVCaptureDeferredPhotoProxy_previewPixelBuffer(id self, SEL _cmd);
+CGImageRef hook_AVCaptureDeferredPhotoProxy_CGImageRepresentation(id self, SEL _cmd);
+CGImageRef hook_AVCaptureDeferredPhotoProxy_previewCGImageRepresentation(id self, SEL _cmd);
 NSData *hook_AVCaptureDeferredPhotoProxy_fileDataRepresentation(id self, SEL _cmd);
+NSData *hook_AVCaptureDeferredPhotoProxy_fileDataRepresentationWithCustomizer(id self, SEL _cmd, id customizer);
 NSData *hook_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer(id self, SEL _cmd, CMSampleBufferRef jpegSampleBuffer, CMSampleBufferRef previewPhotoSampleBuffer);
 
 // pragma MARK: - Core Utilities
@@ -2377,6 +2393,28 @@ static void cleanupPhotoCache(void) {
 
 // pragma MARK: - Delegate Wrapper
 
+static void configurePhotoOutputForSpoofing(AVCapturePhotoOutput *photoOutput, NSString *reason) {
+    if (!spoofCameraEnabled || !photoOutput) {
+        return;
+    }
+
+    if (@available(iOS 17.0, *)) {
+        @try {
+            if ([photoOutput isAutoDeferredPhotoDeliverySupported]) {
+                BOOL wasEnabled = photoOutput.isAutoDeferredPhotoDeliveryEnabled;
+                if (wasEnabled) {
+                    photoOutput.autoDeferredPhotoDeliveryEnabled = NO;
+                    NSLog(@"[LC] 📷 %@: Disabled autoDeferredPhotoDeliveryEnabled", reason);
+                } else {
+                    NSLog(@"[LC] 📷 %@: autoDeferredPhotoDeliveryEnabled already OFF", reason);
+                }
+            }
+        } @catch (NSException *exception) {
+            NSLog(@"[LC] ❌ %@: Failed to configure deferred photo delivery: %@", reason, exception);
+        }
+    }
+}
+
 static void primePhotoCacheIfNeeded(void) {
     if (!spoofCameraEnabled) {
         return;
@@ -2426,6 +2464,7 @@ static void primePhotoCacheIfNeeded(void) {
 - (void)captureOutput:(AVCapturePhotoOutput *)output
 didFinishProcessingPhoto:(AVCapturePhoto *)photo
                 error:(NSError *)error {
+    NSLog(@"[LC] 📷 L5 delegate: didFinishProcessingPhoto (error=%@)", error ? @"YES" : @"NO");
     if (spoofCameraEnabled && !error) {
         primePhotoCacheIfNeeded();
     }
@@ -2440,6 +2479,7 @@ previewPhotoSampleBuffer:(CMSampleBufferRef)previewPhotoSampleBuffer
      resolvedSettings:(AVCaptureResolvedPhotoSettings *)resolvedSettings
       bracketSettings:(AVCaptureBracketedStillImageSettings *)bracketSettings
                 error:(NSError *)error {
+    NSLog(@"[LC] 📷 L5 delegate: didFinishProcessingPhotoSampleBuffer (error=%@)", error ? @"YES" : @"NO");
     CMSampleBufferRef spoofedFrame = NULL;
     CMSampleBufferRef forwardedPhotoSampleBuffer = photoSampleBuffer;
 
@@ -2476,6 +2516,7 @@ previewPhotoSampleBuffer:(CMSampleBufferRef)previewPhotoSampleBuffer
      resolvedSettings:(AVCaptureResolvedPhotoSettings *)resolvedSettings
       bracketSettings:(AVCaptureBracketedStillImageSettings *)bracketSettings
                 error:(NSError *)error {
+    NSLog(@"[LC] 📷 L5 delegate: didFinishProcessingRawPhotoSampleBuffer (error=%@)", error ? @"YES" : @"NO");
     CMSampleBufferRef spoofedFrame = NULL;
     CMSampleBufferRef forwardedRawSampleBuffer = rawSampleBuffer;
 
@@ -2493,7 +2534,7 @@ previewPhotoSampleBuffer:(CMSampleBufferRef)previewPhotoSampleBuffer
         #pragma clang diagnostic push
         #pragma clang diagnostic ignored "-Wdeprecated-declarations"
         [self.originalDelegate captureOutput:output
- didFinishProcessingRawPhotoSampleBuffer:forwardedRawSampleBuffer
+          didFinishProcessingRawPhotoSampleBuffer:forwardedRawSampleBuffer
                   previewPhotoSampleBuffer:previewPhotoSampleBuffer
                           resolvedSettings:resolvedSettings
                            bracketSettings:bracketSettings
@@ -2509,6 +2550,7 @@ previewPhotoSampleBuffer:(CMSampleBufferRef)previewPhotoSampleBuffer
 - (void)captureOutput:(AVCapturePhotoOutput *)output
 didFinishCapturingDeferredPhotoProxy:(id)deferredPhotoProxy
                 error:(NSError *)error {
+    NSLog(@"[LC] 📷 L5 delegate: didFinishCapturingDeferredPhotoProxy (error=%@)", error ? @"YES" : @"NO");
     if (spoofCameraEnabled && !error) {
         primePhotoCacheIfNeeded();
     }
@@ -2522,6 +2564,7 @@ didFinishCapturingDeferredPhotoProxy:(id)deferredPhotoProxy
 - (void)captureOutput:(AVCapturePhotoOutput *)output
 didFinishCaptureForResolvedSettings:(AVCaptureResolvedPhotoSettings *)resolvedSettings
                 error:(NSError *)error {
+    NSLog(@"[LC] 📷 L5 delegate: didFinishCaptureForResolvedSettings (error=%@)", error ? @"YES" : @"NO");
     if ([self.originalDelegate respondsToSelector:_cmd]) {
         [self.originalDelegate captureOutput:output didFinishCaptureForResolvedSettings:resolvedSettings error:error];
     }
@@ -3099,6 +3142,7 @@ static void installPrivateCapturePipelineHooks(void) {
             NSLog(@"[LC] Video data output detected");
         } else if ([output isKindOfClass:[AVCapturePhotoOutput class]]) {
             NSLog(@"[LC] Photo output detected");
+            configurePhotoOutputForSpoofing((AVCapturePhotoOutput *)output, @"L4 addOutput");
         } else if ([output isKindOfClass:[AVCaptureMovieFileOutput class]]) {
             NSLog(@"[LC] Movie file output detected");
         }
@@ -3161,6 +3205,7 @@ static void installPrivateCapturePipelineHooks(void) {
                 }
             } else if ([output isKindOfClass:[AVCapturePhotoOutput class]]) {
                 hasPhotoOutput = YES;
+                configurePhotoOutputForSpoofing((AVCapturePhotoOutput *)output, @"L4 startRunning");
             }
         }
         
@@ -3298,7 +3343,8 @@ static void installPrivateCapturePipelineHooks(void) {
     id<AVCapturePhotoCaptureDelegate> effectiveDelegate = delegate;
 
     if (spoofCameraEnabled) {
-    NSLog(@"[LC] 📷 L5: Photo capture intercepted - Mode: %@", spoofCameraMode);
+        configurePhotoOutputForSpoofing(self, @"L5 capturePhoto");
+        NSLog(@"[LC] 📷 L5: Photo capture intercepted - Mode: %@", spoofCameraMode);
 
         if (delegate && ![delegate isKindOfClass:[LCSpoofPhotoCaptureDelegate class]]) {
             LCSpoofPhotoCaptureDelegate *proxy = [[LCSpoofPhotoCaptureDelegate alloc] initWithDelegate:delegate photoOutput:self];
@@ -3873,149 +3919,215 @@ static const void *SpoofDisplayTimerKey = &SpoofDisplayTimerKey;
 
 // pragma MARK: - LEVEL 6: Photo Accessor Hooks (Highest Level)
 
-// debug
+static CVPixelBufferRef spoofedPhotoPixelBufferValue(void) {
+    if (!spoofCameraEnabled) {
+        return NULL;
+    }
+    primePhotoCacheIfNeeded();
+    if (g_cachedPhotoPixelBuffer) {
+        return g_cachedPhotoPixelBuffer;
+    }
+
+    CMSampleBufferRef emergencyFrame = createSpoofedSampleBuffer();
+    if (!emergencyFrame) {
+        return NULL;
+    }
+    cachePhotoDataFromSampleBuffer(emergencyFrame);
+    CFRelease(emergencyFrame);
+    return g_cachedPhotoPixelBuffer;
+}
+
+static CGImageRef spoofedPhotoCGImageValue(void) {
+    if (!spoofCameraEnabled) {
+        return NULL;
+    }
+    primePhotoCacheIfNeeded();
+    if (g_cachedPhotoCGImage) {
+        return g_cachedPhotoCGImage;
+    }
+
+    CMSampleBufferRef emergencyFrame = createSpoofedSampleBuffer();
+    if (!emergencyFrame) {
+        return NULL;
+    }
+    cachePhotoDataFromSampleBuffer(emergencyFrame);
+    CFRelease(emergencyFrame);
+    return g_cachedPhotoCGImage;
+}
+
+static NSData *spoofedPhotoJPEGValue(void) {
+    if (!spoofCameraEnabled) {
+        return nil;
+    }
+    primePhotoCacheIfNeeded();
+    if (g_cachedPhotoJPEGData.length > 0) {
+        return g_cachedPhotoJPEGData;
+    }
+
+    CMSampleBufferRef emergencyFrame = createSpoofedSampleBuffer();
+    if (!emergencyFrame) {
+        return nil;
+    }
+    cachePhotoDataFromSampleBuffer(emergencyFrame);
+    CFRelease(emergencyFrame);
+    return g_cachedPhotoJPEGData;
+}
+
 CVPixelBufferRef hook_AVCapturePhoto_pixelBuffer(id self, SEL _cmd) {
-    NSLog(@"[LC] 🔍 DEBUG L6: pixelBuffer hook called");
-    @try {
-        if (spoofCameraEnabled) {
-            NSLog(@"[LC] 📷 L6: pixelBuffer requested - cache status: %s", 
-                  g_cachedPhotoPixelBuffer ? "READY" : "MISSING");
-            
-            if (g_cachedPhotoPixelBuffer) {
-                NSLog(@"[LC] ✅ L6: Returning cached pixel buffer: %p", g_cachedPhotoPixelBuffer);
-                return g_cachedPhotoPixelBuffer;
-            } else {
-                // Emergency: Try to create spoofed data on the spot
-                NSLog(@"[LC] 📷 L6: Emergency photo generation");
-                CMSampleBufferRef emergencyFrame = createSpoofedSampleBuffer();
-                if (emergencyFrame) {
-                    CVImageBufferRef emergencyBuffer = CMSampleBufferGetImageBuffer(emergencyFrame);
-                    if (emergencyBuffer) {
-                        g_cachedPhotoPixelBuffer = CVPixelBufferRetain(emergencyBuffer);
-                        CFRelease(emergencyFrame);
-                        NSLog(@"[LC] ✅ L6: Emergency pixel buffer created: %p", g_cachedPhotoPixelBuffer);
-                        return g_cachedPhotoPixelBuffer;
-                    }
-                    CFRelease(emergencyFrame);
-                }
-                NSLog(@"[LC] ❌ L6: Emergency generation failed");
-            }
-        } else {
-            NSLog(@"[LC] 🔍 DEBUG L6: Spoofing disabled, calling original");
-        }
-    } @catch (NSException *exception) {
-        NSLog(@"[LC] ❌ Exception in pixelBuffer hook: %@", exception);
+    CVPixelBufferRef spoofedBuffer = spoofedPhotoPixelBufferValue();
+    if (spoofedBuffer) {
+        NSLog(@"[LC] ✅ L6: AVCapturePhoto pixelBuffer -> spoofed");
+        return spoofedBuffer;
     }
-    
-    // DEFENSIVE: Always try to call original
-    NSLog(@"[LC] 🔍 DEBUG L6: Calling original pixelBuffer method");
     if (original_AVCapturePhoto_pixelBuffer) {
-        CVPixelBufferRef originalResult = original_AVCapturePhoto_pixelBuffer(self, _cmd);
-        NSLog(@"[LC] 🔍 DEBUG L6: Original returned: %p", originalResult);
-        return originalResult;
+        return original_AVCapturePhoto_pixelBuffer(self, _cmd);
     }
-    NSLog(@"[LC] ❌ L6: No original method available");
     return NULL;
 }
 
-// debug logging
+CVPixelBufferRef hook_AVCapturePhoto_previewPixelBuffer(id self, SEL _cmd) {
+    CVPixelBufferRef spoofedBuffer = spoofedPhotoPixelBufferValue();
+    if (spoofedBuffer) {
+        NSLog(@"[LC] ✅ L6: AVCapturePhoto previewPixelBuffer -> spoofed");
+        return spoofedBuffer;
+    }
+    if (original_AVCapturePhoto_previewPixelBuffer) {
+        return original_AVCapturePhoto_previewPixelBuffer(self, _cmd);
+    }
+    return NULL;
+}
+
 CGImageRef hook_AVCapturePhoto_CGImageRepresentation(id self, SEL _cmd) {
-    NSLog(@"[LC] 🔍 DEBUG L6: CGImageRepresentation hook called");
-    @try {
-        if (spoofCameraEnabled) {
-            NSLog(@"[LC] 📷 L6: CGImage requested - cache status: %s", 
-                  g_cachedPhotoCGImage ? "READY" : "MISSING");
-            
-            if (g_cachedPhotoCGImage) {
-                NSLog(@"[LC] ✅ L6: Returning cached CGImage: %p", g_cachedPhotoCGImage);
-                return g_cachedPhotoCGImage;
-            } else {
-                NSLog(@"[LC] ❌ L6: No cached CGImage available");
-            }
-        } else {
-            NSLog(@"[LC] 🔍 DEBUG L6: Spoofing disabled for CGImage");
-        }
-    } @catch (NSException *exception) {
-        NSLog(@"[LC] ❌ Exception in CGImageRepresentation hook: %@", exception);
+    CGImageRef spoofedImage = spoofedPhotoCGImageValue();
+    if (spoofedImage) {
+        NSLog(@"[LC] ✅ L6: AVCapturePhoto CGImageRepresentation -> spoofed");
+        return spoofedImage;
     }
-    
-    // DEFENSIVE: Always try to call original
-    NSLog(@"[LC] 🔍 DEBUG L6: Calling original CGImageRepresentation method");
     if (original_AVCapturePhoto_CGImageRepresentation) {
-        CGImageRef originalResult = original_AVCapturePhoto_CGImageRepresentation(self, _cmd);
-        NSLog(@"[LC] 🔍 DEBUG L6: Original CGImage returned: %p", originalResult);
-        return originalResult;
+        return original_AVCapturePhoto_CGImageRepresentation(self, _cmd);
     }
-    NSLog(@"[LC] ❌ L6: No original CGImage method available");
+    return NULL;
+}
+
+CGImageRef hook_AVCapturePhoto_previewCGImageRepresentation(id self, SEL _cmd) {
+    CGImageRef spoofedImage = spoofedPhotoCGImageValue();
+    if (spoofedImage) {
+        NSLog(@"[LC] ✅ L6: AVCapturePhoto previewCGImageRepresentation -> spoofed");
+        return spoofedImage;
+    }
+    if (original_AVCapturePhoto_previewCGImageRepresentation) {
+        return original_AVCapturePhoto_previewCGImageRepresentation(self, _cmd);
+    }
     return NULL;
 }
 
 // make sure our photo hooks don't apply any additional rotation
 NSData *hook_AVCapturePhoto_fileDataRepresentation(id self, SEL _cmd) {
-    NSLog(@"[LC] 🔍 DEBUG L6: fileDataRepresentation hook called");
-    @try {
-        if (spoofCameraEnabled) {
-            NSLog(@"[LC] 📷 L6: fileDataRepresentation requested - cache status: %s", 
-                  g_cachedPhotoJPEGData ? "READY" : "MISSING");
-            
-            if (g_cachedPhotoJPEGData && g_cachedPhotoJPEGData.length > 0) {
-                NSLog(@"[LC] ✅ L6: Returning spoofed JPEG (%lu bytes) with PRESERVED orientation", 
-                      (unsigned long)g_cachedPhotoJPEGData.length);
-                return g_cachedPhotoJPEGData;
-            } else {
-                NSLog(@"[LC] ❌ L6: No cached JPEG data available");
-            }
-        } else {
-            NSLog(@"[LC] 🔍 DEBUG L6: Spoofing disabled for fileData");
-        }
-    } @catch (NSException *exception) {
-        NSLog(@"[LC] ❌ Exception in fileDataRepresentation hook: %@", exception);
+    NSData *spoofedData = spoofedPhotoJPEGValue();
+    if (spoofedData.length > 0) {
+        NSLog(@"[LC] ✅ L6: AVCapturePhoto fileDataRepresentation -> spoofed (%lu bytes)",
+              (unsigned long)spoofedData.length);
+        return spoofedData;
     }
-    
-    // DEFENSIVE: Always try to call original
-    NSLog(@"[LC] 🔍 DEBUG L6: Calling original fileDataRepresentation method");
     if (original_AVCapturePhoto_fileDataRepresentation) {
-        NSData *originalResult = original_AVCapturePhoto_fileDataRepresentation(self, _cmd);
-        NSLog(@"[LC] 🔍 DEBUG L6: Original fileData returned: %lu bytes", 
-              originalResult ? (unsigned long)originalResult.length : 0);
-        return originalResult;
+        return original_AVCapturePhoto_fileDataRepresentation(self, _cmd);
     }
-    NSLog(@"[LC] ❌ L6: No original fileData method available");
     return nil;
 }
 
-NSData *hook_AVCaptureDeferredPhotoProxy_fileDataRepresentation(id self, SEL _cmd) {
-    @try {
-        if (spoofCameraEnabled) {
-            primePhotoCacheIfNeeded();
-            if (g_cachedPhotoJPEGData.length > 0) {
-                NSLog(@"[LC] ✅ L6: Returning spoofed deferred photo data (%lu bytes)",
-                      (unsigned long)g_cachedPhotoJPEGData.length);
-                return g_cachedPhotoJPEGData;
-            }
-        }
-    } @catch (NSException *exception) {
-        NSLog(@"[LC] ❌ Exception in deferred photo data hook: %@", exception);
+NSData *hook_AVCapturePhoto_fileDataRepresentationWithCustomizer(id self, SEL _cmd, id customizer) {
+    NSData *spoofedData = spoofedPhotoJPEGValue();
+    if (spoofedData.length > 0) {
+        NSLog(@"[LC] ✅ L6: AVCapturePhoto fileDataRepresentationWithCustomizer -> spoofed (%lu bytes)",
+              (unsigned long)spoofedData.length);
+        return spoofedData;
     }
+    if (original_AVCapturePhoto_fileDataRepresentationWithCustomizer) {
+        return original_AVCapturePhoto_fileDataRepresentationWithCustomizer(self, _cmd, customizer);
+    }
+    return nil;
+}
 
+CVPixelBufferRef hook_AVCaptureDeferredPhotoProxy_pixelBuffer(id self, SEL _cmd) {
+    CVPixelBufferRef spoofedBuffer = spoofedPhotoPixelBufferValue();
+    if (spoofedBuffer) {
+        NSLog(@"[LC] ✅ L6: Deferred proxy pixelBuffer -> spoofed");
+        return spoofedBuffer;
+    }
+    if (original_AVCaptureDeferredPhotoProxy_pixelBuffer) {
+        return original_AVCaptureDeferredPhotoProxy_pixelBuffer(self, _cmd);
+    }
+    return NULL;
+}
+
+CVPixelBufferRef hook_AVCaptureDeferredPhotoProxy_previewPixelBuffer(id self, SEL _cmd) {
+    CVPixelBufferRef spoofedBuffer = spoofedPhotoPixelBufferValue();
+    if (spoofedBuffer) {
+        NSLog(@"[LC] ✅ L6: Deferred proxy previewPixelBuffer -> spoofed");
+        return spoofedBuffer;
+    }
+    if (original_AVCaptureDeferredPhotoProxy_previewPixelBuffer) {
+        return original_AVCaptureDeferredPhotoProxy_previewPixelBuffer(self, _cmd);
+    }
+    return NULL;
+}
+
+CGImageRef hook_AVCaptureDeferredPhotoProxy_CGImageRepresentation(id self, SEL _cmd) {
+    CGImageRef spoofedImage = spoofedPhotoCGImageValue();
+    if (spoofedImage) {
+        NSLog(@"[LC] ✅ L6: Deferred proxy CGImageRepresentation -> spoofed");
+        return spoofedImage;
+    }
+    if (original_AVCaptureDeferredPhotoProxy_CGImageRepresentation) {
+        return original_AVCaptureDeferredPhotoProxy_CGImageRepresentation(self, _cmd);
+    }
+    return NULL;
+}
+
+CGImageRef hook_AVCaptureDeferredPhotoProxy_previewCGImageRepresentation(id self, SEL _cmd) {
+    CGImageRef spoofedImage = spoofedPhotoCGImageValue();
+    if (spoofedImage) {
+        NSLog(@"[LC] ✅ L6: Deferred proxy previewCGImageRepresentation -> spoofed");
+        return spoofedImage;
+    }
+    if (original_AVCaptureDeferredPhotoProxy_previewCGImageRepresentation) {
+        return original_AVCaptureDeferredPhotoProxy_previewCGImageRepresentation(self, _cmd);
+    }
+    return NULL;
+}
+
+NSData *hook_AVCaptureDeferredPhotoProxy_fileDataRepresentation(id self, SEL _cmd) {
+    NSData *spoofedData = spoofedPhotoJPEGValue();
+    if (spoofedData.length > 0) {
+        NSLog(@"[LC] ✅ L6: Deferred proxy fileDataRepresentation -> spoofed (%lu bytes)",
+              (unsigned long)spoofedData.length);
+        return spoofedData;
+    }
     if (original_AVCaptureDeferredPhotoProxy_fileDataRepresentation) {
         return original_AVCaptureDeferredPhotoProxy_fileDataRepresentation(self, _cmd);
     }
     return nil;
 }
 
+NSData *hook_AVCaptureDeferredPhotoProxy_fileDataRepresentationWithCustomizer(id self, SEL _cmd, id customizer) {
+    NSData *spoofedData = spoofedPhotoJPEGValue();
+    if (spoofedData.length > 0) {
+        NSLog(@"[LC] ✅ L6: Deferred proxy fileDataRepresentationWithCustomizer -> spoofed (%lu bytes)",
+              (unsigned long)spoofedData.length);
+        return spoofedData;
+    }
+    if (original_AVCaptureDeferredPhotoProxy_fileDataRepresentationWithCustomizer) {
+        return original_AVCaptureDeferredPhotoProxy_fileDataRepresentationWithCustomizer(self, _cmd, customizer);
+    }
+    return nil;
+}
+
 NSData *hook_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer(id self, SEL _cmd, CMSampleBufferRef jpegSampleBuffer, CMSampleBufferRef previewPhotoSampleBuffer) {
-    @try {
-        if (spoofCameraEnabled) {
-            primePhotoCacheIfNeeded();
-            if (g_cachedPhotoJPEGData.length > 0) {
-                NSLog(@"[LC] ✅ L6: Returning spoofed JPEG from JPEGSampleBuffer helper (%lu bytes)",
-                      (unsigned long)g_cachedPhotoJPEGData.length);
-                return g_cachedPhotoJPEGData;
-            }
-        }
-    } @catch (NSException *exception) {
-        NSLog(@"[LC] ❌ Exception in JPEGPhotoDataRepresentation hook: %@", exception);
+    NSData *spoofedData = spoofedPhotoJPEGValue();
+    if (spoofedData.length > 0) {
+        NSLog(@"[LC] ✅ L6: JPEGPhotoDataRepresentation helper -> spoofed (%lu bytes)",
+              (unsigned long)spoofedData.length);
+        return spoofedData;
     }
 
     if (original_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer) {
@@ -4251,12 +4363,26 @@ void AVFoundationGuestHooksInit(void) {
                         method_setImplementation(pixelBufferMethod, (IMP)hook_AVCapturePhoto_pixelBuffer);
                         NSLog(@"[LC] ✅ L6: Photo pixelBuffer hook installed");
                     }
+
+                    Method previewPixelBufferMethod = class_getInstanceMethod([AVCapturePhoto class], @selector(previewPixelBuffer));
+                    if (previewPixelBufferMethod) {
+                        original_AVCapturePhoto_previewPixelBuffer = (CVPixelBufferRef (*)(id, SEL))method_getImplementation(previewPixelBufferMethod);
+                        method_setImplementation(previewPixelBufferMethod, (IMP)hook_AVCapturePhoto_previewPixelBuffer);
+                        NSLog(@"[LC] ✅ L6: Photo previewPixelBuffer hook installed");
+                    }
                     
                     Method cgImageMethod = class_getInstanceMethod([AVCapturePhoto class], @selector(CGImageRepresentation));
                     if (cgImageMethod) {
                         original_AVCapturePhoto_CGImageRepresentation = (CGImageRef (*)(id, SEL))method_getImplementation(cgImageMethod);
                         method_setImplementation(cgImageMethod, (IMP)hook_AVCapturePhoto_CGImageRepresentation);
                         NSLog(@"[LC] ✅ L6: Photo CGImageRepresentation hook installed");
+                    }
+
+                    Method previewCGImageMethod = class_getInstanceMethod([AVCapturePhoto class], @selector(previewCGImageRepresentation));
+                    if (previewCGImageMethod) {
+                        original_AVCapturePhoto_previewCGImageRepresentation = (CGImageRef (*)(id, SEL))method_getImplementation(previewCGImageMethod);
+                        method_setImplementation(previewCGImageMethod, (IMP)hook_AVCapturePhoto_previewCGImageRepresentation);
+                        NSLog(@"[LC] ✅ L6: Photo previewCGImageRepresentation hook installed");
                     }
                     
                     Method fileDataMethod = class_getInstanceMethod([AVCapturePhoto class], @selector(fileDataRepresentation));
@@ -4266,14 +4392,62 @@ void AVFoundationGuestHooksInit(void) {
                         NSLog(@"[LC] ✅ L6: Photo fileDataRepresentation hook installed");
                     }
 
+                    Method fileDataCustomizerMethod = class_getInstanceMethod([AVCapturePhoto class], @selector(fileDataRepresentationWithCustomizer:));
+                    if (fileDataCustomizerMethod) {
+                        original_AVCapturePhoto_fileDataRepresentationWithCustomizer =
+                            (NSData *(*)(id, SEL, id))method_getImplementation(fileDataCustomizerMethod);
+                        method_setImplementation(fileDataCustomizerMethod, (IMP)hook_AVCapturePhoto_fileDataRepresentationWithCustomizer);
+                        NSLog(@"[LC] ✅ L6: Photo fileDataRepresentationWithCustomizer hook installed");
+                    }
+
                     Class deferredPhotoProxyClass = NSClassFromString(@"AVCaptureDeferredPhotoProxy");
                     if (deferredPhotoProxyClass) {
+                        Method deferredPixelBufferMethod = class_getInstanceMethod(deferredPhotoProxyClass, @selector(pixelBuffer));
+                        if (deferredPixelBufferMethod) {
+                            original_AVCaptureDeferredPhotoProxy_pixelBuffer =
+                                (CVPixelBufferRef (*)(id, SEL))method_getImplementation(deferredPixelBufferMethod);
+                            method_setImplementation(deferredPixelBufferMethod, (IMP)hook_AVCaptureDeferredPhotoProxy_pixelBuffer);
+                            NSLog(@"[LC] ✅ L6: Deferred photo proxy pixelBuffer hook installed");
+                        }
+
+                        Method deferredPreviewPixelBufferMethod = class_getInstanceMethod(deferredPhotoProxyClass, @selector(previewPixelBuffer));
+                        if (deferredPreviewPixelBufferMethod) {
+                            original_AVCaptureDeferredPhotoProxy_previewPixelBuffer =
+                                (CVPixelBufferRef (*)(id, SEL))method_getImplementation(deferredPreviewPixelBufferMethod);
+                            method_setImplementation(deferredPreviewPixelBufferMethod, (IMP)hook_AVCaptureDeferredPhotoProxy_previewPixelBuffer);
+                            NSLog(@"[LC] ✅ L6: Deferred photo proxy previewPixelBuffer hook installed");
+                        }
+
+                        Method deferredCGImageMethod = class_getInstanceMethod(deferredPhotoProxyClass, @selector(CGImageRepresentation));
+                        if (deferredCGImageMethod) {
+                            original_AVCaptureDeferredPhotoProxy_CGImageRepresentation =
+                                (CGImageRef (*)(id, SEL))method_getImplementation(deferredCGImageMethod);
+                            method_setImplementation(deferredCGImageMethod, (IMP)hook_AVCaptureDeferredPhotoProxy_CGImageRepresentation);
+                            NSLog(@"[LC] ✅ L6: Deferred photo proxy CGImageRepresentation hook installed");
+                        }
+
+                        Method deferredPreviewCGImageMethod = class_getInstanceMethod(deferredPhotoProxyClass, @selector(previewCGImageRepresentation));
+                        if (deferredPreviewCGImageMethod) {
+                            original_AVCaptureDeferredPhotoProxy_previewCGImageRepresentation =
+                                (CGImageRef (*)(id, SEL))method_getImplementation(deferredPreviewCGImageMethod);
+                            method_setImplementation(deferredPreviewCGImageMethod, (IMP)hook_AVCaptureDeferredPhotoProxy_previewCGImageRepresentation);
+                            NSLog(@"[LC] ✅ L6: Deferred photo proxy previewCGImageRepresentation hook installed");
+                        }
+
                         Method deferredFileDataMethod = class_getInstanceMethod(deferredPhotoProxyClass, @selector(fileDataRepresentation));
                         if (deferredFileDataMethod) {
                             original_AVCaptureDeferredPhotoProxy_fileDataRepresentation =
                                 (NSData *(*)(id, SEL))method_getImplementation(deferredFileDataMethod);
                             method_setImplementation(deferredFileDataMethod, (IMP)hook_AVCaptureDeferredPhotoProxy_fileDataRepresentation);
                             NSLog(@"[LC] ✅ L6: Deferred photo proxy fileDataRepresentation hook installed");
+                        }
+
+                        Method deferredFileDataCustomizerMethod = class_getInstanceMethod(deferredPhotoProxyClass, @selector(fileDataRepresentationWithCustomizer:));
+                        if (deferredFileDataCustomizerMethod) {
+                            original_AVCaptureDeferredPhotoProxy_fileDataRepresentationWithCustomizer =
+                                (NSData *(*)(id, SEL, id))method_getImplementation(deferredFileDataCustomizerMethod);
+                            method_setImplementation(deferredFileDataCustomizerMethod, (IMP)hook_AVCaptureDeferredPhotoProxy_fileDataRepresentationWithCustomizer);
+                            NSLog(@"[LC] ✅ L6: Deferred photo proxy fileDataRepresentationWithCustomizer hook installed");
                         }
                     }
 
