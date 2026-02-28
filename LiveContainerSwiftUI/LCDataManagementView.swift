@@ -201,25 +201,57 @@ struct LCDataManagementView : View {
             }
         }
         
-        var foldersToDelete : [String]  = []
-        for appDataFolderName in appDataFolderNames {
-            if folderNameToAppDict[appDataFolderName] == nil {
-                foldersToDelete.append(appDataFolderName)
+        let fm = FileManager()
+        var foldersToDelete: [URL] = []
+        var keychainLabelsToEvaluate = Set<String>()
+        var seenRootPaths = Set<String>()
+        let candidateRoots = [LCPath.dataPath, LCPath.lcGroupDataPath].filter { seenRootPaths.insert($0.path).inserted }
+
+        do {
+            for root in candidateRoots where fm.fileExists(atPath: root.path) {
+                let entries = try fm.contentsOfDirectory(
+                    at: root,
+                    includingPropertiesForKeys: [.isDirectoryKey],
+                    options: [.skipsHiddenFiles]
+                )
+                for entry in entries {
+                    let values = try? entry.resourceValues(forKeys: [.isDirectoryKey])
+                    guard values?.isDirectory == true else {
+                        continue
+                    }
+                    let folderName = entry.lastPathComponent
+                    if folderNameToAppDict[folderName] == nil {
+                        foldersToDelete.append(entry)
+                        keychainLabelsToEvaluate.insert(folderName)
+                    }
+                }
             }
+        } catch {
+            errorInfo = error.localizedDescription
+            errorShow = true
+            return
         }
+
         folderRemoveCount = foldersToDelete.count
         
         guard let result = await appFolderRemovalAlert.open(), result else {
             return
         }
+
         do {
-            let fm = FileManager()
-            for folder in foldersToDelete {
-                try fm.removeItem(at: LCPath.dataPath.appendingPathComponent(folder))
-                LCUtils.removeAppKeychain(dataUUID: folder)
-                self.appDataFolderNames.removeAll(where: { s in
-                    return s == folder
-                })
+            for folderURL in foldersToDelete {
+                try fm.removeItem(at: folderURL)
+            }
+
+            for folderName in keychainLabelsToEvaluate {
+                let stillExists = candidateRoots.contains { root in
+                    fm.fileExists(atPath: root.appendingPathComponent(folderName).path)
+                }
+                if stillExists {
+                    continue
+                }
+                LCUtils.removeAppKeychain(dataUUID: folderName)
+                self.appDataFolderNames.removeAll(where: { $0 == folderName })
             }
         } catch {
             errorInfo = error.localizedDescription

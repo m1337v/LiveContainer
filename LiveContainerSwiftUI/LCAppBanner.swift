@@ -410,8 +410,10 @@ struct LCAppBanner : View {
             if doRemoveAppFolder {
                 for container in containers {
                     let dataUUID = container.folderName
-                    let dataFolderPath = LCPath.dataPath.appendingPathComponent(dataUUID)
-                    try fm.removeItem(at: dataFolderPath)
+                    let dataFolderPath = container.containerURL
+                    if fm.fileExists(atPath: dataFolderPath.path) {
+                        try fm.removeItem(at: dataFolderPath)
+                    }
                     LCUtils.removeAppKeychain(dataUUID: dataUUID)
                     
                     DispatchQueue.main.async {
