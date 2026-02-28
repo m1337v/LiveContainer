@@ -232,17 +232,12 @@ struct LCDataManagementView : View {
         guard let result = await keyChainRemovalAlert.open(), result else {
             return
         }
-        
-        [kSecClassGenericPassword, kSecClassInternetPassword, kSecClassCertificate, kSecClassKey, kSecClassIdentity].forEach {
-          let status = SecItemDelete([
-            kSecClass: $0,
-            kSecAttrSynchronizable: kSecAttrSynchronizableAny
-          ] as CFDictionary)
-          if status != errSecSuccess && status != errSecItemNotFound {
-              //Error while removing class $0
-              errorInfo = status.description
-              errorShow = true
-          }
+
+        let failures = LCUtils.removeAllAppKeychain()
+        if !failures.isEmpty {
+            let uniqueCodes = Array(Set(failures.map { Int($0) })).sorted()
+            errorInfo = "Keychain cleanup reported errors: \(uniqueCodes.map(String.init).joined(separator: ", "))"
+            errorShow = true
         }
     }
     

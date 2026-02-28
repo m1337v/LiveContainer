@@ -25,6 +25,13 @@ OSStatus (*orig_SecKeyGeneratePair)(CFDictionaryRef query, SecKeyRef *publicKey,
 NSString* accessGroup = nil;
 NSString* containerId = nil;
 static NSString *const kLCContainerAliasAttribute = @"alis";
+static BOOL lcAccessGroupUsable = YES;
+
+typedef NS_ENUM(NSUInteger, LCSecItemDictionaryKind) {
+    LCSecItemDictionaryKindQuery = 0,
+    LCSecItemDictionaryKindAttributes = 1,
+    LCSecItemDictionaryKindUpdateAttributes = 2,
+};
 
 static NSMutableDictionary *LCCreateMutableDictionary(CFDictionaryRef dictionary) {
     if (!dictionary) {
@@ -37,9 +44,34 @@ static NSMutableDictionary *LCCreateMutableDictionary(CFDictionaryRef dictionary
     return [((NSDictionary *)object) mutableCopy];
 }
 
-static void LCApplyScopedAccessGroup(NSMutableDictionary *dictionary) {
-    if (accessGroup.length > 0) {
-        dictionary[(__bridge id)kSecAttrAccessGroup] = accessGroup;
+static void LCDisableAccessGroupScoping(NSString *reason) {
+    if (lcAccessGroupUsable) {
+        lcAccessGroupUsable = NO;
+        NSLog(@"[LC] keychain access-group scoping disabled (%@), falling back to default local keychain", reason ?: @"unknown");
+    }
+}
+
+static void LCApplyScopedAccessGroup(NSMutableDictionary *dictionary, BOOL forceDropAccessGroup) {
+    id accessGroupKey = (__bridge id)kSecAttrAccessGroup;
+    if (!forceDropAccessGroup && lcAccessGroupUsable && accessGroup.length > 0) {
+        dictionary[accessGroupKey] = accessGroup;
+    } else {
+        [dictionary removeObjectForKey:accessGroupKey];
+    }
+}
+
+static void LCApplyLocalSynchronizablePolicy(NSMutableDictionary *dictionary, LCSecItemDictionaryKind kind) {
+    id syncKey = (__bridge id)kSecAttrSynchronizable;
+    if (!dictionary[syncKey]) {
+        return;
+    }
+
+    if (kind == LCSecItemDictionaryKindUpdateAttributes) {
+        // Some SecItem classes reject synchronizable updates. Keep update legal and local.
+        [dictionary removeObjectForKey:syncKey];
+    } else {
+        // Redirect iCloud-keychain requests to this container's local keychain namespace.
+        dictionary[syncKey] = (__bridge id)kCFBooleanFalse;
     }
 }
 
@@ -49,9 +81,13 @@ static void LCApplyContainerAlias(NSMutableDictionary *dictionary) {
     }
 }
 
-static NSMutableDictionary *LCCreateScopedDictionary(CFDictionaryRef dictionary, BOOL includeContainerAlias) {
+static NSMutableDictionary *LCCreateScopedDictionary(CFDictionaryRef dictionary,
+                                                     BOOL includeContainerAlias,
+                                                     BOOL forceDropAccessGroup,
+                                                     LCSecItemDictionaryKind kind) {
     NSMutableDictionary *scoped = LCCreateMutableDictionary(dictionary);
-    LCApplyScopedAccessGroup(scoped);
+    LCApplyScopedAccessGroup(scoped, forceDropAccessGroup);
+    LCApplyLocalSynchronizablePolicy(scoped, kind);
     if (includeContainerAlias) {
         LCApplyContainerAlias(scoped);
     }
@@ -171,12 +207,21 @@ static void LCRewriteCopyMatchingResult(CFTypeRef *result, NSString *requestedAc
 }
 
 OSStatus new_SecItemAdd(CFDictionaryRef attributes, CFTypeRef *result) {
-    NSMutableDictionary *scopedAttributes = LCCreateScopedDictionary(attributes, YES);
+    NSMutableDictionary *scopedAttributes = LCCreateScopedDictionary(attributes, YES, NO, LCSecItemDictionaryKindAttributes);
     OSStatus status = orig_SecItemAdd((__bridge CFDictionaryRef)scopedAttributes, result);
     if (status == errSecParam) {
         // Some SecItem classes reject alias keys; retry while staying scoped.
-        NSMutableDictionary *legacyScopedAttributes = LCCreateScopedDictionary(attributes, NO);
+        NSMutableDictionary *legacyScopedAttributes = LCCreateScopedDictionary(attributes, NO, NO, LCSecItemDictionaryKindAttributes);
         status = orig_SecItemAdd((__bridge CFDictionaryRef)legacyScopedAttributes, result);
+    }
+    if (status == errSecMissingEntitlement) {
+        LCDisableAccessGroupScoping(@"SecItemAdd");
+        NSMutableDictionary *fallbackAttributes = LCCreateScopedDictionary(attributes, YES, YES, LCSecItemDictionaryKindAttributes);
+        status = orig_SecItemAdd((__bridge CFDictionaryRef)fallbackAttributes, result);
+        if (status == errSecParam) {
+            NSMutableDictionary *legacyFallbackAttributes = LCCreateScopedDictionary(attributes, NO, YES, LCSecItemDictionaryKindAttributes);
+            status = orig_SecItemAdd((__bridge CFDictionaryRef)legacyFallbackAttributes, result);
+        }
     }
 
     return status;
@@ -184,12 +229,20 @@ OSStatus new_SecItemAdd(CFDictionaryRef attributes, CFTypeRef *result) {
 
 OSStatus new_SecItemCopyMatching(CFDictionaryRef query, CFTypeRef *result) {
     NSString *requestedAccessGroup = LCRequestedAccessGroup(query);
-    NSMutableDictionary *scopedQuery = LCCreateScopedDictionary(query, YES);
+    NSMutableDictionary *scopedQuery = LCCreateScopedDictionary(query, YES, NO, LCSecItemDictionaryKindQuery);
     OSStatus status = orig_SecItemCopyMatching((__bridge CFDictionaryRef)scopedQuery, result);
     if (status == errSecItemNotFound || status == errSecParam) {
         // Keep access-group scoping, but support legacy items without alias tagging.
-        NSMutableDictionary *legacyScopedQuery = LCCreateScopedDictionary(query, NO);
+        NSMutableDictionary *legacyScopedQuery = LCCreateScopedDictionary(query, NO, NO, LCSecItemDictionaryKindQuery);
         status = orig_SecItemCopyMatching((__bridge CFDictionaryRef)legacyScopedQuery, result);
+    } else if (status == errSecMissingEntitlement) {
+        LCDisableAccessGroupScoping(@"SecItemCopyMatching");
+        NSMutableDictionary *fallbackQuery = LCCreateScopedDictionary(query, YES, YES, LCSecItemDictionaryKindQuery);
+        status = orig_SecItemCopyMatching((__bridge CFDictionaryRef)fallbackQuery, result);
+        if (status == errSecItemNotFound || status == errSecParam) {
+            NSMutableDictionary *legacyFallbackQuery = LCCreateScopedDictionary(query, NO, YES, LCSecItemDictionaryKindQuery);
+            status = orig_SecItemCopyMatching((__bridge CFDictionaryRef)legacyFallbackQuery, result);
+        }
     }
     if (status == errSecSuccess) {
         LCRewriteCopyMatchingResult(result, requestedAccessGroup);
@@ -199,24 +252,41 @@ OSStatus new_SecItemCopyMatching(CFDictionaryRef query, CFTypeRef *result) {
 }
 
 OSStatus new_SecItemUpdate(CFDictionaryRef query, CFDictionaryRef attributesToUpdate) {
-    NSMutableDictionary *scopedQuery = LCCreateScopedDictionary(query, YES);
-    NSMutableDictionary *scopedAttributes = LCCreateScopedDictionary(attributesToUpdate, NO);
+    NSMutableDictionary *scopedQuery = LCCreateScopedDictionary(query, YES, NO, LCSecItemDictionaryKindQuery);
+    NSMutableDictionary *scopedAttributes = LCCreateScopedDictionary(attributesToUpdate, NO, NO, LCSecItemDictionaryKindUpdateAttributes);
     OSStatus status = orig_SecItemUpdate((__bridge CFDictionaryRef)scopedQuery, (__bridge CFDictionaryRef)scopedAttributes);
 
     if (status == errSecItemNotFound || status == errSecParam) {
-        NSMutableDictionary *legacyScopedQuery = LCCreateScopedDictionary(query, NO);
+        NSMutableDictionary *legacyScopedQuery = LCCreateScopedDictionary(query, NO, NO, LCSecItemDictionaryKindQuery);
         status = orig_SecItemUpdate((__bridge CFDictionaryRef)legacyScopedQuery, (__bridge CFDictionaryRef)scopedAttributes);
+    } else if (status == errSecMissingEntitlement) {
+        LCDisableAccessGroupScoping(@"SecItemUpdate");
+        NSMutableDictionary *fallbackQuery = LCCreateScopedDictionary(query, YES, YES, LCSecItemDictionaryKindQuery);
+        NSMutableDictionary *fallbackAttributes = LCCreateScopedDictionary(attributesToUpdate, NO, YES, LCSecItemDictionaryKindUpdateAttributes);
+        status = orig_SecItemUpdate((__bridge CFDictionaryRef)fallbackQuery, (__bridge CFDictionaryRef)fallbackAttributes);
+        if (status == errSecItemNotFound || status == errSecParam) {
+            NSMutableDictionary *legacyFallbackQuery = LCCreateScopedDictionary(query, NO, YES, LCSecItemDictionaryKindQuery);
+            status = orig_SecItemUpdate((__bridge CFDictionaryRef)legacyFallbackQuery, (__bridge CFDictionaryRef)fallbackAttributes);
+        }
     }
 
     return status;
 }
 
 OSStatus new_SecItemDelete(CFDictionaryRef query){
-    NSMutableDictionary *scopedQuery = LCCreateScopedDictionary(query, YES);
+    NSMutableDictionary *scopedQuery = LCCreateScopedDictionary(query, YES, NO, LCSecItemDictionaryKindQuery);
     OSStatus status = orig_SecItemDelete((__bridge CFDictionaryRef)scopedQuery);
     if (status == errSecItemNotFound || status == errSecParam) {
-        NSMutableDictionary *legacyScopedQuery = LCCreateScopedDictionary(query, NO);
+        NSMutableDictionary *legacyScopedQuery = LCCreateScopedDictionary(query, NO, NO, LCSecItemDictionaryKindQuery);
         status = orig_SecItemDelete((__bridge CFDictionaryRef)legacyScopedQuery);
+    } else if (status == errSecMissingEntitlement) {
+        LCDisableAccessGroupScoping(@"SecItemDelete");
+        NSMutableDictionary *fallbackQuery = LCCreateScopedDictionary(query, YES, YES, LCSecItemDictionaryKindQuery);
+        status = orig_SecItemDelete((__bridge CFDictionaryRef)fallbackQuery);
+        if (status == errSecItemNotFound || status == errSecParam) {
+            NSMutableDictionary *legacyFallbackQuery = LCCreateScopedDictionary(query, NO, YES, LCSecItemDictionaryKindQuery);
+            status = orig_SecItemDelete((__bridge CFDictionaryRef)legacyFallbackQuery);
+        }
     }
 
     return status;
@@ -227,8 +297,20 @@ SecKeyRef new_SecKeyCreateRandomKey(CFDictionaryRef parameters, CFErrorRef *erro
         return orig_SecKeyCreateRandomKey(parameters, error);
     }
     NSMutableDictionary *paramsCopy = LCCreateMutableDictionary(parameters);
-    LCApplyScopedAccessGroup(paramsCopy);
-    return orig_SecKeyCreateRandomKey((__bridge CFDictionaryRef)paramsCopy, error);
+    LCApplyScopedAccessGroup(paramsCopy, NO);
+    LCApplyLocalSynchronizablePolicy(paramsCopy, LCSecItemDictionaryKindAttributes);
+    SecKeyRef key = orig_SecKeyCreateRandomKey((__bridge CFDictionaryRef)paramsCopy, error);
+    if (!key) {
+        BOOL missingEntitlement = error && *error && (CFErrorGetCode(*error) == errSecMissingEntitlement);
+        if (missingEntitlement) {
+            LCDisableAccessGroupScoping(@"SecKeyCreateRandomKey");
+            NSMutableDictionary *fallbackParams = LCCreateMutableDictionary(parameters);
+            LCApplyScopedAccessGroup(fallbackParams, YES);
+            LCApplyLocalSynchronizablePolicy(fallbackParams, LCSecItemDictionaryKindAttributes);
+            key = orig_SecKeyCreateRandomKey((__bridge CFDictionaryRef)fallbackParams, error);
+        }
+    }
+    return key;
 }
 
 SecKeyRef new_SecKeyCreateWithData(CFDataRef keyData, CFDictionaryRef parameters, CFErrorRef *error) {
@@ -236,8 +318,20 @@ SecKeyRef new_SecKeyCreateWithData(CFDataRef keyData, CFDictionaryRef parameters
         return orig_SecKeyCreateWithData(keyData, parameters, error);
     }
     NSMutableDictionary *paramsCopy = LCCreateMutableDictionary(parameters);
-    LCApplyScopedAccessGroup(paramsCopy);
-    return orig_SecKeyCreateWithData(keyData, (__bridge CFDictionaryRef)paramsCopy, error);
+    LCApplyScopedAccessGroup(paramsCopy, NO);
+    LCApplyLocalSynchronizablePolicy(paramsCopy, LCSecItemDictionaryKindAttributes);
+    SecKeyRef key = orig_SecKeyCreateWithData(keyData, (__bridge CFDictionaryRef)paramsCopy, error);
+    if (!key) {
+        BOOL missingEntitlement = error && *error && (CFErrorGetCode(*error) == errSecMissingEntitlement);
+        if (missingEntitlement) {
+            LCDisableAccessGroupScoping(@"SecKeyCreateWithData");
+            NSMutableDictionary *fallbackParams = LCCreateMutableDictionary(parameters);
+            LCApplyScopedAccessGroup(fallbackParams, YES);
+            LCApplyLocalSynchronizablePolicy(fallbackParams, LCSecItemDictionaryKindAttributes);
+            key = orig_SecKeyCreateWithData(keyData, (__bridge CFDictionaryRef)fallbackParams, error);
+        }
+    }
+    return key;
 }
 
 OSStatus new_SecKeyGeneratePair(CFDictionaryRef parameters, SecKeyRef *publicKey, SecKeyRef *privateKey) {
@@ -245,8 +339,17 @@ OSStatus new_SecKeyGeneratePair(CFDictionaryRef parameters, SecKeyRef *publicKey
         return orig_SecKeyGeneratePair(parameters, publicKey, privateKey);
     }
     NSMutableDictionary *queryCopy = LCCreateMutableDictionary(parameters);
-    LCApplyScopedAccessGroup(queryCopy);
-    return orig_SecKeyGeneratePair((__bridge CFDictionaryRef)queryCopy, publicKey, privateKey);
+    LCApplyScopedAccessGroup(queryCopy, NO);
+    LCApplyLocalSynchronizablePolicy(queryCopy, LCSecItemDictionaryKindAttributes);
+    OSStatus status = orig_SecKeyGeneratePair((__bridge CFDictionaryRef)queryCopy, publicKey, privateKey);
+    if (status == errSecMissingEntitlement) {
+        LCDisableAccessGroupScoping(@"SecKeyGeneratePair");
+        NSMutableDictionary *fallbackQuery = LCCreateMutableDictionary(parameters);
+        LCApplyScopedAccessGroup(fallbackQuery, YES);
+        LCApplyLocalSynchronizablePolicy(fallbackQuery, LCSecItemDictionaryKindAttributes);
+        status = orig_SecKeyGeneratePair((__bridge CFDictionaryRef)fallbackQuery, publicKey, privateKey);
+    }
+    return status;
 }
 
 void SecItemGuestHooksInit(void)  {
@@ -288,8 +391,8 @@ void SecItemGuestHooksInit(void)  {
     
     OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)query, NULL);
     if(status == errSecMissingEntitlement) {
-        NSLog(@"[LC] failed to access keychain access group %@", accessGroup);
-        return;
+        NSLog(@"[LC] failed to access keychain access group %@; continuing without explicit access-group scoping", accessGroup);
+        lcAccessGroupUsable = NO;
     }
     
     litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, SecItemAdd, new_SecItemAdd, nil);
