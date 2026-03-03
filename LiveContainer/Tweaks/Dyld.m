@@ -128,6 +128,9 @@ static NSString *gSpoofWiFiBSSID = nil;
 int (*orig_fcntl)(int fildes, int cmd, void *param) = 0;
 int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact);
 int (*orig_syscall)(int number, ...) = NULL;
+static int (*orig_csops)(pid_t pid, unsigned int ops, void *useraddr, size_t usersize) = NULL;
+static int (*orig_csops_audittoken)(pid_t pid, unsigned int ops, void *useraddr, size_t usersize, audit_token_t *token) = NULL;
+static BOOL gEnableGuestSelfCSOpsShim = NO;
 // Apple Sign In
 // TODO
 // SSL Pinning
@@ -2600,6 +2603,56 @@ static int hook_syscall(int number,
     return -1;
 }
 
+static inline BOOL lc_shouldRewriteSelfCSFlags(pid_t pid, unsigned int ops, void *useraddr, size_t usersize) {
+    if (!gEnableGuestSelfCSOpsShim) return NO;
+    if (ops != CS_OPS_STATUS) return NO;
+    if (!useraddr || usersize < sizeof(uint32_t)) return NO;
+    return (pid == getpid());
+}
+
+static inline void lc_rewriteSelfCSFlagsInPlace(void *useraddr) {
+    uint32_t *flags = (uint32_t *)useraddr;
+    uint32_t originalFlags = *flags;
+    uint32_t rewrittenFlags = (originalFlags & ~((uint32_t)CS_GET_TASK_ALLOW)) | ((uint32_t)CS_INSTALLER);
+    *flags = rewrittenFlags;
+
+    static BOOL loggedRewrite = NO;
+    if (!loggedRewrite && originalFlags != rewrittenFlags) {
+        loggedRewrite = YES;
+        NSLog(@"[LC] 🎭 csops shim active for self: 0x%08X -> 0x%08X", originalFlags, rewrittenFlags);
+    }
+}
+
+static int hook_csops(pid_t pid, unsigned int ops, void *useraddr, size_t usersize) {
+    int rv = -1;
+    if (orig_csops) {
+        rv = orig_csops(pid, ops, useraddr, usersize);
+    } else {
+        errno = ENOSYS;
+        return -1;
+    }
+
+    if (rv == 0 && lc_shouldRewriteSelfCSFlags(pid, ops, useraddr, usersize)) {
+        lc_rewriteSelfCSFlagsInPlace(useraddr);
+    }
+    return rv;
+}
+
+static int hook_csops_audittoken(pid_t pid, unsigned int ops, void *useraddr, size_t usersize, audit_token_t *token) {
+    int rv = -1;
+    if (orig_csops_audittoken) {
+        rv = orig_csops_audittoken(pid, ops, useraddr, usersize, token);
+    } else {
+        errno = ENOSYS;
+        return -1;
+    }
+
+    if (rv == 0 && lc_shouldRewriteSelfCSFlags(pid, ops, useraddr, usersize)) {
+        lc_rewriteSelfCSFlagsInPlace(useraddr);
+    }
+    return rv;
+}
+
 static const char *hook_nw_interface_get_name(nw_interface_t interface) {
     const char *name = orig_nw_interface_get_name ? orig_nw_interface_get_name(interface) : NULL;
     if (!shouldFilterVPNInterfaceNameCStr(name)) {
@@ -3845,6 +3898,17 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     lc_configureNetworkSpoofing(guestAppInfo);
     bypassSSLPinning = [guestAppInfo[@"bypassSSLPinning"] boolValue];
     configureSelectiveBundleIdSpoofing(guestAppInfo, hideLiveContainer);
+    BOOL hasGuestContext = [guestAppInfo isKindOfClass:[NSDictionary class]];
+    id csopsShimSetting = guestAppInfo[@"deviceSpoofMaskCSOpsFlags"];
+    if (!hasGuestContext) {
+        gEnableGuestSelfCSOpsShim = NO;
+    } else if (csopsShimSetting != nil && [csopsShimSetting respondsToSelector:@selector(boolValue)]) {
+        gEnableGuestSelfCSOpsShim = [csopsShimSetting boolValue];
+    } else {
+        // Default on for guest app testing; can be disabled per app via deviceSpoofMaskCSOpsFlags=false.
+        gEnableGuestSelfCSOpsShim = YES;
+    }
+    NSLog(@"[LC] 🎭 self csops flag shim %@", gEnableGuestSelfCSOpsShim ? @"enabled" : @"disabled");
 
     int imageCount = _dyld_image_count();
     for(int i = 0; i < imageCount; ++i) {
@@ -3879,7 +3943,7 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
     }
 
     // Minimal network spoofing hooks.
-    rebind_symbols((struct rebinding[7]){
+    rebind_symbols((struct rebinding[9]){
                 {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
                 {"CNCopyCurrentNetworkInfo", (void *)hook_CNCopyCurrentNetworkInfo, (void **)&orig_CNCopyCurrentNetworkInfo},
                 {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
@@ -3887,7 +3951,9 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
                 {"if_indextoname", (void *)hook_if_indextoname, (void **)&orig_if_indextoname},
                 {"if_nameindex", (void *)hook_if_nameindex, (void **)&orig_if_nameindex},
                 {"syscall", (void *)hook_syscall, (void **)&orig_syscall},
-    }, 7);
+                {"csops", (void *)hook_csops, (void **)&orig_csops},
+                {"csops_audittoken", (void *)hook_csops_audittoken, (void **)&orig_csops_audittoken},
+    }, 9);
     NSLog(@"[LC] 🌐 fishhook rebound base network hooks: CFNetworkCopySystemProxySettings=%p CNCopyCurrentNetworkInfo=%p getifaddrs=%p",
           orig_CFNetworkCopySystemProxySettings,
           orig_CNCopyCurrentNetworkInfo,
