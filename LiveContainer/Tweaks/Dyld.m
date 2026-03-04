@@ -143,7 +143,7 @@ static void overwriteAppExecutableFileType(void) {
     }
 }
 
-// MARK: ImageaName Filtering
+// MARK: ImageName Filtering
 // Cache for loaded tweak names
 static NSSet<NSString *> *loadedTweakNames = nil;
 
@@ -1104,6 +1104,8 @@ static unsigned int hook_if_nametoindex(const char *ifname) {
     return 0;
 }
 
+// MARK: Security / Code-Signing Hooks
+
 static inline BOOL lc_shouldRewriteSelfCSFlags(pid_t pid, unsigned int ops, void *useraddr, size_t usersize) {
     if (!gEnableGuestSelfCSOpsShim) return NO;
     if (ops != CS_OPS_STATUS) return NO;
@@ -1917,20 +1919,13 @@ static void configureSelectiveBundleIdSpoofing(NSDictionary *guestAppInfo, BOOL 
     didInstallSelectiveBundleHooks = YES;
 }
 
+// MARK: Init / Guest Context
 
-
-// MARK: Init
-void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVersion) {
-    if (gDidRunDyldHooksInit) {
-        return;
-    }
-    gDidRunDyldHooksInit = YES;
-
-    // iterate through loaded images and find LiveContainer it self
-    NSDictionary *guestAppInfo = [NSUserDefaults guestAppInfo];
+static void lc_applyGuestContextConfiguration(NSDictionary *guestAppInfo, bool hideLiveContainer) {
     lc_configureNetworkSpoofing(guestAppInfo);
     bypassSSLPinning = [guestAppInfo[@"bypassSSLPinning"] boolValue];
     configureSelectiveBundleIdSpoofing(guestAppInfo, hideLiveContainer);
+
     BOOL hasGuestContext = [guestAppInfo isKindOfClass:[NSDictionary class]];
     id csopsShimSetting = guestAppInfo[@"deviceSpoofMaskCSOpsFlags"];
     if (!hasGuestContext) {
@@ -1942,49 +1937,57 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
         gEnableGuestSelfCSOpsShim = YES;
     }
     NSLog(@"[LC] 🎭 self csops flag shim %@", gEnableGuestSelfCSOpsShim ? @"enabled" : @"disabled");
+}
 
+// MARK: Init / Dyld Core
+
+static void lc_resolveDyldRuntimeContext(void) {
     int imageCount = _dyld_image_count();
-    for(int i = 0; i < imageCount; ++i) {
-        const struct mach_header* currentImageHeader = _dyld_get_image_header(i);
-        if(currentImageHeader->filetype == MH_EXECUTE) {
+    for (int i = 0; i < imageCount; ++i) {
+        const struct mach_header *currentImageHeader = _dyld_get_image_header(i);
+        if (currentImageHeader->filetype == MH_EXECUTE) {
             lcImageIndex = i;
             break;
         }
     }
 
-    if(NSUserDefaults.isLiveProcess) {
+    if (NSUserDefaults.isLiveProcess) {
         lcMainBundlePath = NSUserDefaults.lcMainBundle.bundlePath.stringByDeletingLastPathComponent.stringByDeletingLastPathComponent.fileSystemRepresentation;
     } else {
         lcMainBundlePath = NSUserDefaults.lcMainBundle.bundlePath.fileSystemRepresentation;
     }
     orig_dyld_get_image_header = _dyld_get_image_header;
+}
 
-    // hook dlsym to solve RTLD_MAIN_ONLY, hook other functions to hide LiveContainer itself
+static void lc_installDyldCoreHooks(bool hideLiveContainer) {
+    // Hook dlsym to solve RTLD_MAIN_ONLY, hook other functions to hide LiveContainer itself.
     litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, dlsym, hook_dlsym, nil);
-    if(hideLiveContainer) {
-        detectConfiguredTweaksEarly();
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_image_count, hook_dyld_image_count, nil);
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_get_image_header, hook_dyld_get_image_header, nil);
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_get_image_vmaddr_slide, hook_dyld_get_image_vmaddr_slide, nil);
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_get_image_name, hook_dyld_get_image_name, nil);
-        // Use litehook_hook_function for framework/libc functions instead of rebind_symbols
-        // _dyld_register_func_for_add_image((void (*)(const struct mach_header *, intptr_t))hideLiveContainerImageCallback);
-
-        rebind_symbols((struct rebinding[1]){
-                    {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
-        }, 1);
+    if (!hideLiveContainer) {
+        return;
     }
 
-    // Minimal network spoofing hooks.
+    detectConfiguredTweaksEarly();
+    litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_image_count, hook_dyld_image_count, nil);
+    litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_get_image_header, hook_dyld_get_image_header, nil);
+    litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_get_image_vmaddr_slide, hook_dyld_get_image_vmaddr_slide, nil);
+    litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, _dyld_get_image_name, hook_dyld_get_image_name, nil);
+    rebind_symbols((struct rebinding[1]){
+        {"sigaction", (void *)hook_sigaction, (void **)&orig_sigaction},
+    }, 1);
+}
+
+// MARK: Init / Network
+
+static void lc_installNetworkSpoofingHooks(void) {
     rebind_symbols((struct rebinding[8]){
-                {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
-                {"CNCopyCurrentNetworkInfo", (void *)hook_CNCopyCurrentNetworkInfo, (void **)&orig_CNCopyCurrentNetworkInfo},
-                {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
-                {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
-                {"if_indextoname", (void *)hook_if_indextoname, (void **)&orig_if_indextoname},
-                {"if_nameindex", (void *)hook_if_nameindex, (void **)&orig_if_nameindex},
-                {"csops", (void *)hook_csops, (void **)&orig_csops},
-                {"csops_audittoken", (void *)hook_csops_audittoken, (void **)&orig_csops_audittoken},
+        {"CFNetworkCopySystemProxySettings", (void *)hook_CFNetworkCopySystemProxySettings, (void **)&orig_CFNetworkCopySystemProxySettings},
+        {"CNCopyCurrentNetworkInfo", (void *)hook_CNCopyCurrentNetworkInfo, (void **)&orig_CNCopyCurrentNetworkInfo},
+        {"getifaddrs", (void *)hook_getifaddrs, (void **)&orig_getifaddrs},
+        {"if_nametoindex", (void *)hook_if_nametoindex, (void **)&orig_if_nametoindex},
+        {"if_indextoname", (void *)hook_if_indextoname, (void **)&orig_if_indextoname},
+        {"if_nameindex", (void *)hook_if_nameindex, (void **)&orig_if_nameindex},
+        {"csops", (void *)hook_csops, (void **)&orig_csops},
+        {"csops_audittoken", (void *)hook_csops_audittoken, (void **)&orig_csops_audittoken},
     }, 8);
     NSLog(@"[LC] 🌐 fishhook rebound base network hooks: CFNetworkCopySystemProxySettings=%p CNCopyCurrentNetworkInfo=%p getifaddrs=%p",
           orig_CFNetworkCopySystemProxySettings,
@@ -1994,36 +1997,63 @@ void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVer
           orig_if_nametoindex,
           orig_if_indextoname,
           orig_if_nameindex);
+}
+
+// MARK: Init / Optional Features
+
+static BOOL lc_applySDKVersionSpoofing(uint32_t spoofSDKVersion) {
+    if (!spoofSDKVersion) {
+        return YES;
+    }
+
+    guestAppSdkVersion = spoofSDKVersion;
+    return (initGuestSDKVersionInfo() &&
+            performHookDyldApi("dyld_program_sdk_at_least", 1, (void **)&orig_dyld_program_sdk_at_least, hook_dyld_program_sdk_at_least) &&
+            performHookDyldApi("dyld_get_program_sdk_version", 0, (void **)&orig_dyld_get_program_sdk_version, hook_dyld_get_program_sdk_version));
+}
+
+static void lc_installGuestAddons(NSDictionary *guestAppInfo) {
+    if (guestAppInfo[@"spoofGPS"] && [guestAppInfo[@"spoofGPS"] boolValue]) {
+        CoreLocationGuestHooksInit();
+    }
+
+    if (guestAppInfo[@"spoofCamera"] && [guestAppInfo[@"spoofCamera"] boolValue]) {
+        AVFoundationGuestHooksInit();
+    }
+}
+
+static void lc_configureDlopenRuntimeHook(bool hookDlopen) {
+    hookedDlopen = hookDlopen;
+    if (!hookDlopen) {
+        return;
+    }
+    litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, dlopen, jitless_hook_dlopen, nil);
+}
+
+// MARK: Init
+void DyldHooksInit(bool hideLiveContainer, bool hookDlopen, uint32_t spoofSDKVersion) {
+    if (gDidRunDyldHooksInit) {
+        return;
+    }
+    gDidRunDyldHooksInit = YES;
+
+    NSDictionary *guestAppInfo = [NSUserDefaults guestAppInfo];
+    lc_applyGuestContextConfiguration(guestAppInfo, hideLiveContainer);
+    lc_resolveDyldRuntimeContext();
+    lc_installDyldCoreHooks(hideLiveContainer);
+    lc_installNetworkSpoofingHooks();
 
     if (bypassSSLPinning) {
         setupSSLPinningBypass();
     }
 
     appExecutableFileTypeOverwritten = !hideLiveContainer;
-
-    if(spoofSDKVersion) {
-        guestAppSdkVersion = spoofSDKVersion;
-        if(!initGuestSDKVersionInfo() ||
-           !performHookDyldApi("dyld_program_sdk_at_least", 1, (void**)&orig_dyld_program_sdk_at_least, hook_dyld_program_sdk_at_least) ||
-           !performHookDyldApi("dyld_get_program_sdk_version", 0, (void**)&orig_dyld_get_program_sdk_version, hook_dyld_get_program_sdk_version)) {
-            return;
-        }
+    if (!lc_applySDKVersionSpoofing(spoofSDKVersion)) {
+        return;
     }
 
-    // GPS Addon Section
-    if (NSUserDefaults.guestAppInfo[@"spoofGPS"] && [NSUserDefaults.guestAppInfo[@"spoofGPS"] boolValue]) {
-        CoreLocationGuestHooksInit();
-    }
-
-    // Camera Addon Section
-    if (NSUserDefaults.guestAppInfo[@"spoofCamera"] && [NSUserDefaults.guestAppInfo[@"spoofCamera"] boolValue]) {
-        AVFoundationGuestHooksInit();
-    }
-
-    hookedDlopen = hookDlopen;
-    if(hookDlopen) {
-        litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, dlopen, jitless_hook_dlopen, nil);
-    }
+    lc_installGuestAddons(guestAppInfo);
+    lc_configureDlopenRuntimeHook(hookDlopen);
 
 #if TARGET_OS_MACCATALYST || TARGET_OS_SIMULATOR
     DyldHookLoadableIntoProcess();
