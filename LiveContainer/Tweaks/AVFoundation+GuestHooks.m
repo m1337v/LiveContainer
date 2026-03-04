@@ -15,6 +15,7 @@
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <objc/runtime.h>
 #import <dlfcn.h>
+#import <math.h>
 #import "Tweaks.h"
 // #import "../utils.h" // duplicate swizzle
 
@@ -74,6 +75,11 @@ static CGImageRef g_cachedPhotoCGImage = NULL;
 static NSData *g_cachedPhotoJPEGData = nil;
 static AVCaptureVideoOrientation g_currentPhotoOrientation = AVCaptureVideoOrientationPortrait;
 static CGAffineTransform g_currentVideoTransform;
+static dispatch_block_t g_pendingDeferredPhotoCaptureBlock = nil;
+static CFAbsoluteTime g_lastRecordingStartTime = 0;
+static BOOL g_captureGestureArbitrationEnabled = NO;
+static const CFTimeInterval kPhotoDeferralSeconds = 0.30;
+static const CFTimeInterval kPhotoSuppressionAfterRecordStartSeconds = 0.60;
 
 // pragma MARK: - Helper Interface
 
@@ -92,6 +98,8 @@ static void cleanupPhotoCache(void);
 static void createStaticImageFromUIImage(UIImage *sourceImage);
 static CVPixelBufferRef rotatePixelBufferToPortrait(CVPixelBufferRef sourceBuffer);
 static void installPrivateCapturePipelineHooks(void);
+static void LCCancelPendingDeferredPhotoCapture(void);
+static void LCMarkRecordingStarted(void);
 
 @class GetFrameKVOObserver;
 
@@ -107,6 +115,15 @@ static void installPrivateCapturePipelineHooks(void);
 + (void)createVideoFromImage:(UIImage *)sourceImage;
 + (CVPixelBufferRef)createPixelBufferFromImage:(UIImage *)image size:(CGSize)size;
 + (CVPixelBufferRef)createVariedPixelBufferFromOriginal:(CVPixelBufferRef)originalBuffer variation:(float)amount;
+@end
+
+@interface AVCapturePhotoOutput (LiveContainerSpoofSelectors)
+- (void)lc_capturePhotoWithSettings:(AVCapturePhotoSettings *)settings delegate:(id<AVCapturePhotoCaptureDelegate>)delegate;
+@end
+
+@interface AVCaptureVideoDataOutput (LiveContainerSpoofSelectors)
+- (void)lc_setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate
+                             queue:(dispatch_queue_t)sampleBufferCallbackQueue;
 @end
 
 // Level 1 hooks (Core Video)
@@ -167,6 +184,25 @@ NSData *hook_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer
 
 // Pixel buffer utilities
 static CIContext *sharedCIContext = nil;
+
+static void LCCancelPendingDeferredPhotoCapture(void) {
+    @synchronized([AVCapturePhotoOutput class]) {
+        if (g_pendingDeferredPhotoCaptureBlock) {
+            dispatch_block_cancel(g_pendingDeferredPhotoCaptureBlock);
+            g_pendingDeferredPhotoCaptureBlock = nil;
+        }
+    }
+}
+
+static void LCMarkRecordingStarted(void) {
+    @synchronized([AVCapturePhotoOutput class]) {
+        g_lastRecordingStartTime = CFAbsoluteTimeGetCurrent();
+        if (g_pendingDeferredPhotoCaptureBlock) {
+            dispatch_block_cancel(g_pendingDeferredPhotoCaptureBlock);
+            g_pendingDeferredPhotoCaptureBlock = nil;
+        }
+    }
+}
 
 // Replace the createScaledPixelBuffer function with this improved version:
 static CVPixelBufferRef createScaledPixelBuffer(CVPixelBufferRef sourceBuffer, CGSize scaleToSize) {
@@ -595,7 +631,7 @@ static CVPixelBufferRef correctPhotoRotation(CVPixelBufferRef sourceBuffer) {
 }
 
 // Replace crash-resistant version:
-static CMSampleBufferRef createSpoofedSampleBuffer() {
+static CMSampleBufferRef createSpoofedSampleBuffer(void) {
     @try {
         if (!spoofCameraEnabled) {
             return NULL;
@@ -695,10 +731,12 @@ static CMSampleBufferRef createSpoofedSampleBuffer() {
 
 // pragma MARK: - Resource Setup
 
-static void setupImageSpoofingResources() {
+static void setupImageSpoofingResources(void) {
     NSLog(@"[LC] 🖼️ Setting up image spoofing resources: %.0fx%.0f", targetResolution.width, targetResolution.height);
-    
+
+    CVPixelBufferRef previousStaticBuffer = NULL;
     if (staticImageSpoofBuffer) {
+        previousStaticBuffer = CVPixelBufferRetain(staticImageSpoofBuffer);
         CVPixelBufferRelease(staticImageSpoofBuffer);
         staticImageSpoofBuffer = NULL;
     }
@@ -729,22 +767,26 @@ static void setupImageSpoofingResources() {
             NSLog(@"[LC] ⚠️ Failed to load user image, falling back to default");
         }
     } else {
-        NSLog(@"[LC] 🖼️ No user image specified, using default gradient");
+        NSLog(@"[LC] 🖼️ No user image specified, using fallback pipeline");
     }
 
-    // CRITICAL FIX: If no user image, DON'T create gradient/text placeholder
-    // Instead, keep using whatever we have (previous frame or create black buffer)
-    if (!sourceImage) {
-        // Check if we already have a valid buffer to use as fallback
-        if (staticImageSpoofBuffer) {
-            NSLog(@"[LC] 🔄 No user image - keeping existing static buffer as fallback");
+    // If no user image (or static conversion failed), keep previous fallback if available.
+    if (!sourceImage || !staticImageSpoofBuffer) {
+        if (previousStaticBuffer) {
+            staticImageSpoofBuffer = previousStaticBuffer;
+            previousStaticBuffer = NULL;
+            NSLog(@"[LC] 🔄 Reusing previous static image buffer as fallback");
             return;
         }
-        
+
         // Check if we have lastGoodSpoofedPixelBuffer
         if (lastGoodSpoofedPixelBuffer) {
             NSLog(@"[LC] 🔄 No user image - using lastGoodSpoofedPixelBuffer as fallback");
             staticImageSpoofBuffer = CVPixelBufferRetain(lastGoodSpoofedPixelBuffer);
+            if (previousStaticBuffer) {
+                CVPixelBufferRelease(previousStaticBuffer);
+                previousStaticBuffer = NULL;
+            }
             return;
         }
         
@@ -779,7 +821,16 @@ static void setupImageSpoofingResources() {
             updateLastGoodSpoofedFrame(staticImageSpoofBuffer, tempFormatDesc);
             if (tempFormatDesc) CFRelease(tempFormatDesc);
         }
+        if (previousStaticBuffer) {
+            CVPixelBufferRelease(previousStaticBuffer);
+            previousStaticBuffer = NULL;
+        }
         return;
+    }
+
+    if (previousStaticBuffer) {
+        CVPixelBufferRelease(previousStaticBuffer);
+        previousStaticBuffer = NULL;
     }
 }
 
@@ -869,7 +920,7 @@ static void createStaticImageFromUIImage(UIImage *sourceImage) {
     }
 }
 
-static void setupVideoSpoofingResources() {
+static void setupVideoSpoofingResources(void) {
     NSLog(@"[LC] 🎬 Setting up video spoofing: %@", spoofCameraVideoPath);
     if (!spoofCameraVideoPath || spoofCameraVideoPath.length == 0) {
         isVideoSetupSuccessfully = NO;
@@ -1029,6 +1080,13 @@ static void setupVideoSpoofingResources() {
 
 // Add a simple frame cache at the top of GetFrame implementation
 static CVPixelBufferRef g_lastGoodFrame = NULL;
+static Float64 g_sourceFrameRate = 30.0;
+static CMTime g_frameRequestCursor = {0, 0, 0, 0};
+static CFTimeInterval g_lastFrameRequestHostTime = 0;
+static NSUInteger g_consecutiveFrameFallbackCount = 0;
+static BOOL g_forceSingleOutputMode = NO;
+static BOOL g_isLooping = NO;
+static CVPixelBufferRef g_loopTransitionFrame = NULL;
 
 // Fix the GetFrame getCurrentFrame method to better handle sample buffer creation:
 + (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originalFrame preserveOrientation:(BOOL)preserve {
@@ -1073,52 +1131,9 @@ static CVPixelBufferRef g_lastGoodFrame = NULL;
           (requestedFormat >> 8) & 0xFF, requestedFormat & 0xFF,
           CMTimeGetSeconds(currentTime), CMTimeGetSeconds(duration));
     
-    // Select appropriate output based on format
-    AVPlayerItemVideoOutput *selectedOutput = bgraOutput; // Default
-    NSString *outputType = @"BGRA-default";
-    
-    switch (requestedFormat) {
-        case 875704422: // '420v'
-            if (yuv420vOutput && [yuv420vOutput hasNewPixelBufferForItemTime:currentTime]) {
-                selectedOutput = yuv420vOutput;
-                outputType = @"420v-direct";
-            }
-            break;
-            
-        case 875704438: // '420f'
-            if (yuv420fOutput && [yuv420fOutput hasNewPixelBufferForItemTime:currentTime]) {
-                selectedOutput = yuv420fOutput;
-                outputType = @"420f-direct";
-            } else if (yuv420vOutput && [yuv420vOutput hasNewPixelBufferForItemTime:currentTime]) {
-                selectedOutput = yuv420vOutput;
-                outputType = @"420v-fallback";
-            }
-            break;
-    }
-    
-    // CRITICAL: Verify output has frames available
-    if (!selectedOutput || ![selectedOutput hasNewPixelBufferForItemTime:currentTime]) {
-        NSLog(@"[LC] [GetFrame] No frames available from %@ output at time %.3f", outputType, CMTimeGetSeconds(currentTime));
-        
-        // Try all outputs as fallback
-        if (bgraOutput && [bgraOutput hasNewPixelBufferForItemTime:currentTime]) {
-            selectedOutput = bgraOutput;
-            outputType = @"BGRA-fallback";
-        } else if (yuv420vOutput && [yuv420vOutput hasNewPixelBufferForItemTime:currentTime]) {
-            selectedOutput = yuv420vOutput;
-            outputType = @"420v-emergency";
-        } else if (yuv420fOutput && [yuv420fOutput hasNewPixelBufferForItemTime:currentTime]) {
-            selectedOutput = yuv420fOutput;
-            outputType = @"420f-emergency";
-        } else {
-            NSLog(@"[LC] [GetFrame] ❌ No outputs have frames available");
-            return NULL;
-        }
-    }
-    
-    CVPixelBufferRef pixelBuffer = [selectedOutput copyPixelBufferForItemTime:currentTime itemTimeForDisplay:NULL];
+    CVPixelBufferRef pixelBuffer = [self getCurrentFramePixelBuffer:requestedFormat];
     if (!pixelBuffer) {
-        NSLog(@"[LC] [GetFrame] Failed to get pixel buffer from %@", outputType);
+        NSLog(@"[LC] [GetFrame] Failed to get pixel buffer for requested format %@", fourCCToString(requestedFormat));
         return NULL;
     }
     
@@ -1127,10 +1142,10 @@ static CVPixelBufferRef g_lastGoodFrame = NULL;
     size_t actualHeight = CVPixelBufferGetHeight(pixelBuffer);
     OSType actualFormat = CVPixelBufferGetPixelFormatType(pixelBuffer);
     
-    NSLog(@"[LC] [GetFrame] ✅ Frame extracted: %zux%zu format=%c%c%c%c via %@", 
+    NSLog(@"[LC] [GetFrame] ✅ Frame extracted: %zux%zu format=%c%c%c%c", 
           actualWidth, actualHeight,
           (actualFormat >> 24) & 0xFF, (actualFormat >> 16) & 0xFF, 
-          (actualFormat >> 8) & 0xFF, actualFormat & 0xFF, outputType);
+          (actualFormat >> 8) & 0xFF, actualFormat & 0xFF);
     
     // Scale if needed (this should work better now)
     CVPixelBufferRef scaledBuffer = createScaledPixelBuffer(pixelBuffer, targetResolution);
@@ -1205,11 +1220,82 @@ static NSString* fourCCToString(OSType fourCC) {
     return [NSString stringWithCString:bytes encoding:NSASCIIStringEncoding] ?: [NSString stringWithFormat:@"%u", (unsigned int)fourCC];
 }
 
+static CMTime LCFrameStepTime(void) {
+    Float64 fps = (g_sourceFrameRate > 1.0) ? g_sourceFrameRate : 30.0;
+    return CMTimeMakeWithSeconds(1.0 / fps, 600);
+}
+
+static CMTime LCWrapTimeIntoDuration(CMTime time, CMTime duration) {
+    if (!CMTIME_IS_VALID(time) || CMTIME_IS_INDEFINITE(time)) {
+        return kCMTimeZero;
+    }
+    if (!CMTIME_IS_VALID(duration) || CMTIME_IS_INDEFINITE(duration) || CMTimeCompare(duration, kCMTimeZero) <= 0) {
+        return time;
+    }
+
+    Float64 timeSeconds = CMTimeGetSeconds(time);
+    Float64 durationSeconds = CMTimeGetSeconds(duration);
+    if (!isfinite(timeSeconds) || !isfinite(durationSeconds) || durationSeconds <= 0) {
+        return time;
+    }
+
+    while (timeSeconds >= durationSeconds) {
+        timeSeconds -= durationSeconds;
+    }
+    while (timeSeconds < 0) {
+        timeSeconds += durationSeconds;
+    }
+    return CMTimeMakeWithSeconds(timeSeconds, 600);
+}
+
+static CMTime LCNextFrameRequestTime(void) {
+    if (!frameExtractionPlayer || !frameExtractionPlayer.currentItem) {
+        return kCMTimeZero;
+    }
+
+    CMTime itemTime = frameExtractionPlayer.currentItem.currentTime;
+    CFTimeInterval hostTime = CACurrentMediaTime();
+    CMTime step = LCFrameStepTime();
+
+    if (!CMTIME_IS_VALID(g_frameRequestCursor) || CMTIME_IS_INDEFINITE(g_frameRequestCursor)) {
+        g_frameRequestCursor = (CMTIME_IS_VALID(itemTime) && !CMTIME_IS_INDEFINITE(itemTime)) ? itemTime : kCMTimeZero;
+        g_lastFrameRequestHostTime = hostTime;
+        return g_frameRequestCursor;
+    }
+
+    Float64 delta = (g_lastFrameRequestHostTime > 0) ? (hostTime - g_lastFrameRequestHostTime) : 0;
+    g_lastFrameRequestHostTime = hostTime;
+    if (!isfinite(delta) || delta < 0) {
+        delta = 0;
+    }
+    if (delta > 0.2) {
+        delta = 0.2;
+    }
+
+    if (delta > 0) {
+        g_frameRequestCursor = CMTimeAdd(g_frameRequestCursor, CMTimeMakeWithSeconds(delta, 600));
+    } else {
+        g_frameRequestCursor = CMTimeAdd(g_frameRequestCursor, step);
+    }
+
+    g_frameRequestCursor = LCWrapTimeIntoDuration(g_frameRequestCursor, frameExtractionPlayer.currentItem.duration);
+    return g_frameRequestCursor;
+}
+
 + (CVPixelBufferRef)getCurrentFramePixelBuffer:(OSType)requestedFormat {
     if (!spoofCameraEnabled || !frameExtractionPlayer || !frameExtractionPlayer.currentItem || !playerIsReady) {
         return NULL;
     }
-    
+
+    // Force playback progression in extraction-only scenarios (not attached to visible layer).
+    if (frameExtractionPlayer.rate == 0.0f) {
+        if ([frameExtractionPlayer respondsToSelector:@selector(playImmediatelyAtRate:)]) {
+            [frameExtractionPlayer playImmediatelyAtRate:1.0f];
+        } else {
+            [frameExtractionPlayer play];
+        }
+    }
+
     // During loop transition, return a stable cached frame.
     if (g_isLooping && g_loopTransitionFrame) {
         CVPixelBufferRetain(g_loopTransitionFrame);
@@ -1243,34 +1329,49 @@ static NSString* fourCCToString(OSType fourCC) {
         return NULL;
     }
 
-    CMTime outputTime = [selectedOutput itemTimeForHostTime:CACurrentMediaTime()];
-    if (!CMTIME_IS_VALID(outputTime) || CMTIME_IS_INDEFINITE(outputTime)) {
-        outputTime = frameExtractionPlayer.currentItem.currentTime;
-    }
+    CMTime steppedTime = LCNextFrameRequestTime();
+    CMTime hostMappedTime = [selectedOutput itemTimeForHostTime:CACurrentMediaTime()];
+    CMTime itemTime = frameExtractionPlayer.currentItem.currentTime;
+    CMTime candidateTimes[] = { steppedTime, hostMappedTime, itemTime };
 
     AVPlayerItemVideoOutput *candidateOutputs[] = { selectedOutput, bgraOutput, yuv420vOutput, yuv420fOutput };
     CVPixelBufferRef pixelBuffer = NULL;
+    CMTime resolvedOutputTime = kCMTimeInvalid;
 
-    for (NSUInteger i = 0; i < sizeof(candidateOutputs) / sizeof(candidateOutputs[0]); i++) {
-        AVPlayerItemVideoOutput *candidate = candidateOutputs[i];
-        if (!candidate) continue;
+    for (NSUInteger t = 0; t < sizeof(candidateTimes) / sizeof(candidateTimes[0]) && !pixelBuffer; t++) {
+        CMTime probeTime = candidateTimes[t];
+        if (!CMTIME_IS_VALID(probeTime) || CMTIME_IS_INDEFINITE(probeTime)) {
+            continue;
+        }
 
-        BOOL duplicate = NO;
-        for (NSUInteger j = 0; j < i; j++) {
-            if (candidateOutputs[j] == candidate) {
-                duplicate = YES;
+        for (NSUInteger i = 0; i < sizeof(candidateOutputs) / sizeof(candidateOutputs[0]); i++) {
+            AVPlayerItemVideoOutput *candidate = candidateOutputs[i];
+            if (!candidate) continue;
+
+            BOOL duplicate = NO;
+            for (NSUInteger j = 0; j < i; j++) {
+                if (candidateOutputs[j] == candidate) {
+                    duplicate = YES;
+                    break;
+                }
+            }
+            if (duplicate) continue;
+
+            CMTime itemTimeForDisplay = kCMTimeInvalid;
+            pixelBuffer = [candidate copyPixelBufferForItemTime:probeTime itemTimeForDisplay:&itemTimeForDisplay];
+            if (pixelBuffer) {
+                resolvedOutputTime = CMTIME_IS_VALID(itemTimeForDisplay) ? itemTimeForDisplay : probeTime;
                 break;
             }
-        }
-        if (duplicate) continue;
-
-        pixelBuffer = [candidate copyPixelBufferForItemTime:outputTime itemTimeForDisplay:NULL];
-        if (pixelBuffer) {
-            break;
         }
     }
 
     if (pixelBuffer) {
+        g_consecutiveFrameFallbackCount = 0;
+        if (CMTIME_IS_VALID(resolvedOutputTime) && !CMTIME_IS_INDEFINITE(resolvedOutputTime)) {
+            g_frameRequestCursor = LCWrapTimeIntoDuration(resolvedOutputTime, frameExtractionPlayer.currentItem.duration);
+        }
+
         // Cache a stable fallback for brief extraction gaps.
         if (g_lastGoodFrame) {
             CVPixelBufferRelease(g_lastGoodFrame);
@@ -1278,6 +1379,22 @@ static NSString* fourCCToString(OSType fourCC) {
         g_lastGoodFrame = pixelBuffer;
         CVPixelBufferRetain(g_lastGoodFrame);
         return pixelBuffer;
+    }
+
+    g_consecutiveFrameFallbackCount++;
+    if (g_consecutiveFrameFallbackCount >= 10) {
+        CMTime step = LCFrameStepTime();
+        CMTime nudgeTime = CMTIME_IS_VALID(itemTime) ? CMTimeAdd(itemTime, step) : step;
+        nudgeTime = LCWrapTimeIntoDuration(nudgeTime, frameExtractionPlayer.currentItem.duration);
+        g_frameRequestCursor = nudgeTime;
+
+        [frameExtractionPlayer seekToTime:nudgeTime
+                          toleranceBefore:step
+                           toleranceAfter:step
+                        completionHandler:^(BOOL finished) {}];
+        [frameExtractionPlayer play];
+        g_consecutiveFrameFallbackCount = 0;
+        NSLog(@"[LC] [GetFrame] ⚠️ Frame extraction stalled; nudged player to %.3f", CMTimeGetSeconds(nudgeTime));
     }
 
     // Prioritize loop transition frame, then the last good frame.
@@ -1394,11 +1511,12 @@ static NSDate *g_lastVideoModificationDate = nil;
     yuv420vOutput = nil;
     yuv420fOutput = nil;
     playerIsReady = NO;
+    g_frameRequestCursor = kCMTimeInvalid;
+    g_lastFrameRequestHostTime = 0;
+    g_consecutiveFrameFallbackCount = 0;
+    g_sourceFrameRate = 30.0;
+    g_forceSingleOutputMode = NO;
 }
-
-// IMPROVEMENT: Track loop transition to avoid black frames
-static BOOL g_isLooping = NO;
-static CVPixelBufferRef g_loopTransitionFrame = NULL;
 
 // CRITICAL FIX: Add looping handler
 + (void)playerItemDidReachEnd:(NSNotification *)notification {
@@ -1457,10 +1575,10 @@ static CVPixelBufferRef g_loopTransitionFrame = NULL;
     // CRITICAL: Analyze video properties for performance optimization
     AVAssetTrack *videoTrack = videoTracks.firstObject;
     CGSize naturalSize = videoTrack.naturalSize;
-    CGAffineTransform transform = videoTrack.preferredTransform;
     float nominalFrameRate = videoTrack.nominalFrameRate;
     CMTimeRange timeRange = videoTrack.timeRange;
     Float64 duration = CMTimeGetSeconds(timeRange.duration);
+    g_sourceFrameRate = nominalFrameRate > 1.0 ? nominalFrameRate : 30.0;
     
     // CRITICAL: Get bitrate information
     Float64 estimatedDataRate = videoTrack.estimatedDataRate;
@@ -1475,7 +1593,6 @@ static CVPixelBufferRef g_loopTransitionFrame = NULL;
     if (isHighBitrateVideo) {
         NSLog(@"[LC] [GetFrame] 🚨 HIGH BITRATE video detected - enabling optimizations");
     }
-    
     // Handle portrait videos
     if (naturalSize.height > naturalSize.width) {
         NSLog(@"[LC] [GetFrame] ✅ Portrait video detected: %.0fx%.0f", naturalSize.width, naturalSize.height);
@@ -1528,6 +1645,28 @@ static CVPixelBufferRef g_loopTransitionFrame = NULL;
         targetResolution.width < naturalSize.width &&
         targetResolution.height < naturalSize.height;
     CGSize outputSize = canDownscaleToTarget ? targetResolution : naturalSize;
+
+    // Universal stability guard: cap decode output when extraction load is likely to starve outputs.
+    CGFloat requestedOutputPixelCount = outputSize.width * outputSize.height;
+    BOOL shouldCapDecodeOutput =
+        requestedOutputPixelCount > (1280.0 * 720.0) &&
+        (isHighBitrateVideo || g_sourceFrameRate > 30.0 || requestedOutputPixelCount >= (1920.0 * 1080.0));
+    if (shouldCapDecodeOutput) {
+        CGFloat maxEdge = 1280.0;
+        CGFloat longEdge = MAX(outputSize.width, outputSize.height);
+        CGFloat scale = (longEdge > maxEdge) ? (maxEdge / longEdge) : 1.0;
+        CGSize capped = CGSizeMake(floor(outputSize.width * scale), floor(outputSize.height * scale));
+        if (((int)capped.width) % 2 != 0) capped.width -= 1.0;
+        if (((int)capped.height) % 2 != 0) capped.height -= 1.0;
+        if (capped.width < 2.0) capped.width = 2.0;
+        if (capped.height < 2.0) capped.height = 2.0;
+        outputSize = capped;
+        NSLog(@"[LC] [GetFrame] 🎯 Decode cap enabled for extraction stability: %.0fx%.0f", outputSize.width, outputSize.height);
+    }
+
+    // Above-720p extraction is significantly less stable with 3 outputs in hook-only contexts.
+    g_forceSingleOutputMode = requestedOutputPixelCount > (1280.0 * 720.0) ||
+                              (outputSize.width * outputSize.height) > (1280.0 * 720.0);
     NSLog(@"[LC] [GetFrame] Using output size: %.0fx%.0f (downscaled: %@)",
           outputSize.width, outputSize.height, canDownscaleToTarget ? @"YES" : @"NO");
     
@@ -1538,38 +1677,43 @@ static CVPixelBufferRef g_loopTransitionFrame = NULL;
         (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
     };
     
-    NSDictionary *yuv420vAttributes = @{
-        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704422), // '420v'
-        (NSString*)kCVPixelBufferWidthKey : @((int)outputSize.width),
-        (NSString*)kCVPixelBufferHeightKey : @((int)outputSize.height),
-        (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
-    };
-    
-    NSDictionary *yuv420fAttributes = @{
-        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704438), // '420f'
-        (NSString*)kCVPixelBufferWidthKey : @((int)outputSize.width),
-        (NSString*)kCVPixelBufferHeightKey : @((int)outputSize.height),
-        (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
-    };
-    
+    NSDictionary *yuv420vAttributes = nil;
+    NSDictionary *yuv420fAttributes = nil;
+    if (!g_forceSingleOutputMode) {
+        yuv420vAttributes = @{
+            (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704422), // '420v'
+            (NSString*)kCVPixelBufferWidthKey : @((int)outputSize.width),
+            (NSString*)kCVPixelBufferHeightKey : @((int)outputSize.height),
+            (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
+        };
+        yuv420fAttributes = @{
+            (NSString*)kCVPixelBufferPixelFormatTypeKey : @(875704438), // '420f'
+            (NSString*)kCVPixelBufferWidthKey : @((int)outputSize.width),
+            (NSString*)kCVPixelBufferHeightKey : @((int)outputSize.height),
+            (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
+        };
+    }
+
     bgraOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:bgraAttributes];
-    yuv420vOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420vAttributes];
-    yuv420fOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420fAttributes];
+    yuv420vOutput = yuv420vAttributes ? [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420vAttributes] : nil;
+    yuv420fOutput = yuv420fAttributes ? [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:yuv420fAttributes] : nil;
     
     // CRITICAL: Configure outputs for high bitrate videos
     if (isHighBitrateVideo) {
         // More conservative settings for high bitrate
         bgraOutput.suppressesPlayerRendering = YES;
-        yuv420vOutput.suppressesPlayerRendering = YES;
-        yuv420fOutput.suppressesPlayerRendering = YES;
+        if (yuv420vOutput) yuv420vOutput.suppressesPlayerRendering = YES;
+        if (yuv420fOutput) yuv420fOutput.suppressesPlayerRendering = YES;
     }
     
     // Add outputs
     [item addOutput:bgraOutput];
-    [item addOutput:yuv420vOutput];
-    [item addOutput:yuv420fOutput];
+    if (yuv420vOutput) [item addOutput:yuv420vOutput];
+    if (yuv420fOutput) [item addOutput:yuv420fOutput];
     
-    NSLog(@"[LC] [GetFrame] ✅ Outputs added (high bitrate optimized: %@)", isHighBitrateVideo ? @"YES" : @"NO");
+    NSLog(@"[LC] [GetFrame] ✅ Outputs added (high bitrate optimized: %@, single-output mode: %@)",
+          isHighBitrateVideo ? @"YES" : @"NO",
+          g_forceSingleOutputMode ? @"YES" : @"NO");
     
     // Wait for player to be ready
     if (!_kvoObserver) {
@@ -2431,6 +2575,38 @@ static void primePhotoCacheIfNeeded(void) {
     CFRelease(spoofedFrame);
 }
 
+static int photoCacheWarmupAttemptsForMode(NSString *mode) {
+    if ([mode isEqualToString:@"aggressive"]) {
+        return 5;
+    }
+    if ([mode isEqualToString:@"compatibility"]) {
+        return 3;
+    }
+    return 1;
+}
+
+static void warmPhotoCacheAsyncForMode(NSString *mode) {
+    NSString *effectiveMode = mode ?: @"standard";
+    int attempts = photoCacheWarmupAttemptsForMode(effectiveMode);
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+        for (int i = 0; i < attempts; i++) {
+            CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
+            if (spoofedFrame) {
+                cachePhotoDataFromSampleBuffer(spoofedFrame);
+                CFRelease(spoofedFrame);
+            }
+            if (i < attempts - 1) {
+                usleep(5000); // 5ms delay between attempts for enhanced modes.
+            }
+        }
+        if (attempts > 1) {
+            NSLog(@"[LC] 📷 Enhanced mode (%@): %d cache attempts completed", effectiveMode, attempts);
+        } else {
+            NSLog(@"[LC] 📷 Standard mode: Photo cache updated");
+        }
+    });
+}
+
 @interface LCSpoofPhotoCaptureDelegate : NSObject <AVCapturePhotoCaptureDelegate>
 @property (nonatomic, strong) id<AVCapturePhotoCaptureDelegate> originalDelegate;
 @property (nonatomic, weak) AVCapturePhotoOutput *photoOutput;
@@ -3174,6 +3350,7 @@ static void installPrivateCapturePipelineHooks(void) {
         BOOL hasCameraInput = NO;
         BOOL hasVideoDataOutput = NO;
         BOOL hasPhotoOutput = NO;
+        BOOL hasMovieFileOutput = NO;
         
         for (AVCaptureInput *input in self.inputs) {
             NSLog(@"[LC] 🔍 DEBUG L4: Input: %@", NSStringFromClass([input class]));
@@ -3206,14 +3383,24 @@ static void installPrivateCapturePipelineHooks(void) {
             } else if ([output isKindOfClass:[AVCapturePhotoOutput class]]) {
                 hasPhotoOutput = YES;
                 configurePhotoOutputForSpoofing((AVCapturePhotoOutput *)output, @"L4 startRunning");
+            } else if ([output isKindOfClass:[AVCaptureMovieFileOutput class]]) {
+                hasMovieFileOutput = YES;
             }
         }
         
-        NSLog(@"[LC] 🔍 DEBUG L4: Camera input: %@, VideoData output: %@, Photo output: %@", 
-              hasCameraInput ? @"YES" : @"NO", hasVideoDataOutput ? @"YES" : @"NO", hasPhotoOutput ? @"YES" : @"NO");
+        NSLog(@"[LC] 🔍 DEBUG L4: Camera input: %@, VideoData output: %@, Photo output: %@, Movie output: %@",
+              hasCameraInput ? @"YES" : @"NO",
+              hasVideoDataOutput ? @"YES" : @"NO",
+              hasPhotoOutput ? @"YES" : @"NO",
+              hasMovieFileOutput ? @"YES" : @"NO");
         
         if (hasCameraInput) {
             NSLog(@"[LC] 🎥 L4: Camera session detected - spoofing will be active");
+            g_captureGestureArbitrationEnabled = hasPhotoOutput && hasMovieFileOutput;
+            if (!g_captureGestureArbitrationEnabled) {
+                LCCancelPendingDeferredPhotoCapture();
+            }
+            NSLog(@"[LC] 📷 L4: Capture arbitration (photo vs record) %@", g_captureGestureArbitrationEnabled ? @"ENABLED" : @"DISABLED");
             
             // CRITICAL: ALWAYS pre-cache photo data for ALL camera sessions
             NSLog(@"[LC] 📷 L4: FORCE caching spoofed photo data");
@@ -3235,6 +3422,8 @@ static void installPrivateCapturePipelineHooks(void) {
             }
         } else {
             NSLog(@"[LC] 🔍 DEBUG L4: No camera input detected");
+            g_captureGestureArbitrationEnabled = NO;
+            LCCancelPendingDeferredPhotoCapture();
         }
     }
     
@@ -3247,8 +3436,10 @@ static void installPrivateCapturePipelineHooks(void) {
     if (spoofCameraEnabled) {
         NSLog(@"[LC] 🎥 L4: Session stopping - cleaning up spoofed resources");
         
-        // CRITICAL: Clean up photo cache when session stops (fixes Instagram discard)
+        // Clean up photo cache when session stops.
         cleanupPhotoCache();
+        g_captureGestureArbitrationEnabled = NO;
+        LCCancelPendingDeferredPhotoCapture();
         
         // Clean up any preview layer associations
         objc_setAssociatedObject(self, @selector(lc_addInput:), nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -3352,52 +3543,21 @@ static void installPrivateCapturePipelineHooks(void) {
             effectiveDelegate = (id<AVCapturePhotoCaptureDelegate>)proxy;
             NSLog(@"[LC] ✅ L5: Photo delegate wrapped for sample-buffer interception: %@", NSStringFromClass([delegate class]));
         }
-    
-        if ([spoofCameraMode isEqualToString:@"standard"]) {
-            // Standard mode: Simple cache update
-            dispatch_sync(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
-                CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
-                if (spoofedFrame) {
-                    cachePhotoDataFromSampleBuffer(spoofedFrame);
-                    CFRelease(spoofedFrame);
-                    NSLog(@"[LC] 📷 Standard mode: Photo cache updated");
-                }
-            });
-            
-        } else if ([spoofCameraMode isEqualToString:@"aggressive"] || [spoofCameraMode isEqualToString:@"compatibility"]) {
-            // Aggressive/Compatibility modes: Enhanced caching
-            NSLog(@"[LC] 📸 Enhanced caching mode: %@", spoofCameraMode);
-            
-            dispatch_sync(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
-                // Multiple cache attempts for enhanced modes
-                int attempts = [spoofCameraMode isEqualToString:@"aggressive"] ? 5 : 3;
-                for (int i = 0; i < attempts; i++) {
-                    CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
-                    if (spoofedFrame) {
-                        cachePhotoDataFromSampleBuffer(spoofedFrame);
-                        CFRelease(spoofedFrame);
-                        if (i < attempts - 1) usleep(5000); // 5ms delay between attempts
-                    }
-                }
-                NSLog(@"[LC] 📷 Enhanced mode: %d cache attempts completed", attempts);
-            });
-            
-            // Additional delay for aggressive mode
-            if ([spoofCameraMode isEqualToString:@"aggressive"]) {
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                    NSLog(@"[LC] 📷 Aggressive mode: Delayed verification complete");
-                });
-            }
-            
-        } else {
+
+        NSString *effectiveMode = spoofCameraMode ?: @"standard";
+        if (![effectiveMode isEqualToString:@"standard"] &&
+            ![effectiveMode isEqualToString:@"aggressive"] &&
+            ![effectiveMode isEqualToString:@"compatibility"]) {
             NSLog(@"[LC] ⚠️ Unknown camera mode: %@, using standard", spoofCameraMode);
-            // Fallback to standard behavior
-            dispatch_sync(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
-                CMSampleBufferRef spoofedFrame = createSpoofedSampleBuffer();
-                if (spoofedFrame) {
-                    cachePhotoDataFromSampleBuffer(spoofedFrame);
-                    CFRelease(spoofedFrame);
-                }
+            effectiveMode = @"standard";
+        }
+        if (![effectiveMode isEqualToString:@"standard"]) {
+            NSLog(@"[LC] 📸 Enhanced caching mode: %@", effectiveMode);
+        }
+        warmPhotoCacheAsyncForMode(effectiveMode);
+        if ([effectiveMode isEqualToString:@"aggressive"]) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                NSLog(@"[LC] 📷 Aggressive mode: Delayed verification complete");
             });
         }
         
@@ -3409,6 +3569,54 @@ static void installPrivateCapturePipelineHooks(void) {
                 NSLog(@"[LC] ❌ Mode %@: Photo cache incomplete", spoofCameraMode);
             }
         });
+
+        if (g_captureGestureArbitrationEnabled) {
+            __weak AVCapturePhotoOutput *weakSelf = self;
+            AVCapturePhotoSettings *capturedSettings = settings;
+            id<AVCapturePhotoCaptureDelegate> capturedDelegate = effectiveDelegate;
+            __block dispatch_block_t deferredCaptureBlock = nil;
+            deferredCaptureBlock = dispatch_block_create(0, ^{
+                AVCapturePhotoOutput *strongSelf = weakSelf;
+                if (!strongSelf) {
+                    return;
+                }
+
+                BOOL shouldSuppress = NO;
+                CFAbsoluteTime elapsedSinceRecordStart = -1.0;
+                @synchronized([AVCapturePhotoOutput class]) {
+                    if (g_pendingDeferredPhotoCaptureBlock != deferredCaptureBlock) {
+                        return;
+                    }
+                    g_pendingDeferredPhotoCaptureBlock = nil;
+                    if (g_lastRecordingStartTime > 0) {
+                        elapsedSinceRecordStart = CFAbsoluteTimeGetCurrent() - g_lastRecordingStartTime;
+                        shouldSuppress = elapsedSinceRecordStart >= 0.0 &&
+                                         elapsedSinceRecordStart < kPhotoSuppressionAfterRecordStartSeconds;
+                    }
+                }
+
+                if (shouldSuppress) {
+                    NSLog(@"[LC] 📷 L5: Suppressing deferred photo (record started %.3fs ago)", elapsedSinceRecordStart);
+                    objc_setAssociatedObject(strongSelf, @selector(lc_capturePhotoWithSettings:delegate:), nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                    return;
+                }
+
+                NSLog(@"[LC] 📷 L5: Executing deferred photo capture");
+                [strongSelf lc_capturePhotoWithSettings:capturedSettings delegate:capturedDelegate];
+            });
+
+            @synchronized([AVCapturePhotoOutput class]) {
+                if (g_pendingDeferredPhotoCaptureBlock) {
+                    dispatch_block_cancel(g_pendingDeferredPhotoCaptureBlock);
+                }
+                g_pendingDeferredPhotoCaptureBlock = deferredCaptureBlock;
+            }
+
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kPhotoDeferralSeconds * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(),
+                           deferredCaptureBlock);
+            return;
+        }
     }
     
     [self lc_capturePhotoWithSettings:settings delegate:effectiveDelegate];
@@ -3466,6 +3674,9 @@ static IMP original_stopRecording_IMP = NULL;
     
     if (spoofCameraEnabled) {
         NSLog(@"[LC] 🎬 L5: Spoofing enabled - creating fake recording");
+        if (g_captureGestureArbitrationEnabled) {
+            LCMarkRecordingStarted();
+        }
         
         // CRITICAL: Don't call ANY version of startRecording to avoid real camera
         // Instead, immediately start our spoofing process
@@ -4140,7 +4351,7 @@ NSData *hook_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer
 
 static void loadSpoofingConfiguration(void) {
     NSLog(@"[LC] Loading camera spoofing configuration...");
-    
+
     NSDictionary *guestAppInfo = [NSUserDefaults guestAppInfo];
     if (!guestAppInfo) {
         NSLog(@"[LC] ❌ No guestAppInfo found");
@@ -4153,30 +4364,315 @@ static void loadSpoofingConfiguration(void) {
     spoofCameraLoop = (guestAppInfo[@"spoofCameraLoop"] != nil) ? [guestAppInfo[@"spoofCameraLoop"] boolValue] : YES;
     spoofCameraMode = guestAppInfo[@"spoofCameraMode"] ?: @"standard";
 
-    // NEW: Get camera type and image path
     NSString *spoofCameraType = guestAppInfo[@"spoofCameraType"] ?: @"image";
     NSString *spoofCameraImagePath = guestAppInfo[@"spoofCameraImagePath"] ?: @"";
 
-    NSLog(@"[LC] ⚙️ Config: Enabled=%d, VideoPath='%@', Loop=%d, Mode='%@'", 
-      spoofCameraEnabled, spoofCameraVideoPath, spoofCameraLoop, spoofCameraMode);
-    
+    NSLog(@"[LC] ⚙️ Config: Enabled=%d, Type='%@', VideoPath='%@', ImagePath='%@', Loop=%d, Mode='%@'",
+          spoofCameraEnabled,
+          spoofCameraType,
+          spoofCameraVideoPath,
+          spoofCameraImagePath.lastPathComponent ?: @"",
+          spoofCameraLoop,
+          spoofCameraMode);
+
     if (spoofCameraEnabled) {
         if (spoofCameraVideoPath.length == 0) {
             NSLog(@"[LC] Image mode (no video path provided)");
         } else {
             BOOL exists = [[NSFileManager defaultManager] fileExistsAtPath:spoofCameraVideoPath];
             NSLog(@"[LC] Video mode - file exists: %d at path: %@", exists, spoofCameraVideoPath);
-            
+
             if (!exists) {
                 NSLog(@"[LC] ❌ Video file not found - falling back to image mode");
                 spoofCameraVideoPath = @"";
-            } else {
-                // TEMPORARY: Disable GetFrame setup to avoid conflicts
-                // [GetFrame setCurrentVideoPath:spoofCameraVideoPath];
-                NSLog(@"[LC] GetFrame setup disabled - using primary video system only");
             }
         }
     }
+}
+
+// pragma MARK: - Hook Installation
+
+static void installLevel2Hooks(void) {
+    @try {
+        swizzle([AVCaptureDevice class], @selector(devicesWithMediaType:), @selector(lc_devicesWithMediaType:));
+        swizzle([AVCaptureDevice class], @selector(defaultDeviceWithMediaType:), @selector(lc_defaultDeviceWithMediaType:));
+        NSLog(@"[LC] ✅ Level 2 hooks installed");
+    } @catch (NSException *e) {
+        NSLog(@"[LC] ❌ Level 2 hook error: %@", e);
+    }
+}
+
+static void installLevel3Hooks(void) {
+    @try {
+        swizzle([AVCaptureDeviceInput class], @selector(deviceInputWithDevice:error:), @selector(lc_deviceInputWithDevice:error:));
+        NSLog(@"[LC] ✅ Level 3 hooks installed");
+    } @catch (NSException *e) {
+        NSLog(@"[LC] ❌ Level 3 hook error: %@", e);
+    }
+}
+
+static void installLevel4Hooks(void) {
+    @try {
+        swizzle([AVCaptureSession class], @selector(addInput:), @selector(lc_addInput:));
+        swizzle([AVCaptureSession class], @selector(addOutput:), @selector(lc_addOutput:));
+        swizzle([AVCaptureSession class], @selector(startRunning), @selector(lc_startRunning));
+        swizzle([AVCaptureSession class], @selector(setSessionPreset:), @selector(lc_setSessionPreset:));
+        swizzle([AVCaptureSession class], @selector(stopRunning), @selector(lc_stopRunning));
+        NSLog(@"[LC] ✅ Level 4 hooks installed");
+    } @catch (NSException *e) {
+        NSLog(@"[LC] ❌ Level 4 hook error: %@", e);
+    }
+}
+
+static void installLevel5Hooks(void) {
+    @try {
+        swizzle([AVCaptureVideoDataOutput class], @selector(setSampleBufferDelegate:queue:), @selector(lc_setSampleBufferDelegate:queue:));
+        swizzle([AVCapturePhotoOutput class], @selector(capturePhotoWithSettings:delegate:), @selector(lc_capturePhotoWithSettings:delegate:));
+
+        swizzle([AVCaptureMovieFileOutput class], @selector(startRecordingToOutputFileURL:recordingDelegate:), @selector(lc_startRecordingToOutputFileURL:recordingDelegate:));
+        swizzle([AVCaptureMovieFileOutput class], @selector(stopRecording), @selector(lc_stopRecording));
+
+        swizzle([AVCaptureVideoPreviewLayer class], @selector(setSession:), @selector(lc_setSession:));
+
+        if (NSClassFromString(@"AVCaptureStillImageOutput")) {
+            #pragma clang diagnostic push
+            #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+            swizzle([AVCaptureStillImageOutput class], @selector(captureStillImageAsynchronouslyFromConnection:completionHandler:), @selector(lc_captureStillImageAsynchronouslyFromConnection:completionHandler:));
+            #pragma clang diagnostic pop
+            NSLog(@"[LC] ✅ Legacy still image capture hook installed");
+        }
+        NSLog(@"[LC] ✅ Level 5 hooks installed");
+    } @catch (NSException *e) {
+        NSLog(@"[LC] ❌ Level 5 hook error: %@", e);
+    }
+}
+
+static void installLevel5DiagnosticHooks(void) {
+    @try {
+        swizzle([AVAssetWriter class], @selector(initWithURL:fileType:error:), @selector(lc_initWithURL:fileType:error:));
+        swizzle([AVAssetWriter class], @selector(startWriting), @selector(lc_startWriting));
+        swizzle([AVAssetWriter class], @selector(finishWriting), @selector(lc_finishWriting));
+        NSLog(@"[LC] ✅ L5: AVAssetWriter diagnostic hooks installed");
+    } @catch (NSException *e) {
+        NSLog(@"[LC] ❌ AVAssetWriter hook error: %@", e);
+    }
+
+    @try {
+        swizzle([NSFileManager class], @selector(createFileAtPath:contents:attributes:), @selector(lc_createFileAtPath:contents:attributes:));
+        NSLog(@"[LC] ✅ L5: File creation diagnostic hooks installed");
+    } @catch (NSException *e) {
+        NSLog(@"[LC] ❌ File creation hook error: %@", e);
+    }
+}
+
+static void installPrivatePipelineHooks(void) {
+    @try {
+        installPrivateCapturePipelineHooks();
+    } @catch (NSException *e) {
+        NSLog(@"[LC] ❌ Private pipeline hook error: %@", e);
+    }
+}
+
+static void installDirectMethodHook(Class cls,
+                                    SEL selector,
+                                    IMP replacement,
+                                    IMP *originalOut,
+                                    BOOL isClassMethod,
+                                    NSString *label) {
+    if (!cls || !selector || !replacement || !originalOut) {
+        return;
+    }
+
+    Method method = isClassMethod ? class_getClassMethod(cls, selector) : class_getInstanceMethod(cls, selector);
+    if (!method) {
+        return;
+    }
+
+    IMP current = method_getImplementation(method);
+    if (current == replacement) {
+        NSLog(@"[LC] ✅ L6: %@ hook already installed", label);
+        return;
+    }
+
+    *originalOut = current;
+    method_setImplementation(method, replacement);
+    NSLog(@"[LC] ✅ L6: %@ hook installed", label);
+}
+
+static void installLevel6Hooks(void) {
+    @try {
+        installDirectMethodHook([AVCapturePhoto class],
+                                @selector(pixelBuffer),
+                                (IMP)hook_AVCapturePhoto_pixelBuffer,
+                                (IMP *)&original_AVCapturePhoto_pixelBuffer,
+                                NO,
+                                @"Photo pixelBuffer");
+        installDirectMethodHook([AVCapturePhoto class],
+                                @selector(previewPixelBuffer),
+                                (IMP)hook_AVCapturePhoto_previewPixelBuffer,
+                                (IMP *)&original_AVCapturePhoto_previewPixelBuffer,
+                                NO,
+                                @"Photo previewPixelBuffer");
+        installDirectMethodHook([AVCapturePhoto class],
+                                @selector(CGImageRepresentation),
+                                (IMP)hook_AVCapturePhoto_CGImageRepresentation,
+                                (IMP *)&original_AVCapturePhoto_CGImageRepresentation,
+                                NO,
+                                @"Photo CGImageRepresentation");
+        installDirectMethodHook([AVCapturePhoto class],
+                                @selector(previewCGImageRepresentation),
+                                (IMP)hook_AVCapturePhoto_previewCGImageRepresentation,
+                                (IMP *)&original_AVCapturePhoto_previewCGImageRepresentation,
+                                NO,
+                                @"Photo previewCGImageRepresentation");
+        installDirectMethodHook([AVCapturePhoto class],
+                                @selector(fileDataRepresentation),
+                                (IMP)hook_AVCapturePhoto_fileDataRepresentation,
+                                (IMP *)&original_AVCapturePhoto_fileDataRepresentation,
+                                NO,
+                                @"Photo fileDataRepresentation");
+        installDirectMethodHook([AVCapturePhoto class],
+                                @selector(fileDataRepresentationWithCustomizer:),
+                                (IMP)hook_AVCapturePhoto_fileDataRepresentationWithCustomizer,
+                                (IMP *)&original_AVCapturePhoto_fileDataRepresentationWithCustomizer,
+                                NO,
+                                @"Photo fileDataRepresentationWithCustomizer");
+
+        Class deferredPhotoProxyClass = NSClassFromString(@"AVCaptureDeferredPhotoProxy");
+        if (deferredPhotoProxyClass) {
+            installDirectMethodHook(deferredPhotoProxyClass,
+                                    @selector(pixelBuffer),
+                                    (IMP)hook_AVCaptureDeferredPhotoProxy_pixelBuffer,
+                                    (IMP *)&original_AVCaptureDeferredPhotoProxy_pixelBuffer,
+                                    NO,
+                                    @"Deferred photo proxy pixelBuffer");
+            installDirectMethodHook(deferredPhotoProxyClass,
+                                    @selector(previewPixelBuffer),
+                                    (IMP)hook_AVCaptureDeferredPhotoProxy_previewPixelBuffer,
+                                    (IMP *)&original_AVCaptureDeferredPhotoProxy_previewPixelBuffer,
+                                    NO,
+                                    @"Deferred photo proxy previewPixelBuffer");
+            installDirectMethodHook(deferredPhotoProxyClass,
+                                    @selector(CGImageRepresentation),
+                                    (IMP)hook_AVCaptureDeferredPhotoProxy_CGImageRepresentation,
+                                    (IMP *)&original_AVCaptureDeferredPhotoProxy_CGImageRepresentation,
+                                    NO,
+                                    @"Deferred photo proxy CGImageRepresentation");
+            installDirectMethodHook(deferredPhotoProxyClass,
+                                    @selector(previewCGImageRepresentation),
+                                    (IMP)hook_AVCaptureDeferredPhotoProxy_previewCGImageRepresentation,
+                                    (IMP *)&original_AVCaptureDeferredPhotoProxy_previewCGImageRepresentation,
+                                    NO,
+                                    @"Deferred photo proxy previewCGImageRepresentation");
+            installDirectMethodHook(deferredPhotoProxyClass,
+                                    @selector(fileDataRepresentation),
+                                    (IMP)hook_AVCaptureDeferredPhotoProxy_fileDataRepresentation,
+                                    (IMP *)&original_AVCaptureDeferredPhotoProxy_fileDataRepresentation,
+                                    NO,
+                                    @"Deferred photo proxy fileDataRepresentation");
+            installDirectMethodHook(deferredPhotoProxyClass,
+                                    @selector(fileDataRepresentationWithCustomizer:),
+                                    (IMP)hook_AVCaptureDeferredPhotoProxy_fileDataRepresentationWithCustomizer,
+                                    (IMP *)&original_AVCaptureDeferredPhotoProxy_fileDataRepresentationWithCustomizer,
+                                    NO,
+                                    @"Deferred photo proxy fileDataRepresentationWithCustomizer");
+        }
+
+        #pragma clang diagnostic push
+        #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        installDirectMethodHook([AVCapturePhotoOutput class],
+                                @selector(JPEGPhotoDataRepresentationForJPEGSampleBuffer:previewPhotoSampleBuffer:),
+                                (IMP)hook_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer,
+                                (IMP *)&original_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer,
+                                YES,
+                                @"JPEGPhotoDataRepresentation helper");
+        #pragma clang diagnostic pop
+    } @catch (NSException *e) {
+        NSLog(@"[LC] ❌ Level 6 hook error: %@", e);
+    }
+}
+
+static void installHierarchicalHooks(void) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        @try {
+            NSLog(@"[LC] Installing hierarchical hooks...");
+
+            // Initialize original MovieFileOutput IMP snapshots before swizzling.
+            [AVCaptureMovieFileOutput load];
+
+            installLevel2Hooks();
+            installLevel3Hooks();
+            installLevel4Hooks();
+            installLevel5Hooks();
+            installPrivatePipelineHooks();
+            installLevel5DiagnosticHooks();
+            installLevel6Hooks();
+
+            NSLog(@"[LC] ✅ All hooks installed with error handling");
+        } @catch (NSException *exception) {
+            NSLog(@"[LC] ❌ CRITICAL: Hook installation failed: %@", exception);
+        }
+    });
+}
+
+// pragma MARK: - Initialization Helpers
+
+static void setupInitialSpoofingResources(void) {
+    setupImageSpoofingResources();
+
+    if (!spoofCameraEnabled) {
+        return;
+    }
+
+    if (spoofCameraVideoPath.length > 0) {
+        NSLog(@"[LC] 🎬 Setting up video spoofing system");
+        [GetFrame setCurrentVideoPath:spoofCameraVideoPath];
+        setupVideoSpoofingResources();
+    } else {
+        NSLog(@"[LC] 🖼️ Image-only mode activated.");
+    }
+}
+
+static void ensureEmergencyFallbackBuffer(void) {
+    if (lastGoodSpoofedPixelBuffer) {
+        return;
+    }
+
+    NSLog(@"[LC] ⚠️ Creating emergency fallback buffer (BLACK, no text)");
+
+    CVPixelBufferRef emergencyPixelBuffer = NULL;
+    NSDictionary *pixelAttributes = @{
+        (NSString*)kCVPixelBufferCGImageCompatibilityKey : @YES,
+        (NSString*)kCVPixelBufferCGBitmapContextCompatibilityKey : @YES,
+        (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
+    };
+
+    CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
+                                          (size_t)targetResolution.width,
+                                          (size_t)targetResolution.height,
+                                          kCVPixelFormatType_32BGRA,
+                                          (__bridge CFDictionaryRef)pixelAttributes,
+                                          &emergencyPixelBuffer);
+    if (status != kCVReturnSuccess || !emergencyPixelBuffer) {
+        return;
+    }
+
+    CVPixelBufferLockBaseAddress(emergencyPixelBuffer, 0);
+    void *baseAddress = CVPixelBufferGetBaseAddress(emergencyPixelBuffer);
+    size_t bytesPerRow = CVPixelBufferGetBytesPerRow(emergencyPixelBuffer);
+    memset(baseAddress, 0, bytesPerRow * (size_t)targetResolution.height);
+    CVPixelBufferUnlockBaseAddress(emergencyPixelBuffer, 0);
+
+    CMVideoFormatDescriptionRef emergencyFormatDesc = NULL;
+    CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, emergencyPixelBuffer, &emergencyFormatDesc);
+    updateLastGoodSpoofedFrame(emergencyPixelBuffer, emergencyFormatDesc);
+
+    if (emergencyFormatDesc) {
+        CFRelease(emergencyFormatDesc);
+    }
+    CVPixelBufferRelease(emergencyPixelBuffer);
+    NSLog(@"[LC] ✅ Emergency BLACK buffer created (no text/gradient)");
 }
 
 // pragma MARK: - Initialization
@@ -4184,299 +4680,22 @@ static void loadSpoofingConfiguration(void) {
 void AVFoundationGuestHooksInit(void) {
     @try {
         NSLog(@"[LC] 🚀 Initializing comprehensive AVFoundation hooks...");
-        
-        // Initialize the transform at runtime
+
         g_currentVideoTransform = CGAffineTransformIdentity;
-
         loadSpoofingConfiguration();
-        
-        videoProcessingQueue = dispatch_queue_create("com.livecontainer.videoprocessingqueue", DISPATCH_QUEUE_SERIAL);
 
-        // Setup primary image resources
-        setupImageSpoofingResources();
-        
-        // If we have a video path now (either original or generated from image), set up video system
-        if (spoofCameraEnabled && spoofCameraVideoPath.length > 0) {
-            NSLog(@"[LC] 🎬 Setting up video spoofing system");
-            [GetFrame setCurrentVideoPath:spoofCameraVideoPath];
-            setupVideoSpoofingResources();
+        if (!videoProcessingQueue) {
+            videoProcessingQueue = dispatch_queue_create("com.livecontainer.videoprocessingqueue", DISPATCH_QUEUE_SERIAL);
         }
 
-        // Create emergency fallback if needed - CRITICAL: Use BLACK buffer, not gradient/text
-        if (!lastGoodSpoofedPixelBuffer) {
-            NSLog(@"[LC] ⚠️ Creating emergency fallback buffer (BLACK, no text)");
-            
-            CVPixelBufferRef emergencyPixelBuffer = NULL;
-            CGSize emergencySize = targetResolution;
+        setupInitialSpoofingResources();
+        ensureEmergencyFallbackBuffer();
+        installHierarchicalHooks();
 
-            NSDictionary *pixelAttributes = @{
-                (NSString*)kCVPixelBufferCGImageCompatibilityKey : @YES,
-                (NSString*)kCVPixelBufferCGBitmapContextCompatibilityKey : @YES,
-                (NSString*)kCVPixelBufferIOSurfacePropertiesKey : @{}
-            };
-            
-            CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
-                                                (size_t)emergencySize.width, (size_t)emergencySize.height,
-                                                kCVPixelFormatType_32BGRA,
-                                                (__bridge CFDictionaryRef)pixelAttributes,
-                                                &emergencyPixelBuffer);
-
-            if (status == kCVReturnSuccess && emergencyPixelBuffer) {
-                CVPixelBufferLockBaseAddress(emergencyPixelBuffer, 0);
-                void *baseAddress = CVPixelBufferGetBaseAddress(emergencyPixelBuffer);
-                size_t bytesPerRow = CVPixelBufferGetBytesPerRow(emergencyPixelBuffer);
-                
-                // CRITICAL FIX: Fill with BLACK instead of gradient with text
-                // This follows the CaptureJailed pattern - never show placeholder graphics
-                memset(baseAddress, 0, bytesPerRow * (size_t)emergencySize.height);
-                
-                CVPixelBufferUnlockBaseAddress(emergencyPixelBuffer, 0);
-
-                CMVideoFormatDescriptionRef emergencyFormatDesc = NULL;
-                CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, emergencyPixelBuffer, &emergencyFormatDesc);
-                updateLastGoodSpoofedFrame(emergencyPixelBuffer, emergencyFormatDesc);
-                
-                if (emergencyFormatDesc) CFRelease(emergencyFormatDesc);
-                CVPixelBufferRelease(emergencyPixelBuffer);
-                NSLog(@"[LC] ✅ Emergency BLACK buffer created (no text/gradient)");
-            }
-        }
-
-        // Setup video resources if enabled
-        // if (spoofCameraEnabled && spoofCameraVideoPath && spoofCameraVideoPath.length > 0) {
-        //     NSLog(@"[LC] Video mode: Setting up PRIMARY video system only");
-        //     setupVideoSpoofingResources(); // Use your working system
-        //     // TEMPORARY: Disable GetFrame to avoid conflicts
-        //     // [GetFrame setCurrentVideoPath:spoofCameraVideoPath];
-        // } else if (spoofCameraEnabled) {
-        //     NSLog(@"[LC] Image mode: Using static image fallback");
-        // }
-        // Unified setup call
         if (spoofCameraEnabled) {
-            setupImageSpoofingResources(); // Keep for image fallback
-            if (spoofCameraVideoPath.length > 0) {
-                NSLog(@"[LC] 🎬 Setting up unified frame manager...");
-                // Use the more robust GetFrame class to manage the video player
-                [GetFrame setCurrentVideoPath:spoofCameraVideoPath];
-            } else {
-                NSLog(@"[LC] 🖼️ Image-only mode activated.");
-            }
+            NSLog(@"[LC] ✅ Spoofing initialized - LastGoodBuffer: %s",
+                  lastGoodSpoofedPixelBuffer ? "VALID" : "NULL");
         }
-
-        // Install hooks at all levels
-        // Update your hook installation with better error handling:
-        static dispatch_once_t onceToken;
-        dispatch_once(&onceToken, ^{
-            @try {
-                NSLog(@"[LC] Installing hierarchical hooks...");
-                
-                // CRITICAL: Initialize original method pointers first
-                [AVCaptureMovieFileOutput load];
-
-                // LEVEL 2: Device Level (with error handling)
-                @try {
-                    swizzle([AVCaptureDevice class], @selector(devicesWithMediaType:), @selector(lc_devicesWithMediaType:));
-                    swizzle([AVCaptureDevice class], @selector(defaultDeviceWithMediaType:), @selector(lc_defaultDeviceWithMediaType:));
-                    NSLog(@"[LC] ✅ Level 2 hooks installed");
-                } @catch (NSException *e) {
-                    NSLog(@"[LC] ❌ Level 2 hook error: %@", e);
-                }
-                
-                // LEVEL 3: Device Input Level (with error handling)
-                @try {
-                    swizzle([AVCaptureDeviceInput class], @selector(deviceInputWithDevice:error:), @selector(lc_deviceInputWithDevice:error:));
-                    NSLog(@"[LC] ✅ Level 3 hooks installed");
-                } @catch (NSException *e) {
-                    NSLog(@"[LC] ❌ Level 3 hook error: %@", e);
-                }
-                
-                // LEVEL 4: Session Level (with error handling)
-                @try {
-                    swizzle([AVCaptureSession class], @selector(addInput:), @selector(lc_addInput:));
-                    swizzle([AVCaptureSession class], @selector(addOutput:), @selector(lc_addOutput:));
-                    swizzle([AVCaptureSession class], @selector(startRunning), @selector(lc_startRunning));
-                    swizzle([AVCaptureSession class], @selector(setSessionPreset:), @selector(lc_setSessionPreset:));
-                    swizzle([AVCaptureSession class], @selector(stopRunning), @selector(lc_stopRunning));
-                    NSLog(@"[LC] ✅ Level 4 hooks installed");
-                } @catch (NSException *e) {
-                    NSLog(@"[LC] ❌ Level 4 hook error: %@", e);
-                }
-
-                // LEVEL 5: Output Level (with error handling)
-                @try {
-                    swizzle([AVCaptureVideoDataOutput class], @selector(setSampleBufferDelegate:queue:), @selector(lc_setSampleBufferDelegate:queue:));
-                    swizzle([AVCapturePhotoOutput class], @selector(capturePhotoWithSettings:delegate:), @selector(lc_capturePhotoWithSettings:delegate:));
-                    
-                    swizzle([AVCaptureMovieFileOutput class], @selector(startRecordingToOutputFileURL:recordingDelegate:), @selector(lc_startRecordingToOutputFileURL:recordingDelegate:));
-                    swizzle([AVCaptureMovieFileOutput class], @selector(stopRecording), @selector(lc_stopRecording));
-                    
-                    swizzle([AVCaptureVideoPreviewLayer class], @selector(setSession:), @selector(lc_setSession:));
-                    
-                    // Legacy still image capture hook for older apps
-                    // swizzle([AVCaptureStillImageOutput class], @selector(captureStillImageAsynchronouslyFromConnection:completionHandler:), @selector(lc_captureStillImageAsynchronouslyFromConnection:completionHandler:));
-                    // if (NSClassFromString(@"AVCaptureStillImageOutput")) {
-                    //     swizzle([AVCaptureStillImageOutput class], @selector(captureStillImageAsynchronouslyFromConnection:completionHandler:), @selector(lc_captureStillImageAsynchronouslyFromConnection:completionHandler:));
-                    //     NSLog(@"[LC] ✅ Legacy still image capture hook installed");
-                    // }
-                    if (NSClassFromString(@"AVCaptureStillImageOutput")) {
-                        #pragma clang diagnostic push
-                        #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-                        swizzle([AVCaptureStillImageOutput class], @selector(captureStillImageAsynchronouslyFromConnection:completionHandler:), @selector(lc_captureStillImageAsynchronouslyFromConnection:completionHandler:));
-                        #pragma clang diagnostic pop
-                        NSLog(@"[LC] ✅ Legacy still image capture hook installed");
-                    }
-                    NSLog(@"[LC] ✅ Level 5 hooks installed");
-                } @catch (NSException *e) {
-                    NSLog(@"[LC] ❌ Level 5 hook error: %@", e);
-                }
-
-                // BTATM-inspired fallback: hook private camera pipeline nodes when available.
-                @try {
-                    installPrivateCapturePipelineHooks();
-                } @catch (NSException *e) {
-                    NSLog(@"[LC] ❌ Private pipeline hook error: %@", e);
-                }
-                
-                // DIAGNOSTIC: Hook AVAssetWriter (common alternative to MovieFileOutput)
-                @try {
-                    swizzle([AVAssetWriter class], @selector(initWithURL:fileType:error:), @selector(lc_initWithURL:fileType:error:));
-                    swizzle([AVAssetWriter class], @selector(startWriting), @selector(lc_startWriting));
-                    swizzle([AVAssetWriter class], @selector(finishWriting), @selector(lc_finishWriting));
-                    NSLog(@"[LC] ✅ L5: AVAssetWriter diagnostic hooks installed");
-                } @catch (NSException *e) {
-                    NSLog(@"[LC] ❌ AVAssetWriter hook error: %@", e);
-                }
-
-                // DIAGNOSTIC: Hook any video file creation
-                @try {
-                    swizzle([NSFileManager class], @selector(createFileAtPath:contents:attributes:), @selector(lc_createFileAtPath:contents:attributes:));
-                    NSLog(@"[LC] ✅ L5: File creation diagnostic hooks installed");
-                } @catch (NSException *e) {
-                    NSLog(@"[LC] ❌ File creation hook error: %@", e);
-                }
-
-                // LEVEL 6: Photo Accessor Level (with error handling)
-                @try {
-                    Method pixelBufferMethod = class_getInstanceMethod([AVCapturePhoto class], @selector(pixelBuffer));
-                    if (pixelBufferMethod) {
-                        original_AVCapturePhoto_pixelBuffer = (CVPixelBufferRef (*)(id, SEL))method_getImplementation(pixelBufferMethod);
-                        method_setImplementation(pixelBufferMethod, (IMP)hook_AVCapturePhoto_pixelBuffer);
-                        NSLog(@"[LC] ✅ L6: Photo pixelBuffer hook installed");
-                    }
-
-                    Method previewPixelBufferMethod = class_getInstanceMethod([AVCapturePhoto class], @selector(previewPixelBuffer));
-                    if (previewPixelBufferMethod) {
-                        original_AVCapturePhoto_previewPixelBuffer = (CVPixelBufferRef (*)(id, SEL))method_getImplementation(previewPixelBufferMethod);
-                        method_setImplementation(previewPixelBufferMethod, (IMP)hook_AVCapturePhoto_previewPixelBuffer);
-                        NSLog(@"[LC] ✅ L6: Photo previewPixelBuffer hook installed");
-                    }
-                    
-                    Method cgImageMethod = class_getInstanceMethod([AVCapturePhoto class], @selector(CGImageRepresentation));
-                    if (cgImageMethod) {
-                        original_AVCapturePhoto_CGImageRepresentation = (CGImageRef (*)(id, SEL))method_getImplementation(cgImageMethod);
-                        method_setImplementation(cgImageMethod, (IMP)hook_AVCapturePhoto_CGImageRepresentation);
-                        NSLog(@"[LC] ✅ L6: Photo CGImageRepresentation hook installed");
-                    }
-
-                    Method previewCGImageMethod = class_getInstanceMethod([AVCapturePhoto class], @selector(previewCGImageRepresentation));
-                    if (previewCGImageMethod) {
-                        original_AVCapturePhoto_previewCGImageRepresentation = (CGImageRef (*)(id, SEL))method_getImplementation(previewCGImageMethod);
-                        method_setImplementation(previewCGImageMethod, (IMP)hook_AVCapturePhoto_previewCGImageRepresentation);
-                        NSLog(@"[LC] ✅ L6: Photo previewCGImageRepresentation hook installed");
-                    }
-                    
-                    Method fileDataMethod = class_getInstanceMethod([AVCapturePhoto class], @selector(fileDataRepresentation));
-                    if (fileDataMethod) {
-                        original_AVCapturePhoto_fileDataRepresentation = (NSData *(*)(id, SEL))method_getImplementation(fileDataMethod);
-                        method_setImplementation(fileDataMethod, (IMP)hook_AVCapturePhoto_fileDataRepresentation);
-                        NSLog(@"[LC] ✅ L6: Photo fileDataRepresentation hook installed");
-                    }
-
-                    Method fileDataCustomizerMethod = class_getInstanceMethod([AVCapturePhoto class], @selector(fileDataRepresentationWithCustomizer:));
-                    if (fileDataCustomizerMethod) {
-                        original_AVCapturePhoto_fileDataRepresentationWithCustomizer =
-                            (NSData *(*)(id, SEL, id))method_getImplementation(fileDataCustomizerMethod);
-                        method_setImplementation(fileDataCustomizerMethod, (IMP)hook_AVCapturePhoto_fileDataRepresentationWithCustomizer);
-                        NSLog(@"[LC] ✅ L6: Photo fileDataRepresentationWithCustomizer hook installed");
-                    }
-
-                    Class deferredPhotoProxyClass = NSClassFromString(@"AVCaptureDeferredPhotoProxy");
-                    if (deferredPhotoProxyClass) {
-                        Method deferredPixelBufferMethod = class_getInstanceMethod(deferredPhotoProxyClass, @selector(pixelBuffer));
-                        if (deferredPixelBufferMethod) {
-                            original_AVCaptureDeferredPhotoProxy_pixelBuffer =
-                                (CVPixelBufferRef (*)(id, SEL))method_getImplementation(deferredPixelBufferMethod);
-                            method_setImplementation(deferredPixelBufferMethod, (IMP)hook_AVCaptureDeferredPhotoProxy_pixelBuffer);
-                            NSLog(@"[LC] ✅ L6: Deferred photo proxy pixelBuffer hook installed");
-                        }
-
-                        Method deferredPreviewPixelBufferMethod = class_getInstanceMethod(deferredPhotoProxyClass, @selector(previewPixelBuffer));
-                        if (deferredPreviewPixelBufferMethod) {
-                            original_AVCaptureDeferredPhotoProxy_previewPixelBuffer =
-                                (CVPixelBufferRef (*)(id, SEL))method_getImplementation(deferredPreviewPixelBufferMethod);
-                            method_setImplementation(deferredPreviewPixelBufferMethod, (IMP)hook_AVCaptureDeferredPhotoProxy_previewPixelBuffer);
-                            NSLog(@"[LC] ✅ L6: Deferred photo proxy previewPixelBuffer hook installed");
-                        }
-
-                        Method deferredCGImageMethod = class_getInstanceMethod(deferredPhotoProxyClass, @selector(CGImageRepresentation));
-                        if (deferredCGImageMethod) {
-                            original_AVCaptureDeferredPhotoProxy_CGImageRepresentation =
-                                (CGImageRef (*)(id, SEL))method_getImplementation(deferredCGImageMethod);
-                            method_setImplementation(deferredCGImageMethod, (IMP)hook_AVCaptureDeferredPhotoProxy_CGImageRepresentation);
-                            NSLog(@"[LC] ✅ L6: Deferred photo proxy CGImageRepresentation hook installed");
-                        }
-
-                        Method deferredPreviewCGImageMethod = class_getInstanceMethod(deferredPhotoProxyClass, @selector(previewCGImageRepresentation));
-                        if (deferredPreviewCGImageMethod) {
-                            original_AVCaptureDeferredPhotoProxy_previewCGImageRepresentation =
-                                (CGImageRef (*)(id, SEL))method_getImplementation(deferredPreviewCGImageMethod);
-                            method_setImplementation(deferredPreviewCGImageMethod, (IMP)hook_AVCaptureDeferredPhotoProxy_previewCGImageRepresentation);
-                            NSLog(@"[LC] ✅ L6: Deferred photo proxy previewCGImageRepresentation hook installed");
-                        }
-
-                        Method deferredFileDataMethod = class_getInstanceMethod(deferredPhotoProxyClass, @selector(fileDataRepresentation));
-                        if (deferredFileDataMethod) {
-                            original_AVCaptureDeferredPhotoProxy_fileDataRepresentation =
-                                (NSData *(*)(id, SEL))method_getImplementation(deferredFileDataMethod);
-                            method_setImplementation(deferredFileDataMethod, (IMP)hook_AVCaptureDeferredPhotoProxy_fileDataRepresentation);
-                            NSLog(@"[LC] ✅ L6: Deferred photo proxy fileDataRepresentation hook installed");
-                        }
-
-                        Method deferredFileDataCustomizerMethod = class_getInstanceMethod(deferredPhotoProxyClass, @selector(fileDataRepresentationWithCustomizer:));
-                        if (deferredFileDataCustomizerMethod) {
-                            original_AVCaptureDeferredPhotoProxy_fileDataRepresentationWithCustomizer =
-                                (NSData *(*)(id, SEL, id))method_getImplementation(deferredFileDataCustomizerMethod);
-                            method_setImplementation(deferredFileDataCustomizerMethod, (IMP)hook_AVCaptureDeferredPhotoProxy_fileDataRepresentationWithCustomizer);
-                            NSLog(@"[LC] ✅ L6: Deferred photo proxy fileDataRepresentationWithCustomizer hook installed");
-                        }
-                    }
-
-                    #pragma clang diagnostic push
-                    #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-                    Method jpegHelperMethod = class_getClassMethod([AVCapturePhotoOutput class], @selector(JPEGPhotoDataRepresentationForJPEGSampleBuffer:previewPhotoSampleBuffer:));
-                    #pragma clang diagnostic pop
-                    if (jpegHelperMethod) {
-                        original_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer =
-                            (NSData *(*)(id, SEL, CMSampleBufferRef, CMSampleBufferRef))method_getImplementation(jpegHelperMethod);
-                        method_setImplementation(jpegHelperMethod, (IMP)hook_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer);
-                        NSLog(@"[LC] ✅ L6: JPEGPhotoDataRepresentation helper hook installed");
-                    }
-                } @catch (NSException *e) {
-                    NSLog(@"[LC] ❌ Level 6 hook error: %@", e);
-                }
-                
-                NSLog(@"[LC] ✅ All hooks installed with error handling");
-                
-            } @catch (NSException *exception) {
-                NSLog(@"[LC] ❌ CRITICAL: Hook installation failed: %@", exception);
-            }
-        });
-        
-        if (spoofCameraEnabled) {
-             NSLog(@"[LC] ✅ Spoofing initialized - LastGoodBuffer: %s", 
-                   lastGoodSpoofedPixelBuffer ? "VALID" : "NULL");
-        }
-
     } @catch (NSException *exception) {
         NSLog(@"[LC] ❌ Exception during initialization: %@", exception);
     }
