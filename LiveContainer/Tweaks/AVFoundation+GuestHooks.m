@@ -233,6 +233,11 @@ static void LCMarkRecordingStarted(void) {
             g_pendingDeferredPhotoCaptureBlock = nil;
         }
     }
+
+    if (spoofCameraEnabled && spoofCameraUseVideoAudio) {
+        // Rebuild reader at recording start so audio follows the same scrub point as video.
+        setupAudioSpoofingResources();
+    }
 }
 
 static CMTime LCAudioSampleDuration(CMSampleBufferRef sampleBuffer) {
@@ -319,6 +324,48 @@ static CMSampleBufferRef createRetimedAudioSampleBuffer(CMSampleBufferRef sample
     return sampleBuffer;
 }
 
+static CMSampleBufferRef createAudioSampleBufferAlignedToReference(CMSampleBufferRef sampleBuffer,
+                                                                   CMSampleBufferRef referenceSampleBuffer) {
+    if (!sampleBuffer) {
+        return NULL;
+    }
+    if (!referenceSampleBuffer) {
+        CFRetain(sampleBuffer);
+        return sampleBuffer;
+    }
+
+    CMTime sourcePTS = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+    CMTime targetPTS = CMSampleBufferGetPresentationTimeStamp(referenceSampleBuffer);
+    if (!CMTIME_IS_VALID(sourcePTS) || CMTIME_IS_INDEFINITE(sourcePTS) ||
+        !CMTIME_IS_VALID(targetPTS) || CMTIME_IS_INDEFINITE(targetPTS)) {
+        CFRetain(sampleBuffer);
+        return sampleBuffer;
+    }
+
+    CMTime offset = CMTimeSubtract(targetPTS, sourcePTS);
+    return createRetimedAudioSampleBuffer(sampleBuffer, offset);
+}
+
+static CMTime LCNormalizedLoopTime(CMTime time, CMTime duration) {
+    if (!CMTIME_IS_VALID(time) || CMTIME_IS_INDEFINITE(time) ||
+        !CMTIME_IS_VALID(duration) || CMTIME_IS_INDEFINITE(duration) ||
+        CMTIME_COMPARE_INLINE(duration, <=, kCMTimeZero)) {
+        return kCMTimeInvalid;
+    }
+
+    Float64 durationSeconds = CMTimeGetSeconds(duration);
+    Float64 timeSeconds = CMTimeGetSeconds(time);
+    if (!isfinite(durationSeconds) || durationSeconds <= 0.0 || !isfinite(timeSeconds)) {
+        return kCMTimeInvalid;
+    }
+
+    Float64 normalizedSeconds = fmod(timeSeconds, durationSeconds);
+    if (normalizedSeconds < 0.0) {
+        normalizedSeconds += durationSeconds;
+    }
+    return CMTimeMakeWithSeconds(normalizedSeconds, duration.timescale > 0 ? duration.timescale : 600);
+}
+
 static BOOL setupAudioSpoofingReaderLocked(BOOL continueLoopTimeline) {
     if (!spoofCameraEnabled || spoofCameraVideoPath.length == 0) {
         return NO;
@@ -375,6 +422,25 @@ static BOOL setupAudioSpoofingReaderLocked(BOOL continueLoopTimeline) {
     if (!reader) {
         NSLog(@"[LC] 🔇 Failed to create audio reader: %@", readerError);
         return NO;
+    }
+
+    if (!continueLoopTimeline && frameExtractionPlayer && frameExtractionPlayer.currentItem) {
+        CMTime playbackDuration = frameExtractionPlayer.currentItem.duration;
+        if (!CMTIME_IS_VALID(playbackDuration) || CMTIME_COMPARE_INLINE(playbackDuration, <=, kCMTimeZero)) {
+            playbackDuration = asset.duration;
+        }
+        CMTime normalizedPlaybackTime = LCNormalizedLoopTime(frameExtractionPlayer.currentTime, playbackDuration);
+        CMTime seekableDuration = CMTIME_IS_VALID(asset.duration) ? asset.duration : trackDuration;
+        if (CMTIME_IS_VALID(normalizedPlaybackTime) &&
+            CMTIME_IS_VALID(seekableDuration) &&
+            CMTIME_COMPARE_INLINE(normalizedPlaybackTime, >, kCMTimeZero) &&
+            CMTIME_COMPARE_INLINE(seekableDuration, >, normalizedPlaybackTime)) {
+            CMTime remainingDuration = CMTimeSubtract(seekableDuration, normalizedPlaybackTime);
+            if (CMTIME_IS_VALID(remainingDuration) && CMTIME_COMPARE_INLINE(remainingDuration, >, kCMTimeZero)) {
+                reader.timeRange = CMTimeRangeMake(normalizedPlaybackTime, remainingDuration);
+                NSLog(@"[LC] 🔊 Audio reader synced to video time %.3fs", CMTimeGetSeconds(normalizedPlaybackTime));
+            }
+        }
     }
 
     NSDictionary *outputSettings = @{
@@ -3854,27 +3920,25 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
 
     CMSampleBufferRef spoofedAudioSampleBuffer = NULL;
     CMSampleBufferRef forwardedSampleBuffer = sampleBuffer;
-    BOOL droppedOriginalMicFrame = NO;
     if (spoofCameraEnabled && spoofCameraUseVideoAudio) {
         spoofedAudioSampleBuffer = copyNextSpoofedAudioSampleBuffer();
         if (spoofedAudioSampleBuffer) {
-            forwardedSampleBuffer = spoofedAudioSampleBuffer;
-        } else if (spoofCameraVideoPath.length > 0) {
-            droppedOriginalMicFrame = YES;
+            CMSampleBufferRef alignedAudioSampleBuffer = createAudioSampleBufferAlignedToReference(spoofedAudioSampleBuffer,
+                                                                                                   sampleBuffer);
+            if (alignedAudioSampleBuffer) {
+                CFRelease(spoofedAudioSampleBuffer);
+                spoofedAudioSampleBuffer = alignedAudioSampleBuffer;
+                forwardedSampleBuffer = spoofedAudioSampleBuffer;
+            } else {
+                forwardedSampleBuffer = sampleBuffer;
+            }
         }
     }
 
     if (audioFrameCounter % 120 == 0) {
         NSLog(@"[LC] 🔊 Audio delegate frame %lu forwarded (%s)",
               (unsigned long)audioFrameCounter,
-              (spoofedAudioSampleBuffer ? "SPOOFED" : (droppedOriginalMicFrame ? "DROPPED" : "ORIGINAL")));
-    }
-
-    if (droppedOriginalMicFrame) {
-        if (spoofedAudioSampleBuffer) {
-            CFRelease(spoofedAudioSampleBuffer);
-        }
-        return;
+              (spoofedAudioSampleBuffer ? "SPOOFED" : "ORIGINAL"));
     }
 
     if ([self.originalDelegate respondsToSelector:_cmd]) {
@@ -4898,14 +4962,20 @@ CMSampleBufferRef hook_AVCaptureSynchronizedSampleBufferData_sampleBuffer(id sel
             return originalSampleBuffer;
         }
         if (spoofCameraVideoPath.length == 0) {
-            return NULL;
+            return originalSampleBuffer;
         }
 
         CMSampleBufferRef spoofedAudioSampleBuffer = copyNextSpoofedAudioSampleBuffer();
         if (!spoofedAudioSampleBuffer) {
-            return NULL;
+            return originalSampleBuffer;
         }
-        return cacheSynchronizerSampleBufferAdopting(spoofedAudioSampleBuffer, YES);
+        CMSampleBufferRef alignedAudioSampleBuffer = createAudioSampleBufferAlignedToReference(spoofedAudioSampleBuffer,
+                                                                                               originalSampleBuffer);
+        CFRelease(spoofedAudioSampleBuffer);
+        if (!alignedAudioSampleBuffer) {
+            return originalSampleBuffer;
+        }
+        return cacheSynchronizerSampleBufferAdopting(alignedAudioSampleBuffer, YES);
     }
 
     return originalSampleBuffer;
