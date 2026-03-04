@@ -147,6 +147,7 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property int deviceSpoofBatteryState;         // 0=unknown,1=unplugged,2=charging,3=full
 @property bool deviceSpoofStorage;
 @property (nonatomic) NSString* deviceSpoofStorageCapacity; // GB string e.g. "256"
+@property bool deviceSpoofStorageCapacityManual;            // YES if user explicitly selected capacity
 @property bool deviceSpoofStorageRandomFree;
 @property (nonatomic) NSString* deviceSpoofStorageFreeGB;   // e.g. "45.2"
 @property bool deviceSpoofBrightness;

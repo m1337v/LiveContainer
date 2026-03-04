@@ -2586,6 +2586,10 @@ struct LCAppSettingsView: View {
         }
         .onChange(of: model.uiDeviceSpoofProfile) { _ in
             applyProfileDefaultsIfNeeded(force: false)
+            applyProfileStorageCapacityIfNeeded(force: false)
+        }
+        .onAppear {
+            applyProfileStorageCapacityIfNeeded(force: false)
         }
     }
 
@@ -3340,7 +3344,7 @@ struct LCAppSettingsView: View {
         }
         if model.uiDeviceSpoofStorage {
             VStack(alignment: .leading, spacing: 8) {
-                Picker("Capacity", selection: $model.uiDeviceSpoofStorageCapacity) {
+                Picker("Capacity", selection: deviceSpoofStorageCapacityBinding) {
                     Text("64 GB").tag("64")
                     Text("128 GB").tag("128")
                     Text("256 GB").tag("256")
@@ -3606,6 +3610,18 @@ struct LCAppSettingsView: View {
         )
     }
 
+    private var deviceSpoofStorageCapacityBinding: Binding<String> {
+        Binding(
+            get: {
+                model.uiDeviceSpoofStorageCapacity
+            },
+            set: { newValue in
+                model.uiDeviceSpoofStorageCapacity = newValue
+                appInfo.deviceSpoofStorageCapacityManual = true
+            }
+        )
+    }
+
     private func randomizeCarrierProfile() {
         let presets: [(name: String, mcc: String, mnc: String, country: String)] = [
             ("Verizon", "311", "480", "us"),
@@ -3673,6 +3689,21 @@ struct LCAppSettingsView: View {
         let chars = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
         guard length > 0, !chars.isEmpty else { return "" }
         return String((0..<length).compactMap { _ in chars.randomElement() })
+    }
+
+    private func applyProfileStorageCapacityIfNeeded(force: Bool) {
+        if !force && appInfo.deviceSpoofStorageCapacityManual {
+            return
+        }
+
+        let minimumCapacity = LCAppModel.minimumStorageCapacity(for: model.uiDeviceSpoofProfile)
+        let currentCapacity = model.uiDeviceSpoofStorageCapacity.trimmingCharacters(in: .whitespacesAndNewlines)
+        if currentCapacity == minimumCapacity && !appInfo.deviceSpoofStorageCapacityManual {
+            return
+        }
+
+        model.uiDeviceSpoofStorageCapacity = minimumCapacity
+        appInfo.deviceSpoofStorageCapacityManual = false
     }
 
     private func applyProfileDefaultsIfNeeded(force: Bool) {

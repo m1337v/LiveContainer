@@ -2212,14 +2212,28 @@ static BOOL LCIsContainerScopedAddonKey(NSString *key) {
 }
 
 - (NSString *)deviceSpoofStorageCapacity {
-    return _info[@"deviceSpoofStorageCapacity"] ?: @"256";
+    return _info[@"deviceSpoofStorageCapacity"];
 }
 - (void)setDeviceSpoofStorageCapacity:(NSString *)cap {
     if (cap.length > 0) {
         _info[@"deviceSpoofStorageCapacity"] = cap;
     } else {
         [_info removeObjectForKey:@"deviceSpoofStorageCapacity"];
+        [_info removeObjectForKey:@"deviceSpoofStorageCapacityManual"];
     }
+    [self save];
+}
+
+- (bool)deviceSpoofStorageCapacityManual {
+    id explicitValue = _info[@"deviceSpoofStorageCapacityManual"];
+    if (explicitValue != nil) {
+        return [explicitValue boolValue];
+    }
+    // Legacy fallback: a stored capacity before this flag existed is treated as a manual override.
+    return _info[@"deviceSpoofStorageCapacity"] != nil;
+}
+- (void)setDeviceSpoofStorageCapacityManual:(bool)manual {
+    _info[@"deviceSpoofStorageCapacityManual"] = @(manual);
     [self save];
 }
 

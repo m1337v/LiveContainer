@@ -737,7 +737,8 @@ class LCAppModel: ObservableObject, Hashable {
             "iPhone 13 Pro Max",
             "iPhone 13 Pro"
         ]
-        self.uiDeviceSpoofProfile = supportedDeviceProfiles.contains(storedDeviceProfile) ? storedDeviceProfile : "iPhone 17"
+        let normalizedDeviceProfile = supportedDeviceProfiles.contains(storedDeviceProfile) ? storedDeviceProfile : "iPhone 17"
+        self.uiDeviceSpoofProfile = normalizedDeviceProfile
         self.uiDeviceSpoofCustomVersion = appInfo.deviceSpoofCustomVersion ?? "26.3"
         self.uiDeviceSpoofDeviceName = appInfo.deviceSpoofDeviceName
         self.uiDeviceSpoofDeviceNameValue = appInfo.deviceSpoofDeviceNameValue ?? "iPhone"
@@ -812,7 +813,8 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDeviceSpoofBatteryLevel = appInfo.deviceSpoofBatteryLevel
         self.uiDeviceSpoofBatteryState = Int(appInfo.deviceSpoofBatteryState)
         self.uiDeviceSpoofStorage = appInfo.deviceSpoofStorage
-        self.uiDeviceSpoofStorageCapacity = appInfo.deviceSpoofStorageCapacity ?? "256"
+        self.uiDeviceSpoofStorageCapacity = Self.resolvedStorageCapacity(for: normalizedDeviceProfile,
+                                                                         storedCapacity: appInfo.deviceSpoofStorageCapacity)
         self.uiDeviceSpoofStorageRandomFree = appInfo.deviceSpoofStorageRandomFree
         self.uiDeviceSpoofStorageFreeGB = appInfo.deviceSpoofStorageFreeGB ?? ""
         self.uiDeviceSpoofBrightness = appInfo.deviceSpoofBrightness
@@ -868,6 +870,34 @@ class LCAppModel: ObservableObject, Hashable {
             "iPhone 13 Pro"
         ]
         return supportedDeviceProfiles.contains(storedDeviceProfile) ? storedDeviceProfile : "iPhone 17"
+    }
+
+    static func minimumStorageCapacity(for profile: String) -> String {
+        switch profile {
+        case "iPhone 17 Pro Max", "iPhone 17 Pro", "iPhone 17", "iPhone 17 Air":
+            return "256"
+        case "iPhone 16 Pro Max", "iPhone 15 Pro Max":
+            return "256"
+        case "iPhone 16 Pro", "iPhone 16", "iPhone 16e",
+             "iPhone 15 Pro",
+             "iPhone 14 Pro Max", "iPhone 14 Pro",
+             "iPhone 13 Pro Max", "iPhone 13 Pro":
+            return "128"
+        default:
+            return "256"
+        }
+    }
+
+    private static func resolvedStorageCapacity(for profile: String, storedCapacity: String?) -> String {
+        guard let storedCapacity else {
+            return Self.minimumStorageCapacity(for: profile)
+        }
+        let normalized = storedCapacity.trimmingCharacters(in: .whitespacesAndNewlines)
+        let supportedCapacities: Set<String> = ["64", "128", "256", "512", "1024"]
+        if supportedCapacities.contains(normalized) {
+            return normalized
+        }
+        return Self.minimumStorageCapacity(for: profile)
     }
 
     private func applyAddonSettingsFromAppInfo() {
@@ -967,7 +997,8 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDeviceSpoofBatteryLevel = appInfo.deviceSpoofBatteryLevel
         self.uiDeviceSpoofBatteryState = Int(appInfo.deviceSpoofBatteryState)
         self.uiDeviceSpoofStorage = appInfo.deviceSpoofStorage
-        self.uiDeviceSpoofStorageCapacity = appInfo.deviceSpoofStorageCapacity ?? "256"
+        self.uiDeviceSpoofStorageCapacity = Self.resolvedStorageCapacity(for: self.uiDeviceSpoofProfile,
+                                                                         storedCapacity: appInfo.deviceSpoofStorageCapacity)
         self.uiDeviceSpoofStorageRandomFree = appInfo.deviceSpoofStorageRandomFree
         self.uiDeviceSpoofStorageFreeGB = appInfo.deviceSpoofStorageFreeGB ?? ""
         self.uiDeviceSpoofBrightness = appInfo.deviceSpoofBrightness

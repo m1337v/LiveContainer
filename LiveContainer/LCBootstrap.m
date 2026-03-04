@@ -56,6 +56,32 @@ static NSString *LCSpoofBuildForSystemVersion(NSString *version) {
     return versionToBuild[version];
 }
 
+static NSString *LCDefaultStorageCapacityForProfile(NSString *profile) {
+    static NSDictionary<NSString *, NSString *> *profileToCapacity = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        profileToCapacity = @{
+            @"iPhone 17 Pro Max": @"256",
+            @"iPhone 17 Pro": @"256",
+            @"iPhone 17": @"256",
+            @"iPhone 17 Air": @"256",
+            @"iPhone 16 Pro Max": @"256",
+            @"iPhone 16 Pro": @"128",
+            @"iPhone 16": @"128",
+            @"iPhone 16e": @"128",
+            @"iPhone 15 Pro Max": @"256",
+            @"iPhone 15 Pro": @"128",
+            @"iPhone 14 Pro Max": @"128",
+            @"iPhone 14 Pro": @"128",
+            @"iPhone 13 Pro Max": @"128",
+            @"iPhone 13 Pro": @"128",
+        };
+    });
+
+    NSString *resolvedProfile = [profile isKindOfClass:NSString.class] && profile.length > 0 ? profile : @"iPhone 17";
+    return profileToCapacity[resolvedProfile] ?: @"256";
+}
+
 static NSTimeInterval LCUptimeSecondsFromPreset(NSString *preset) {
     NSString *value = [[preset ?: @"medium" lowercaseString] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
     if ([value isEqualToString:@"short"]) return 2 * 3600;      // midpoint of 1-4h
@@ -1110,11 +1136,19 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
 
         // Storage capacity spoofing
         if ([guestAppInfo[@"deviceSpoofStorage"] boolValue]) {
-            NSString *cap = guestAppInfo[@"deviceSpoofStorageCapacity"] ?: @"256";
+            NSString *cap = guestAppInfo[@"deviceSpoofStorageCapacity"];
+            if (cap.length == 0) {
+                cap = LCDefaultStorageCapacityForProfile(deviceProfile);
+            }
+            long long capGB = [cap longLongValue];
+            if (capGB <= 0) {
+                cap = LCDefaultStorageCapacityForProfile(deviceProfile);
+                capGB = [cap longLongValue];
+            }
             id randomizeFreeObj = guestAppInfo[@"deviceSpoofStorageRandomFree"];
             BOOL randomizeFree = randomizeFreeObj ? [randomizeFreeObj boolValue] : YES;
             LCSetStorageRandomFreeEnabled(randomizeFree);
-            LCSetSpoofedStorageCapacity([cap longLongValue]);
+            LCSetSpoofedStorageCapacity(capGB);
             if (!randomizeFree) {
                 NSString *freeGB = guestAppInfo[@"deviceSpoofStorageFreeGB"];
                 if (freeGB.length > 0) {
