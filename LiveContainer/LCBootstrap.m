@@ -951,14 +951,15 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
 
         // Migrate historical iPhone 17 defaults that used older T8140/T8130 kernel codes.
         // If present, prefer profile-derived kernel metadata (T8150) for consistency.
-        if (explicitKernelOverride &&
-            [deviceProfile hasPrefix:@"iPhone 17"] &&
-            kernelVersion.length > 0)
-        {
+        NSString *normalizedProfile = [[[deviceProfile lowercaseString] stringByReplacingOccurrencesOfString:@" " withString:@""]
+                                       stringByReplacingOccurrencesOfString:@"-" withString:@""];
+        BOOL isIPhone17FamilyProfile = [normalizedProfile hasPrefix:@"iphone17"];
+        if (explicitKernelOverride && isIPhone17FamilyProfile) {
             NSString *normalizedKernel = kernelVersion.lowercaseString;
-            if ([normalizedKernel containsString:@"release_arm64_t8140"] ||
-                [normalizedKernel containsString:@"release_arm64_t8130"])
-            {
+            BOOL hasLegacySocCode = [normalizedKernel containsString:@"release_arm64_t8140"] ||
+                                    [normalizedKernel containsString:@"release_arm64_t8130"];
+            BOOL hasLegacyKernelRelease = (kernelRelease.length > 0 && [kernelRelease hasPrefix:@"24."]);
+            if (hasLegacySocCode || hasLegacyKernelRelease) {
                 kernelVersion = @"";
                 kernelRelease = @"";
                 explicitKernelOverride = NO;

@@ -612,14 +612,20 @@ static void (*orig_WKWebViewConfiguration_setApplicationNameForUserAgent)(id sel
 
 static NSTimeZone *(*orig_NSTimeZone_localTimeZone)(id self, SEL _cmd) = NULL;
 static NSTimeZone *(*orig_NSTimeZone_systemTimeZone)(id self, SEL _cmd) = NULL;
+static NSTimeZone *(*orig_NSTimeZone_defaultTimeZone)(id self, SEL _cmd) = NULL;
 static NSLocale *(*orig_NSLocale_currentLocale)(id self, SEL _cmd) = NULL;
 static NSLocale *(*orig_NSLocale_autoupdatingCurrentLocale)(id self, SEL _cmd) = NULL;
+static NSLocale *(*orig_NSLocale_systemLocale)(id self, SEL _cmd) = NULL;
 static NSArray<NSString *> *(*orig_NSLocale_preferredLanguages)(id self, SEL _cmd) = NULL;
 static id (*orig_NSLocale_objectForKey)(id self, SEL _cmd, id key) = NULL;
 static NSString *(*orig_NSLocale_countryCode)(id self, SEL _cmd) = NULL;
 static NSString *(*orig_NSLocale_currencyCode)(id self, SEL _cmd) = NULL;
 static NSString *(*orig_NSLocale_currencySymbol)(id self, SEL _cmd) = NULL;
 static BOOL (*orig_NSLocale_usesMetricSystem)(id self, SEL _cmd) = NULL;
+static NSOperatingSystemVersion (*orig_SwiftNSProcessInfo_operatingSystemVersion)(id self, SEL _cmd) = NULL;
+static NSString *(*orig_SwiftNSProcessInfo_operatingSystemVersionString)(id self, SEL _cmd) = NULL;
+static NSString *(*orig_SwiftNSProcessInfo_hostName)(id self, SEL _cmd) = NULL;
+static BOOL (*orig_SwiftNSProcessInfo_isOperatingSystemAtLeastVersion)(id self, SEL _cmd, NSOperatingSystemVersion version) = NULL;
 static BOOL (*orig_UIScreen_isCaptured)(id self, SEL _cmd) = NULL;
 static CGRect (*orig_UIApplication_statusBarFrame)(id self, SEL _cmd) = NULL;
 static CGRect (*orig_UIStatusBarManager_statusBarFrame)(id self, SEL _cmd) = NULL;
@@ -1263,7 +1269,8 @@ static NSOperatingSystemVersion LCParseOSVersion(NSString *versionString) {
 static NSString *LCSpoofedOSVersionString(void) {
     const char *version = LCSpoofedSystemVersion();
     const char *build = LCSpoofedBuildVersion();
-    if (!version || !build) return nil;
+    if (!version) return nil;
+    if (!build) return [NSString stringWithFormat:@"Version %s", version];
     return [NSString stringWithFormat:@"Version %s (Build %s)", version, build];
 }
 
@@ -1637,22 +1644,7 @@ static NSString *LCSpoofedDeviceNameString(void) {
     return nil;
 }
 
-static NSString *LCSpoofedVendorIdentifierString(void) {
-    if (!LCDeviceSpoofingIsActive()) return nil;
-    if (LCShouldForceZeroVendorID()) return LCZeroUUIDString;
-
-    NSString *vendorID = LCNormalizedUUIDString(g_spoofedVendorID);
-    if (vendorID.length > 0) return vendorID;
-
-    NSString *persistentID = LCNormalizedUUIDString(g_spoofedPersistentDeviceID);
-    if (persistentID.length > 0) return persistentID;
-
-    return nil;
-}
-
-static NSString *LCSpoofedHostNameString(void) {
-    if (!LCDeviceSpoofingIsActive()) return nil;
-    NSString *candidate = LCSpoofedDeviceNameString();
+static NSString *LCNormalizedHostNameCandidate(NSString *candidate) {
     if (candidate.length == 0) return nil;
 
     NSCharacterSet *allowed = [NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-."];
@@ -1668,8 +1660,38 @@ static NSString *LCSpoofedHostNameString(void) {
     while ([normalized containsString:@"--"]) {
         [normalized replaceOccurrencesOfString:@"--" withString:@"-" options:0 range:NSMakeRange(0, normalized.length)];
     }
-    NSString *trimmed = [normalized stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"-."]];
+    NSString *trimmed = [[normalized stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"-."]] lowercaseString];
     return trimmed.length > 0 ? trimmed : nil;
+}
+
+static NSString *LCSpoofedVendorIdentifierString(void) {
+    if (!LCDeviceSpoofingIsActive()) return nil;
+    if (LCShouldForceZeroVendorID()) return LCZeroUUIDString;
+
+    NSString *vendorID = LCNormalizedUUIDString(g_spoofedVendorID);
+    if (vendorID.length > 0) return vendorID;
+
+    NSString *persistentID = LCNormalizedUUIDString(g_spoofedPersistentDeviceID);
+    if (persistentID.length > 0) return persistentID;
+
+    return nil;
+}
+
+static NSString *LCSpoofedHostNameString(void) {
+    if (!LCDeviceSpoofingIsActive()) return nil;
+    if (g_customDeviceName.length > 0) {
+        NSString *normalizedCustom = LCNormalizedHostNameCandidate(g_customDeviceName);
+        if (normalizedCustom.length > 0) {
+            return normalizedCustom;
+        }
+    }
+
+    const char *machine = LCSpoofedMachineModel();
+    if (machine) {
+        if (strncmp(machine, "iPad", 4) == 0) return @"ipad";
+        if (strncmp(machine, "iPod", 4) == 0) return @"ipod";
+    }
+    return @"iphone";
 }
 
 static NSString *LCSpoofedBootSessionUUIDString(void) {
@@ -2164,7 +2186,9 @@ static int hook_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void
                    strcmp(name, "hw.perflevel1.physicalcpu_max") == 0) {
             uint32_t value = LCSpoofedEfficiencyCoreCount();
             if (value > 0) return LCWriteU32Value(oldp, oldlenp, value);
-        } else if (strcmp(name, "hw.cpu.brand_string") == 0 || strcmp(name, "hw.cpubrand") == 0) {
+        } else if (strcmp(name, "hw.cpu.brand_string") == 0 ||
+                   strcmp(name, "hw.cpubrand") == 0 ||
+                   strcmp(name, "machdep.cpu.brand_string") == 0) {
             const char *value = LCSpoofedChipName();
             if (value) return LCWriteCStringValue(oldp, oldlenp, value);
         } else if (strcmp(name, "hw.cputype") == 0) {
@@ -2240,7 +2264,9 @@ static int hook_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void
         } else if (strcmp(name, "kern.osrelease") == 0) {
             const char *value = LCSpoofedKernelRelease();
             if (value) return LCWriteCStringValue(oldp, oldlenp, value);
-        } else if (strcmp(name, "kern.osproductversion") == 0) {
+        } else if (strcmp(name, "kern.osproductversion") == 0 ||
+                   strcmp(name, "kern.osproductversioncompat") == 0 ||
+                   strcmp(name, "kern.osversioncompat") == 0) {
             const char *value = LCSpoofedSystemVersion();
             if (value) return LCWriteCStringValue(oldp, oldlenp, value);
         } else if (strcmp(name, "kern.version") == 0) {
@@ -3282,6 +3308,33 @@ static NSString *hook_NSProcessInfo_hostName(id self, SEL _cmd) {
     return @"localhost";
 }
 
+static NSOperatingSystemVersion hook_SwiftNSProcessInfo_operatingSystemVersion(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        const char *value = LCSpoofedSystemVersion();
+        if (value) return LCParseOSVersion(@(value));
+    }
+    if (orig_SwiftNSProcessInfo_operatingSystemVersion) return orig_SwiftNSProcessInfo_operatingSystemVersion(self, _cmd);
+    return (NSOperatingSystemVersion){0, 0, 0};
+}
+
+static NSString *hook_SwiftNSProcessInfo_operatingSystemVersionString(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        NSString *value = LCSpoofedOSVersionString();
+        if (value.length > 0) return value;
+    }
+    if (orig_SwiftNSProcessInfo_operatingSystemVersionString) return orig_SwiftNSProcessInfo_operatingSystemVersionString(self, _cmd);
+    return @"";
+}
+
+static NSString *hook_SwiftNSProcessInfo_hostName(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive()) {
+        NSString *hostName = LCSpoofedHostNameString();
+        if (hostName.length > 0) return hostName;
+    }
+    if (orig_SwiftNSProcessInfo_hostName) return orig_SwiftNSProcessInfo_hostName(self, _cmd);
+    return @"localhost";
+}
+
 static NSString *hook_NSProcessInfo_operatingSystemName(id self, SEL _cmd) {
     if (LCDeviceSpoofingIsActive()) {
         const char *value = LCSpoofedSystemName();
@@ -3470,21 +3523,31 @@ static NSDictionary *hook_CTTelephonyNetworkInfo_serviceCurrentRadioAccessTechno
 
 // MARK: - Timezone hooks
 
-static NSTimeZone *hook_NSTimeZone_localTimeZone(id self, SEL _cmd) {
-    if (LCDeviceSpoofingIsActive() && g_spoofedTimezone.length > 0) {
-        NSTimeZone *tz = [NSTimeZone timeZoneWithName:g_spoofedTimezone];
-        if (tz) return tz;
+static NSTimeZone *LCSpoofedTimeZone(void) {
+    if (!LCDeviceSpoofingIsActive() || g_spoofedTimezone.length == 0) {
+        return nil;
     }
+    return [NSTimeZone timeZoneWithName:g_spoofedTimezone];
+}
+
+static NSTimeZone *hook_NSTimeZone_localTimeZone(id self, SEL _cmd) {
+    NSTimeZone *tz = LCSpoofedTimeZone();
+    if (tz) return tz;
     if (orig_NSTimeZone_localTimeZone) return orig_NSTimeZone_localTimeZone(self, _cmd);
     return [NSTimeZone timeZoneWithAbbreviation:@"UTC"];
 }
 
 static NSTimeZone *hook_NSTimeZone_systemTimeZone(id self, SEL _cmd) {
-    if (LCDeviceSpoofingIsActive() && g_spoofedTimezone.length > 0) {
-        NSTimeZone *tz = [NSTimeZone timeZoneWithName:g_spoofedTimezone];
-        if (tz) return tz;
-    }
+    NSTimeZone *tz = LCSpoofedTimeZone();
+    if (tz) return tz;
     if (orig_NSTimeZone_systemTimeZone) return orig_NSTimeZone_systemTimeZone(self, _cmd);
+    return [NSTimeZone timeZoneWithAbbreviation:@"UTC"];
+}
+
+static NSTimeZone *hook_NSTimeZone_defaultTimeZone(id self, SEL _cmd) {
+    NSTimeZone *tz = LCSpoofedTimeZone();
+    if (tz) return tz;
+    if (orig_NSTimeZone_defaultTimeZone) return orig_NSTimeZone_defaultTimeZone(self, _cmd);
     return [NSTimeZone timeZoneWithAbbreviation:@"UTC"];
 }
 
@@ -3503,6 +3566,14 @@ static NSLocale *hook_NSLocale_autoupdatingCurrentLocale(id self, SEL _cmd) {
         return [[NSLocale alloc] initWithLocaleIdentifier:g_spoofedLocale];
     }
     if (orig_NSLocale_autoupdatingCurrentLocale) return orig_NSLocale_autoupdatingCurrentLocale(self, _cmd);
+    return [[NSLocale alloc] initWithLocaleIdentifier:@"en_US"];
+}
+
+static NSLocale *hook_NSLocale_systemLocale(id self, SEL _cmd) {
+    if (LCDeviceSpoofingIsActive() && g_spoofedLocale.length > 0) {
+        return [[NSLocale alloc] initWithLocaleIdentifier:g_spoofedLocale];
+    }
+    if (orig_NSLocale_systemLocale) return orig_NSLocale_systemLocale(self, _cmd);
     return [[NSLocale alloc] initWithLocaleIdentifier:@"en_US"];
 }
 
@@ -3540,7 +3611,7 @@ static BOOL hook_NSLocale_usesMetricSystem(id self, SEL _cmd) {
 }
 
 static NSArray<NSString *> *hook_NSLocale_preferredLanguages(id self, SEL _cmd) {
-    if (LCDeviceSpoofingIsActive() && g_userDefaultsSpoofingEnabled) {
+    if (LCDeviceSpoofingIsActive() && (g_userDefaultsSpoofingEnabled || g_spoofedLocale.length > 0)) {
         return @[LCSpoofedLanguageTag()];
     }
     if (orig_NSLocale_preferredLanguages) return orig_NSLocale_preferredLanguages(self, _cmd);
@@ -3549,7 +3620,11 @@ static NSArray<NSString *> *hook_NSLocale_preferredLanguages(id self, SEL _cmd) 
 
 static id hook_NSLocale_objectForKey(id self, SEL _cmd, id key) {
     id original = orig_NSLocale_objectForKey ? orig_NSLocale_objectForKey(self, _cmd, key) : nil;
-    if (!LCDeviceSpoofingIsActive() || (g_spoofedLocale.length == 0 && g_spoofedPreferredCountryCode.length == 0)) {
+    if (!LCDeviceSpoofingIsActive() ||
+        (g_spoofedLocale.length == 0 &&
+         g_spoofedPreferredCountryCode.length == 0 &&
+         g_spoofedLocaleCurrencyCode.length == 0 &&
+         g_spoofedLocaleCurrencySymbol.length == 0)) {
         return original;
     }
 
@@ -4681,6 +4756,26 @@ static BOOL hook_NSProcessInfo_isOperatingSystemAtLeastVersion(id self, SEL _cmd
     return NO;
 }
 
+static BOOL hook_SwiftNSProcessInfo_isOperatingSystemAtLeastVersion(id self, SEL _cmd, NSOperatingSystemVersion version) {
+    if (LCDeviceSpoofingIsActive()) {
+        const char *v = LCSpoofedSystemVersion();
+        if (v) {
+            NSOperatingSystemVersion spoofed = LCParseOSVersion(@(v));
+            BOOL result = (spoofed.majorVersion > version.majorVersion) ||
+                ((spoofed.majorVersion == version.majorVersion) &&
+                 (spoofed.minorVersion > version.minorVersion)) ||
+                ((spoofed.majorVersion == version.majorVersion) &&
+                 (spoofed.minorVersion == version.minorVersion) &&
+                 (spoofed.patchVersion >= version.patchVersion));
+            return result;
+        }
+    }
+    if (orig_SwiftNSProcessInfo_isOperatingSystemAtLeastVersion) {
+        return orig_SwiftNSProcessInfo_isOperatingSystemAtLeastVersion(self, _cmd, version);
+    }
+    return NO;
+}
+
 // MARK: - NSMutableURLRequest User-Agent hook
 static void hook_NSMutableURLRequest_setValue_forHTTPHeaderField(id self, SEL _cmd, NSString *value, NSString *field) {
     NSString *outValue = value;
@@ -5768,6 +5863,26 @@ void DeviceSpoofingGuestHooksInit(void) {
             [swiftProcessInfoClass instancesRespondToSelector:swiftPhysicalMemorySelector]) {
             LCInstallInstanceHook(swiftProcessInfoClass, swiftPhysicalMemorySelector, (IMP)hook_SwiftNSProcessInfo_physicalMemory, (IMP *)&orig_SwiftNSProcessInfo_physicalMemory);
         }
+        SEL swiftOSVersionSelector = @selector(operatingSystemVersion);
+        if (swiftProcessInfoClass && swiftOSVersionSelector &&
+            [swiftProcessInfoClass instancesRespondToSelector:swiftOSVersionSelector]) {
+            LCInstallInstanceHook(swiftProcessInfoClass, swiftOSVersionSelector, (IMP)hook_SwiftNSProcessInfo_operatingSystemVersion, (IMP *)&orig_SwiftNSProcessInfo_operatingSystemVersion);
+        }
+        SEL swiftOSVersionStringSelector = @selector(operatingSystemVersionString);
+        if (swiftProcessInfoClass && swiftOSVersionStringSelector &&
+            [swiftProcessInfoClass instancesRespondToSelector:swiftOSVersionStringSelector]) {
+            LCInstallInstanceHook(swiftProcessInfoClass, swiftOSVersionStringSelector, (IMP)hook_SwiftNSProcessInfo_operatingSystemVersionString, (IMP *)&orig_SwiftNSProcessInfo_operatingSystemVersionString);
+        }
+        SEL swiftHostNameSelector = @selector(hostName);
+        if (swiftProcessInfoClass && swiftHostNameSelector &&
+            [swiftProcessInfoClass instancesRespondToSelector:swiftHostNameSelector]) {
+            LCInstallInstanceHook(swiftProcessInfoClass, swiftHostNameSelector, (IMP)hook_SwiftNSProcessInfo_hostName, (IMP *)&orig_SwiftNSProcessInfo_hostName);
+        }
+        SEL swiftAtLeastSelector = @selector(isOperatingSystemAtLeastVersion:);
+        if (swiftProcessInfoClass && swiftAtLeastSelector &&
+            [swiftProcessInfoClass instancesRespondToSelector:swiftAtLeastSelector]) {
+            LCInstallInstanceHook(swiftProcessInfoClass, swiftAtLeastSelector, (IMP)hook_SwiftNSProcessInfo_isOperatingSystemAtLeastVersion, (IMP *)&orig_SwiftNSProcessInfo_isOperatingSystemAtLeastVersion);
+        }
 
         Class uiScreenClass = objc_getClass("UIScreen");
         LCInstallInstanceHook(uiScreenClass, @selector(brightness), (IMP)hook_UIScreen_brightness, (IMP *)&orig_UIScreen_brightness);
@@ -5853,43 +5968,39 @@ void DeviceSpoofingGuestHooksInit(void) {
             LCInstallInstanceHook(telephonyInfoClass, serviceRATSelector, (IMP)hook_CTTelephonyNetworkInfo_serviceCurrentRadioAccessTechnology, (IMP *)&orig_CTTelephonyNetworkInfo_serviceCurrentRadioAccessTechnology);
         }
 
-        // Timezone hooks (class methods)
-        if (g_spoofedTimezone.length > 0) {
-            Class timeZoneClass = objc_getClass("NSTimeZone");
+        // Timezone hooks (class methods) are always installed to avoid startup race leakage.
+        Class timeZoneClass = objc_getClass("NSTimeZone");
+        if (timeZoneClass) {
             Class timeZoneMeta = object_getClass(timeZoneClass);
-            LCInstallInstanceHook(timeZoneMeta, @selector(localTimeZone), (IMP)hook_NSTimeZone_localTimeZone, (IMP *)&orig_NSTimeZone_localTimeZone);
-            LCInstallInstanceHook(timeZoneMeta, @selector(systemTimeZone), (IMP)hook_NSTimeZone_systemTimeZone, (IMP *)&orig_NSTimeZone_systemTimeZone);
+            if (timeZoneMeta) {
+                LCInstallInstanceHook(timeZoneMeta, @selector(localTimeZone), (IMP)hook_NSTimeZone_localTimeZone, (IMP *)&orig_NSTimeZone_localTimeZone);
+                LCInstallInstanceHook(timeZoneMeta, @selector(systemTimeZone), (IMP)hook_NSTimeZone_systemTimeZone, (IMP *)&orig_NSTimeZone_systemTimeZone);
+                SEL defaultTimeZoneSelector = @selector(defaultTimeZone);
+                if ([timeZoneMeta respondsToSelector:defaultTimeZoneSelector]) {
+                    LCInstallInstanceHook(timeZoneMeta, defaultTimeZoneSelector, (IMP)hook_NSTimeZone_defaultTimeZone, (IMP *)&orig_NSTimeZone_defaultTimeZone);
+                }
+            }
         }
 
-        // Locale hooks (class methods)
-        if (g_spoofedLocale.length > 0 || g_spoofedPreferredCountryCode.length > 0 || g_userDefaultsSpoofingEnabled) {
-            Class localeClass = objc_getClass("NSLocale");
-            Class localeMeta = object_getClass(localeClass);
-            if (g_spoofedLocale.length > 0) {
-                LCInstallInstanceHook(localeMeta, @selector(currentLocale), (IMP)hook_NSLocale_currentLocale, (IMP *)&orig_NSLocale_currentLocale);
-                LCInstallInstanceHook(localeMeta, @selector(autoupdatingCurrentLocale), (IMP)hook_NSLocale_autoupdatingCurrentLocale, (IMP *)&orig_NSLocale_autoupdatingCurrentLocale);
+        // Locale hooks (class methods) are always installed to avoid startup race leakage.
+        Class localeClass = objc_getClass("NSLocale");
+        Class localeMeta = localeClass ? object_getClass(localeClass) : Nil;
+        if (localeMeta) {
+            LCInstallInstanceHook(localeMeta, @selector(currentLocale), (IMP)hook_NSLocale_currentLocale, (IMP *)&orig_NSLocale_currentLocale);
+            LCInstallInstanceHook(localeMeta, @selector(autoupdatingCurrentLocale), (IMP)hook_NSLocale_autoupdatingCurrentLocale, (IMP *)&orig_NSLocale_autoupdatingCurrentLocale);
+            SEL systemLocaleSelector = @selector(systemLocale);
+            if ([localeMeta respondsToSelector:systemLocaleSelector]) {
+                LCInstallInstanceHook(localeMeta, systemLocaleSelector, (IMP)hook_NSLocale_systemLocale, (IMP *)&orig_NSLocale_systemLocale);
             }
             SEL preferredLanguagesSelector = @selector(preferredLanguages);
-            if (g_userDefaultsSpoofingEnabled && preferredLanguagesSelector && [localeMeta respondsToSelector:preferredLanguagesSelector]) {
+            if (preferredLanguagesSelector && [localeMeta respondsToSelector:preferredLanguagesSelector]) {
                 LCInstallInstanceHook(localeMeta, preferredLanguagesSelector, (IMP)hook_NSLocale_preferredLanguages, (IMP *)&orig_NSLocale_preferredLanguages);
             }
-            if (g_spoofedPreferredCountryCode.length > 0) {
-                LCInstallInstanceHook(localeClass, @selector(countryCode), (IMP)hook_NSLocale_countryCode, (IMP *)&orig_NSLocale_countryCode);
-            }
-            if (g_spoofedLocaleCurrencyCode.length > 0) {
-                LCInstallInstanceHook(localeClass, @selector(currencyCode), (IMP)hook_NSLocale_currencyCode, (IMP *)&orig_NSLocale_currencyCode);
-            }
-            if (g_spoofedLocaleCurrencySymbol.length > 0) {
-                LCInstallInstanceHook(localeClass, @selector(currencySymbol), (IMP)hook_NSLocale_currencySymbol, (IMP *)&orig_NSLocale_currencySymbol);
-            }
-        } else if (g_spoofedLocaleCurrencyCode.length > 0 || g_spoofedLocaleCurrencySymbol.length > 0) {
-            Class localeClass = objc_getClass("NSLocale");
-            if (g_spoofedLocaleCurrencyCode.length > 0) {
-                LCInstallInstanceHook(localeClass, @selector(currencyCode), (IMP)hook_NSLocale_currencyCode, (IMP *)&orig_NSLocale_currencyCode);
-            }
-            if (g_spoofedLocaleCurrencySymbol.length > 0) {
-                LCInstallInstanceHook(localeClass, @selector(currencySymbol), (IMP)hook_NSLocale_currencySymbol, (IMP *)&orig_NSLocale_currencySymbol);
-            }
+        }
+        if (localeClass) {
+            LCInstallInstanceHook(localeClass, @selector(countryCode), (IMP)hook_NSLocale_countryCode, (IMP *)&orig_NSLocale_countryCode);
+            LCInstallInstanceHook(localeClass, @selector(currencyCode), (IMP)hook_NSLocale_currencyCode, (IMP *)&orig_NSLocale_currencyCode);
+            LCInstallInstanceHook(localeClass, @selector(currencySymbol), (IMP)hook_NSLocale_currencySymbol, (IMP *)&orig_NSLocale_currencySymbol);
         }
 
         // Locale unit preference (metric/imperial)
