@@ -42,6 +42,9 @@ static NSString *LCSpoofBuildForSystemVersion(NSString *version) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         versionToBuild = @{
+            @"26.0": @"23A341",
+            @"26.0.1": @"23A355",
+            @"26.1": @"23B85",
             @"26.2": @"23C55",
             @"26.2.1": @"23C71",
             @"26.3": @"23D127",
@@ -678,6 +681,8 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     // Initialize Ghost-style device spoofing (profile-based with per-feature overrides)
     BOOL useProfileSpoofing = [guestAppInfo[@"deviceSpoofingEnabled"] boolValue];
     BOOL legacyContainerIDFVEnabled = [guestContainerInfo[@"spoofIdentifierForVendor"] boolValue];
+    LCDeviceSpoofingBeginConfiguration();
+    LCSetDeviceSpoofingEnabled(NO);
 
     if(useProfileSpoofing) {
         NSString *deviceProfile = guestAppInfo[@"deviceSpoofProfile"];
@@ -1116,6 +1121,8 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     
     BOOL hookDlopen = !isSideStore && !isSharedBundle && LCSharedUtils.certificatePassword && isLiveProcess;
     DyldHooksInit([guestAppInfo[@"hideLiveContainer"] boolValue], hookDlopen, [guestAppInfo[@"spoofSDKVersion"] unsignedIntValue]);
+
+    LCDeviceSpoofingEndConfiguration();
     
     // Install DeviceSpoofing hooks after Dyld so Dyld stays the authoritative owner for shared hook surfaces.
     if (useProfileSpoofing) {

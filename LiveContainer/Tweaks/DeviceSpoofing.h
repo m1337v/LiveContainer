@@ -54,6 +54,8 @@ extern const LCDeviceProfile kDeviceProfileiPhone13Pro;
 
 // Initialize device spoofing hooks
 void DeviceSpoofingGuestHooksInit(void);
+void LCDeviceSpoofingBeginConfiguration(void);
+void LCDeviceSpoofingEndConfiguration(void);
 
 // Configuration functions
 void LCSetDeviceSpoofingEnabled(BOOL enabled);

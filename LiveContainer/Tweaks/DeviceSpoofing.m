@@ -161,11 +161,11 @@ const LCDeviceProfile kDeviceProfileiPhone16e = {
 // Compatibility aliases for existing UI options. Kept deterministic; no speculative OS build data.
 const LCDeviceProfile kDeviceProfileiPhone17ProMax = {
     .modelIdentifier = "iPhone18,2",
-    .hardwareModel = "D104AP",
+    .hardwareModel = "V54AP",
     .marketingName = "iPhone 17 Pro Max",
     .systemVersion = "26.0",
-    .buildVersion = "24A5260a",
-    .kernelVersion = "Darwin Kernel Version 25.0.0: Wed Jun 11 19:43:22 PDT 2025; root:xnu-12100.1.1~3/RELEASE_ARM64_T8140",
+    .buildVersion = "23A341",
+    .kernelVersion = "Darwin Kernel Version 25.0.0: Wed Jun 11 19:43:22 PDT 2025; root:xnu-12100.1.1~3/RELEASE_ARM64_T8150",
     .kernelRelease = "25.0.0",
     .physicalMemory = 12884901888ULL,
     .cpuCoreCount = 8,
@@ -180,11 +180,11 @@ const LCDeviceProfile kDeviceProfileiPhone17ProMax = {
 
 const LCDeviceProfile kDeviceProfileiPhone17Pro = {
     .modelIdentifier = "iPhone18,1",
-    .hardwareModel = "D103AP",
+    .hardwareModel = "V53AP",
     .marketingName = "iPhone 17 Pro",
     .systemVersion = "26.0",
-    .buildVersion = "24A5260a",
-    .kernelVersion = "Darwin Kernel Version 25.0.0: Wed Jun 11 19:43:22 PDT 2025; root:xnu-12100.1.1~3/RELEASE_ARM64_T8140",
+    .buildVersion = "23A341",
+    .kernelVersion = "Darwin Kernel Version 25.0.0: Wed Jun 11 19:43:22 PDT 2025; root:xnu-12100.1.1~3/RELEASE_ARM64_T8150",
     .kernelRelease = "25.0.0",
     .physicalMemory = 12884901888ULL,
     .cpuCoreCount = 8,
@@ -199,40 +199,40 @@ const LCDeviceProfile kDeviceProfileiPhone17Pro = {
 
 const LCDeviceProfile kDeviceProfileiPhone17 = {
     .modelIdentifier = "iPhone18,3",
-    .hardwareModel = "D57AP",
+    .hardwareModel = "V57AP",
     .marketingName = "iPhone 17",
     .systemVersion = "26.0",
-    .buildVersion = "24A5260a",
-    .kernelVersion = "Darwin Kernel Version 25.0.0: Wed Jun 11 19:43:22 PDT 2025; root:xnu-12100.1.1~3/RELEASE_ARM64_T8130",
+    .buildVersion = "23A341",
+    .kernelVersion = "Darwin Kernel Version 25.0.0: Wed Jun 11 19:43:22 PDT 2025; root:xnu-12100.1.1~3/RELEASE_ARM64_T8150",
     .kernelRelease = "25.0.0",
     .physicalMemory = 8589934592ULL,
     .cpuCoreCount = 6,
     .performanceCores = 2,
     .efficiencyCores = 4,
     .screenScale = 3.0,
-    .screenWidth = 393,
-    .screenHeight = 852,
+    .screenWidth = 402,
+    .screenHeight = 874,
     .chipName = "Apple A19",
     .gpuName = "Apple A19 GPU"
 };
 
 const LCDeviceProfile kDeviceProfileiPhone17Air = {
     .modelIdentifier = "iPhone18,4",
-    .hardwareModel = "D58AP",
-    .marketingName = "iPhone 17 Air",
+    .hardwareModel = "D23AP",
+    .marketingName = "iPhone Air",
     .systemVersion = "26.0",
-    .buildVersion = "24A5260a",
-    .kernelVersion = "Darwin Kernel Version 25.0.0: Wed Jun 11 19:43:22 PDT 2025; root:xnu-12100.1.1~3/RELEASE_ARM64_T8130",
+    .buildVersion = "23A341",
+    .kernelVersion = "Darwin Kernel Version 25.0.0: Wed Jun 11 19:43:22 PDT 2025; root:xnu-12100.1.1~3/RELEASE_ARM64_T8150",
     .kernelRelease = "25.0.0",
-    .physicalMemory = 8589934592ULL,
-    .cpuCoreCount = 6,
+    .physicalMemory = 12884901888ULL,
+    .cpuCoreCount = 8,
     .performanceCores = 2,
-    .efficiencyCores = 4,
+    .efficiencyCores = 6,
     .screenScale = 3.0,
-    .screenWidth = 393,
-    .screenHeight = 852,
-    .chipName = "Apple A19",
-    .gpuName = "Apple A19 GPU"
+    .screenWidth = 420,
+    .screenHeight = 912,
+    .chipName = "Apple A19 Pro",
+    .gpuName = "Apple A19 Pro GPU"
 };
 
 const LCDeviceProfile kDeviceProfileiPhone15ProMax = {
@@ -353,10 +353,10 @@ const LCDeviceProfile kDeviceProfileiPhone13Pro = {
 	
 // Thread-safety model:
 // - Hooks run on arbitrary threads.
-// - Configuration must be applied during bootstrap before hooks are installed.
-// - Once DeviceSpoofingGuestHooksInit begins installing hooks, configuration
-//   is locked and subsequent configuration setters become no-ops. This avoids
-//   ARC retain/release races from unsynchronized global-object mutation.
+// - Configuration is applied in an explicit bootstrap window
+//   (LCDeviceSpoofingBeginConfiguration/LCDeviceSpoofingEndConfiguration).
+// - Setters are no-ops outside that window to avoid unsynchronized
+//   global-object mutation while hooked code is executing.
 
 static _Atomic BOOL g_deviceSpoofingEnabled = NO;
 static _Atomic BOOL g_deviceSpoofingConfigLocked = NO;
@@ -372,6 +372,15 @@ static inline void LCDeviceSpoofingLogConfigLockedOnce(void) {
     if (atomic_compare_exchange_strong(&g_deviceSpoofingConfigLockLogged, &expected, YES)) {
         NSLog(@"[LC] DeviceSpoofing config is locked; ignoring runtime configuration changes");
     }
+}
+
+static inline void LCDeviceSpoofingSetConfigLocked(BOOL locked) {
+    os_unfair_lock_lock(&g_deviceSpoofingConfigLock);
+    atomic_store_explicit(&g_deviceSpoofingConfigLocked, locked, memory_order_release);
+    if (!locked) {
+        atomic_store_explicit(&g_deviceSpoofingConfigLockLogged, NO, memory_order_release);
+    }
+    os_unfair_lock_unlock(&g_deviceSpoofingConfigLock);
 }
 
 static inline void LCUnfairLockUnlockCleanup(os_unfair_lock **lockPtr) {
@@ -556,6 +565,7 @@ static BOOL (*orig_ASIdentifierManager_isAdvertisingTrackingEnabled)(id self, SE
 static NSTimeInterval (*orig_NSProcessInfo_systemUptime)(id self, SEL _cmd) = NULL;
 
 static id (*orig_NSFileManager_ubiquityIdentityToken)(id self, SEL _cmd) = NULL;
+static NSData *(*orig_NSFileManager_contentsAtPath)(id self, SEL _cmd, NSString *path) = NULL;
 static NSDictionary *(*orig_NSFileManager_attributesOfFileSystemForPath)(id self, SEL _cmd, NSString *path, NSError **error) = NULL;
 static NSDictionary *(*orig_NSFileManager_attributesOfItemAtPath_error)(id self, SEL _cmd, NSString *path, NSError **error) = NULL;
 static unsigned long long (*orig_NSFileManager_volumeAvailableCapacityForImportantUsageForURL)(id self, SEL _cmd, NSURL *url, NSError **error) = NULL;
@@ -1255,6 +1265,71 @@ static NSString *LCSpoofedOSVersionString(void) {
     const char *build = LCSpoofedBuildVersion();
     if (!version || !build) return nil;
     return [NSString stringWithFormat:@"Version %s (Build %s)", version, build];
+}
+
+static BOOL LCPathIsSystemVersionPlist(NSString *path) {
+    if (![path isKindOfClass:[NSString class]]) {
+        return NO;
+    }
+    return [path isEqualToString:@"/System/Library/CoreServices/SystemVersion.plist"];
+}
+
+static NSDictionary *LCSanitizedSystemVersionDictionary(NSDictionary *source) {
+    if (!LCDeviceSpoofingIsActive()) {
+        return source;
+    }
+
+    const char *version = LCSpoofedSystemVersion();
+    const char *build = LCSpoofedBuildVersion();
+    if (!version && !build) {
+        return source;
+    }
+
+    NSMutableDictionary *mutable = source ? [source mutableCopy] : [NSMutableDictionary dictionary];
+    if (!mutable) {
+        return source;
+    }
+
+    if (version) {
+        NSString *versionString = @(version);
+        mutable[@"ProductVersion"] = versionString;
+        mutable[@"ProductUserVisibleVersion"] = versionString;
+    }
+    if (build) {
+        NSString *buildString = @(build);
+        mutable[@"ProductBuildVersion"] = buildString;
+        mutable[@"BuildVersion"] = buildString;
+    }
+
+    return [mutable copy];
+}
+
+static NSData *LCSanitizedSystemVersionPlistData(NSData *data) {
+    if (!LCDeviceSpoofingIsActive()) {
+        return data;
+    }
+
+    NSDictionary *plistDict = nil;
+    if (data.length > 0) {
+        id plist = [NSPropertyListSerialization propertyListWithData:data
+                                                             options:NSPropertyListMutableContainersAndLeaves
+                                                              format:nil
+                                                               error:nil];
+        if ([plist isKindOfClass:[NSDictionary class]]) {
+            plistDict = (NSDictionary *)plist;
+        }
+    }
+
+    NSDictionary *sanitized = LCSanitizedSystemVersionDictionary(plistDict);
+    if (!sanitized || sanitized == plistDict) {
+        return data;
+    }
+
+    NSData *serialized = [NSPropertyListSerialization dataWithPropertyList:sanitized
+                                                                     format:NSPropertyListXMLFormat_v1_0
+                                                                    options:0
+                                                                      error:nil];
+    return serialized ?: data;
 }
 
 static NSUUID *LCUUIDFromOverrideString(NSString *value);
@@ -3318,6 +3393,14 @@ static id hook_NSFileManager_ubiquityIdentityToken(id self, SEL _cmd) {
     return nil;
 }
 
+static NSData *hook_NSFileManager_contentsAtPath(id self, SEL _cmd, NSString *path) {
+    NSData *data = orig_NSFileManager_contentsAtPath ? orig_NSFileManager_contentsAtPath(self, _cmd, path) : nil;
+    if (!LCPathIsSystemVersionPlist(path)) {
+        return data;
+    }
+    return LCSanitizedSystemVersionPlistData(data);
+}
+
 static NSString *hook_CTCarrier_carrierName(id self, SEL _cmd) {
     if (LCDeviceSpoofingIsActive() && g_customCarrierName.length > 0) {
         return g_customCarrierName;
@@ -4952,6 +5035,14 @@ static NSDictionary<NSURLResourceKey, id> *hook_NSURL_resourceValuesForKeys_erro
 
 #pragma mark - Public API
 
+void LCDeviceSpoofingBeginConfiguration(void) {
+    LCDeviceSpoofingSetConfigLocked(NO);
+}
+
+void LCDeviceSpoofingEndConfiguration(void) {
+    LCDeviceSpoofingSetConfigLocked(YES);
+}
+
 void LCSetDeviceSpoofingEnabled(BOOL enabled) {
     g_deviceSpoofingEnabled = enabled;
 }
@@ -5002,7 +5093,7 @@ NSDictionary<NSString *, NSDictionary *> *LCGetAvailableDeviceProfiles(void) {
         @"iPhone 17 Pro Max": @{@"model": @"iPhone18,2", @"version": @"26.0", @"memory": @"12 GB", @"chip": @"A19 Pro"},
         @"iPhone 17 Pro": @{@"model": @"iPhone18,1", @"version": @"26.0", @"memory": @"12 GB", @"chip": @"A19 Pro"},
         @"iPhone 17": @{@"model": @"iPhone18,3", @"version": @"26.0", @"memory": @"8 GB", @"chip": @"A19"},
-        @"iPhone 17 Air": @{@"model": @"iPhone18,4", @"version": @"26.0", @"memory": @"8 GB", @"chip": @"A19"},
+        @"iPhone 17 Air": @{@"model": @"iPhone18,4", @"version": @"26.0", @"memory": @"12 GB", @"chip": @"A19 Pro"},
         @"iPhone 16 Pro Max": @{@"model": @"iPhone17,2", @"version": @"18.1", @"memory": @"8 GB", @"chip": @"A18 Pro"},
         @"iPhone 16 Pro": @{@"model": @"iPhone17,1", @"version": @"18.1", @"memory": @"8 GB", @"chip": @"A18 Pro"},
         @"iPhone 16": @{@"model": @"iPhone17,3", @"version": @"18.1", @"memory": @"8 GB", @"chip": @"A18"},
@@ -5575,10 +5666,8 @@ void LCUpdateUserAgentForProfile(void) {
 void DeviceSpoofingGuestHooksInit(void) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        // Lock configuration before installing hooks to avoid setter/hook races.
-        os_unfair_lock_lock(&g_deviceSpoofingConfigLock);
-        atomic_store_explicit(&g_deviceSpoofingConfigLocked, YES, memory_order_release);
-        os_unfair_lock_unlock(&g_deviceSpoofingConfigLock);
+        // Hooks can run on arbitrary threads; close the bootstrap mutation window first.
+        LCDeviceSpoofingEndConfiguration();
 
         struct rebinding rebindings[] = {
             {"uname", (void *)hook_uname, (void **)&orig_uname},
@@ -5745,6 +5834,7 @@ void DeviceSpoofingGuestHooksInit(void) {
 
         Class fileManagerClass = objc_getClass("NSFileManager");
         LCInstallInstanceHook(fileManagerClass, @selector(ubiquityIdentityToken), (IMP)hook_NSFileManager_ubiquityIdentityToken, (IMP *)&orig_NSFileManager_ubiquityIdentityToken);
+        LCInstallInstanceHook(fileManagerClass, @selector(contentsAtPath:), (IMP)hook_NSFileManager_contentsAtPath, (IMP *)&orig_NSFileManager_contentsAtPath);
 
         Class carrierClass = objc_getClass("CTCarrier");
         LCInstallInstanceHook(carrierClass, @selector(carrierName), (IMP)hook_CTCarrier_carrierName, (IMP *)&orig_CTCarrier_carrierName);
