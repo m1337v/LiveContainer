@@ -1273,24 +1273,61 @@ struct LCCityPickerView: View {
     }
 }
 
-// RandomSeed for random adjustments
+// Deterministic pseudo-random helper used for verifier transforms.
 struct SeededRandomGenerator {
     private var state: UInt64
     
-    init(seed: Int) {
-        self.state = UInt64(seed)
+    init(seed: UInt64) {
+        self.state = seed == 0 ? 0x9E3779B97F4A7C15 : seed
     }
     
     mutating func next() -> UInt64 {
-        // Linear congruential generator (simple but effective for our use)
-        state = state &* 1103515245 &+ 12345
+        // LCG constants from Numerical Recipes (fast, deterministic).
+        state = state &* 6364136223846793005 &+ 1
         return state
     }
     
     mutating func nextDouble(_ min: Double, _ max: Double) -> Double {
-        let normalized = Double(next() % 10000) / 9999.0 // 0.0 to 1.0
+        let normalized = Double(next() % 10000) / 9999.0
         return min + normalized * (max - min)
     }
+
+    mutating func nextBool() -> Bool {
+        (next() & 1) == 0
+    }
+}
+
+private struct VerifiedTransformProfile {
+    let rotationDegrees: Double
+    let scale: Double
+    let translateX: Double
+    let translateY: Double
+}
+
+private func stableVerifierSeed(_ input: String) -> UInt64 {
+    // FNV-1a 64-bit hash for deterministic per-input transform seeds.
+    var hash: UInt64 = 1469598103934665603
+    for byte in input.utf8 {
+        hash ^= UInt64(byte)
+        hash = hash &* 1099511628211
+    }
+    return hash
+}
+
+private func makeVerifiedTransformProfile(seedMaterial: String) -> VerifiedTransformProfile {
+    var rng = SeededRandomGenerator(seed: stableVerifierSeed(seedMaterial))
+    let rotationMagnitude = rng.nextDouble(0.85, 1.15)
+    let rotationDegrees = (rng.nextBool() ? 1.0 : -1.0) * rotationMagnitude
+    let scale = rng.nextDouble(1.02, 1.05) // Nomix-style light crop/zoom envelope
+    let translateX = rng.nextDouble(-2.0, 2.0)
+    let translateY = rng.nextDouble(-2.0, 2.0)
+
+    return VerifiedTransformProfile(
+        rotationDegrees: rotationDegrees,
+        scale: scale,
+        translateX: translateX,
+        translateY: translateY
+    )
 }
 
 // MARK: Camera Settings Section
@@ -1301,6 +1338,7 @@ struct CameraSettingsSection: View {
     @Binding var spoofCameraImagePath: String
     @Binding var spoofCameraVideoPath: String
     @Binding var spoofCameraLoop: Bool
+    @Binding var spoofCameraUseVideoAudio: Bool
     @Binding var spoofCameraTransformOrientation: String
     @Binding var spoofCameraTransformScale: String
     @Binding var spoofCameraTransformFlip: String
@@ -1352,6 +1390,20 @@ struct CameraSettingsSection: View {
                         errorInfo: $errorInfo,
                         errorShow: $errorShow
                     )
+
+                    Toggle(isOn: $spoofCameraUseVideoAudio) {
+                        Label("Use Video Audio", systemImage: "waveform")
+                    }
+
+                    if spoofCameraUseVideoAudio {
+                        Text("Replaces microphone input with audio from the selected spoof video.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("Keeps original microphone input while spoofing video frames.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                     
                     // ✅ NEW: Video transformations with Verified Mode as first option
                     if !spoofCameraVideoPath.isEmpty {
@@ -1388,7 +1440,7 @@ struct CameraSettingsSection: View {
                                 HStack {
                                     Image(systemName: "info.circle")
                                         .foregroundColor(.blue)
-                                    Text("Adds Nomix-style random variations to avoid detection")
+                                    Text("Uses Nomix-style subtle deterministic verifier transforms.")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
@@ -1506,7 +1558,7 @@ struct CameraSettingsSection: View {
                                 .cornerRadius(6)
                             }
                             
-                            Text("Transformations are applied when settings change. Verified mode adds random variations like Nomix.")
+                            Text("Transformations are applied when settings change. Verified mode uses a stable per-file anti-fingerprint profile.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                                 .padding(.top, 4)
@@ -1617,6 +1669,7 @@ struct CameraSettingsSection: View {
         // Calculate transform
         let naturalSize = try await videoTrack.load(.naturalSize)
         let preferredTransform = try await videoTrack.load(.preferredTransform)
+        let seedMaterial = "\(inputPath)|\(Int(naturalSize.width))x\(Int(naturalSize.height))|\(duration.value):\(duration.timescale)"
         
         let transformResult = calculateVideoTransform(
             naturalSize: naturalSize,
@@ -1624,7 +1677,8 @@ struct CameraSettingsSection: View {
             orientation: orientation,
             scale: scale,
             flip: flip,
-            isVerifiedMode: isVerifiedMode
+            isVerifiedMode: isVerifiedMode,
+            verifierSeedMaterial: seedMaterial
         )
         
         // Create video composition
@@ -1695,7 +1749,8 @@ struct CameraSettingsSection: View {
         orientation: String,
         scale: String,
         flip: String,
-        isVerifiedMode: Bool = false // Add this parameter
+        isVerifiedMode: Bool = false,
+        verifierSeedMaterial: String = ""
     ) -> (transform: CGAffineTransform, renderSize: CGSize) {
         
         var transform = preferredTransform
@@ -1740,50 +1795,20 @@ struct CameraSettingsSection: View {
             break
         }
         
-        // ✅ NEW: Apply Verified Mode (Nomix-style) variations
+        // Apply Nomix-style verifier profile.
         if isVerifiedMode {
-            // Generate subtle random variations to avoid detection
-            let seed = Int(Date().timeIntervalSince1970) % 1000 // Change variations over time
-            var rng = SeededRandomGenerator(seed: seed)
-            
-            // 1. Slight rotation variation (±0.5 degrees)
-            let rotationVariation = rng.nextDouble(-0.5, 0.5) * .pi / 180.0
-            if abs(rotationVariation) > 0.001 {
-                let centerX = renderSize.width / 2
-                let centerY = renderSize.height / 2
-                let rotateTransform = CGAffineTransform(translationX: centerX, y: centerY)
-                    .concatenating(CGAffineTransform(rotationAngle: rotationVariation))
-                    .concatenating(CGAffineTransform(translationX: -centerX, y: -centerY))
-                transform = transform.concatenating(rotateTransform)
-            }
-            
-            // 2. Slight scale variation (0.98x to 1.02x)
-            let scaleVariation = rng.nextDouble(0.98, 1.02)
-            if abs(scaleVariation - 1.0) > 0.001 {
-                let centerX = renderSize.width / 2
-                let centerY = renderSize.height / 2
-                let scaleTransform = CGAffineTransform(translationX: centerX, y: centerY)
-                    .concatenating(CGAffineTransform(scaleX: scaleVariation, y: scaleVariation))
-                    .concatenating(CGAffineTransform(translationX: -centerX, y: -centerY))
-                transform = transform.concatenating(scaleTransform)
-            }
-            
-            // 3. Small translation variation (±2 pixels)
-            let translateX = rng.nextDouble(-2.0, 2.0)
-            let translateY = rng.nextDouble(-2.0, 2.0)
-            if abs(translateX) > 0.1 || abs(translateY) > 0.1 {
-                transform = transform.concatenating(CGAffineTransform(translationX: translateX, y: translateY))
-            }
-            
-            // 4. Slight render size variation (±1 pixel) to break fingerprinting
-            let sizeVariationX = rng.nextDouble(-1.0, 1.0)
-            let sizeVariationY = rng.nextDouble(-1.0, 1.0)
-            renderSize = CGSize(
-                width: max(1, renderSize.width + sizeVariationX),
-                height: max(1, renderSize.height + sizeVariationY)
-            )
-            
-            print("🎭 Verified mode applied: rotation=\(rotationVariation * 180 / .pi)°, scale=\(scaleVariation), translate=(\(translateX),\(translateY)), size=(\(sizeVariationX),\(sizeVariationY))")
+            let profile = makeVerifiedTransformProfile(seedMaterial: verifierSeedMaterial)
+            let rotation = profile.rotationDegrees * .pi / 180.0
+            let centerX = renderSize.width / 2
+            let centerY = renderSize.height / 2
+            let verifierTransform = CGAffineTransform(translationX: centerX, y: centerY)
+                .concatenating(CGAffineTransform(rotationAngle: rotation))
+                .concatenating(CGAffineTransform(scaleX: profile.scale, y: profile.scale))
+                .concatenating(CGAffineTransform(translationX: profile.translateX, y: profile.translateY))
+                .concatenating(CGAffineTransform(translationX: -centerX, y: -centerY))
+            transform = transform.concatenating(verifierTransform)
+
+            print("🎭 Verified profile: rot=\(profile.rotationDegrees)°, scale=\(profile.scale), shift=(\(profile.translateX),\(profile.translateY))")
         }
         
         return (transform, renderSize)
@@ -2016,6 +2041,7 @@ struct LCAppSettingsView: View {
                     spoofCameraImagePath: $model.uiSpoofCameraImagePath,
                     spoofCameraVideoPath: $model.uiSpoofCameraVideoPath,
                     spoofCameraLoop: $model.uiSpoofCameraLoop,
+                    spoofCameraUseVideoAudio: $model.uiSpoofCameraUseVideoAudio,
                     spoofCameraTransformOrientation: $model.uiSpoofCameraTransformOrientation,
                     spoofCameraTransformScale: $model.uiSpoofCameraTransformScale,
                     spoofCameraTransformFlip: $model.uiSpoofCameraTransformFlip,
@@ -4287,7 +4313,7 @@ struct CameraImagePickerView: View {
                         HStack {
                             Image(systemName: "info.circle")
                                 .foregroundColor(.blue)
-                            Text("Adds subtle random variations to avoid detection")
+                            Text("Uses Nomix-style subtle deterministic verifier transforms.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -4578,25 +4604,16 @@ struct CameraImagePickerView: View {
             break
         }
         
-        // 4. Apply verified mode variations
+        // 4. Apply Nomix-style verifier profile
         if spoofCameraMode == "verified" {
-            let seed = Int(Date().timeIntervalSince1970) % 1000
-            var rng = SeededRandomGenerator(seed: seed)
-            
-            // Slight rotation (±1 degree)
-            let rotationVariation = rng.nextDouble(-1.0, 1.0) * .pi / 180.0
-            transform = transform.concatenating(CGAffineTransform(rotationAngle: rotationVariation))
-            
-            // Slight scale (0.98x to 1.02x)
-            let scaleVariation = rng.nextDouble(0.98, 1.02)
-            transform = transform.concatenating(CGAffineTransform(scaleX: scaleVariation, y: scaleVariation))
-            
-            // Slight translation (±3 pixels)
-            let translateX = rng.nextDouble(-3.0, 3.0)
-            let translateY = rng.nextDouble(-3.0, 3.0)
-            transform = transform.concatenating(CGAffineTransform(translationX: translateX, y: translateY))
-            
-            print("🎭 Verified mode applied: rotation=\(rotationVariation * 180 / .pi)°, scale=\(scaleVariation), translate=(\(translateX),\(translateY))")
+            let seedMaterial = "\(imagePath)|\(Int(originalSize.width))x\(Int(originalSize.height))"
+            let profile = makeVerifiedTransformProfile(seedMaterial: seedMaterial)
+            let rotation = profile.rotationDegrees * .pi / 180.0
+            transform = transform.concatenating(CGAffineTransform(rotationAngle: rotation))
+            transform = transform.concatenating(CGAffineTransform(scaleX: profile.scale, y: profile.scale))
+            transform = transform.concatenating(CGAffineTransform(translationX: profile.translateX, y: profile.translateY))
+
+            print("🎭 Verified profile: rot=\(profile.rotationDegrees)°, scale=\(profile.scale), shift=(\(profile.translateX),\(profile.translateY))")
         }
         
         // 5. Render the transformed image

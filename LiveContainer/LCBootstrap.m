@@ -95,6 +95,7 @@ static NSSet<NSString *> *LCAddonScopedLegacyKeys(void) {
             @"spoofCameraImagePath",
             @"spoofCameraVideoPath",
             @"spoofCameraLoop",
+            @"spoofCameraUseVideoAudio",
             @"spoofCameraMode",
             @"spoofCameraTransformOrientation",
             @"spoofCameraTransformScale",

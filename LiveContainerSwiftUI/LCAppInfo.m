@@ -34,6 +34,7 @@ static NSSet<NSString *> *LCAddonScopedLegacyKeys(void) {
             @"spoofCameraImagePath",
             @"spoofCameraVideoPath",
             @"spoofCameraLoop",
+            @"spoofCameraUseVideoAudio",
             @"spoofCameraMode",
             @"spoofCameraTransformOrientation",
             @"spoofCameraTransformScale",
@@ -469,10 +470,11 @@ static BOOL LCIsContainerScopedAddonKey(NSString *key) {
         
         guestAppInfo[@"hideLiveContainer"] = @(self.hideLiveContainer);
 
-        // Only save the 3 camera variables to guestAppInfo (keep it simple)
+        // Keep camera values in guestAppInfo for hooks.
         guestAppInfo[@"spoofCamera"] = @(self.spoofCamera);
         guestAppInfo[@"spoofCameraVideoPath"] = self.spoofCameraVideoPath ?: @"";
         guestAppInfo[@"spoofCameraLoop"] = @(self.spoofCameraLoop);
+        guestAppInfo[@"spoofCameraUseVideoAudio"] = @(self.spoofCameraUseVideoAudio);
 
         // Proxy configuration is retired: actively drop any legacy keys.
         [guestAppInfo removeObjectsForKeys:deprecatedProxyKeys];
@@ -1062,6 +1064,19 @@ static BOOL LCIsContainerScopedAddonKey(NSString *key) {
 }
 - (void)setSpoofCameraLoop:(bool)spoofCameraLoop {
     _info[@"spoofCameraLoop"] = [NSNumber numberWithBool:spoofCameraLoop];
+    [self save];
+}
+
+- (bool)spoofCameraUseVideoAudio {
+    if (_info[@"spoofCameraUseVideoAudio"] != nil) {
+        return [_info[@"spoofCameraUseVideoAudio"] boolValue];
+    } else {
+        return YES; // Default to replacing mic with spoofed video audio
+    }
+}
+
+- (void)setSpoofCameraUseVideoAudio:(bool)spoofCameraUseVideoAudio {
+    _info[@"spoofCameraUseVideoAudio"] = [NSNumber numberWithBool:spoofCameraUseVideoAudio];
     [self save];
 }
 

@@ -167,6 +167,11 @@ class LCAppModel: ObservableObject, Hashable {
             appInfo.spoofCameraLoop = uiSpoofCameraLoop
         }
     }
+    @Published var uiSpoofCameraUseVideoAudio : Bool {
+        didSet {
+            appInfo.spoofCameraUseVideoAudio = uiSpoofCameraUseVideoAudio
+        }
+    }
     
     @Published var uiSpoofCameraMode : String {
         didSet {
@@ -703,6 +708,7 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiSpoofCameraImagePath = appInfo.spoofCameraImagePath ?? ""
         self.uiSpoofCameraVideoPath = appInfo.spoofCameraVideoPath ?? ""
         self.uiSpoofCameraLoop = appInfo.spoofCameraLoop
+        self.uiSpoofCameraUseVideoAudio = appInfo.spoofCameraUseVideoAudio
         self.uiSpoofCameraMode = appInfo.spoofCameraMode ?? "standard"
         // MARK: Camera transformation options initialization
         self.uiSpoofCameraTransformOrientation = appInfo.spoofCameraTransformOrientation
@@ -880,6 +886,7 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiSpoofCameraImagePath = appInfo.spoofCameraImagePath ?? ""
         self.uiSpoofCameraVideoPath = appInfo.spoofCameraVideoPath ?? ""
         self.uiSpoofCameraLoop = appInfo.spoofCameraLoop
+        self.uiSpoofCameraUseVideoAudio = appInfo.spoofCameraUseVideoAudio
         self.uiSpoofCameraMode = appInfo.spoofCameraMode ?? "standard"
         self.uiSpoofCameraTransformOrientation = appInfo.spoofCameraTransformOrientation
         self.uiSpoofCameraTransformScale = appInfo.spoofCameraTransformScale

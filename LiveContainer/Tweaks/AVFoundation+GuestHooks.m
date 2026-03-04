@@ -15,6 +15,7 @@
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <AudioToolbox/AudioToolbox.h>
 #import <objc/runtime.h>
+#import <objc/message.h>
 #import <dlfcn.h>
 #import <math.h>
 #import "Tweaks.h"
@@ -48,6 +49,7 @@
 static BOOL spoofCameraEnabled = NO;
 static NSString *spoofCameraVideoPath = @"";
 static BOOL spoofCameraLoop = YES;
+static BOOL spoofCameraUseVideoAudio = YES;
 static NSString *spoofCameraMode = @"standard"; // NEW: Camera mode variable
 
 // Resolution and fallback management
@@ -77,6 +79,10 @@ static CMTime audioSpoofingLoopOffset = {0, 0, 0, 0};
 static CMTime audioSpoofingTrackDuration = {0, 0, 0, 0};
 static CMSampleBufferRef g_lastGoodAudioSampleBuffer = NULL;
 static NSUInteger audioSpoofingFailureCount = 0;
+static CMSampleBufferRef synchronizerVideoSampleBufferRing[8] = {NULL};
+static CMSampleBufferRef synchronizerAudioSampleBufferRing[16] = {NULL};
+static NSUInteger synchronizerVideoSampleBufferRingIndex = 0;
+static NSUInteger synchronizerAudioSampleBufferRingIndex = 0;
 
 // Photo data cache
 static CVPixelBufferRef g_cachedPhotoPixelBuffer = NULL;
@@ -107,6 +113,7 @@ static void cachePhotoDataFromSampleBuffer(CMSampleBufferRef sampleBuffer);
 static void cleanupPhotoCache(void);
 static void cleanupAudioSpoofingResources(void);
 static CMSampleBufferRef copyNextSpoofedAudioSampleBuffer(void);
+static void cleanupSynchronizerSampleBufferCache(void);
 static void createStaticImageFromUIImage(UIImage *sourceImage);
 static CVPixelBufferRef rotatePixelBufferToPortrait(CVPixelBufferRef sourceBuffer);
 static void installPrivateCapturePipelineHooks(void);
@@ -141,6 +148,11 @@ static void LCMarkRecordingStarted(void);
 @interface AVCaptureAudioDataOutput (LiveContainerSpoofSelectors)
 - (void)lc_setAudioSampleBufferDelegate:(id<AVCaptureAudioDataOutputSampleBufferDelegate>)sampleBufferDelegate
                                   queue:(dispatch_queue_t)sampleBufferCallbackQueue;
+@end
+
+@interface AVCaptureDataOutputSynchronizer (LiveContainerSpoofSelectors)
+- (void)lc_setDelegate:(id<AVCaptureDataOutputSynchronizerDelegate>)delegate
+                 queue:(dispatch_queue_t)delegateCallbackQueue;
 @end
 
 // Level 1 hooks (Core Video)
@@ -183,6 +195,7 @@ static CGImageRef (*original_AVCaptureDeferredPhotoProxy_previewCGImageRepresent
 static NSData *(*original_AVCaptureDeferredPhotoProxy_fileDataRepresentation)(id, SEL);
 static NSData *(*original_AVCaptureDeferredPhotoProxy_fileDataRepresentationWithCustomizer)(id, SEL, id);
 static NSData *(*original_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer)(id, SEL, CMSampleBufferRef, CMSampleBufferRef);
+static CMSampleBufferRef (*original_AVCaptureSynchronizedSampleBufferData_sampleBuffer)(id, SEL);
 CVPixelBufferRef hook_AVCapturePhoto_pixelBuffer(id self, SEL _cmd);
 CVPixelBufferRef hook_AVCapturePhoto_previewPixelBuffer(id self, SEL _cmd);
 CGImageRef hook_AVCapturePhoto_CGImageRepresentation(id self, SEL _cmd);
@@ -196,6 +209,7 @@ CGImageRef hook_AVCaptureDeferredPhotoProxy_previewCGImageRepresentation(id self
 NSData *hook_AVCaptureDeferredPhotoProxy_fileDataRepresentation(id self, SEL _cmd);
 NSData *hook_AVCaptureDeferredPhotoProxy_fileDataRepresentationWithCustomizer(id self, SEL _cmd, id customizer);
 NSData *hook_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer(id self, SEL _cmd, CMSampleBufferRef jpegSampleBuffer, CMSampleBufferRef previewPhotoSampleBuffer);
+CMSampleBufferRef hook_AVCaptureSynchronizedSampleBufferData_sampleBuffer(id self, SEL _cmd);
 
 // pragma MARK: - Core Utilities
 
@@ -395,7 +409,7 @@ static void setupAudioSpoofingResources(void) {
         audioSpoofingQueue = dispatch_queue_create("com.livecontainer.audiospoofing", DISPATCH_QUEUE_SERIAL);
     }
 
-    if (!spoofCameraEnabled || spoofCameraVideoPath.length == 0) {
+    if (!spoofCameraEnabled || !spoofCameraUseVideoAudio || spoofCameraVideoPath.length == 0) {
         cleanupAudioSpoofingResources();
         return;
     }
@@ -417,6 +431,7 @@ static void cleanupAudioSpoofingResources(void) {
         audioSpoofingLoopOffset = kCMTimeZero;
         audioSpoofingTrackDuration = kCMTimeInvalid;
         audioSpoofingFailureCount = 0;
+        cleanupSynchronizerSampleBufferCache();
         return;
     }
 
@@ -435,10 +450,11 @@ static void cleanupAudioSpoofingResources(void) {
             g_lastGoodAudioSampleBuffer = NULL;
         }
     });
+    cleanupSynchronizerSampleBufferCache();
 }
 
 static CMSampleBufferRef copyNextSpoofedAudioSampleBuffer(void) {
-    if (!spoofCameraEnabled || spoofCameraVideoPath.length == 0) {
+    if (!spoofCameraEnabled || !spoofCameraUseVideoAudio || spoofCameraVideoPath.length == 0) {
         return NULL;
     }
     if (!audioSpoofingQueue) {
@@ -504,6 +520,47 @@ static CMSampleBufferRef copyNextSpoofedAudioSampleBuffer(void) {
     });
 
     return result;
+}
+
+static CMSampleBufferRef cacheSynchronizerSampleBufferAdopting(CMSampleBufferRef sampleBuffer, BOOL isAudio) {
+    if (!sampleBuffer) {
+        return NULL;
+    }
+
+    @synchronized([AVCaptureSession class]) {
+        CMSampleBufferRef *ring = isAudio ? synchronizerAudioSampleBufferRing : synchronizerVideoSampleBufferRing;
+        NSUInteger ringSize = isAudio ? (sizeof(synchronizerAudioSampleBufferRing) / sizeof(CMSampleBufferRef))
+                                      : (sizeof(synchronizerVideoSampleBufferRing) / sizeof(CMSampleBufferRef));
+        NSUInteger *index = isAudio ? &synchronizerAudioSampleBufferRingIndex : &synchronizerVideoSampleBufferRingIndex;
+
+        if (ring[*index]) {
+            CFRelease(ring[*index]);
+            ring[*index] = NULL;
+        }
+        ring[*index] = sampleBuffer;
+        *index = (*index + 1) % ringSize;
+    }
+
+    return sampleBuffer;
+}
+
+static void cleanupSynchronizerSampleBufferCache(void) {
+    @synchronized([AVCaptureSession class]) {
+        for (NSUInteger i = 0; i < sizeof(synchronizerVideoSampleBufferRing) / sizeof(CMSampleBufferRef); i++) {
+            if (synchronizerVideoSampleBufferRing[i]) {
+                CFRelease(synchronizerVideoSampleBufferRing[i]);
+                synchronizerVideoSampleBufferRing[i] = NULL;
+            }
+        }
+        for (NSUInteger i = 0; i < sizeof(synchronizerAudioSampleBufferRing) / sizeof(CMSampleBufferRef); i++) {
+            if (synchronizerAudioSampleBufferRing[i]) {
+                CFRelease(synchronizerAudioSampleBufferRing[i]);
+                synchronizerAudioSampleBufferRing[i] = NULL;
+            }
+        }
+        synchronizerVideoSampleBufferRingIndex = 0;
+        synchronizerAudioSampleBufferRingIndex = 0;
+    }
 }
 
 // Replace the createScaledPixelBuffer function with this improved version:
@@ -3798,7 +3855,7 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
     CMSampleBufferRef spoofedAudioSampleBuffer = NULL;
     CMSampleBufferRef forwardedSampleBuffer = sampleBuffer;
     BOOL droppedOriginalMicFrame = NO;
-    if (spoofCameraEnabled) {
+    if (spoofCameraEnabled && spoofCameraUseVideoAudio) {
         spoofedAudioSampleBuffer = copyNextSpoofedAudioSampleBuffer();
         if (spoofedAudioSampleBuffer) {
             forwardedSampleBuffer = spoofedAudioSampleBuffer;
@@ -3880,7 +3937,7 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
           NSStringFromClass([sampleBufferDelegate class]),
           spoofCameraEnabled ? @"ON" : @"OFF");
 
-    if (spoofCameraEnabled && sampleBufferDelegate) {
+    if (spoofCameraEnabled && spoofCameraUseVideoAudio && sampleBufferDelegate) {
         SimpleSpoofAudioDelegate *wrapper = [[SimpleSpoofAudioDelegate alloc] initWithDelegate:sampleBufferDelegate];
         objc_setAssociatedObject(self, @selector(lc_setAudioSampleBufferDelegate:queue:), wrapper, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [self lc_setAudioSampleBufferDelegate:wrapper queue:sampleBufferCallbackQueue];
@@ -3889,6 +3946,64 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
         objc_setAssociatedObject(self, @selector(lc_setAudioSampleBufferDelegate:queue:), nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [self lc_setAudioSampleBufferDelegate:sampleBufferDelegate queue:sampleBufferCallbackQueue];
         NSLog(@"[LC] 🔊 L5: Audio spoofing disabled or no delegate - using original");
+    }
+}
+
+@end
+
+@interface SimpleSpoofSynchronizerDelegate : NSObject <AVCaptureDataOutputSynchronizerDelegate>
+@property (nonatomic, strong) id<AVCaptureDataOutputSynchronizerDelegate> originalDelegate;
+- (instancetype)initWithDelegate:(id<AVCaptureDataOutputSynchronizerDelegate>)delegate;
+@end
+
+@implementation SimpleSpoofSynchronizerDelegate
+
+- (instancetype)initWithDelegate:(id<AVCaptureDataOutputSynchronizerDelegate>)delegate {
+    if (self = [super init]) {
+        _originalDelegate = delegate;
+    }
+    return self;
+}
+
+- (BOOL)respondsToSelector:(SEL)aSelector {
+    if ([super respondsToSelector:aSelector]) {
+        return YES;
+    }
+    return [self.originalDelegate respondsToSelector:aSelector];
+}
+
+- (id)forwardingTargetForSelector:(SEL)aSelector {
+    if ([self.originalDelegate respondsToSelector:aSelector]) {
+        return self.originalDelegate;
+    }
+    return [super forwardingTargetForSelector:aSelector];
+}
+
+- (void)dataOutputSynchronizer:(AVCaptureDataOutputSynchronizer *)synchronizer
+didOutputSynchronizedDataCollection:(AVCaptureSynchronizedDataCollection *)synchronizedDataCollection {
+    if ([self.originalDelegate respondsToSelector:_cmd]) {
+        [self.originalDelegate dataOutputSynchronizer:synchronizer didOutputSynchronizedDataCollection:synchronizedDataCollection];
+    }
+}
+
+@end
+
+@implementation AVCaptureDataOutputSynchronizer(LiveContainerSpoof)
+
+- (void)lc_setDelegate:(id<AVCaptureDataOutputSynchronizerDelegate>)delegate
+                 queue:(dispatch_queue_t)delegateCallbackQueue {
+    NSLog(@"[LC] 🎯 L5: DataOutputSynchronizer setDelegate called - delegate: %@, spoofing: %@",
+          NSStringFromClass([delegate class]),
+          spoofCameraEnabled ? @"ON" : @"OFF");
+
+    if (spoofCameraEnabled && delegate) {
+        SimpleSpoofSynchronizerDelegate *wrapper = [[SimpleSpoofSynchronizerDelegate alloc] initWithDelegate:delegate];
+        objc_setAssociatedObject(self, @selector(lc_setDelegate:queue:), wrapper, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [self lc_setDelegate:wrapper queue:delegateCallbackQueue];
+        NSLog(@"[LC] ✅ L5: DataOutputSynchronizer delegate wrapper installed");
+    } else {
+        objc_setAssociatedObject(self, @selector(lc_setDelegate:queue:), nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [self lc_setDelegate:delegate queue:delegateCallbackQueue];
     }
 }
 
@@ -4751,6 +4866,51 @@ NSData *hook_AVCapturePhotoOutput_JPEGPhotoDataRepresentationForJPEGSampleBuffer
     return nil;
 }
 
+CMSampleBufferRef hook_AVCaptureSynchronizedSampleBufferData_sampleBuffer(id self, SEL _cmd) {
+    CMSampleBufferRef originalSampleBuffer = NULL;
+    if (original_AVCaptureSynchronizedSampleBufferData_sampleBuffer) {
+        originalSampleBuffer = original_AVCaptureSynchronizedSampleBufferData_sampleBuffer(self, _cmd);
+    }
+
+    if (!spoofCameraEnabled) {
+        return originalSampleBuffer;
+    }
+
+    AVCaptureOutput *dataOutput = nil;
+    SEL dataOutputSelector = NSSelectorFromString(@"dataOutput");
+    if ([self respondsToSelector:dataOutputSelector]) {
+        id outputCandidate = ((id (*)(id, SEL))objc_msgSend)(self, dataOutputSelector);
+        if ([outputCandidate isKindOfClass:[AVCaptureOutput class]]) {
+            dataOutput = (AVCaptureOutput *)outputCandidate;
+        }
+    }
+
+    if ([dataOutput isKindOfClass:[AVCaptureVideoDataOutput class]]) {
+        CMSampleBufferRef spoofedFrame = createPrivatePipelineSpoofedSampleBuffer(originalSampleBuffer);
+        if (!spoofedFrame) {
+            return originalSampleBuffer;
+        }
+        return cacheSynchronizerSampleBufferAdopting(spoofedFrame, NO);
+    }
+
+    if ([dataOutput isKindOfClass:[AVCaptureAudioDataOutput class]]) {
+        if (!spoofCameraUseVideoAudio) {
+            return originalSampleBuffer;
+        }
+        if (spoofCameraVideoPath.length == 0) {
+            return NULL;
+        }
+
+        CMSampleBufferRef spoofedAudioSampleBuffer = copyNextSpoofedAudioSampleBuffer();
+        if (!spoofedAudioSampleBuffer) {
+            return NULL;
+        }
+        return cacheSynchronizerSampleBufferAdopting(spoofedAudioSampleBuffer, YES);
+    }
+
+    return originalSampleBuffer;
+}
+
 // pragma MARK: - Configuration Loading
 
 static void loadSpoofingConfiguration(void) {
@@ -4760,6 +4920,7 @@ static void loadSpoofingConfiguration(void) {
     if (!guestAppInfo) {
         NSLog(@"[LC] ❌ No guestAppInfo found");
         spoofCameraEnabled = NO;
+        spoofCameraUseVideoAudio = YES;
         cleanupAudioSpoofingResources();
         return;
     }
@@ -4767,21 +4928,24 @@ static void loadSpoofingConfiguration(void) {
     spoofCameraEnabled = [guestAppInfo[@"spoofCamera"] boolValue];
     spoofCameraVideoPath = guestAppInfo[@"spoofCameraVideoPath"] ?: @"";
     spoofCameraLoop = (guestAppInfo[@"spoofCameraLoop"] != nil) ? [guestAppInfo[@"spoofCameraLoop"] boolValue] : YES;
+    spoofCameraUseVideoAudio = (guestAppInfo[@"spoofCameraUseVideoAudio"] != nil) ? [guestAppInfo[@"spoofCameraUseVideoAudio"] boolValue] : YES;
     spoofCameraMode = guestAppInfo[@"spoofCameraMode"] ?: @"standard";
 
     NSString *spoofCameraType = guestAppInfo[@"spoofCameraType"] ?: @"image";
     NSString *spoofCameraImagePath = guestAppInfo[@"spoofCameraImagePath"] ?: @"";
 
-    NSLog(@"[LC] ⚙️ Config: Enabled=%d, Type='%@', VideoPath='%@', ImagePath='%@', Loop=%d, Mode='%@'",
+    NSLog(@"[LC] ⚙️ Config: Enabled=%d, Type='%@', VideoPath='%@', ImagePath='%@', Loop=%d, UseVideoAudio=%d, Mode='%@'",
           spoofCameraEnabled,
           spoofCameraType,
           spoofCameraVideoPath,
           spoofCameraImagePath.lastPathComponent ?: @"",
           spoofCameraLoop,
+          spoofCameraUseVideoAudio,
           spoofCameraMode);
 
     if (!spoofCameraEnabled) {
         cleanupAudioSpoofingResources();
+        cleanupSynchronizerSampleBufferCache();
     }
 
     if (spoofCameraEnabled) {
@@ -4796,6 +4960,10 @@ static void loadSpoofingConfiguration(void) {
                 spoofCameraVideoPath = @"";
             }
         }
+    }
+
+    if (!spoofCameraEnabled || !spoofCameraUseVideoAudio || spoofCameraVideoPath.length == 0) {
+        cleanupAudioSpoofingResources();
     }
 }
 
@@ -4837,6 +5005,11 @@ static void installLevel5Hooks(void) {
     @try {
         swizzle([AVCaptureVideoDataOutput class], @selector(setSampleBufferDelegate:queue:), @selector(lc_setSampleBufferDelegate:queue:));
         swizzle([AVCaptureAudioDataOutput class], @selector(setSampleBufferDelegate:queue:), @selector(lc_setAudioSampleBufferDelegate:queue:));
+        Class dataOutputSynchronizerClass = NSClassFromString(@"AVCaptureDataOutputSynchronizer");
+        if (dataOutputSynchronizerClass && [dataOutputSynchronizerClass instancesRespondToSelector:@selector(setDelegate:queue:)]) {
+            swizzle(dataOutputSynchronizerClass, @selector(setDelegate:queue:), @selector(lc_setDelegate:queue:));
+            NSLog(@"[LC] ✅ L5: DataOutputSynchronizer delegate hook installed");
+        }
         swizzle([AVCapturePhotoOutput class], @selector(capturePhotoWithSettings:delegate:), @selector(lc_capturePhotoWithSettings:delegate:));
 
         swizzle([AVCaptureMovieFileOutput class], @selector(startRecordingToOutputFileURL:recordingDelegate:), @selector(lc_startRecordingToOutputFileURL:recordingDelegate:));
@@ -4997,6 +5170,16 @@ static void installLevel6Hooks(void) {
                                 YES,
                                 @"JPEGPhotoDataRepresentation helper");
         #pragma clang diagnostic pop
+
+        Class synchronizedSampleBufferDataClass = NSClassFromString(@"AVCaptureSynchronizedSampleBufferData");
+        if (synchronizedSampleBufferDataClass) {
+            installDirectMethodHook(synchronizedSampleBufferDataClass,
+                                    @selector(sampleBuffer),
+                                    (IMP)hook_AVCaptureSynchronizedSampleBufferData_sampleBuffer,
+                                    (IMP *)&original_AVCaptureSynchronizedSampleBufferData_sampleBuffer,
+                                    NO,
+                                    @"Synchronized sampleBuffer");
+        }
     } @catch (NSException *e) {
         NSLog(@"[LC] ❌ Level 6 hook error: %@", e);
     }
@@ -5032,6 +5215,8 @@ static void setupInitialSpoofingResources(void) {
     setupImageSpoofingResources();
 
     if (!spoofCameraEnabled) {
+        cleanupAudioSpoofingResources();
+        cleanupSynchronizerSampleBufferCache();
         return;
     }
 
@@ -5039,7 +5224,11 @@ static void setupInitialSpoofingResources(void) {
         NSLog(@"[LC] 🎬 Setting up video spoofing system");
         [GetFrame setCurrentVideoPath:spoofCameraVideoPath];
         setupVideoSpoofingResources();
-        setupAudioSpoofingResources();
+        if (spoofCameraUseVideoAudio) {
+            setupAudioSpoofingResources();
+        } else {
+            cleanupAudioSpoofingResources();
+        }
     } else {
         NSLog(@"[LC] 🖼️ Image-only mode activated.");
         cleanupAudioSpoofingResources();
