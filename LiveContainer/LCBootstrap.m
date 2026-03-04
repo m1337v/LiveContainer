@@ -683,12 +683,18 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     BOOL legacyContainerIDFVEnabled = [guestContainerInfo[@"spoofIdentifierForVendor"] boolValue];
     LCDeviceSpoofingBeginConfiguration();
     LCSetDeviceSpoofingEnabled(NO);
+    // Reset per-launch version/kernel overrides so previous guest settings cannot leak.
+    LCSetSpoofedSystemVersion(nil);
+    LCSetSpoofedBuildVersion(nil);
+    LCSetSpoofedKernelVersion(nil);
+    LCSetSpoofedKernelRelease(nil);
 
     if(useProfileSpoofing) {
         NSString *deviceProfile = guestAppInfo[@"deviceSpoofProfile"];
-        if (deviceProfile.length > 0) {
-            LCSetDeviceProfile(deviceProfile);
+        if (deviceProfile.length == 0) {
+            deviceProfile = @"iPhone 17";
         }
+        LCSetDeviceProfile(deviceProfile);
         // Always derive CPU core count and RAM from selected device profile.
         // Clearing custom overrides prevents stale cross-launch mismatches.
         LCSetSpoofedCPUCount(0);
@@ -940,21 +946,44 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         BOOL spoofKernelVersion = [guestAppInfo[@"deviceSpoofKernelVersionEnabled"] boolValue] ||
                                   [guestAppInfo[@"enableSpoofKernelVersion"] boolValue];
         NSString *kernelVersion = guestAppInfo[@"deviceSpoofKernelVersion"];
-        if (kernelVersion.length == 0) {
-            kernelVersion = guestAppInfo[@"kernelVersion"];
-        }
-        if (kernelVersion.length == 0) {
-            kernelVersion = guestAppInfo[@"selectedKernelVersion"];
-        }
         NSString *kernelRelease = guestAppInfo[@"deviceSpoofKernelRelease"];
-        if (kernelRelease.length == 0) {
-            kernelRelease = guestAppInfo[@"kernelVersionDarwin"];
+        BOOL explicitKernelOverride = (kernelVersion.length > 0 || kernelRelease.length > 0);
+
+        // Migrate historical iPhone 17 defaults that used older T8140/T8130 kernel codes.
+        // If present, prefer profile-derived kernel metadata (T8150) for consistency.
+        if (explicitKernelOverride &&
+            [deviceProfile hasPrefix:@"iPhone 17"] &&
+            kernelVersion.length > 0)
+        {
+            NSString *normalizedKernel = kernelVersion.lowercaseString;
+            if ([normalizedKernel containsString:@"release_arm64_t8140"] ||
+                [normalizedKernel containsString:@"release_arm64_t8130"])
+            {
+                kernelVersion = @"";
+                kernelRelease = @"";
+                explicitKernelOverride = NO;
+            }
         }
-        if (!spoofKernelVersion && guestAppInfo[@"enableSpoofKernelVersion"] == nil &&
-            (kernelVersion.length > 0 || kernelRelease.length > 0)) {
+
+        // In profile mode, do not fallback to legacy keys to avoid stale overrides
+        // superseding the selected profile's kernel metadata.
+        if (!explicitKernelOverride && !useProfileSpoofing) {
+            if (kernelVersion.length == 0) {
+                kernelVersion = guestAppInfo[@"kernelVersion"];
+            }
+            if (kernelVersion.length == 0) {
+                kernelVersion = guestAppInfo[@"selectedKernelVersion"];
+            }
+            if (kernelRelease.length == 0) {
+                kernelRelease = guestAppInfo[@"kernelVersionDarwin"];
+            }
+            explicitKernelOverride = (kernelVersion.length > 0 || kernelRelease.length > 0);
+        }
+
+        if (!spoofKernelVersion && guestAppInfo[@"enableSpoofKernelVersion"] == nil && explicitKernelOverride) {
             spoofKernelVersion = YES;
         }
-        if (spoofKernelVersion) {
+        if (spoofKernelVersion && explicitKernelOverride) {
             if (kernelVersion.length > 0) {
                 LCSetSpoofedKernelVersion(kernelVersion);
             }

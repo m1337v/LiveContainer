@@ -3718,14 +3718,14 @@ struct LCAppSettingsView: View {
         switch profile {
         case "iPhone 17 Pro Max", "iPhone 17 Pro":
             return (
-                "24A5260a",
-                "Darwin Kernel Version 25.0.0: Wed Jun 11 19:43:22 PDT 2025; root:xnu-12100.1.1~3/RELEASE_ARM64_T8140",
+                "23A341",
+                "Darwin Kernel Version 25.0.0: Wed Jun 11 19:43:22 PDT 2025; root:xnu-12100.1.1~3/RELEASE_ARM64_T8150",
                 "25.0.0"
             )
         case "iPhone 17", "iPhone 17 Air":
             return (
-                "24A5260a",
-                "Darwin Kernel Version 25.0.0: Wed Jun 11 19:43:22 PDT 2025; root:xnu-12100.1.1~3/RELEASE_ARM64_T8130",
+                "23A341",
+                "Darwin Kernel Version 25.0.0: Wed Jun 11 19:43:22 PDT 2025; root:xnu-12100.1.1~3/RELEASE_ARM64_T8150",
                 "25.0.0"
             )
         case "iPhone 16 Pro Max", "iPhone 16 Pro":
