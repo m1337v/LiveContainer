@@ -41,6 +41,12 @@
 #import <sys/mount.h>
 #import <sys/stat.h>
 #import <sys/sysctl.h>
+#if __has_include(<sys/proc.h>)
+#import <sys/proc.h>
+#define LC_HAS_KINFO_PROC 1
+#else
+#define LC_HAS_KINFO_PROC 0
+#endif
 #import <sys/utsname.h>
 #import <os/lock.h>
 #import <stdatomic.h>
@@ -1849,6 +1855,29 @@ static NSSet<NSString *> *LCAppiumDetectionMarkers(void) {
     return markers;
 }
 
+static NSSet<NSString *> *LCBaselineDetectionMarkers(void) {
+    static NSSet<NSString *> *markers = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        markers = [NSSet setWithArray:@[
+            @"dyld_insert_libraries",
+            @"mobilesubstrate/dynamiclibraries",
+            @"cydiasubstrate",
+            @"substrate",
+            @"substitute",
+            @"ellekit",
+            @"libhooker",
+            @"frida",
+            @"libinjector",
+            @"libroot",
+            @"choicy",
+            @"tweakinject",
+            @"/var/jb"
+        ]];
+    });
+    return markers;
+}
+
 static BOOL LCStringContainsCaseInsensitiveMarker(NSString *value, NSString *marker) {
     if (![value isKindOfClass:[NSString class]] || value.length == 0) return NO;
     if (![marker isKindOfClass:[NSString class]] || marker.length == 0) return NO;
@@ -1858,12 +1887,17 @@ static BOOL LCStringContainsCaseInsensitiveMarker(NSString *value, NSString *mar
 static BOOL LCStringContainsSensitiveMarker(NSString *value) {
     static __thread BOOL gInSensitiveMarkerCheck = NO;
     if (![value isKindOfClass:[NSString class]] || value.length == 0) return NO;
-    if (!LCScreenFeatureEnabled(g_spoofCraneEnabled || g_spoofAppiumEnabled)) return NO;
     if (gInSensitiveMarkerCheck) return NO;
 
     gInSensitiveMarkerCheck = YES;
     BOOL found = NO;
 
+    for (NSString *marker in LCBaselineDetectionMarkers()) {
+        if (LCStringContainsCaseInsensitiveMarker(value, marker)) {
+            found = YES;
+            break;
+        }
+    }
     if (g_spoofCraneEnabled) {
         for (NSString *marker in LCCraneDetectionMarkers()) {
             if (LCStringContainsCaseInsensitiveMarker(value, marker)) {
@@ -2148,6 +2182,44 @@ static int hook_gethostname(char *name, size_t namelen) {
     return 0;
 }
 
+static inline BOOL LCSysctlNameLooksLikeKernProc(const char *name) {
+    if (!name) return NO;
+    return (strcmp(name, "kern.proc") == 0 ||
+            strcmp(name, "kern.proc.pid") == 0 ||
+            strcmp(name, "kern.proc.all") == 0);
+}
+
+static inline BOOL LCSysctlMIBLooksLikeKernProc(const int *name, u_int namelen) {
+#if defined(CTL_KERN) && defined(KERN_PROC)
+    return (name != NULL && namelen >= 2 && name[0] == CTL_KERN && name[1] == KERN_PROC);
+#else
+    (void)name;
+    (void)namelen;
+    return NO;
+#endif
+}
+
+static inline void LCSanitizeKInfoProcFlags(void *oldp, size_t oldlen) {
+#if LC_HAS_KINFO_PROC
+    if (!oldp || oldlen < sizeof(struct kinfo_proc)) return;
+    struct kinfo_proc *entries = (struct kinfo_proc *)oldp;
+    size_t count = oldlen / sizeof(struct kinfo_proc);
+    pid_t selfPid = getpid();
+    for (size_t i = 0; i < count; i++) {
+        if (entries[i].kp_proc.p_pid != selfPid) continue;
+#if defined(P_TRACED)
+        entries[i].kp_proc.p_flag &= ~P_TRACED;
+#endif
+#if defined(P_LTRACED)
+        entries[i].kp_proc.p_flag &= ~P_LTRACED;
+#endif
+    }
+#else
+    (void)oldp;
+    (void)oldlen;
+#endif
+}
+
 static int hook_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
     if (!orig_sysctlbyname) {
         static dispatch_once_t onceToken;
@@ -2291,7 +2363,11 @@ static int hook_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void
         }
     }
 
-    return orig_sysctlbyname(name, oldp, oldlenp, newp, newlen);
+    int rc = orig_sysctlbyname(name, oldp, oldlenp, newp, newlen);
+    if (rc == 0 && oldp && oldlenp && LCSysctlNameLooksLikeKernProc(name)) {
+        LCSanitizeKInfoProcFlags(oldp, *oldlenp);
+    }
+    return rc;
 }
 
 static int hook_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
@@ -2446,7 +2522,11 @@ static int hook_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, vo
         }
     }
 
-    return orig_sysctl(name, namelen, oldp, oldlenp, newp, newlen);
+    int rc = orig_sysctl(name, namelen, oldp, oldlenp, newp, newlen);
+    if (rc == 0 && oldp && oldlenp && LCSysctlMIBLooksLikeKernProc(name, namelen)) {
+        LCSanitizeKInfoProcFlags(oldp, *oldlenp);
+    }
+    return rc;
 }
 
 static void LCApplySpoofedStatfs(struct statfs *buf) {
@@ -3371,8 +3451,7 @@ static BOOL hook_NSProcessInfo_isLowPowerModeEnabled(id self, SEL _cmd) {
 
 static NSDictionary *hook_NSProcessInfo_environment(id self, SEL _cmd) {
     NSDictionary *env = orig_NSProcessInfo_environment ? orig_NSProcessInfo_environment(self, _cmd) : @{};
-    if (!LCScreenFeatureEnabled(g_spoofCraneEnabled || g_spoofAppiumEnabled) ||
-        ![env isKindOfClass:[NSDictionary class]] ||
+    if (![env isKindOfClass:[NSDictionary class]] ||
         env.count == 0) {
         return env;
     }
@@ -3391,8 +3470,7 @@ static NSDictionary *hook_NSProcessInfo_environment(id self, SEL _cmd) {
 
 static NSArray<NSString *> *hook_NSProcessInfo_arguments(id self, SEL _cmd) {
     NSArray<NSString *> *args = orig_NSProcessInfo_arguments ? orig_NSProcessInfo_arguments(self, _cmd) : @[];
-    if (!LCScreenFeatureEnabled(g_spoofCraneEnabled || g_spoofAppiumEnabled) ||
-        ![args isKindOfClass:[NSArray class]] ||
+    if (![args isKindOfClass:[NSArray class]] ||
         args.count == 0) {
         return args;
     }

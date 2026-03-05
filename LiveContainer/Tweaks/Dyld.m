@@ -19,8 +19,15 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/sysctl.h>
 #include <SystemConfiguration/SystemConfiguration.h>
 #include <CFNetwork/CFNetwork.h>
+#if __has_include(<sys/proc.h>)
+#include <sys/proc.h>
+#define LC_HAS_SYS_PROC 1
+#else
+#define LC_HAS_SYS_PROC 0
+#endif
 #import "../../fishhook/fishhook.h"
 #import "../../litehook/src/litehook.h"
 #import "LCMachOUtils.h"
@@ -80,6 +87,14 @@ int (*orig_sigaction)(int sig, const struct sigaction *restrict act, struct siga
 static int (*orig_csops)(pid_t pid, unsigned int ops, void *useraddr, size_t usersize) = NULL;
 static int (*orig_csops_audittoken)(pid_t pid, unsigned int ops, void *useraddr, size_t usersize, audit_token_t *token) = NULL;
 static BOOL gEnableGuestSelfCSOpsShim = NO;
+static int (*orig_ptrace)(int request, pid_t pid, void *addr, int data) = NULL;
+static int (*orig_sysctl_antidebug)(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) = NULL;
+static int (*orig_sysctlbyname_antidebug)(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) = NULL;
+static kern_return_t (*orig_task_info_antidebug)(task_t target_task, task_flavor_t flavor, task_info_t task_info_out, mach_msg_type_number_t *task_info_outCnt) = NULL;
+static os_unfair_lock gDyldTaskInfoSanitizeLock = OS_UNFAIR_LOCK_INIT;
+static struct dyld_all_image_infos *gSanitizedAllImageInfos = NULL;
+static struct dyld_image_info *gSanitizedImageInfoArray = NULL;
+static uint32_t gSanitizedImageInfoCapacity = 0;
 // Apple Sign In
 // TODO
 // SSL Pinning
@@ -105,7 +120,10 @@ static void (*orig_SSL_CTX_set_custom_verify)(void *, int, int (*)(void *, uint8
 // Bundle
 static NSString *originalGuestBundleId = nil;
 static NSString *liveContainerBundleId = nil;
+static NSString *hostApplicationIdentifier = nil;
 static NSString *hostTeamIdentifier = nil;
+static NSArray<NSString *> *hostApplicationGroups = nil;
+static NSArray<NSString *> *hostKeychainGroups = nil;
 static BOOL useSelectiveBundleIdSpoofing = NO;
 static BOOL useBundleIdentityCompatibilityShims = NO;
 static BOOL hideProvisioningArtifacts = NO;
@@ -244,10 +262,33 @@ static bool shouldHideLibrary(const char* imageName) {
         lowerImageName[i] = tolower(lowerImageName[i]);
     }
 
-    // Keep critical hardcoded patterns
-    return (strstr(lowerImageName, "substrate") ||
-            strstr(lowerImageName, "tweakloader") ||
-            strstr(lowerImageName, "livecontainershared"));
+    static const char *const kHiddenLibraryMarkers[] = {
+        "mobilesubstrate/dynamiclibraries",
+        "cydiasubstrate",
+        "substrate",
+        "substitute",
+        "ellekit",
+        "libhooker",
+        "frida",
+        "choicy",
+        "libinjector",
+        "libroot",
+        "rocketbootstrap",
+        "tweakinject",
+        "mobileloader",
+        "/var/jb",
+        "tweakloader",
+        "livecontainershared",
+        "flex",
+        "cycript",
+    };
+
+    for (size_t i = 0; i < sizeof(kHiddenLibraryMarkers) / sizeof(kHiddenLibraryMarkers[0]); i++) {
+        if (strstr(lowerImageName, kHiddenLibraryMarkers[i])) {
+            return true;
+        }
+    }
+    return false;
 }
 
 static void ensureAppMainIndexIsSet(void) {
@@ -273,10 +314,170 @@ static void ensureAppMainIndexIsSet(void) {
     NSLog(@"[LC] ERROR: Could not find guest app executable!");
 }
 
-// Helper for LiveContainer special case handling
-// static bool isLiveContainerImage(uint32_t imageIndex, const char* imageName) {
-//     return imageIndex == lcImageIndex || (imageName && strstr(imageName, "LiveContainer"));
-// }
+// MARK: Anti-Debug / Introspection Hardening
+
+#ifndef PT_DENY_ATTACH
+#define PT_DENY_ATTACH 31
+#endif
+
+static inline bool lc_isKernProcQuery(const int *name, u_int namelen) {
+#if defined(CTL_KERN) && defined(KERN_PROC)
+    return (name != NULL && namelen >= 2 && name[0] == CTL_KERN && name[1] == KERN_PROC);
+#else
+    (void)name;
+    (void)namelen;
+    return false;
+#endif
+}
+
+static inline bool lc_isKernProcByNameQuery(const char *name) {
+    if (!name) return false;
+    return (strcmp(name, "kern.proc") == 0 ||
+            strcmp(name, "kern.proc.pid") == 0 ||
+            strcmp(name, "kern.proc.all") == 0);
+}
+
+static inline bool lc_shouldSanitizeTaskDyldInfo(task_t target_task, task_flavor_t flavor) {
+    return (target_task == mach_task_self() && flavor == TASK_DYLD_INFO);
+}
+
+static inline void lc_sanitizeKInfoProcFlags(void *oldp, size_t oldlen) {
+#if LC_HAS_SYS_PROC
+    if (!oldp || oldlen < sizeof(struct kinfo_proc)) return;
+    struct kinfo_proc *entries = (struct kinfo_proc *)oldp;
+    size_t count = oldlen / sizeof(struct kinfo_proc);
+    pid_t selfPid = getpid();
+    for (size_t i = 0; i < count; i++) {
+        if (entries[i].kp_proc.p_pid != selfPid) continue;
+#if defined(P_TRACED)
+        entries[i].kp_proc.p_flag &= ~P_TRACED;
+#endif
+#if defined(P_LTRACED)
+        entries[i].kp_proc.p_flag &= ~P_LTRACED;
+#endif
+    }
+#else
+    (void)oldp;
+    (void)oldlen;
+#endif
+}
+
+static void lc_sanitizeTaskDyldInfoInPlace(task_info_t task_info_out, mach_msg_type_number_t task_info_outCnt) {
+    if (!task_info_out || task_info_outCnt < TASK_DYLD_INFO_COUNT) return;
+
+    task_dyld_info_data_t *dyldInfo = (task_dyld_info_data_t *)task_info_out;
+    if (dyldInfo->all_image_info_addr == 0) return;
+
+    struct dyld_all_image_infos *realInfos = (struct dyld_all_image_infos *)(uintptr_t)dyldInfo->all_image_info_addr;
+    if (!realInfos || !realInfos->infoArray || realInfos->infoArrayCount == 0) return;
+
+    os_unfair_lock_lock(&gDyldTaskInfoSanitizeLock);
+
+    if (!gSanitizedAllImageInfos) {
+        gSanitizedAllImageInfos = calloc(1, sizeof(struct dyld_all_image_infos));
+        if (!gSanitizedAllImageInfos) {
+            os_unfair_lock_unlock(&gDyldTaskInfoSanitizeLock);
+            return;
+        }
+    }
+
+    uint32_t realCount = realInfos->infoArrayCount;
+    if (realCount > gSanitizedImageInfoCapacity) {
+        struct dyld_image_info *newArray = realloc(gSanitizedImageInfoArray, sizeof(struct dyld_image_info) * realCount);
+        if (!newArray) {
+            os_unfair_lock_unlock(&gDyldTaskInfoSanitizeLock);
+            return;
+        }
+        gSanitizedImageInfoArray = newArray;
+        gSanitizedImageInfoCapacity = realCount;
+    }
+
+    uint32_t visibleCount = 0;
+    for (uint32_t i = 0; i < realCount; i++) {
+        const struct dyld_image_info *entry = &realInfos->infoArray[i];
+        if (shouldHideLibrary(entry->imageFilePath)) continue;
+        gSanitizedImageInfoArray[visibleCount++] = *entry;
+    }
+
+    *gSanitizedAllImageInfos = *realInfos;
+    gSanitizedAllImageInfos->infoArray = gSanitizedImageInfoArray;
+    gSanitizedAllImageInfos->infoArrayCount = visibleCount;
+
+    dyldInfo->all_image_info_addr = (mach_vm_address_t)(uintptr_t)gSanitizedAllImageInfos;
+    dyldInfo->all_image_info_size = (mach_vm_size_t)sizeof(struct dyld_all_image_infos);
+
+    os_unfair_lock_unlock(&gDyldTaskInfoSanitizeLock);
+}
+
+static int hook_ptrace(int request, pid_t pid, void *addr, int data) {
+    if (request == PT_DENY_ATTACH) {
+        errno = 0;
+        return 0;
+    }
+    if (!orig_ptrace) {
+        errno = ENOSYS;
+        return -1;
+    }
+    return orig_ptrace(request, pid, addr, data);
+}
+
+static int hook_sysctl_antidebug(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+    if (!orig_sysctl_antidebug) {
+        errno = ENOSYS;
+        return -1;
+    }
+    int rv = orig_sysctl_antidebug(name, namelen, oldp, oldlenp, newp, newlen);
+    if (rv == 0 && lc_isKernProcQuery(name, namelen) && oldp && oldlenp) {
+        lc_sanitizeKInfoProcFlags(oldp, *oldlenp);
+    }
+    return rv;
+}
+
+static int hook_sysctlbyname_antidebug(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+    if (!orig_sysctlbyname_antidebug) {
+        errno = ENOSYS;
+        return -1;
+    }
+    int rv = orig_sysctlbyname_antidebug(name, oldp, oldlenp, newp, newlen);
+    if (rv == 0 && lc_isKernProcByNameQuery(name) && oldp && oldlenp) {
+        lc_sanitizeKInfoProcFlags(oldp, *oldlenp);
+    }
+    return rv;
+}
+
+static kern_return_t hook_task_info_antidebug(task_t target_task,
+                                              task_flavor_t flavor,
+                                              task_info_t task_info_out,
+                                              mach_msg_type_number_t *task_info_outCnt) {
+    if (!orig_task_info_antidebug) {
+        return KERN_FAILURE;
+    }
+    kern_return_t rv = orig_task_info_antidebug(target_task, flavor, task_info_out, task_info_outCnt);
+    if (rv == KERN_SUCCESS && task_info_outCnt && lc_shouldSanitizeTaskDyldInfo(target_task, flavor)) {
+        lc_sanitizeTaskDyldInfoInPlace(task_info_out, *task_info_outCnt);
+    }
+    return rv;
+}
+
+static inline void *lc_remapIfReboundSymbol(void *resolvedSymbol) {
+    if (!resolvedSymbol) return NULL;
+    for (int i = 0; i < gRebindCount; i++) {
+        global_rebind rebind = gRebinds[i];
+        if (resolvedSymbol == rebind.replacee) {
+            return rebind.replacement;
+        }
+    }
+    return resolvedSymbol;
+}
+
+static void lc_installAntiDebugHooks(void) {
+    rebind_symbols((struct rebinding[4]){
+        {"ptrace", (void *)hook_ptrace, (void **)&orig_ptrace},
+        {"sysctl", (void *)hook_sysctl_antidebug, (void **)&orig_sysctl_antidebug},
+        {"sysctlbyname", (void *)hook_sysctlbyname_antidebug, (void **)&orig_sysctlbyname_antidebug},
+        {"task_info", (void *)hook_task_info_antidebug, (void **)&orig_task_info_antidebug},
+    }, 4);
+}
 
 // static uint32_t handleLiveContainerReplacement(uint32_t imageIndex) {
 //     if (imageIndex == lcImageIndex) {
@@ -329,6 +530,23 @@ static void ensureAppMainIndexIsSet(void) {
 // MARK: Dyld Section
 
 void* hook_dlsym(void * __handle, const char * __symbol) {
+    if (!__symbol) {
+        return orig_dlsym(__handle, __symbol);
+    }
+
+    if (strcmp(__symbol, "ptrace") == 0 || strcmp(__symbol, "_ptrace") == 0) {
+        return (void *)hook_ptrace;
+    }
+    if (strcmp(__symbol, "sysctl") == 0 || strcmp(__symbol, "_sysctl") == 0) {
+        return (void *)hook_sysctl_antidebug;
+    }
+    if (strcmp(__symbol, "sysctlbyname") == 0 || strcmp(__symbol, "_sysctlbyname") == 0) {
+        return (void *)hook_sysctlbyname_antidebug;
+    }
+    if (strcmp(__symbol, "task_info") == 0 || strcmp(__symbol, "_task_info") == 0) {
+        return (void *)hook_task_info_antidebug;
+    }
+
     // Hide jailbreak detection symbols
     if (__symbol && (
         // MobileSubstrate/Substrate
@@ -407,21 +625,9 @@ void* hook_dlsym(void * __handle, const char * __symbol) {
             return (void*)orig_dyld_get_image_header(appMainImageIndex);
         }
         __handle = appExecutableHandle;
-    } else if (__handle != (void*)RTLD_SELF && __handle != (void*)RTLD_NEXT) {
-        void* ans = orig_dlsym(__handle, __symbol);
-        if(!ans) {
-            return 0;
-        }
-        for(int i = 0; i < gRebindCount; i++) {
-            global_rebind rebind = gRebinds[i];
-            if(ans == rebind.replacee) {
-                return rebind.replacement;
-            }
-        }
-        return ans;
     }
 
-    __attribute__((musttail)) return orig_dlsym(__handle, __symbol);
+    return lc_remapIfReboundSymbol(orig_dlsym(__handle, __symbol));
 }
 
 // uint32_t hook_dyld_image_count(void) {
@@ -1611,22 +1817,259 @@ static NSString *LCRewrittenAppIdentifierPrefix(void) {
     return [hostTeamIdentifier hasSuffix:@"."] ? hostTeamIdentifier : [hostTeamIdentifier stringByAppendingString:@"."];
 }
 
+static NSArray<NSString *> *LCReadSelfEntitlementStringArray(CFStringRef entitlementKey) {
+    void *task = SecTaskCreateFromSelf(NULL);
+    if (!task) {
+        return nil;
+    }
+
+    CFTypeRef value = SecTaskCopyValueForEntitlement(task, entitlementKey, NULL);
+    CFRelease(task);
+    if (!value) {
+        return nil;
+    }
+
+    id bridged = CFBridgingRelease(value);
+    if ([bridged isKindOfClass:NSString.class]) {
+        NSString *single = (NSString *)bridged;
+        return single.length > 0 ? @[single] : nil;
+    }
+    if (![bridged isKindOfClass:NSArray.class]) {
+        return nil;
+    }
+
+    NSMutableArray<NSString *> *result = [NSMutableArray array];
+    for (id item in (NSArray *)bridged) {
+        if ([item isKindOfClass:NSString.class] && ((NSString *)item).length > 0) {
+            [result addObject:item];
+        }
+    }
+    return result.count > 0 ? [result copy] : nil;
+}
+
+static NSArray<NSString *> *LCExpectedHostApplicationGroups(void) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        hostApplicationGroups = LCReadSelfEntitlementStringArray(CFSTR("com.apple.security.application-groups"));
+    });
+    return hostApplicationGroups;
+}
+
+static NSArray<NSString *> *LCExpectedHostKeychainGroups(void) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        hostKeychainGroups = LCReadSelfEntitlementStringArray(CFSTR("keychain-access-groups"));
+    });
+    return hostKeychainGroups;
+}
+
+static NSString *LCFirstEntitlementValue(NSArray<NSString *> *values) {
+    if (![values isKindOfClass:NSArray.class] || values.count == 0) {
+        return nil;
+    }
+    id first = values.firstObject;
+    if (![first isKindOfClass:NSString.class]) {
+        return nil;
+    }
+    return [(NSString *)first length] > 0 ? first : nil;
+}
+
+static id LCInfoValueMatchingOriginalContainerWithValues(id originalValue, NSArray<NSString *> *replacementValues) {
+    NSString *firstValue = LCFirstEntitlementValue(replacementValues);
+    if (firstValue.length == 0) {
+        return nil;
+    }
+    if ([originalValue isKindOfClass:NSArray.class]) {
+        return replacementValues;
+    }
+    return firstValue;
+}
+
+static id LCInfoValueMatchingOriginalContainerType(id originalValue, NSString *replacement) {
+    if (replacement.length == 0) {
+        return nil;
+    }
+    if ([originalValue isKindOfClass:NSArray.class]) {
+        return @[replacement];
+    }
+    return replacement;
+}
+
+static NSString *LCCanonicalInfoDictionaryKey(NSString *key) {
+    if (![key isKindOfClass:NSString.class] || key.length == 0) {
+        return @"";
+    }
+    NSString *lowerKey = key.lowercaseString;
+    NSMutableString *normalized = [NSMutableString stringWithCapacity:lowerKey.length];
+    for (NSUInteger i = 0; i < lowerKey.length; i++) {
+        unichar ch = [lowerKey characterAtIndex:i];
+        BOOL isLowerAlpha = (ch >= 'a' && ch <= 'z');
+        BOOL isDigit = (ch >= '0' && ch <= '9');
+        if (isLowerAlpha || isDigit) {
+            [normalized appendFormat:@"%C", ch];
+        }
+    }
+    return normalized;
+}
+
+static BOOL LCInfoKeyLooksLikeAppGroupAlias(NSString *canonicalKey) {
+    static NSSet<NSString *> *knownKeys = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        knownKeys = [NSSet setWithArray:@[
+            @"appgroupidentifier",
+            @"applicationgroupidentifier",
+            @"groupidentifier",
+            @"appgroupid",
+            @"groupid",
+        ]];
+    });
+    if ([knownKeys containsObject:canonicalKey]) {
+        return YES;
+    }
+    return ([canonicalKey containsString:@"appgroup"] ||
+            [canonicalKey containsString:@"applicationgroup"] ||
+            ([canonicalKey containsString:@"groupidentifier"] && ![canonicalKey containsString:@"keychain"]));
+}
+
+static BOOL LCInfoKeyLooksLikeKeychainAlias(NSString *canonicalKey) {
+    static NSSet<NSString *> *knownKeys = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        knownKeys = [NSSet setWithArray:@[
+            @"sharedkeychainaccessgroup",
+            @"keychainaccessidentifier",
+            @"keychainaccessgroup",
+            @"keychaingroupidentifier",
+        ]];
+    });
+    if ([knownKeys containsObject:canonicalKey]) {
+        return YES;
+    }
+    return ([canonicalKey containsString:@"keychain"] &&
+            ([canonicalKey containsString:@"group"] ||
+             [canonicalKey containsString:@"access"] ||
+             [canonicalKey containsString:@"identifier"]));
+}
+
+static BOOL LCInfoKeyLooksLikeApplicationGroupsArray(NSString *canonicalKey) {
+    static NSSet<NSString *> *knownKeys = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        knownKeys = [NSSet setWithArray:@[
+            @"applicationgroups",
+            @"appgroups",
+            @"comapplesecurityapplicationgroups",
+        ]];
+    });
+    if ([knownKeys containsObject:canonicalKey]) {
+        return YES;
+    }
+    return ([canonicalKey containsString:@"applicationgroups"] ||
+            [canonicalKey containsString:@"appgroups"]);
+}
+
+static BOOL LCInfoKeyLooksLikeKeychainGroupsArray(NSString *canonicalKey) {
+    static NSSet<NSString *> *knownKeys = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        knownKeys = [NSSet setWithArray:@[
+            @"keychainaccessgroups",
+        ]];
+    });
+    if ([knownKeys containsObject:canonicalKey]) {
+        return YES;
+    }
+    return [canonicalKey containsString:@"keychainaccessgroups"];
+}
+
+static BOOL LCInfoKeyLooksLikeTeamIdentifier(NSString *canonicalKey) {
+    static NSSet<NSString *> *knownKeys = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        knownKeys = [NSSet setWithArray:@[
+            @"teamidentifier",
+            @"teamid",
+            @"comappledeveloperteamidentifier",
+        ]];
+    });
+    if ([knownKeys containsObject:canonicalKey]) {
+        return YES;
+    }
+    return ([canonicalKey containsString:@"teamidentifier"] ||
+            [canonicalKey hasSuffix:@"teamid"]);
+}
+
+static BOOL LCInfoKeyLooksLikeApplicationIdentifier(NSString *canonicalKey) {
+    static NSSet<NSString *> *knownKeys = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        knownKeys = [NSSet setWithArray:@[
+            @"applicationidentifier",
+        ]];
+    });
+    if ([knownKeys containsObject:canonicalKey]) {
+        return YES;
+    }
+    return [canonicalKey containsString:@"applicationidentifier"];
+}
+
+static id LCRewrittenInfoDictionaryValueForKey(NSString *key, id originalValue, NSString *fallbackBundleID) {
+    if (![key isKindOfClass:NSString.class]) {
+        return nil;
+    }
+
+    NSString *canonicalKey = LCCanonicalInfoDictionaryKey(key);
+    if ([canonicalKey isEqualToString:@"appidentifierprefix"]) {
+        NSString *rewrittenPrefix = LCRewrittenAppIdentifierPrefix();
+        return LCInfoValueMatchingOriginalContainerType(originalValue, rewrittenPrefix);
+    }
+
+    NSArray<NSString *> *applicationGroups = LCExpectedHostApplicationGroups();
+    NSArray<NSString *> *keychainGroups = LCExpectedHostKeychainGroups();
+    NSString *hostAppIdentifier = hostApplicationIdentifier;
+    NSString *hostTeamId = hostTeamIdentifier;
+    NSString *hostAppGroup = LCFirstEntitlementValue(applicationGroups);
+    NSString *hostKeychainGroup = LCFirstEntitlementValue(keychainGroups);
+    if (hostKeychainGroup.length == 0) {
+        hostKeychainGroup = LCRewrittenAccessGroup(originalValue, fallbackBundleID);
+    }
+
+    if (LCInfoKeyLooksLikeApplicationGroupsArray(canonicalKey)) {
+        return LCInfoValueMatchingOriginalContainerWithValues(originalValue, applicationGroups);
+    }
+    if (LCInfoKeyLooksLikeKeychainGroupsArray(canonicalKey)) {
+        return LCInfoValueMatchingOriginalContainerWithValues(originalValue, keychainGroups);
+    }
+    if (LCInfoKeyLooksLikeAppGroupAlias(canonicalKey)) {
+        return LCInfoValueMatchingOriginalContainerType(originalValue, hostAppGroup);
+    }
+    if (LCInfoKeyLooksLikeKeychainAlias(canonicalKey)) {
+        return LCInfoValueMatchingOriginalContainerType(originalValue, hostKeychainGroup);
+    }
+    if (LCInfoKeyLooksLikeTeamIdentifier(canonicalKey)) {
+        return LCInfoValueMatchingOriginalContainerType(originalValue, hostTeamId);
+    }
+    if (LCInfoKeyLooksLikeApplicationIdentifier(canonicalKey)) {
+        return LCInfoValueMatchingOriginalContainerType(originalValue, hostAppIdentifier);
+    }
+    return nil;
+}
+
 static void LCApplyBundleIdentityCompatibility(NSMutableDictionary *dictionary, NSString *fallbackBundleID) {
     if (!useBundleIdentityCompatibilityShims || ![dictionary isKindOfClass:NSDictionary.class]) {
         return;
     }
-    NSString *rewrittenGroup = LCRewrittenAccessGroup(dictionary[@"SharedKeychainAccessGroup"], fallbackBundleID);
-    if (rewrittenGroup.length > 0) {
-        dictionary[@"SharedKeychainAccessGroup"] = rewrittenGroup;
-    }
 
-    NSString *rewrittenPrefix = LCRewrittenAppIdentifierPrefix();
-    if (rewrittenPrefix.length > 0) {
-        id existingPrefix = dictionary[@"AppIdentifierPrefix"];
-        if ([existingPrefix isKindOfClass:NSArray.class]) {
-            dictionary[@"AppIdentifierPrefix"] = @[rewrittenPrefix];
-        } else {
-            dictionary[@"AppIdentifierPrefix"] = rewrittenPrefix;
+    NSArray *allKeys = [dictionary allKeys];
+    for (id key in allKeys) {
+        if (![key isKindOfClass:NSString.class]) {
+            continue;
+        }
+        id originalValue = dictionary[key];
+        id rewrittenValue = LCRewrittenInfoDictionaryValueForKey((NSString *)key, originalValue, fallbackBundleID);
+        if (rewrittenValue != nil) {
+            dictionary[key] = rewrittenValue;
         }
     }
 }
@@ -1753,20 +2196,9 @@ static id hook_NSBundle_objectForInfoDictionaryKey(id self, SEL _cmd, NSString *
     }
 
     if (useBundleIdentityCompatibilityShims) {
-        if ([key isEqualToString:@"SharedKeychainAccessGroup"]) {
-            NSString *rewrittenGroup = LCRewrittenAccessGroup(originalValue, bundleIDToExpose);
-            if (rewrittenGroup.length > 0) {
-                return rewrittenGroup;
-            }
-        }
-        if ([key isEqualToString:@"AppIdentifierPrefix"]) {
-            NSString *rewrittenPrefix = LCRewrittenAppIdentifierPrefix();
-            if (rewrittenPrefix.length > 0) {
-                if ([originalValue isKindOfClass:NSArray.class]) {
-                    return @[rewrittenPrefix];
-                }
-                return rewrittenPrefix;
-            }
+        id rewrittenValue = LCRewrittenInfoDictionaryValueForKey(key, originalValue, bundleIDToExpose);
+        if (rewrittenValue != nil) {
+            return rewrittenValue;
         }
     }
     return originalValue;
@@ -1819,14 +2251,13 @@ static BOOL hook_NSFileManager_fileExistsAtPath(id self, SEL _cmd, NSString *pat
 }
 
 static NSString *LCExpectedHostBundleIdentifier(void) {
-    void *task = SecTaskCreateFromSelf(NULL);
-    if (!task) return nil;
-
-    CFTypeRef value = SecTaskCopyValueForEntitlement(task, CFSTR("application-identifier"), NULL);
-    CFRelease(task);
-    if (!value) return nil;
-
-    NSString *applicationIdentifier = CFBridgingRelease(value);
+    NSString *applicationIdentifier = hostApplicationIdentifier;
+    if (applicationIdentifier.length == 0) {
+        applicationIdentifier = LCFirstEntitlementValue(LCReadSelfEntitlementStringArray(CFSTR("application-identifier")));
+    }
+    if (applicationIdentifier.length == 0) {
+        return nil;
+    }
     NSRange dotRange = [applicationIdentifier rangeOfString:@"."];
     if (dotRange.location == NSNotFound || dotRange.location + 1 >= applicationIdentifier.length) {
         return nil;
@@ -1835,14 +2266,18 @@ static NSString *LCExpectedHostBundleIdentifier(void) {
 }
 
 static NSString *LCExpectedHostTeamIdentifier(void) {
-    void *task = SecTaskCreateFromSelf(NULL);
-    if (!task) return nil;
+    NSString *teamIdentifier = LCFirstEntitlementValue(LCReadSelfEntitlementStringArray(CFSTR("com.apple.developer.team-identifier")));
+    if (teamIdentifier.length > 0) {
+        return teamIdentifier;
+    }
 
-    CFTypeRef value = SecTaskCopyValueForEntitlement(task, CFSTR("application-identifier"), NULL);
-    CFRelease(task);
-    if (!value) return nil;
-
-    NSString *applicationIdentifier = CFBridgingRelease(value);
+    NSString *applicationIdentifier = hostApplicationIdentifier;
+    if (applicationIdentifier.length == 0) {
+        applicationIdentifier = LCFirstEntitlementValue(LCReadSelfEntitlementStringArray(CFSTR("application-identifier")));
+    }
+    if (applicationIdentifier.length == 0) {
+        return nil;
+    }
     NSRange dotRange = [applicationIdentifier rangeOfString:@"."];
     if (dotRange.location == NSNotFound || dotRange.location == 0) {
         return nil;
@@ -1858,6 +2293,7 @@ static void configureSelectiveBundleIdSpoofing(NSDictionary *guestAppInfo, BOOL 
         originalGuestBundleId = NSUserDefaults.lcGuestAppId ?: NSBundle.mainBundle.bundleIdentifier;
     }
 
+    hostApplicationIdentifier = LCFirstEntitlementValue(LCReadSelfEntitlementStringArray(CFSTR("application-identifier")));
     NSString *entitlementBundleID = LCExpectedHostBundleIdentifier();
     liveContainerBundleId = entitlementBundleID ?: NSUserDefaults.lcMainBundle.bundleIdentifier;
     if (liveContainerBundleId.length == 0) {
@@ -1962,6 +2398,7 @@ static void lc_resolveDyldRuntimeContext(void) {
 static void lc_installDyldCoreHooks(bool hideLiveContainer) {
     // Hook dlsym to solve RTLD_MAIN_ONLY, hook other functions to hide LiveContainer itself.
     litehook_rebind_symbol(LITEHOOK_REBIND_GLOBAL, dlsym, hook_dlsym, nil);
+    lc_installAntiDebugHooks();
     if (!hideLiveContainer) {
         return;
     }

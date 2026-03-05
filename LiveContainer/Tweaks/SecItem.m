@@ -10,6 +10,7 @@
 #import <CommonCrypto/CommonDigest.h>
 #import "../../litehook/src/litehook.h"
 #import "LCSharedUtils.h"
+#import "FoundationPrivate.h"
 
 extern void* (*msHookFunction)(void *symbol, void *hook, void **old);
 OSStatus (*orig_SecItemAdd)(CFDictionaryRef attributes, CFTypeRef *result) = SecItemAdd;
@@ -42,6 +43,73 @@ static NSMutableDictionary *LCCreateMutableDictionary(CFDictionaryRef dictionary
         return [NSMutableDictionary dictionary];
     }
     return [((NSDictionary *)object) mutableCopy];
+}
+
+static NSArray<NSString *> *LCReadSelfEntitlementStringArray(CFStringRef entitlementKey) {
+    void *task = SecTaskCreateFromSelf(NULL);
+    if (!task) {
+        return nil;
+    }
+
+    CFTypeRef value = SecTaskCopyValueForEntitlement(task, entitlementKey, NULL);
+    CFRelease(task);
+    if (!value) {
+        return nil;
+    }
+
+    id bridged = CFBridgingRelease(value);
+    if ([bridged isKindOfClass:NSString.class]) {
+        NSString *single = (NSString *)bridged;
+        return single.length > 0 ? @[single] : nil;
+    }
+    if (![bridged isKindOfClass:NSArray.class]) {
+        return nil;
+    }
+
+    NSMutableArray<NSString *> *result = [NSMutableArray array];
+    for (id item in (NSArray *)bridged) {
+        if ([item isKindOfClass:NSString.class] && ((NSString *)item).length > 0) {
+            [result addObject:item];
+        }
+    }
+    return result.count > 0 ? [result copy] : nil;
+}
+
+static NSString *LCExpectedSharedAccessGroupSuffix(NSInteger keychainGroupId) {
+    if (keychainGroupId <= 0) {
+        return @"com.kdt.livecontainer.shared";
+    }
+    return [NSString stringWithFormat:@"com.kdt.livecontainer.shared.%ld", (long)keychainGroupId];
+}
+
+static NSString *LCEntitledAccessGroupForContainer(NSInteger keychainGroupId) {
+    static NSArray<NSString *> *cachedKeychainGroups = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        cachedKeychainGroups = LCReadSelfEntitlementStringArray(CFSTR("keychain-access-groups"));
+    });
+
+    if (cachedKeychainGroups.count == 0) {
+        return nil;
+    }
+
+    NSString *expectedSuffix = LCExpectedSharedAccessGroupSuffix(keychainGroupId);
+    if (expectedSuffix.length > 0) {
+        for (NSString *group in cachedKeychainGroups) {
+            if ([group isKindOfClass:NSString.class] && [group hasSuffix:expectedSuffix]) {
+                return group;
+            }
+        }
+    }
+
+    if (keychainGroupId >= 0 && keychainGroupId < (NSInteger)cachedKeychainGroups.count) {
+        NSString *indexedGroup = cachedKeychainGroups[keychainGroupId];
+        if (indexedGroup.length > 0) {
+            return indexedGroup;
+        }
+    }
+
+    return cachedKeychainGroups.firstObject;
 }
 
 static void LCDisableAccessGroupScoping(NSString *reason) {
@@ -368,16 +436,20 @@ void SecItemGuestHooksInit(void)  {
         keychainGroupId = 0;
     }
 
-    NSString* groupId = [LCSharedUtils teamIdentifier];
-    if (groupId.length == 0) {
-        NSLog(@"[LC] failed to detect team identifier for keychain isolation");
-        return;
-    }
+    accessGroup = LCEntitledAccessGroupForContainer(keychainGroupId);
+    if (accessGroup.length == 0) {
+        NSString* groupId = [LCSharedUtils teamIdentifier];
+        if (groupId.length == 0) {
+            NSLog(@"[LC] failed to detect team identifier for keychain isolation");
+            return;
+        }
 
-    if(keychainGroupId == 0) {
-        accessGroup = [NSString stringWithFormat:@"%@.com.kdt.livecontainer.shared", groupId];
-    } else {
-        accessGroup = [NSString stringWithFormat:@"%@.com.kdt.livecontainer.shared.%ld", groupId, (long)keychainGroupId];
+        if (keychainGroupId == 0) {
+            accessGroup = [NSString stringWithFormat:@"%@.com.kdt.livecontainer.shared", groupId];
+        } else {
+            accessGroup = [NSString stringWithFormat:@"%@.com.kdt.livecontainer.shared.%ld", groupId, (long)keychainGroupId];
+        }
+        NSLog(@"[LC] keychain group entitlement missing, using fallback access group %@", accessGroup);
     }
     
     // check if the keychain access group is available
