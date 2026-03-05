@@ -447,6 +447,45 @@ static BOOL LCIsContainerScopedAddonKey(NSString *key) {
     }
 }
 
+- (void)copyPersistedSettingsFrom:(LCAppInfo *)sourceAppInfo {
+    if (sourceAppInfo == nil) {
+        return;
+    }
+
+    NSMutableDictionary *sourceInfo = [sourceAppInfo.info mutableCopy];
+    if (![sourceInfo isKindOfClass:[NSMutableDictionary class]]) {
+        sourceInfo = [NSMutableDictionary dictionary];
+    }
+
+    NSMutableDictionary *currentInfoSnapshot = [_info mutableCopy];
+    _info = sourceInfo;
+
+    NSArray<NSString *> *keysToPreserve = @[
+        @"LCPatchRevision",
+        @"LCJITLessSignID",
+        @"LCTeamId",
+        @"LCExpirationDate"
+    ];
+    for (NSString *key in keysToPreserve) {
+        id value = currentInfoSnapshot[key];
+        if (value != nil) {
+            _info[key] = value;
+        } else {
+            [_info removeObjectForKey:key];
+        }
+    }
+
+    id cantInjectValue = currentInfoSnapshot[@"LCTweakLoaderCantInject"];
+    if ([cantInjectValue respondsToSelector:@selector(boolValue)] && [cantInjectValue boolValue]) {
+        _info[@"LCTweakLoaderCantInject"] = @YES;
+        _info[@"dontInjectTweakLoader"] = @YES;
+    } else if (cantInjectValue != nil) {
+        _info[@"LCTweakLoaderCantInject"] = cantInjectValue;
+    } else {
+        [_info removeObjectForKey:@"LCTweakLoaderCantInject"];
+    }
+}
+
 - (void)save {
     NSArray<NSString *> *deprecatedProxyKeys = @[
         @"spoofNetwork",
