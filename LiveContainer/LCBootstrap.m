@@ -56,6 +56,27 @@ static NSString *LCSpoofBuildForSystemVersion(NSString *version) {
     return versionToBuild[version];
 }
 
+static NSString *LCLegacyAutoBuildForProfile(NSString *profile) {
+    static NSDictionary<NSString *, NSString *> *legacyBuildByProfile = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        legacyBuildByProfile = @{
+            @"iphone17promax": @"23A341",
+            @"iphone17pro": @"23A341",
+            @"iphone17": @"23A341",
+            @"iphone17air": @"23A341",
+        };
+    });
+
+    if (![profile isKindOfClass:NSString.class] || profile.length == 0) {
+        return nil;
+    }
+
+    NSString *normalized = [[profile.lowercaseString stringByReplacingOccurrencesOfString:@" " withString:@""]
+                            stringByReplacingOccurrencesOfString:@"-" withString:@""];
+    return legacyBuildByProfile[normalized];
+}
+
 static NSString *LCDefaultStorageCapacityForProfile(NSString *profile) {
     static NSDictionary<NSString *, NSString *> *profileToCapacity = nil;
     static dispatch_once_t onceToken;
@@ -720,6 +741,9 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         if (deviceProfile.length == 0) {
             deviceProfile = @"iPhone 17";
         }
+        NSString *normalizedProfile = [[[deviceProfile lowercaseString] stringByReplacingOccurrencesOfString:@" " withString:@""]
+                                       stringByReplacingOccurrencesOfString:@"-" withString:@""];
+        BOOL isIPhone17FamilyProfile = [normalizedProfile hasPrefix:@"iphone17"];
         LCSetDeviceProfile(deviceProfile);
         // Always derive CPU core count and RAM from selected device profile.
         // Clearing custom overrides prevents stale cross-launch mismatches.
@@ -736,8 +760,13 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             }
         }
         NSString *buildOverride = guestAppInfo[@"deviceSpoofBuildVersion"];
-        if (buildOverride.length == 0) {
-            buildOverride = guestAppInfo[@"iosVersionBuild"];
+        // Ignore historical iPhone 17 auto-filled build override when using profile defaults.
+        // Older builds persisted 23A341 as if it were explicit, which causes version/build drift.
+        if (customVersion.length == 0 && buildOverride.length > 0) {
+            NSString *legacyAutoBuild = LCLegacyAutoBuildForProfile(deviceProfile);
+            if (legacyAutoBuild.length > 0 && [buildOverride isEqualToString:legacyAutoBuild]) {
+                buildOverride = @"";
+            }
         }
         if (buildOverride.length > 0) {
             LCSetSpoofedBuildVersion(buildOverride);
@@ -977,9 +1006,6 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
 
         // Migrate historical iPhone 17 defaults that used older T8140/T8130 kernel codes.
         // If present, prefer profile-derived kernel metadata (T8150) for consistency.
-        NSString *normalizedProfile = [[[deviceProfile lowercaseString] stringByReplacingOccurrencesOfString:@" " withString:@""]
-                                       stringByReplacingOccurrencesOfString:@"-" withString:@""];
-        BOOL isIPhone17FamilyProfile = [normalizedProfile hasPrefix:@"iphone17"];
         if (explicitKernelOverride && isIPhone17FamilyProfile) {
             NSString *normalizedKernel = kernelVersion.lowercaseString;
             BOOL hasLegacySocCode = [normalizedKernel containsString:@"release_arm64_t8140"] ||

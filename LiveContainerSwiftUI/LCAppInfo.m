@@ -2115,10 +2115,6 @@ static BOOL LCIsContainerScopedAddonKey(NSString *key) {
 
 - (NSString *)deviceSpoofBuildVersion {
     NSString *value = _info[@"deviceSpoofBuildVersion"];
-    if (value.length > 0) {
-        return value;
-    }
-    value = _info[@"iosVersionBuild"];
     return value.length > 0 ? value : @"";
 }
 
@@ -2128,6 +2124,7 @@ static BOOL LCIsContainerScopedAddonKey(NSString *key) {
     } else {
         [_info removeObjectForKey:@"deviceSpoofBuildVersion"];
     }
+    [_info removeObjectForKey:@"iosVersionBuild"];
     [self save];
 }
 

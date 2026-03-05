@@ -2585,7 +2585,7 @@ struct LCAppSettingsView: View {
             .pickerStyle(MenuPickerStyle())
         }
         .onChange(of: model.uiDeviceSpoofProfile) { _ in
-            applyProfileDefaultsIfNeeded(force: false)
+            applyProfileDefaultsIfNeeded(force: true)
             applyProfileStorageCapacityIfNeeded(force: false)
         }
         .onAppear {
@@ -2645,6 +2645,9 @@ struct LCAppSettingsView: View {
                     .font(.caption2)
                     .foregroundColor(.orange)
             }
+        }
+        .onChange(of: model.uiDeviceSpoofCustomVersion) { _ in
+            applyProfileDefaultsIfNeeded(force: true)
         }
     }
 
@@ -3728,6 +3731,12 @@ struct LCAppSettingsView: View {
 
     private func buildDefaultForVersion(_ version: String) -> String? {
         switch version {
+        case "26.0":
+            return "23A341"
+        case "26.0.1":
+            return "23A355"
+        case "26.1":
+            return "23B85"
         case "26.3":
             return "23D127"
         case "26.2.1":
@@ -3749,13 +3758,13 @@ struct LCAppSettingsView: View {
         switch profile {
         case "iPhone 17 Pro Max", "iPhone 17 Pro":
             return (
-                "23A341",
+                "23D127",
                 "Darwin Kernel Version 25.0.0: Wed Jun 11 19:43:22 PDT 2025; root:xnu-12100.1.1~3/RELEASE_ARM64_T8150",
                 "25.0.0"
             )
         case "iPhone 17", "iPhone 17 Air":
             return (
-                "23A341",
+                "23D127",
                 "Darwin Kernel Version 25.0.0: Wed Jun 11 19:43:22 PDT 2025; root:xnu-12100.1.1~3/RELEASE_ARM64_T8150",
                 "25.0.0"
             )
